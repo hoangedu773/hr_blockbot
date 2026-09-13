@@ -29,6 +29,9 @@ Thumbs.db
 *.pem
 *.key
 
+# Local AI-tooling instructions (absolute machine paths, not project deliverables)
+AGENTS.md
+
 # Python (AI service)
 __pycache__/
 *.py[cod]

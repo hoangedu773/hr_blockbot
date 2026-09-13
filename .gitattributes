@@ -1,0 +1,19 @@
+* text=auto eol=lf
+
+*.docx binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.odttf binary
+*.pdf binary
+*.zip binary
+*.onnx binary
+*.safetensors binary
+
+*.cs diff=csharp
+*.vue linguist-language=TypeScript
