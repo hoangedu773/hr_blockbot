@@ -9,8 +9,8 @@
 ## Context
 
 `apps/api` ký mới và verify Access Token cho toàn bộ hệ thống (REST + handshake Socket.IO). Đề cương buộc
-"JWT + Refresh Token Rotation" (`RESEARCH-PLAN.md` §1 dòng 27). Câu hỏi research B3 được nêu tường minh
-(`RESEARCH-PLAN.md` §3 B3 dòng 138): "Thư viện JWT còn maintain không (`jose` vs `jsonwebtoken`)."
+"JWT + Refresh Token Rotation" (`RESEARCH-PLAN.md` §1). Câu hỏi research B3 được nêu tường minh
+(`RESEARCH-PLAN.md` §3 B3): "Thư viện JWT còn maintain không (`jose` vs `jsonwebtoken`)."
 
 Kết luận (`NOTES-01.md` §B3 dòng 201):
 
@@ -19,7 +19,7 @@ Kết luận (`NOTES-01.md` §B3 dòng 201):
 Ba nhu cầu cụ thể của hệ thống chạm tới thư viện này:
 
 1. **Access Token ở memory**, gửi qua `Authorization` header (`NOTES-01.md` §B3 dòng 198).
-2. **Verify JWT ngay trong Socket.IO handshake** (`socket.handshake.auth` — `RESEARCH-PLAN.md` §3 B7 dòng 173)
+2. **Verify JWT ngay trong Socket.IO handshake** (`socket.handshake.auth` — `RESEARCH-PLAN.md` §3 B7)
    ⇒ cùng một lib phải dùng được ngoài HTTP middleware.
 3. **Refresh token rotation + reuse detection** với `familyId` / `tokenHash` / `replacedBy`
    (`NOTES-01.md` §B3 dòng 186–196) — logic này do app viết, lib chỉ cung cấp primitives.
@@ -39,8 +39,8 @@ verify).
 
 | Phương án | Lý do loại |
 |---|---|
-| **`jsonwebtoken`** | Chính là vế so sánh của câu hỏi B3 (`RESEARCH-PLAN.md` §3 B3 dòng 138); `NOTES-01.md` dòng 201 chốt `jose` vì "**đang được maintain**" và "**không phụ thuộc package khác**" — hai tiêu chí mà research dùng để chấm, và `jsonwebtoken` không thắng ở đó |
-| Session cookie truyền thống (không JWT) | Trái ràng buộc đề cương "JWT + Refresh Token Rotation" (`RESEARCH-PLAN.md` §1 dòng 27) |
+| **`jsonwebtoken`** | Chính là vế so sánh của câu hỏi B3 (`RESEARCH-PLAN.md` §3 B3); `NOTES-01.md` dòng 201 chốt `jose` vì "**đang được maintain**" và "**không phụ thuộc package khác**" — hai tiêu chí mà research dùng để chấm, và `jsonwebtoken` không thắng ở đó |
+| Session cookie truyền thống (không JWT) | Trái ràng buộc đề cương "JWT + Refresh Token Rotation" (`RESEARCH-PLAN.md` §1) |
 | Tự viết ký/verify bằng Web Crypto | Không có trong phạm vi research; tự chịu rủi ro về `alg` confusion, `kid`, clock skew — đúng loại lỗi mà lib duy trì để xử lý |
 | OIDC provider bên ngoài | Không được NOTES-01/RESEARCH-PLAN nhắc tới ⇒ không có bằng chứng; thêm phụ thuộc dịch vụ ngoài vào một hệ đã có hai bên thứ ba (Atlas, LLM provider) |
 
@@ -61,7 +61,7 @@ verify).
 - API của `jose` **tường minh hơn** (promises, chỉ rõ `alg`, `iss`, `aud`, `exp`); dev quen kiểu gọi ngắn của
   `jsonwebtoken` sẽ phải học lại cách đặt tham số verify. Đây là chỗ dễ sinh lỗi "verify lỏng".
 - **Không có gate CI riêng cho việc chọn lib này** — theo luật "mỗi gate phải có lệnh"
-  (`RESEARCH-PLAN.md` §11 dòng 354), ADR này **không** tạo gate mới. Chỗ dựa kiểm chứng hiện có: unit test
+ (`RESEARCH-PLAN.md` §11), ADR này **không** tạo gate mới. Chỗ dựa kiểm chứng hiện có: unit test
   của `modules/auth` và gate coverage `pnpm --filter api exec vitest run --coverage domain`.
 - Nếu chọn JWKS, phải quyết định thêm về rotation key và nơi lưu key — NOTES-01 không nêu → `[CẦN NGUỒN]`.
 - Mọi rủi ro còn lại của JWT là **trách nhiệm thiết kế của app**, không của lib: TTL, khả năng thu hồi access
@@ -70,6 +70,6 @@ verify).
 ## References
 
 - `docs/research/NOTES-01.md` §B3 dòng 198 (access ở memory), dòng 201 (chọn `jose`), dòng 182–196 (rotation)
-- `docs/research/RESEARCH-PLAN.md` §1 dòng 27; §3 B3 dòng 138; §3 B7 dòng 173 (verify JWT trong handshake)
+- `docs/research/RESEARCH-PLAN.md` §1; §3 B3; §3 B7 (verify JWT trong handshake)
 - `docs/research/NOTES-01.md` dòng 551 (CẦN BỔ SUNG: thiếu URL tài liệu `jose`)
 - `docs/02-architecture.md` §7.1; ADR-006, ADR-008

@@ -46,9 +46,9 @@ khi dữ liệu dùng chung / thay đổi độc lập / quan hệ phức tạp 
 | `refresh_sessions` → `users` | **reference** | vòng đời token độc lập với hồ sơ, có TTL riêng | `B3`, `B4` |
 | `feedback_events` | **reference rời rạc** | append-only, không nằm trong vòng đời nghiệp vụ nào | `B4`, `RP §9 S4` |
 
-Hệ quả của embedding `statusHistory[]`: document `projects` có thể vượt trần một page 16 MB nếu một đề tài có
-hàng nghìn lần đổi trạng thái. Với quy mô đề tài của đồ án thì không chạm; nếu chạm thì phải chuyển
-`statusHistory[]` sang `project_events` và để document chỉ giữ trạng thái hiện tại
+Hệ quả của embedding `statusHistory[]`: một document có kích thước tối đa hữu hạn `(giới hạn cụ thể: [CẦN NGUỒN] — NOTES-01 không nêu)`.
+Với quy mô đề tài của đồ án thì không chạm ngưỡng đó; nếu chạm thì phải chuyển `statusHistory[]` sang
+`project_events` và để document chỉ giữ trạng thái hiện tại
 // **SUY DIỄN — cần xác nhận** (ngưỡng và cách xử lý đều không có trong nguồn).
 
 ---
@@ -115,7 +115,7 @@ erDiagram
   PROJECT_EVENTS {
     ObjectId _id PK
     ObjectId projectId "-> projects"
-    string type "CREATED / ASSIGNED / STARTED / PROGRESS_UPDATED / REPORT_SUBMITTED / APPROVED / REJECTED"
+    string type "CREATED / ASSIGNED / STARTED / PROGRESS_UPDATED / REPORT_SUBMITTED / APPROVED / REJECTED" // SUY DIEN
     string fromStatus
     string toStatus
     ObjectId actorId "-> users"
@@ -320,7 +320,7 @@ mutation" `(B6)`.
 _id             : ObjectId : PK
 projectId       : ObjectId : required // SUY DIỄN — cần xác nhận
 type            : 'CREATED'|'ASSIGNED'|'STARTED'|'PROGRESS_UPDATED'|'REPORT_SUBMITTED'|'APPROVED'|'REJECTED'
-                : required // SUY DIỄN — cần xác nhận (bảng enum do docs đặt; 'CANCELLED' chờ Q-01/D-03)
+                : required // SUY DIỄN — cần xác nhận (bảng enum do docs đặt; `CANCELLED` **không** nằm trong enum — đã chốt ở Q-01)
 fromStatus      : string?  // SUY DIỄN — cần xác nhận
 toStatus        : string?  // SUY DIỄN — cần xác nhận
 actorId         : ObjectId : required; null với job hệ thống // SUY DIỄN — cần xác nhận
@@ -513,7 +513,7 @@ thay vì join sang một collection không tồn tại. Xem §7.
 |---|---|---|---|---|---|
 | I-01 | `employees` | `employeeCode` | **UNIQUE** | `B4` | import/seed đối chiếu nhân viên theo mã; chặn trùng khi `make demo` chạy lại |
 | I-02 | `projects` | `(status, dueDate)` | compound | `B4` | "đề tài sắp hết hạn", job nhắc hạn 3 ngày/1 ngày, lọc theo trạng thái đang mở rồi đến hạn gần nhất |
-| I-03 | `projects` | `(assigneeIds, status)` | compound (multikey trên `assigneeIds`) | `B4` | "xem đề tài của tôi", `get_my_projects`, tính workload của một người |
+| I-03 | `projects` | `(assigneeIds, status)` | compound (multikey trên `assigneeIds`) | `B4` | "xem đề tài của tôi", `list_projects`, tính workload của một người |
 | I-04 | `projects` | `(departmentId, status, dueDate)` | compound | `B4` | `get_department_kpi`/dashboard phòng ban, template `department_kpi` của S10 (`B15`) |
 | I-05 | `reports` | `(projectId, createdAt)` | compound | `B4` | "báo cáo của đề tài này, mới nhất trước" → chọn bản đang chờ duyệt |
 | I-06 | `evaluations` | `(employeeId, period)` | **UNIQUE** | `B4` | BR-17: một người một kỳ đúng một bản; upsert khi mở kỳ |
@@ -697,7 +697,7 @@ Không tự sửa hộ nguồn; ghi lại kèm phương án tạm:
 |---|---|---|---|---|
 | D-01 | `B3` mô tả 9 field của `refresh_sessions` nhưng **không** nói `replacedBy` trỏ tới cái gì (`_id` của session kế tiếp hay `tokenHash` của nó), và không nêu thuật toán hash dùng cho `tokenHash`/`ipHash` | `B3` vs `B4` | docs chọn `replacedBy` = `tokenHash` của RT kế tiếp `// SUY DIỄN — cần xác nhận`; thuật toán hash để trống, xem `07-auth-rbac.md` §5 | nhóm |
 | D-02 | `departmentId` kiểu gì: `B15` cho ví dụ `departmentId: "DEV"` (mã chuỗi), còn `B7` room `department:<departmentId>` và `B4` index không nói kiểu | `B4` vs `B15` | schema để `ObjectId` + `departments.code`; service chấp nhận tra theo `code` rồi resolve `// SUY DIỄN` | nhóm |
-| D-03 | `CANCELLED` có trong công thức overdue nhưng không có trong sơ đồ state machine → enum của `projects.status` có hay không giá trị này | `B4` | docs này **không** đưa `CANCELLED` vào enum, và ghi rõ overdue formula khi đó trở thành `dueDate < now AND status ≠ COMPLETED` `// SUY DIỄN` | GVHD (Q-01 docs 04) |
+| D-03 | ~~`CANCELLED` có trong công thức overdue nhưng không có trong sơ đồ state machine~~ → **đã chốt: không có `CANCELLED`**. Sơ đồ `B4` có đúng 5 state; mọi công thức overdue trong bộ docs đã bỏ vế này. Hệ quả: nghiệp vụ "hủy đề tài" **không tồn tại ở MVP**, đã thành mục park chờ GVHD. | `B4` | enum `projects.status` = 5 giá trị; overdue = `dueDate < now AND status ≠ COMPLETED` | GVHD nếu muốn mở lại |
 | D-04 | `feedback_events.aiSuggestionId` không có collection nào để tham chiếu | `B4` (11 collection) vs `RP §9 S4` | snapshot thuộc tính gợi ý vào event `// SUY DIỄN` | nhóm |
 | D-05 | `B4` nói index cho *tập con document* bằng partial index nhưng không chỉ định collection nào; `RP §3 B4` lại hỏi "full-text search cho skills/policy" và `NOTES-01 B4` **không** trả lời | `B4` vs `RP §3 B4` | §4.2 nêu 3 candidate partial; §4.3 hoãn full-text, có lý do | nhóm |
 | D-06 | `period` của `evaluations` không có granularity → không viết được quy tắc sinh seed hay job mở kỳ | `B4` (chỉ `(employeeId, period) UNIQUE`) | để `string`, format `TBD` | nhóm (Q-07 docs 04) |

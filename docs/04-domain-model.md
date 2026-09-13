@@ -83,15 +83,15 @@ dùng Việt Nam. Một thuật ngữ chỉ có **một** cách viết trong cod
 | kỹ năng | `skills` | C1 | Mảng kỹ năng của nhân viên, đầu vào của matching | `B4`, `B5` |
 | yêu cầu kỹ năng của đề tài | `requiredSkills` | C2 | Đầu vào phía đề tài của bài toán "skills ↔ yêu cầu đề tài" | `RP §3 B5` // **SUY DIỄN — cần xác nhận** (tên field) |
 | trạng thái đề tài | `status` | C2 | Enum 5 giá trị lifecycle, xem mục 4 | `B4` |
-| quá hạn | *dẫn xuất* `overdue` | C2 | `dueDate < now AND status NOT IN {COMPLETED, CANCELLED}` — **không phải state** | `B4` |
+| quá hạn | *dẫn xuất* `overdue` | C2 | `dueDate < now AND status != COMPLETED` — **không phải state**; xem 4.4 | `B4` |
 | phiên bản lock | `version` | C2 | Số nguyên tăng mỗi lần ghi, phục vụ atomic conditional update | `B1` |
 | lịch sử trạng thái | `statusHistory[]` | C2 | Mảng append-only bên trong `projects` | `B1` |
-| sự kiện vòng đời | `project_event` | C2 | Bản ghi audit bất biến của một hành động lên đề tài | `B4` |
+| sự kiện vòng đời | `project_event` (collection `project_events`) | C2 | Bản ghi audit bất biến của một hành động lên đề tài | `B4` |
 | báo cáo nghiệm thu | `report` | C2 | Bài nộp của nhân viên cho một đề tài, duyệt được approve/reject | `B4`, RP §1 (F7) |
 | cập nhật tiến độ | `submit_progress` | C2 | Tool ghi có xác nhận; tạo `project_event`, không đổi trạng thái duyệt | `B6` tool catalog, `B0` UF-05 |
 | gợi ý phân công | `find_candidates` | C2/C4 | Tool đọc: trả danh sách ứng viên xếp hạng | `B6` |
 | giải thích gợi ý | `explain_candidate_match` | C2/C4 | Tool đọc: breakdown đóng góp từng kỹ năng | `B6`, `B14` |
-| phản hồi gợi ý | `feedback_event` | C2 | Admin bấm Đồng ý / Từ chối một gợi ý → lưu để hiệu chỉnh về sau (S4) | `B4`, `RP §9 S4` |
+| phản hồi gợi ý | `feedback_event` (collection `feedback_events`) | C2 | Admin bấm Đồng ý / Từ chối một gợi ý → lưu để hiệu chỉnh về sau (S4) | `B4`, `RP §9 S4` |
 | kỳ đánh giá | `period` | C3 | Khóa kỳ KPI; `(employeeId, period)` **UNIQUE** | `B4` index |
 | tự nhận xét | `selfReview` | C3 | Bước 1 chu kỳ KPI do nhân viên viết | `B0` (!) quyết định |
 | nhận xét của quản lý | `managerReview` | C3 | Bước 2; văn bản đưa vào phân tích ngữ nghĩa | `B0`, `B6` |
@@ -110,7 +110,7 @@ dùng Việt Nam. Một thuật ngữ chỉ có **một** cách viết trong cod
 | thông báo | `notification` | C5 | Bản ghi bền, có `readAt` | `B4`, `B7` |
 | nhắc hạn | `reminder` | C5 | Job scheduler sinh notification theo deadline | `B0` UF-09, `B15` |
 | bản tóm trong ngày | `digest` | C5 | 1 bản/ngày cho Admin; kênh digest | `B0` matrix, `RP §9 S6` |
-| phiên refresh token | `refresh_session` | C1 | Một vòng đời RT, thuộc một `familyId` | `B3` |
+| phiên refresh token | `refresh_session` (collection `refresh_sessions`) | C1 | Một vòng đời RT, thuộc một `familyId` | `B3` |
 | gia đình token | `familyId` | C1 | Chuỗi RT cùng gốc; reuse → revoke **cả family** | `B3` |
 | xác nhận trước khi ghi | `confirm-before-write` | C4 | Tool ghi phải qua bước confirm | `B6`, `RP §9 S8` |
 | phạm vi do server gắn | *server scope injection* | C4 | Model chỉ chọn template; server tự điền user/department | `B15` |
@@ -169,7 +169,7 @@ dùng thống nhất ở mọi file:
 | Đang thực hiện | `IN_PROGRESS` | đang mở | mở |
 | Chờ duyệt | `PENDING_REVIEW` | đang mở | mở |
 | Hoàn thành | `COMPLETED` | **chốt (terminal)** | chốt |
-| — (xem 4.5) | `CANCELLED` | **nghi vấn trong nguồn** | — |
+| — | ~~`CANCELLED`~~ | **KHÔNG có state này** — chốt ở 4.5 | — |
 
 ### 4.2 Sơ đồ
 
@@ -187,8 +187,8 @@ stateDiagram-v2
   note right of IN_PROGRESS
     Quá hạn KHÔNG phải state.
     overdue = dueDate < now AND
-    status != COMPLETED AND status != CANCELLED
-    (NOTES-01 B4)
+    status != COMPLETED
+    (NOTES-01 B4; xem 4.4 va 4.5)
   end note
 
   note right of COMPLETED
@@ -212,7 +212,7 @@ append-only), **notify** (`B0` notification matrix).
 | T-05a | `PENDING_REVIEW` | `COMPLETED` | Admin | Có báo cáo nộp gần nhất; `reason` nên có để truy vết `// SUY DIỄN` | `project:updated` + `kpi:updated` · event `APPROVED` · notify: **không có dòng approve trong `B0`** → xem Q-04 | — |
 | T-05b | `PENDING_REVIEW` | `IN_PROGRESS` | Admin (reject) | `reason` **bắt buộc** `// SUY DIỄN` (suy từ intent "xem lý do bị từ chối" ở `B0`) | `project:updated` + `report:updated` · event `REJECTED` (giữ bản report bị từ chối) · notify **Báo cáo bị reject** → Employee, WS theo event `(B0)` | Reject = quay lại `IN_PROGRESS`, **không** xoá lịch sử, **không** trừ điểm tự động; nhân viên nộp lại bằng T-04 (vòng *resubmit* của `B0`: "reject/request-change → resubmit") |
 | T-06 | `IN_PROGRESS` | `IN_PROGRESS` | Employee | `submit_progress` **confirm** `(B6)`; `clientMessageId` chống trùng `(B7)` | `project:updated` · event `PROGRESS_UPDATED` · notify: chỉ khi chạm ngưỡng nhắc trong matrix `(B0)` | — |
-| T-07 | `DRAFT` \| `ASSIGNED` \| `IN_PROGRESS` \| `PENDING_REVIEW` | `CANCELLED` | Admin | **chưa chốt** — state này chỉ xuất hiện trong công thức overdue của `B4`, không có trong sơ đồ `B4` | `project:updated` · event `CANCELLED` · không notify | — ; xem 4.5 và Q-01 |
+| — | ~~T-07~~ | — | — | **ĐÃ loại** — `CANCELLED` không phải state; xem 4.5 | — | — |
 
 Ràng buộc chung cho mọi transition (đều có nguồn):
 
@@ -232,7 +232,7 @@ condition*. Mô hình tuân thủ:
 
 ```text
 overdue(project) = project.dueDate < now
-                   AND project.status NOT IN { COMPLETED, CANCELLED }
+                   AND project.status != COMPLETED
 ```
 
 Hệ quả nghiệp vụ:
@@ -247,8 +247,10 @@ Hệ quả nghiệp vụ:
 
 ### 4.5 Ba khoảng trống phải chốt trước khi code F2
 
-1. `CANCELLED` (Q-01): nguồn dùng nó ở vế phủ định của công thức overdue nhưng không cho transition nào tới
-   nó. Hoặc thêm T-07 + precondition, hoặc bỏ `CANCELLED` khỏi công thức. **Không chọn cả hai.**
+1. ~~`CANCELLED`~~ — **đã chốt: không có state này.** Sơ đồ `B4` chỉ có 5 state và không có transition nào
+   tới `CANCELLED`; nó chỉ xuất hiện ở vế phủ định của công thức overdue. Giữ 5 state và bỏ `CANCELLED`
+   khỏi công thức (Q-01 đã đóng). Hệ quả: **hệ thống hiện không có nghiệp vụ "hủy đề tài"** — đã chuyển
+   thành mục park ở `backlog-parked.md`, cần GVHD duyệt nếu muốn có.
 2. `DRAFT → ASSIGNED` khi Admin đổi ý (Q-02): nguồn không có transition lùi. Cách ít xâm phạm nhất là cho phép sửa
    `assigneeIds` ngay tại `DRAFT` (tạo `project_event`, không đổi state) `// SUY DIỄN`.
 3. Reopen sau `COMPLETED` (Q-05): không có trong sơ đồ → mặc định **không hỗ trợ** ở MVP.
@@ -379,7 +381,7 @@ Ba hệ quả miền (không phải chi tiết kỹ thuật):
 
 | ID | Câu hỏi | Chỗ chặn | Thuộc |
 |---|---|---|---|
-| Q-01 | `CANCELLED` có phải state thật không, và ai được chuyển tới nó? | T-07, công thức overdue | GVHD + nhóm |
+| ~~Q-01~~ **đã chốt** | `CANCELLED` **không** là state: sơ đồ `B4` có đúng 5 state, không có transition nào tới nó. Hệ quả: MVP **không có nghiệp vụ hủy đề tài** → thành mục park ở `backlog-parked.md`, cần GVHD duyệt nếu muốn mở. | 4.1, 4.4, 4.5 | GVHD (chỉ khi mở lại) |
 | Q-02 | Nhân viên có được **từ chối đề tài được giao** không (`B0` có UF-04 "chấp nhận/từ chối", `B4` state machine không có nhánh này)? | T-02 | GVHD |
 | Q-03 | Từ `ASSIGNED`, nhân viên "bắt đầu" hay Admin mới mở `IN_PROGRESS`? | T-03 | nhóm |
 | Q-04 | Có notification cho Employee khi **approve/completed** không? `B0` matrix chỉ liệt kê 9 dòng, không có dòng approve | notify sau T-05a | nhóm |
@@ -395,13 +397,13 @@ Ba hệ quả miền (không phải chi tiết kỹ thuật):
 
 Ghi lại để không bị động khi hội đồng hỏi; **không** tự sửa hộ nguồn.
 
-1. `NOTES-01 B4`: `CANCELLED` xuất hiện trong công thức overdue nhưng **không** có trong sơ đồ state machine
-   của cùng batch (mục 4.5 Q-01).
+1. ~~`NOTES-01 B4`: `CANCELLED` xuất hiện trong công thức overdue nhưng **không** có trong sơ đồ state machine
+   của cùng batch~~ → **đã chốt: loại `CANCELLED`** (xem 4.5). Công thức overdue ở mọi file đã bỏ vế này.
 2. `NOTES-01 B4` liệt kê `feedback_events (S4)` với `aiSuggestionId`, nhưng 11 collection **không có** nơi
    chứa bản thân gợi ý để tham chiếu → xử lý ở `05-data-model.md` mục `feedback_events`.
-3. `NOTES-01 B0`: dòng 19 và dòng 24 trùng nhau ("Phải có workflow `request → approval → ...`"); dòng 23
-   kết thúc bằng dấu phẩy, câu về MISA self-evaluation **bị cắt** — nghĩa đầy đủ chỉ lấy được từ chính cây
-   chu trình ở đầu dòng 23 (`self-review → manager review → ...`).
+3. ~~`NOTES-01 B0`: dòng 19 và dòng 24 trùng nhau; câu về MISA self-evaluation bị cắt~~ → **đã sửa trong
+   `NOTES-01.md`**: dòng trùng bị loại, câu về MISA/Lattice đã viết đủ. Còn treo: **URL nguồn** cho
+   Personio / MISA / Oracle HCM / Lattice (mục "CẦN BỔ SUNG" của NOTES-01).
 4. `NOTES-01` phần "CẦN BỔ SUNG": danh sách đánh số `1, 2, 4, 4` (thiếu 3, trùng 4) và **URL của mọi con số
    ở B1 bị mất khi paste**. Hệ quả: mọi giới hạn hạ tầng trong các file thiết kế chỉ được nêu như *quyết
    định*, không được nêu như *số liệu đã kiểm chứng* `[CẦN NGUỒN]`.

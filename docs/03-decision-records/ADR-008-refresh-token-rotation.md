@@ -8,10 +8,10 @@
 
 ## Context
 
-Đề cương yêu cầu "JWT + **Refresh Token Rotation**; RBAC Admin/Employee" (`RESEARCH-PLAN.md` §1 dòng 27).
+Đề cương yêu cầu "JWT + **Refresh Token Rotation**; RBAC Admin/Employee" (`RESEARCH-PLAN.md` §1).
 Research B3 phải trả lời hai câu: (a) rotation + reuse detection phát hiện thế nào, lưu hash ở đâu, TTL
 khuyến nghị; (b) lưu token ở httpOnly cookie hay memory + `Authorization` header, cho **hai client** là web
-và chatbot (`RESEARCH-PLAN.md` §3 B3 dòng 134–135).
+và chatbot (`RESEARCH-PLAN.md` §3 B3).
 
 Bằng chứng chuẩn ngành mà NOTES-01 trích (`§B3 dòng 182–183`):
 
@@ -61,7 +61,7 @@ Năm hệ quả thiết kế rút từ flow và model trên:
    gọi `/refresh` bằng cookie. Chỗ hợp lý để đặt logic "tự refresh rồi retry" là client + React Query hooks
    do Orval sinh (`02-architecture.md` §7.2).
 
-**TTL của access/refresh:** `RESEARCH-PLAN.md` §3 B3 dòng 134 yêu cầu "TTL khuyến nghị" nhưng **NOTES-01
+**TTL của access/refresh:** `RESEARCH-PLAN.md` §3 B3 yêu cầu "TTL khuyến nghị" nhưng **NOTES-01
 không có con số** → `[CẦN NGUỒN]`, chốt ở `07-auth-rbac.md`.
 
 ## Alternatives considered
@@ -95,11 +95,11 @@ không có con số** → `[CẦN NGUỒN]`, chốt ở `07-auth-rbac.md`.
   các request khác chờ); nếu không, chính client tạo reuse và **tự revoke family của mình** — bug kinh điển
   của pattern này, phải thành test case ở `07-auth-rbac.md`.
 - Rotation phá tính stateless tinh khiết: mỗi refresh là một vòng đọc-ghi Mongo, tính vào trần ~100 ops/s.
-- **Cookie HttpOnly không dùng được cho client nhúng cross-origin.** `RESEARCH-PLAN.md` §3 B3 dòng 135 nêu
+- **Cookie HttpOnly không dùng được cho client nhúng cross-origin.** `RESEARCH-PLAN.md` §3 B3 nêu
   vấn đề "2 client: web + chatbot" nhưng NOTES-01 chỉ chốt cho **Web** ⇒ nếu chatbot là widget nhúng độc lập,
   cần thiết kế riêng cho public client: `[CẦN NGUỒN]` (điểm treo #7 ở `02-architecture.md` §12).
 - **Không có gate CI mới** cho ADR này, theo đúng luật "không thêm gate nào nếu chưa có lệnh chạy nó trong
-  CI" (`RESEARCH-PLAN.md` §11 dòng 354). Kiểm chứng hiện có: unit/integration test của `modules/auth` chạy
+ CI" (`RESEARCH-PLAN.md` §11). Kiểm chứng hiện có: unit/integration test của `modules/auth` chạy
   trên `mongodb-memory-server` (§B10 dòng 398).
 
 ## References
@@ -107,5 +107,5 @@ không có con số** → `[CẦN NGUỒN]`, chốt ở `07-auth-rbac.md`.
 - `docs/research/NOTES-01.md` §B3 dòng 180–209 (RFC 9700, flow rotation, model `refresh_sessions`, cách lưu token)
 - `docs/research/NOTES-01.md` §B4 dòng 218, 245 (collection, index `tokenHash` UNIQUE / `expiresAt` TTL)
 - `docs/research/NOTES-01.md` §B1 dòng 114, 116 (trần ops/s, sleep 15 phút, wake-up ~1 phút); dòng 551 (thiếu URL RFC 9700)
-- `docs/research/RESEARCH-PLAN.md` §1 dòng 27; §3 B3 dòng 134–135; §11 dòng 354
+- `docs/research/RESEARCH-PLAN.md` §1; §3 B3; §11
 - `docs/02-architecture.md` §7.1, §12; ADR-006, ADR-007, ADR-010

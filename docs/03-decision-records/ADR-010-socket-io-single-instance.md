@@ -8,9 +8,9 @@
 
 ## Context
 
-Đề cương bắt buộc realtime qua WebSocket (`RESEARCH-PLAN.md` §1 dòng 28) cho cả hội thoại chatbot lẫn nhắc
+Đề cương bắt buộc realtime qua WebSocket (`RESEARCH-PLAN.md` §1) cho cả hội thoại chatbot lẫn nhắc
 hạn. B7 được giao câu hỏi về scaling: "Redis adapter — 1 instance thì không cần, nhưng phải ghi rõ 'out of
-scope, tại sao'" (`RESEARCH-PLAN.md` §3 B7 dòng 175).
+scope, tại sao'" (`RESEARCH-PLAN.md` §3 B7).
 
 Hai dữ kiện hạ tầng quyết định (`NOTES-01.md` §B1 dòng 116):
 
@@ -50,7 +50,7 @@ mọi module khác (project, notification, chatbot) đẩy event qua publisher d
 | **Vercel làm backend WebSocket** | Vercel có hỗ trợ WS từ 22/06/2026 nhưng **đang ở Public Beta** (§B1 dòng 117); NOTES-01 xếp Vercel/Netlify cho frontend ("Netlify … dùng frontend tốt hơn" — dòng 118–119) |
 | **Netlify Functions cho WS backend** | "serverless/streaming tốt, nhưng **không phải lựa chọn ưu tiên cho Socket.IO backend chính**" (§B1 dòng 118) |
 | **2 namespace (chatbot vs notification)** | "Không cần 2 namespace ngay" (§B7 dòng 365–366); tách namespace khi còn một room model duy nhất chỉ tăng hợp đồng phải giữ |
-| **SSE / long-polling tự viết thay Socket.IO** | Trái ràng buộc Socket.IO của đề cương (`RESEARCH-PLAN.md` §1 dòng 26) và bỏ mất fallback/reconnect mà NOTES-01 ghi nhận là Socket.IO "tự hỗ trợ" |
+| **SSE / long-polling tự viết thay Socket.IO** | Trái ràng buộc Socket.IO của đề cương (`RESEARCH-PLAN.md` §1) và bỏ mất fallback/reconnect mà NOTES-01 ghi nhận là Socket.IO "tự hỗ trợ" |
 
 ## Consequences
 
@@ -72,7 +72,7 @@ mọi module khác (project, notification, chatbot) đẩy event qua publisher d
   không chạy** ⇒ đến khi có traffic đánh thức (wake-up **có thể ~1 phút**), reminder mới được gửi.
   Hệ quả UX: nhắc hạn là **"hàng đợi việc cần làm khi mở app"**, không phải tiếng chuông đúng phút.
   `docs/10-ui-ux-spec.md` phải thiết kế theo hướng đó.
-- **Không scale ngang.** Đây là out-of-scope được ghi nhận có chủ đích (`RESEARCH-PLAN.md` §3 B7 dòng 175);
+- **Không scale ngang.** Đây là out-of-scope được ghi nhận có chủ đích (`RESEARCH-PLAN.md` §3 B7);
   nếu sau này cần 2 instance, ADR này bị supersede và kéo theo Redis (tức là kéo theo cả quyết định
   BullMQ/queue đã loại ở ADR-011).
 - Mọi kết nối WS của người dùng đang hoạt động đều nằm trên **một event loop** cùng với REST API; broadcast
@@ -88,5 +88,5 @@ mọi module khác (project, notification, chatbot) đẩy event qua publisher d
 - `docs/research/NOTES-01.md` §B7 dòng 354–366 (một instance, không Redis, rooms, events, `clientMessageId`, 1 namespace)
 - `docs/research/NOTES-01.md` §B1 dòng 114, 116–119 (Atlas 500 connections; Render sleep 15 phút, wake-up ~1 phút; Vercel WS Public Beta; Netlify)
 - `docs/research/NOTES-01.md` §B0 dòng 92–104 (notification matrix, kênh WS + in-app + digest); dòng 530 (Redis không thêm ở baseline)
-- `docs/research/RESEARCH-PLAN.md` §1 dòng 26, 28; §3 B7 dòng 172–179; §11 dòng 346 (gate WS contract)
+- `docs/research/RESEARCH-PLAN.md` §1; §3 B7; §11 (gate WS contract)
 - `docs/02-architecture.md` §4, §5.3, §6 (hàng `apps/api`), §7.3, §9, §10 (hàng Redis / namespace thứ hai)

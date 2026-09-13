@@ -174,7 +174,7 @@ Những mục dưới đây **không phải backlog** — NOTES-01 đã research
 |---|---|
 | **Qdrant** (vector DB riêng) | B1: "Không dựng Qdrant ở baseline. F4 skill matching chạy vector/cosine trong Python FastAPI thay vì tốn thêm một Atlas Vector index → còn dư index cho thử nghiệm sau." |
 | **Redis**, **BullMQ**, **Turborepo**, **NestJS**, **LangChain/LangGraph**, **microservice phức tạp**, **Kubernetes** | Kết luận cuối file, dòng 530–531: "**Không thêm ở baseline** … chưa tạo đủ giá trị cho nhóm 3 người / 12 tuần." Lý do từng mục: NestJS chờ xác nhận GVHD (§7.1) và Express đã nằm trong đầu bài (B2); BullMQ cần Redis trong khi Atlas đã có Mongo → chọn Agenda (B15); Turborepo "chỉ thêm khi CI/build thực sự chậm" (B2); Socket.IO 1 instance + MongoDB, không Redis (B7). Bảng đầy đủ ở `18-user-flows.md`, mục "Out of scope (baseline)". |
-| **`OVERDUE` là state chính** của đề tài | B4: bác; quá hạn là **dẫn xuất** `dueDate < now AND status NOT IN {COMPLETED, CANCELLED}` |
+| **`OVERDUE` là state chính** của đề tài | B4: bác; quá hạn là **dẫn xuất** `dueDate < now AND status != COMPLETED` |
 | **Transaction nhiều collection cho F2** | B1: "Không thiết kế F2 dựa vào transaction nhiều collection"; chuyển sang *atomic conditional update* trên `project.status`/`project.version` |
 | **F1 đơn độc làm metric ranking Top-K** | B5: bác; dùng `Precision@1/@3/@5, Recall@5, MRR, nDCG@5 (optional), latency, RAM` |
 | **Giải thích matching bằng attention của PhoBERT** | B14: bác; chọn skill-to-skill cosine + leave-one-skill-out |

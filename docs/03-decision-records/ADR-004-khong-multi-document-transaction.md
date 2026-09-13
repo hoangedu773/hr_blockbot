@@ -9,7 +9,7 @@
 ## Context
 
 F2 (vòng đời đề tài) và F7 (nộp báo cáo nghiệm thu) đều là thao tác **ghi nhiều nơi cùng lúc**: đổi
-`project.status` + ghi lịch sử + tạo `report` + tạo `notification`. `RESEARCH-PLAN.md` §3 B1 dòng 116 nêu
+`project.status` + ghi lịch sử + tạo `report` + tạo `notification`. `RESEARCH-PLAN.md` §3 B1 nêu
 đúng câu hỏi bắt buộc phải trả lời trước khi thiết kế: "Atlas M0: … có **transactions** không (F2 đổi trạng
 thái + F7 ghi report)".
 
@@ -21,7 +21,7 @@ connections, **không backup tự động**. Kết luận về transaction (`NOT
 
 Hai chi tiết làm cho transaction liên document trở thành giả định mong manh ở baseline: (a) transaction cần
 **replica set**, và NOTES-01 **không xác nhận** M0 cung cấp gì về điểm này; (b) mục "CẦN BỔ SUNG"
-(dòng 553–556) còn treo việc xác nhận năng lực M0; theo nguyên tắc làm việc ở `RESEARCH-PLAN.md` §0.1
+ còn treo việc xác nhận năng lực M0; theo nguyên tắc làm việc ở `RESEARCH-PLAN.md` §0.1
 ("không bịa số liệu, không giả sử ràng buộc"), kiến trúc không được **đặt cược** vào một tính năng chưa xác minh.
 
 State machine F2 (`NOTES-01.md` §B4 dòng 225–231) cũng cho thấy bản chất ghi là **một document**:
@@ -61,8 +61,9 @@ Ba quy tắc dẫn xuất từ pattern trên:
    mất một lần push không làm mất dữ liệu.
 
 Quy tắc liên quan, cùng họ "không trộn trạng thái": **OVERDUE không phải state** — nó là dẫn xuất
-`dueDate < now AND status NOT IN {COMPLETED, CANCELLED}` (§B4 dòng 233–235), tức là **không có write nào**
-cho trạng thái quá hạn ⇒ scheduler không cần transaction để "đánh dấu quá hạn".
+`dueDate < now AND status != COMPLETED` (công thức rút từ §B4; vế `NOT IN {COMPLETED, CANCELLED}` trong nguồn
+đã bỏ `CANCELLED` vì chính §B4 không có transition nào tới state đó — chốt ở `04-domain-model.md` 4.5),
+tức là **không có write nào** cho trạng thái quá hạn ⇒ scheduler không cần transaction để "đánh dấu quá hạn".
 
 ## Alternatives considered
 
@@ -95,7 +96,7 @@ cho trạng thái quá hạn ⇒ scheduler không cần transaction để "đán
   notification fail, hệ thống ở trạng thái "đúng nghiệp vụ, thiếu thông báo" — phải chấp nhận, và dựa vào
   retry idempotent để bù (liên quan ADR-011: job survive restart).
 - Cấm `session.startTransaction()` là chuẩn mực kỷ luật của team. Theo luật "mỗi gate phải có lệnh CI"
-  (`RESEARCH-PLAN.md` §11 dòng 354), **không có gate riêng cho luật này** vì chưa có lệnh được chốt; chỗ dựa
+ (`RESEARCH-PLAN.md` §11), **không có gate riêng cho luật này** vì chưa có lệnh được chốt; chỗ dựa
   hiện tại là dependency-cruiser + integration test chạy trên MongoDB thật.
 - `version` phải được truyền đúng từ client đọc gần nhất ⇒ phát sinh xung đột giả khi UI để tab cũ mở;
   UX phải có đường "tải lại và thử lại".
@@ -105,6 +106,6 @@ cho trạng thái quá hạn ⇒ scheduler không cần transaction để "đán
 - `docs/research/NOTES-01.md` §B1 dòng 108–143 (trần hạ tầng, quyết định transaction, pattern `statusHistory[]`, câu chốt dòng 142)
 - `docs/research/NOTES-01.md` §B4 dòng 213–248 (baseline collections, embed/reference, state machine F2, OVERDUE-derived, index)
 - `docs/research/NOTES-01.md` §B10 dòng 397–399 (`mongodb-memory-server`); §B7 dòng 364–365 (durable notification)
-- `docs/research/RESEARCH-PLAN.md` §3 B1 dòng 116, 121 (câu hỏi transaction + "Hệ quả phải quyết")
+- `docs/research/RESEARCH-PLAN.md` §3 B1 (câu hỏi transaction + "Hệ quả phải quyết")
 - `docs/research/NOTES-01.md` dòng 553–556 (mục CẦN BỔ SUNG — năng lực M0 chưa xác minh)
 - `docs/02-architecture.md` §5.2, §6, §10 (multi-document transaction bị loại ở baseline)

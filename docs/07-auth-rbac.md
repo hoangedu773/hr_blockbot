@@ -368,7 +368,7 @@ triển khai), **CHƯA XÁC MINH** (nguồn im lặng — **không** được gh
 | 14 | Confirm-before-write cho tool ghi (S8) | **ĐÃ LÀM** (thiết kế) | `B6`, `B0`, `RP §9 S8`, BR-05 docs 04 |
 | 15 | Zod validate mọi tham số LLM trả về | **ĐÃ LÀM** (thiết kế) | `B6` guard + `B2` contract pipeline |
 | 16 | Audit mọi mutation | **ĐÃ LÀM** (thiết kế) | `B6`, `B4` (`project_events`), BR-03/BR-19 docs 04 |
-| 17 | Không cho LLM sinh query tự do (S10/S15) | **ĐÃ LÀM** (thiết kế) | `B15`: whitelist template + row cap + timeout; BR-14 docs 04 |
+| 17 | Không cho LLM sinh query tự do (S10) | **ĐÃ LÀM** (thiết kế) | `B15`: whitelist template + row cap + timeout; BR-14 docs 04 |
 | 18 | Secret scanning trong CI (`gitleaks`) | **ĐÃ LÀM** (kế hoạch CI) | `B10` pipeline + `RP §11` gate "1 secret leak = fail build" |
 | 19 | Không đưa secret/join key vào repo; `.env`/config tách bạch | **CHƯA XÁC MINH** | `B2` có `packages/config` nhưng `NOTES-01` không mô tả quản lý secret |
 | 20 | Đường truyền TLS / HSTS | **CHƯA XÁC MINH** | chỉ suy ra từ `Secure` cookie `(B3)`; nền tảng hosting do `RP §1` chọn, `NOTES-01 B1` **mất URL** |

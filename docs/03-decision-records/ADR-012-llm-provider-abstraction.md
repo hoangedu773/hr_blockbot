@@ -55,7 +55,7 @@ Bốn nghĩa vụ mà interface này phải phủ (tất cả đều là dữ ki
 |---|---|
 | Hard-code Gemini SDK vào service | Chính là điều NOTES-01 cấm: "không hard-code vào business logic" (§B6 dòng 298). Mất khả năng đổi khi hết quota/đổi giá, và mất luôn chỗ để đo S9 |
 | **LangChain / LangGraph** | Liệt kê trong "Không thêm ở baseline" (§dòng 530). Agent loop cần có chỉ là router → tool → validate → permission → execute với guard; thêm framework để có loop là trả phí học không đổi lại quyết định thiết kế nào |
-| Ollama / model chạy local | `RESEARCH-PLAN.md` §3 B6 dòng 163 có nêu Ollama trong danh sách "chọn model + nơi chạy", nhưng baseline NOTES-01 chốt là provider có function calling (Gemini/Groq). Chạy local còn đụng trần RAM chưa xác minh của VPS 2GB (ADR-003, `[CẦN NGUỒN]`) |
+| Ollama / model chạy local | `RESEARCH-PLAN.md` §3 B6 có nêu Ollama trong danh sách "chọn model + nơi chạy", nhưng baseline NOTES-01 chốt là provider có function calling (Gemini/Groq). Chạy local còn đụng trần RAM chưa xác minh của VPS 2GB (ADR-003, `[CẦN NGUỒN]`) |
 | Chọn OpenAI làm baseline | "không có Free tier cho GPT-5 Mini" (§B6 dòng 296) ⇒ không phù hợp project sinh viên, là lý do NOTES-01 đưa nó vào danh sách provider nhưng **không** đưa vào baseline |
 | Tự gọi HTTP API của từng hãng không qua interface | Vẫn phải viết 3 adapter; khác biệt là không có chỗ chung để đặt guard + audit + fallback ⇒ nghiệp vụ sẽ phân nhánh theo tên provider |
 
@@ -90,5 +90,5 @@ Bốn nghĩa vụ mà interface này phải phủ (tất cả đều là dữ ki
 
 - `docs/research/NOTES-01.md` §B6 dòng 290–330 (bảng provider, `LLMProvider`, agent flow, guard, tool catalog)
 - `docs/research/NOTES-01.md` dòng 505–528 (sơ đồ lớp: LLM là tầng cuối), dòng 530 (LangChain/LangGraph không thêm ở baseline)
-- `docs/research/RESEARCH-PLAN.md` §3 B6 dòng 163–164; §3 B10 dòng 202; §9 S9 dòng 313
+- `docs/research/RESEARCH-PLAN.md` §3 B6; §3 B10; §9 S9
 - `docs/02-architecture.md` §6 (hàng LLM provider), §7.5, §10 (hàng LangChain); ADR-003, ADR-016

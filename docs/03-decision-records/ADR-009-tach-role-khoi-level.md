@@ -9,12 +9,12 @@
 ## Context
 
 Đề cương mô tả F1 là "hồ sơ / phòng ban / **5 cấp bậc**" và đồng thời yêu cầu "RBAC Admin/Employee"
-(`RESEARCH-PLAN.md` §1 dòng 25, 27). Hai khái niệm này rất dễ bị gộp thành một trường duy nhất khi code —
-và `RESEARCH-PLAN.md` §3 B3 dòng 136 đã nêu đúng nỗi lo: "RBAC 2 vai × 5 cấp bậc: permission matrix hay
+(`RESEARCH-PLAN.md` §1). Hai khái niệm này rất dễ bị gộp thành một trường duy nhất khi code —
+và `RESEARCH-PLAN.md` §3 B3 đã nêu đúng nỗi lo: "RBAC 2 vai × 5 cấp bậc: permission matrix hay
 role hierarchy? Có cần CASL không?"
 
 Ký hiệu `(!)` trong NOTES-01 (dòng 10–11) nghĩa là "chỗ research của nhóm bác bỏ/đảo ngược giả định trong
-`RESEARCH-PLAN.md` gốc". Kết luận B3 (dòng 202–209) mang dấu này và phát biểu như sau:
+`RESEARCH-PLAN.md` gốc". Kết luận B3 mang dấu này và phát biểu như sau:
 
 > **(!) RBAC không trộn 2 trục:**
 >
@@ -58,7 +58,7 @@ Quy tắc triển khai:
 |---|---|
 | **Dùng `level` làm role hierarchy** (Lead ≈ Admin, Intern ≈ Employee yếu) | Đúng cái mà B3 bác: "RBAC **không trộn 2 trục**" (`NOTES-01.md` dòng 202). Trộn trục tạo ra quyền không ai định nghĩa: một Senior không phải Admin nhưng lại có quyền "gần bằng"; ngược lại Admin mới vào làm Intern sẽ bị matching coi là người thiếu kỹ năng |
 | **CASL / permission matrix thư viện** | "Không cần CASL ở MVP với chỉ hai role" (`NOTES-01.md` dòng 209). Thêm abstraction layer để phục vụ 2 giá trị là trả phí cho tính linh hoạt chưa dùng |
-| ABAC theo phòng ban (`departmentId` làm điều kiện quyền) | Đề cương chỉ yêu cầu RBAC Admin/Employee (`RESEARCH-PLAN.md` §1 dòng 27). **Nhưng** note quan trọng: S10 NL→data **có** inject "user/department scope" ở server (`NOTES-01.md` §B15 dòng 491) — đó là **phạm vi dữ liệu (scoping)** do server áp, không phải một trục quyền thứ hai mở cho người dùng. Không được nhân cơ hội đó để biến `departmentId` thành role |
+| ABAC theo phòng ban (`departmentId` làm điều kiện quyền) | Đề cương chỉ yêu cầu RBAC Admin/Employee (`RESEARCH-PLAN.md` §1). **Nhưng** note quan trọng: S10 NL→data **có** inject "user/department scope" ở server (`NOTES-01.md` §B15 dòng 491) — đó là **phạm vi dữ liệu (scoping)** do server áp, không phải một trục quyền thứ hai mở cho người dùng. Không được nhân cơ hội đó để biến `departmentId` thành role |
 | Nhiều role hơn (Manager, HR, Reviewer…) | UF-02 (nghỉ phép theo cấp), UF-03, UF-07, UF-08 đều bị để ở `docs/backlog-parked.md` chờ GVHD (`NOTES-01.md` §B0 dòng 47) ⇒ chưa có luồng nào cần role thứ ba trong F1–F7 |
 
 ## Consequences
@@ -77,7 +77,7 @@ Quy tắc triển khai:
 
 - **Hai trục, hai chỗ phải nhớ.** Dev mới dễ viết `if (user.level === 'Lead')` để "cho nhanh"; luật hiện có
   không có gate CI riêng (không có lệnh nào được chốt cho nó), nên chỗ dựa là code review + test của
-  `modules/auth` — theo đúng luật "không thêm gate nếu chưa có lệnh" ở `RESEARCH-PLAN.md` §11 dòng 354.
+ `modules/auth` — theo đúng luật "không thêm gate nếu chưa có lệnh" ở `RESEARCH-PLAN.md` §11.
 - **Chi phí mở rộng:** nếu GVHD duyệt thêm luồng phê duyệt nhiều cấp (UF-02 — multi-step approval là thứ
   Personio có, `NOTES-01.md` §B0 dòng 20–21), hai role sẽ không đủ và lúc đó CASL/permission matrix quay
   lại thành quyết định thật. ADR này phải được supersede **một cách tường minh**, không âm thầm nới enum.
@@ -89,5 +89,5 @@ Quy tắc triển khai:
 - `docs/research/NOTES-01.md` §B3 dòng 202–209 (quyết định tách trục, không CASL)
 - `docs/research/NOTES-01.md` §B6 dòng 327–329 (`assign_project (confirm + Admin)`, `override_kpi (confirm + reason + Admin)`)
 - `docs/research/NOTES-01.md` §B0 dòng 19–21, 47 (multi-step approval; UF-02/03/07/08 bị park); §B15 dòng 491 (server inject user/department scope)
-- `docs/research/RESEARCH-PLAN.md` §1 dòng 25, 27; §3 B3 dòng 136; §11 dòng 354
+- `docs/research/RESEARCH-PLAN.md` §1; §3 B3; §11
 - `docs/02-architecture.md` §3, §5.2, §7.1, §10 (hàng CASL)

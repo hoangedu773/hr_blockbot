@@ -27,7 +27,7 @@ Nguồn (không có số liệu nào ngoài các nguồn này):
 
 ## 1. Hai tầng ràng buộc: đề cương và quyết định kỹ thuật
 
-Đề cương (`RESEARCH-PLAN.md` §1, dòng 31) bắt buộc: **Postman (API) · Lighthouse (giao diện) · eval mô hình · UAT với giảng viên + sinh viên đóng vai**. Kết quả research B10 chọn bộ công cụ tự động hoá trùng/mở rộng một phần. Cách ghép, ghi rõ để hội đồng không hỏi "sao khác đầu bài":
+Đề cương (`RESEARCH-PLAN.md` §1) bắt buộc: **Postman (API) · Lighthouse (giao diện) · eval mô hình · UAT với giảng viên + sinh viên đóng vai**. Kết quả research B10 chọn bộ công cụ tự động hoá trùng/mở rộng một phần. Cách ghép, ghi rõ để hội đồng không hỏi "sao khác đầu bài":
 
 | Ràng buộc đề cương | Đáp án tự động (CI) | Đáp án thủ công / bằng chứng |
 |---|---|---|
@@ -155,12 +155,12 @@ Cụ thể hoá:
 
 ## 5. Checklist luồng bắt buộc có test, theo chức năng
 
-Định nghĩa F1–F7 lấy nguyên văn từ `RESEARCH-PLAN.md` §1 (dòng 25); cột UF đối chiếu `NOTES-01.md` B0.
+Định nghĩa F1–F7 lấy nguyên văn từ `RESEARCH-PLAN.md` §1; cột UF đối chiếu `NOTES-01.md` B0.
 
 | # | Chức năng (đề cương) | UF trong scope (B0) | Luồng bắt buộc có test | Kiểu test | Công cụ |
 |---|---|---|---|---|---|
 | **F1** | Hồ sơ & phân cấp nhân sự (5 cấp bậc) | UF-01 | Xem hồ sơ mình; sửa số điện thoại; field nhạy cảm → gửi → duyệt → cập nhật; bị từ chối → sửa/gửi lại; `Admin` thấy khác `Employee`; `level` không được dùng làm quyền (B3) | Unit + tích hợp API | Vitest, Supertest + mongodb-memory-server |
-| **F2** | Vòng đời đề tài công việc | UF-05 | `DRAFT → ASSIGNED → IN_PROGRESS → PENDING_REVIEW → (approve) COMPLETED`; `reject → về IN_PROGRESS`; mọi cạnh **không** có trong sơ đồ phải bị chặn; quá hạn là **dẫn xuất** `dueDate < now AND status NOT IN {COMPLETED, CANCELLED}` chứ không phải state; `statusHistory` + `version` tăng đúng; chuyển tiếp là atomic conditional update (B4) | Unit (100% transition) + tích hợp API + E2E | Vitest, Supertest, Playwright |
+| **F2** | Vòng đời đề tài công việc | UF-05 | `DRAFT → ASSIGNED → IN_PROGRESS → PENDING_REVIEW → (approve) COMPLETED`; `reject → về IN_PROGRESS`; mọi cạnh **không** có trong sơ đồ phải bị chặn; quá hạn là **dẫn xuất** `dueDate < now AND status != COMPLETED` chứ không phải state; `statusHistory` + `version` tăng đúng; chuyển tiếp là atomic conditional update (B4) | Unit (100% transition) + tích hợp API + E2E | Vitest, Supertest, Playwright |
 | **F3** | Chatbot tra cứu KPI & chính sách | UF-10 (+ UF-01/05/06) | 28 intent trong catalog B0 map đúng tool; đọc KPI cá nhân / phòng ban; trả lời chính sách **kèm document/version/nguồn**; thiếu bằng chứng → từ chối đoán; toàn bộ guard §4.2 | AI integration tất định + E2E | pytest, Playwright, Postman (demo) |
 | **F4** | Gợi ý phân công theo kỹ năng (PhoBERT) | UF-04 | Nhập yêu cầu → ranking → giải thích đóng góp từng kỹ năng (S1) → quản lý chọn → xác nhận; confidence thấp → hỏi thêm; tie-break bằng workload; số trong card chỉ là **format minh hoạ**, không phải kết quả model (B14) | pytest unit + eval harness + live eval | pytest, Playwright (bước xác nhận) |
 | **F5** | Phân tích ngữ nghĩa nhận xét để lượng hóa KPI | UF-06 | `self-review → manager review → calibration/approval → publish → history` (B0); KPI cuối do **công thức tất định** sinh, AI chỉ cho sentiment / themes / risk / suggested component (B6); bắt buộc đủ `machineScore \| finalScore \| overrideReason \| changedBy \| changedAt`; điểm sentiment bị trần bởi tỷ lệ hoàn thành thật (S13) | Unit + pytest + tích hợp API | Vitest, pytest, Supertest |
@@ -216,7 +216,7 @@ LLM first token            < 2.5 s
 
 ## 7. UAT — theo đề cương
 
-**Đầu bài (`RESEARCH-PLAN.md` §1, dòng 31):** UAT với **giảng viên + sinh viên đóng vai quản lý / nhân viên**. Rubric "kiểm thử & triển khai" 0.75đ — nên UAT phải có bằng chứng trên giấy, không phải "thầy xem rồi gật".
+**Đầu bài (`RESEARCH-PLAN.md` §1):** UAT với **giảng viên + sinh viên đóng vai quản lý / nhân viên**. Rubric "kiểm thử & triển khai" 0.75đ — nên UAT phải có bằng chứng trên giấy, không phải "thầy xem rồi gật".
 
 ### 7.1 Thiết kế phiên
 

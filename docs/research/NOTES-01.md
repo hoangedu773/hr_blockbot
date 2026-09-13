@@ -5,8 +5,8 @@
 - Nguồn gốc file này: bản do nhóm nộp, lưu **nguyên văn nội dung** để làm bằng chứng khi viết báo cáo.
 - Trạng thái nguồn: **URL của các dòng "Nguồn Atlas / Render / Vercel / Netlify" bị mất khi paste**
   (`RESEARCH-PLAN.md` §5 yêu cầu 1 URL cho mỗi con số). Nhóm cần bổ sung URL trước khi bất kỳ số nào
-  được chép vào báo cáo. xem mục "CẦN BỔ SUNG" ở cuối file.
   được chép vào báo cáo. Xem mục "CẦN BỔ SUNG" ở cuối file.
+
 Quy ước ký hiệu tôi dùng khi ingest: `(!)` = chỗ research của nhóm bác bỏ/đảo ngược giả định trong
 `RESEARCH-PLAN.md` gốc của tôi.
 
@@ -21,7 +21,7 @@ Quy ước ký hiệu tôi dùng khi ingest: `(!)` = chỗ research của nhóm 
   approval và delegation khi người duyệt vắng.
 - **(!) QUYẾT ĐỊNH:** F5 không nên chỉ có "AI đọc nhận xét → KPI". Chu trình đúng hơn là
   `self-review → manager review → calibration/approval → publish → history`. MISA có self-evaluation,
-- **QUYẾT ĐỊNH:** Phải có workflow `request → approval → reject/request-change → resubmit → notification`.
+  manager feedback, chu kỳ đánh giá và nhắc hạn; Lattice có calibration.
 - **QUYẾT ĐỊNH:** Onboarding là flow đáng lấy làm tham khảo nhưng **không** đưa vào MVP nếu GVHD chưa
   duyệt mở scope. MISA mô tả checklist, tạo tài khoản, đào tạo, đánh giá thử việc rồi xác nhận/gia hạn/kết thúc.
 - **QUYẾT ĐỊNH:** Policy chatbot phù hợp ngành. MISA đã công khai hướng AI trả lời quy định doanh nghiệp
@@ -550,7 +550,9 @@ thí nghiệm nhưng **chưa khoá dataset cuối cùng cho F4** tới khi GVHD 
    multilingual-e5-small và MiniLM, paper + repo PhoATIS (số utterance/intent/slot), VN-SLU 2024,
    RFC 9700, OWASP cheat sheet (Argon2id), tài liệu `jose`, `Orval`, `Agenda`, `node-cron`, `mongodb-memory-server`,
    LHCI, Core Web Vitals, Conventional Commits, bài ACL 2021 selective prediction, paper token-level STS.
-4. Xác nhận lại bằng nguồn chính thức: **Atlas Vector Search có trên M0/free hay không** (toàn bộ thiết kế
-   RAG ở B6 dựa vào điều này) và **ngưỡng connection của M0** — số trong bảng B1 đang không kèm URL.
-4. Xác nhận lại 2 con số cần kiểm tra trước khi chốt thiết kế: Atlas **Vector Search trên M0** (toàn bộ
-   thiết kế RAG ở B6 dựa vào nó) và **số connection M0** (500 hay 512).
+3. **Nguồn cho từng quyết định ở B0**: link cụ thể tới trang help/demo/video của Personio (workflow
+   request→approval, delegation), MISA (self-evaluation, onboarding, AI trả lời quy định), Lattice
+   (calibration), Oracle HCM (xác nhận khi AI đổi goal). Không có link thì các câu "sản phẩm X làm vậy"
+   trong `18-user-flows.md` và ADR-013 chỉ là **tuyên bố không kiểm chứng**.
+4. **Xác nhận bằng nguồn chính thức**: Atlas **Vector Search có trên M0/free hay không** (toàn bộ thiết kế RAG
+   ở B6 và ADR-005 đứng trên điều này) và **ngưỡng connection của M0** (bảng B1 ghi 500, chưa kèm URL).

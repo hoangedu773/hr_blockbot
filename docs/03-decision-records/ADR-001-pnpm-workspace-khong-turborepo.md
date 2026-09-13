@@ -8,16 +8,16 @@
 
 ## Context
 
-Đề cương bắt buộc **pnpm monorepo** (`RESEARCH-PLAN.md` §1, dòng 26: "MERN + TypeScript; lõi AI
+Đề cương bắt buộc **pnpm monorepo** (`RESEARCH-PLAN.md` §1, "MERN + TypeScript; lõi AI
 Python/FastAPI; Socket.IO; pnpm monorepo"), và repo phải chứa ba workspace khác nhau về công cụ:
 `apps/web` (React + TS), `apps/api` (Express + TS), `apps/ai-service` (FastAPI + Python),
 cộng với `packages/` dùng chung (`contracts`, `config`, `eslint-config`) — cấu trúc cây ở
 `NOTES-01.md` §B2 dòng 153–173.
 
-Câu hỏi research B2 đặt ra (`RESEARCH-PLAN.md` §3 B2 dòng 125): "**Turborepo có cần không, hay pnpm
+Câu hỏi research B2 đặt ra (`RESEARCH-PLAN.md` §3 B2): "**Turborepo có cần không, hay pnpm
 workspace đủ cho repo 3 người?**"
 
-Ràng buộc quyết định: nhóm **3 người / 12 tuần** (`RESEARCH-PLAN.md` §1 dòng 32), và nguyên tắc chọn
+Ràng buộc quyết định: nhóm **3 người / 12 tuần** (`RESEARCH-PLAN.md` §1), và nguyên tắc chọn
 công cụ ở `RESEARCH-PLAN.md` §0.4: "thông tin này có làm thay đổi quyết định thiết kế không? Không → bỏ."
 
 ## Decision
@@ -86,5 +86,5 @@ con số, do đó không được đặt ngưỡng tùy tiện; khi nào thêm T
 
 - `docs/research/NOTES-01.md` §B2, dòng 146–177 (kết luận "Không dùng Turborepo" + cây thư mục)
 - `docs/research/NOTES-01.md` dòng 530–531 ("**Không thêm ở baseline:** … Turborepo …")
-- `docs/research/RESEARCH-PLAN.md` §1 dòng 26 (ràng buộc pnpm monorepo); §3 B2 dòng 124–125 (câu hỏi research)
+- `docs/research/RESEARCH-PLAN.md` §1 (ràng buộc pnpm monorepo); §3 B2 (câu hỏi research)
 - `docs/02-architecture.md` §4 (cây thư mục), §9 (lệnh CI dạng `pnpm -r` / `pnpm --filter`)

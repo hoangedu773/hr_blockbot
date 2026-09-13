@@ -29,7 +29,7 @@ shadcn/ui nền tối (B8, F6). Một bước ghi `[UI]` là thao tác trên Web
 | Vai trong user flow | `role` (B3) | Vai trò nghiệp vụ | Quyền hệ thống |
 |---|---|---|---|
 | **Quản lý nhân sự** | `Admin` | Vận hành hồ sơ toàn công ty, tạo/giao đề tài, duyệt báo cáo nghiệm thu, chấm & hiệu chỉnh KPI, nhận digest | Được gọi tool `write` có ràng buộc Admin: `assign_project` (confirm + Admin), `override_kpi` (confirm + reason + Admin); xem được số liệu cấp phòng ban (`get_department_kpi`) |
-| **Nhân viên** | `Employee` | Tự phục vụ hồ sơ của mình, nhận đề tài, gửi tiến độ/báo cáo, tự nhận xét KPI, hỏi chính sách | Tool `read` trong phạm vi của mình (`get_my_profile`, `list_projects`, `get_my_kpi`, `get_upcoming_deadlines`, `search_policy`); tool `write` không cần quyền Admin: `submit_progress`, `submit_report`, `change_project_status` |
+| **Nhân viên** | `Employee` | Tự phục vụ hồ sơ của mình, nhận đề tài, gửi tiến độ/báo cáo, tự nhận xét KPI, hỏi chính sách | Tool `read` trong phạm vi của mình (`get_my_profile`, `list_projects`, `get_my_kpi`, `get_upcoming_deadlines`, `search_policy`); tool `write` không cần quyền Admin: `submit_progress`, `submit_report`. `change_project_status` **chỉ cho hai bước của chính nhân viên** (T-03 bắt đầu, T-04 nộp chờ duyệt), **không** dùng để approve/reject — duyệt là quyền Admin (T-05a/T-05b, đối chiếu `07-auth-rbac.md` §7) |
 
 `NOTES-01` B3 chốt **chỉ hai `role`** và "Không cần CASL ở MVP với chỉ hai role". Mọi tool call đi qua
 `Permission check` + `RBAC check every tool` (B6, agent architecture). Trong các flow bên dưới, "quản lý" /
@@ -301,7 +301,7 @@ Các bước chính trong B0: `tạo → giao → thực hiện → nộp → du
 5. `[UI]`/`[CHAT]` Employee nộp báo cáo nghiệm thu bằng `submit_report` (confirm; ví dụ intent→tool ở B0: `submit_report → confirm → reportService.create()`) → tạo bản ghi `reports`, status `PENDING_REVIEW`, đẩy `report:updated`.
 6. `[UI]` Admin nhận `notification:new`, mở báo cáo trên dashboard, đối chiếu `project_events` và kỹ năng/yêu cầu.
 7. `[SYS]` Admin **approve** → `COMPLETED` bằng atomic conditional update on `project.status/version`; `updatedAt` được ghi lại (B1).
-8. `[SYS]` **Ngoại lệ reject:** Admin reject → `change_project_status` đưa về `IN_PROGRESS`, lý do ghi vào `project.statusHistory[]`, Employee nhận `notification:new` và xem lại bằng intent "xem lý do bị từ chối". **Ngoại lệ quá hạn:** không đổi state — `dueDate < now AND status NOT IN {COMPLETED, CANCELLED}` (B4) và UF-09 lo việc nhắc.
+8. `[SYS]` **Ngoại lệ reject:** Admin reject → `change_project_status` đưa về `IN_PROGRESS`, lý do ghi vào `project.statusHistory[]`, Employee nhận `notification:new` và xem lại bằng intent "xem lý do bị từ chối". **Ngoại lệ quá hạn:** không đổi state — `dueDate < now AND status != COMPLETED` (B4) và UF-09 lo việc nhắc.
 
 ```mermaid
 sequenceDiagram
@@ -469,7 +469,7 @@ Các bước chính trong B0: `scheduler → tìm item sắp hạn → chống t
 `nghỉ phép, spam, job chạy lại`.
 
 1. `[SYS]` `Agenda` job chạy theo cron có timezone + tuần làm việc (`Agenda > BullMQ > node-cron`, B15 — Atlas đã có Mongo nên không phải dựng Redis, job survive restart).
-2. `[SYS]` Query item **sắp hạn** (`dueDate` còn 3 ngày, còn 1 ngày) và **đã quá hạn** theo biểu thức dẫn xuất `dueDate < now AND status NOT IN {COMPLETED, CANCELLED}` (B4).
+2. `[SYS]` Query item **sắp hạn** (`dueDate` còn 3 ngày, còn 1 ngày) và **đã quá hạn** theo biểu thức dẫn xuất `dueDate < now AND status != COMPLETED` (B4).
 3. `[SYS]` **Chống trùng / chống spam** theo matrix: deadline 3 ngày = 1 lần/ngày, 1 ngày = 1 lần, quá hạn = 1 lần/ngày, KPI cần review = 1 lần/ngày, daily digest = 1 bản/ngày (B0).
 4. `[SYS]` Ghi `notifications` **trước**, rồi mới push `notification:new` vào room `user:<userId>` tương ứng (B7: WS fallback/reconnect có sẵn nhưng notification phải bền).
 5. `[UI]`/`[CHAT]` Employee bấm vào thông báo → mở đúng đề tài; hoặc hỏi chatbot "việc nào sắp quá hạn" → `get_upcoming_deadlines` (read).

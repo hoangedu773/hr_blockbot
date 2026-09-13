@@ -37,9 +37,10 @@ Ba ràng buộc nghiệp vụ phải được implement thành điều kiện c�
    trùng.
 2. **Idempotent khi job chạy lại** — tình huống này được nêu là ngoại lệ của UF-09; dù BullMQ bị loại, yêu
    cầu idempotency vẫn còn nguyên.
-3. **Overdue không phải do job "đánh dấu"** — nó là dẫn xuất `dueDate < now AND status NOT IN {COMPLETED,
-   CANCELLED}` (§B4 dòng 233–235), nên job chỉ **gửi thông báo**, không đổi trạng thái nghiệp vụ. Điều này
-   làm giảm mạnh phạm vi phải dùng transaction (khớp ADR-004).
+3. **Overdue không phải do job "đánh dấu"** — nó là dẫn xuất `dueDate < now AND status != COMPLETED` (rút từ
+   §B4; vế `CANCELLED` trong công thức nguồn đã bỏ vì state đó không tồn tại — xem `04-domain-model.md` 4.5),
+   nên job chỉ **gửi thông báo**, không đổi trạng thái nghiệp vụ. Điều này làm giảm mạnh phạm vi phải dùng
+   transaction (khớp ADR-004).
 
 ## Alternatives considered
 
@@ -68,7 +69,7 @@ Ba ràng buộc nghiệp vụ phải được implement thành điều kiện c�
   traffic), job cũng không chạy.** Đây là điểm yếu **cố hữu của toàn bộ baseline**, không phải của riêng
   Agenda: nó chính là lý do nhắc hạn phải được thiết kế là "hàng đợi đọc khi mở app" (ADR-010,
   `02-architecture.md` §6). Nếu cần đảm bảo giờ giấc tuyệt đối, phương án duy nhất có trong nguồn là **VPS**
-  (`RESEARCH-PLAN.md` §1 dòng 26 cho phép Render **hoặc** VPS Ubuntu), với điều kiện RAM chưa được chứng
+ (`RESEARCH-PLAN.md` §1 cho phép Render **hoặc** VPS Ubuntu), với điều kiện RAM chưa được chứng
   minh là đủ: `[CẦN NGUỒN]`.
 - Job store nằm trên cùng Atlas M0 ⇒ thêm ops vào trần **~100 ops/s** và thêm document vào trần **0.5 GB**;
   chính sách dọn dẹp lịch sử job không được NOTES-01 nêu → `[CẦN NGUỒN]`.
@@ -83,6 +84,6 @@ Ba ràng buộc nghiệp vụ phải được implement thành điều kiện c�
 - `docs/research/NOTES-01.md` §B15 dòng 478–484 (so sánh node-cron / BullMQ / Agenda, thứ tự chọn, lý do)
 - `docs/research/NOTES-01.md` §B0 dòng 44 (UF-09 + ngoại lệ "job chạy lại"), dòng 92–104 (notification matrix, ngưỡng chống spam)
 - `docs/research/NOTES-01.md` §B4 dòng 233–235 (OVERDUE là dẫn xuất); §B1 dòng 114 (trần Atlas); dòng 530 (Redis, BullMQ không thêm ở baseline)
-- `docs/research/RESEARCH-PLAN.md` §1 dòng 26 (Render/VPS); §3 B15 dòng 380–384 (câu hỏi scheduler, idempotency, chống spam)
+- `docs/research/RESEARCH-PLAN.md` §1 (Render/VPS); §3 B15 (câu hỏi scheduler, idempotency, chống spam)
 - `README.md` dòng 24–26 (F7 nhắc hạn)
 - `docs/02-architecture.md` §4, §5.2 (hàng `jobs/`), §6, §10; ADR-004, ADR-010

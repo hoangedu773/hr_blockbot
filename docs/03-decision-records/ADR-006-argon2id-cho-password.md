@@ -9,7 +9,7 @@
 ## Context
 
 `modules/auth` phải lưu mật khẩu cho collection `users` (`NOTES-01.md` §B4 dòng 218). Research B3 được giao
-đúng câu hỏi so sánh (`RESEARCH-PLAN.md` §3 B3 dòng 137): "Password hashing: bcrypt vs argon2 + tham số
+đúng câu hỏi so sánh (`RESEARCH-PLAN.md` §3 B3): "Password hashing: bcrypt vs argon2 + tham số
 cost; rate limit đăng nhập; khóa tài khoản."
 
 Kết luận của vòng research (`NOTES-01.md` §B3 dòng 199–200):
@@ -38,7 +38,7 @@ Toàn bộ hash/verify nằm trong `modules/auth` (service), không lọt xuốn
 - Ngưỡng thời gian/memory tối thiểu theo phiên bản cheat sheet OWASP đang dùng và **ngày truy cập nguồn**:
   `[CẦN NGUỒN]` (mục CẦN BỔ SUNG dòng 551 nêu thiếu "OWASP cheat sheet (Argon2id)" — URL).
 - **Rate limit đăng nhập** và **chính sách khóa tài khoản** là một phần câu hỏi B3
-  (`RESEARCH-PLAN.md` §3 B3 dòng 137) nhưng **NOTES-01 không có kết luận** → `[CẦN NGUỒN]`. Thuộc
+ (`RESEARCH-PLAN.md` §3 B3) nhưng **NOTES-01 không có kết luận** → `[CẦN NGUỒN]`. Thuộc
   `07-auth-rbac.md` + `13-security.md`.
 
 ## Alternatives considered
@@ -78,7 +78,7 @@ Toàn bộ hash/verify nằm trong `modules/auth` (service), không lọt xuốn
 
 - `docs/research/NOTES-01.md` §B3 dòng 199–200 (quyết định + cấu hình Argon2id)
 - `docs/research/NOTES-01.md` §B4 dòng 218 (`users` collection), dòng 198 (chỉ lưu **hash** ở Mongo)
-- `docs/research/RESEARCH-PLAN.md` §3 B3 dòng 137 (câu hỏi bcrypt vs argon2, rate limit, khóa tài khoản)
+- `docs/research/RESEARCH-PLAN.md` §3 B3 (câu hỏi bcrypt vs argon2, rate limit, khóa tài khoản)
 - `docs/research/NOTES-01.md` dòng 549–551 (CẦN BỔ SUNG: thiếu URL OWASP cheat sheet)
 - `docs/02-architecture.md` §7.1 (ba bất biến auth), §12
 - ADR-007 (`jose`), ADR-008 (rotation) — cùng nhóm quyết định trong B3

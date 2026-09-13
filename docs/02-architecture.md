@@ -22,14 +22,14 @@ cùng `README.md`. Không có thông tin nào ngoài ba nguồn này; chỗ nào
 
 ## 1. Bối cảnh và ràng buộc
 
-### 1.1 Ràng buộc cứng từ đề cương (đầu bài — `RESEARCH-PLAN.md` §1, dòng 21–34)
+### 1.1 Ràng buộc cứng từ đề cương (đầu bài — `RESEARCH-PLAN.md` §1)
 
 | Nhóm | Ràng buộc | Hệ quả kiến trúc |
 |---|---|---|
 | Scope | 7 chức năng: F1 hồ sơ / phòng ban / 5 cấp bậc · F2 vòng đời đề tài · F3 chatbot tra cứu · F4 gợi ý phân công PhoBERT · F5 phân tích ngữ nghĩa nhận xét → KPI · F6 dashboard · F7 báo cáo nghiệm thu + nhắc hạn | Kiến trúc phải có đủ: tầng REST nghiệp vụ, tầng realtime, tầng AI (matching + RAG + sentiment), tầng scheduler |
 | Stack | **MERN + TypeScript**; lõi AI **Python/FastAPI**; Socket.IO; **pnpm monorepo**; CI/CD; **MongoDB Atlas M0**; **Render/VPS Ubuntu**; **Vercel/Netlify** | Sơ đồ lớp ở §2 là khung bị khoá bởi đề cương, không phải lựa chọn tự do |
 | Auth | JWT + Refresh Token Rotation; RBAC Admin/Employee | `apps/api` là điểm duy nhất phát hành/hủy token (ADR-007, ADR-008, ADR-009) |
-| Chatbot | Intent detection, Function Calling, Agent Loop, tra cứu KPI + hỏi đáp chính sách, realtime qua WebSocket | Tool catalog + guard ở `08-algorithms.md`; hợp đồng event ở `06-api-spec.md` (ADR-014) |
+| Chatbot | Intent detection, Function Calling, Agent Loop, tra cứu KPI + hỏi đáp chính sách, realtime qua WebSocket | Tool catalog + guard ở `08-algorithms.md`; hợp đồng event ở `06-api-spec.md` (ADR-010) |
 | AI metric | **F1-score ≥ 85%** + Accuracy trên tập test chuẩn | Hàng rào eval tự động trong CI (ADR-016). **Đang treo:** F1 đo trên bài toán nào — `RESEARCH-PLAN.md` §7.2, `NOTES-01.md` §B5 dòng 266–269 |
 | UI | Dashboard **nền tối**, biểu đồ biến động KPI | shadcn/ui + Recharts (ADR-015) |
 | Kiểm thử | Postman (API), Lighthouse (giao diện), eval mô hình, UAT với giảng viên + sinh viên đóng vai | Bộ gate ở §9 |
@@ -54,7 +54,7 @@ và "sleep 15 phút" bị đẩy thẳng vào trải người dùng (xem §6, h�
 LangChain/LangGraph · microservice phức tạp · Kubernetes — "chưa tạo đủ giá trị cho nhóm 3 người / 12 tuần".
 Danh sách đầy đủ + lý do ở §10.
 
-`RESEARCH-PLAN.md` §11 dòng 354 là luật thiết kế cho mọi mục có gate: **"không thêm gate nào nếu chưa có lệnh
+`RESEARCH-PLAN.md` §11 là luật thiết kế cho mọi mục có gate: **"không thêm gate nào nếu chưa có lệnh
 chạy nó trong CI."** Tài liệu này tuân thủ nghiêm: §9 chỉ liệt kê gate có lệnh.
 
 ---
@@ -197,11 +197,11 @@ flowchart LR
 ```
 
 `NOTES-01.md` §B2 dòng 167–173 chốt khung file của một module (`auth.controller.ts` / `auth.service.ts` /
-`auth.repository.ts` / `auth.schema.ts` / `auth.routes.ts`); `RESEARCH-PLAN.md` §3 B2 dòng 128 gọi tên luật là
+`auth.repository.ts` / `auth.schema.ts` / `auth.routes.ts`); `RESEARCH-PLAN.md` §3 B2 gọi tên luật là
 "thin controller → service → repository". **Không có mũi tên ngược**: repository không gọi service, service
 không import `express`/`Response`.
 
-Rule mà CI giữ (`RESEARCH-PLAN.md` §11 dòng 344): **`domain/` không import `mongoose`/`express`**;
+Rule mà CI giữ (`RESEARCH-PLAN.md` §11): **`domain/` không import `mongoose`/`express`**;
 `ai-service` không import model của API; không circular deps. Nội dung thuần nghiệp vụ (state machine F2,
 lượng hoá KPI, quy tắc overtime-derived) nằm ở `domain/`, nhận persistence qua interface do repository cài.
 
@@ -253,7 +253,7 @@ chính xác của agent loop/tool runtime đang treo, xem §12.
 | `apps/web` (browser) | React + TypeScript + Vite + shadcn/ui + Recharts | Đề cương: MERN + TS; shadcn có semantic CSS variables (`background` `foreground` `card` `muted` `primary` `destructive` `chart-1..5`) và dark mode qua token/theme — hợp dashboard cần bản sắc riêng (§B8 dòng 371–374) | Vercel: WebSocket mới ở Public Beta từ 22/06/2026; Netlify Functions không phải lựa chọn ưu tiên cho WS backend | UI phải coi WS là **kênh tối ưu, không phải kênh đúng nhất**: notification vẫn đọc lại qua REST khi mount/reconnect. Chart không render dữ liệu chưa có trong cache khi app "ngủ" |
 | Socket.IO client (browser) | `socket.io-client` | Đề cương bắt realtime; Socket.IO "tự hỗ trợ fallback và reconnect" (§B7 dòng 364) | Không có trần riêng ở client, nhưng bị trần của `apps/api` giới hạn: server có thể đang ngủ | Mỗi message mang `clientMessageId` để chống duplicate khi reconnect/retry (§B7 dòng 363–364); UX phải hiển thị trạng thái "đang kết nối lại" thay vì giả định tức thì |
 | `apps/api` | Express + TypeScript + JWT/`jose` + Argon2id + Socket.IO + Agenda, **1 instance** | Express đã nằm trong đầu bài; NestJS cần GVHD xác nhận (§B2 dòng 150). Agenda dùng Mongo nên không phải dựng Redis (§B15 dòng 483–484) | Render Free: **sleep sau 15 phút không có HTTP/WS traffic, wake-up có thể ~1 phút**, WebSocket được hỗ trợ; Atlas: tối đa **500 connections**, **~100 ops/s** | **Chuỗi nhân quả quan trọng nhất của kiến trúc:** tiến trình đơn + ngủ đông ⇒ nhắc hạn **không tức thì** khi service đang ngủ ⇒ hệ thống không được thiết kế như "push ngay khi tới giờ". Thiết kế đúng là: notification **được persist** (ADR-010, §B7 dòng 364–365), client **đọc lại khi mở tab**, và reminder là "hàng đợi việc cần làm" chứ không phải tiếng chuông. Hệ quả phụ: mọi state transition phải là **atomic conditional update + `statusHistory[]`**, vì không được assumption về transaction liên document (ADR-004); connection budget 500 phải chia cho API + Agenda + `ai-service` ⇒ dùng **một connection pool duy nhất trong API**, không mở pool mới mỗi job |
-| `apps/ai-service` | FastAPI + Python (`vinai/phobert-base` 135M params, `multilingual-e5-small` 384 dims, matching + calibration + RAG) | Đề cương: lõi AI Python/FastAPI; PhoBERT **bắt buộc** theo đề cương (§B5 dòng 262); eval cần hệ Python | Trần RAM/CPU **chưa được NOTES-01 trả lời** — `RESEARCH-PLAN.md` §3 B1 dòng 118 hỏi "VPS 2GB RAM có đủ chạy Node API + FastAPI + PhoBERT inference trên CPU không" nhưng vòng 1 chưa có đáp án: `[CẦN NGUỒN]` | Phải có warm embedding (`Warm embedding inference < 500 ms`, §B9 dòng 389) và fallback khi model lạnh. Biên giới service là chỗ **duy nhất** được phép trả kết quả embedding; mọi so sánh/điểm chuẩn hoá nằm trong `matching/eval` + `calibration` (S2/S3). Vì PhoBERT **yêu cầu input tiếng Việt đã word-segmented** (§B5 dòng 254), pipeline tiền xử lý là một phần của container này, không phải của chat UI |
+| `apps/ai-service` | FastAPI + Python (`vinai/phobert-base` 135M params, `multilingual-e5-small` 384 dims, matching + calibration + RAG) | Đề cương: lõi AI Python/FastAPI; PhoBERT **bắt buộc** theo đề cương (§B5 dòng 262); eval cần hệ Python | Trần RAM/CPU **chưa được NOTES-01 trả lời** — `RESEARCH-PLAN.md` §3 B1 hỏi "VPS 2GB RAM có đủ chạy Node API + FastAPI + PhoBERT inference trên CPU không" nhưng vòng 1 chưa có đáp án: `[CẦN NGUỒN]` | Phải có warm embedding (`Warm embedding inference < 500 ms`, §B9) và fallback khi model lạnh. Biên giới service là chỗ **duy nhất** được phép trả kết quả embedding; mọi so sánh/điểm chuẩn hoá nằm trong `matching/eval` + `calibration` (S2/S3). Vì PhoBERT **yêu cầu input tiếng Việt đã word-segmented** (§B5), pipeline tiền xử lý là một phần của container này, không phải của chat UI |
 | MongoDB Atlas M0 | managed MongoDB + 1 Atlas Vector Search index | Một state store duy nhất cho: business data, policies, refresh sessions, **và** job store của Agenda (§B1 dòng 122–127, §B15 dòng 483) | 0.5 GB · 500 connections · 100 DB · 500 collections · ~100 ops/s · **không backup tự động** · tối đa **3** Search/Vector index | Quota index bị dùng **1/3**, 2 index còn lại để trống có chủ đích cho thử nghiệm (ADR-005). "Không backup tự động" ⇒ seed phải tái lập được bằng mã (S14 `make demo`, gate "Dữ liệu tái lập" §9). Không có transaction liên document ⇒ schema chịu trách nhiệm bất biến (§B1 dòng 142: "Không thiết kế F2 dựa vào transaction nhiều collection") |
 | LLM provider (ngoài) | Gemini 3.1 Flash-Lite (Free Tier, paid ~$0.25/1M input, $1.50/1M output) hoặc Groq Free (nhiều model ở 30 RPM; `gpt-oss-120b` ~1.000 RPD và 8K TPM) — abstraction qua `LLMProvider` | Không hard-code provider vào business logic (§B6 dòng 298–306) | Quota RPM/TPM/RPD của free tier, và **tính không ổn định** của live eval | Guard phải chặn trước khi chạm trần: `maxSteps = 5`, `toolTimeout`, `LLM timeout`, `max tool result size` (§B6 dòng 316). Hết quota là **trạng thái được thiết kế trước**, không phải sự cố — S9 graceful degradation rơi về pipeline PhoBERT-only. Live eval **không block PR** (ADR-016) |
 
@@ -362,7 +362,7 @@ Ngân sách đo được (`NOTES-01.md` §B9 dòng 380–391):
   ở §9 **không phải gate chặn merge**, chỉ là phép đo theo dõi.
 
 Hai quyết định kiến trúc chịu trách nhiệm trực tiếp cho các con số trên: (a) chạy suy luận ở process riêng
-(`apps/ai-service`) để không block event loop của `apps/api` (`RESEARCH-PLAN.md` §3 B9 dòng 194);
+(`apps/ai-service`) để không block event loop của `apps/api` (`RESEARCH-PLAN.md` §3 B9);
 (b) không cho LLM sinh aggregation tự do, vì một aggregation pipeline tùy ý là cách nhanh nhất để chạm trần
 của Atlas M0 — ADR-014, kèm row cap + timeout (§B15 dòng 492).
 
@@ -370,9 +370,9 @@ của Atlas M0 — ADR-014, kèm row cap + timeout (§B15 dòng 492).
 
 ## 9. Architecture fitness functions
 
-Dựng lại nguyên tắc `RESEARCH-PLAN.md` §11 (dòng 340–354). **Mỗi gate phải có lệnh CI chạy được** — dòng 340:
-"quy ước mà không có lệnh chạy thật trong pipeline thì chỉ là văn bản"; dòng 354: "không thêm gate nào nếu
-chưa có lệnh chạy nó trong CI". Vì vậy cột "Lệnh CI" là điều kiện tồn tại của hàng, không phải phụ lục.
+Dựng lại nguyên tắc `RESEARCH-PLAN.md` §11: *quy ước mà không có lệnh chạy thật trong pipeline thì chỉ là
+văn bản*, và *không thêm gate nào nếu chưa có lệnh chạy nó trong CI*. Vì vậy cột "Lệnh CI" là điều kiện tồn tại
+của hàng, không phải phụ lục.
 
 > Lệnh CI dưới đây dùng **tên dụng cụ đúng như §11 và `NOTES-01.md` §B10 đã nêu**; đường dẫn script/flag cụ thể
 > được chốt khi scaffold repo (`RESEARCH-PLAN.md` §4: "Toàn bộ bảng fitness functions ở §11 thành workflow CI
@@ -383,7 +383,7 @@ chưa có lệnh chạy nó trong CI". Vì vậy cột "Lệnh CI" là điều k
 | Kiến trúc không rò rỉ | `dependency-cruiser` | `domain/` không import `mongoose`/`express`; `ai-service` không import model của API; không circular deps | `pnpm depcruise --validate .dependency-cruiser.js apps/api/src` |
 | API không trôi khỏi spec | OpenAPI + `schemathesis` fuzz | mọi response phải validate schema; schema drift = fail CI | `npx schemathesis run ./artifacts/openapi.json` |
 | WS contract | test bộ event (B7) | event chưa khai báo trong `06-api-spec.md` → fail | `pnpm --filter api test -- realtime/contracts` |
-| Hiệu năng front | `lighthouse-ci` + `size-limit` | LCP < 2.5s, CLS < 0.1, INP < 200ms, ngân sách KB theo route — vượt là đỏ | `npx @lhci/cli autorun --collect.url=http://localhost:4173/` rồi `npx @lhci/cli assert` · `npx size-limit` |
+| Hiệu năng front | `lighthouse-ci` + `size-limit` | LCP < 2.5s, CLS < 0.1, INP < 200ms, ngân sách KB theo route — vượt là đỏ | `npx @lhci/cli autorun --collect.url=<URL build preview của apps/web>` · `npx @lhci/cli assert` · `npx size-limit` — URL và cổng cụ thể chốt khi scaffold `apps/web`, chưa có trong nguồn |
 | Chất lượng mô hình | `pytest` eval harness | F1/P@5 **không được tụt quá 2 điểm** so với baseline đã công bố ở `09-ai-evaluation.md` | `pytest -m eval` (chạy trong `apps/ai-service`) |
 | Commit | `commitlint` + scope whitelist | chỉ nhận các scope đã liệt kê; `feat`/`fix` phải tham chiếu issue | `npx commitlint --from HEAD~1` |
 | Bảo mật | `gitleaks` (pre-commit + CI) | 1 secret leak = fail build | `gitleaks protect --staged --redact` (pre-commit) · `gitleaks detect --source . --redact` (CI) |
@@ -391,9 +391,16 @@ chưa có lệnh chạy nó trong CI". Vì vậy cột "Lệnh CI" là điều k
 | Dữ liệu tái lập | seed hash check | `make demo` phải dựng ra đúng bộ dữ liệu đã công bố trong báo cáo | `make demo` · kiểm tra seed hash: script chưa có tên xác định trong nguồn — `[CẦN NGUỒN]`. **Gate chỉ bật khi S14 được GVHD duyệt** (`RESEARCH-PLAN.md` §12 luật 4) |
 | Typecheck & lint (bắt buộc trước mọi gate khác) | `tsc --noEmit` + ESLint trong `packages/`, pipeline §B10 | mọi workspace phải build sạch | `pnpm -r typecheck` · `pnpm -r lint` |
 
-**Không đưa vào bảng** (vì chưa có lệnh, theo đúng luật §11): các internal p95 target ở §8
-(`CRUD read p95 < 300 ms`…) — mới là mục tiêu đo, chưa có harness; ngân sách KB theo **route** — §11 nêu luật
-nhưng không có con số: `[CẦN NGUỒN]`.
+**Trạng thái bật gate — đọc trước khi tin bảng trên là "đang chạy":** repo **chưa có mã nguồn**, nên toàn bộ
+10 gate ở trên đang ở trạng thái **CHƯA BẬT**. Thứ tự bật bắt buộc: (1) `tsc`/ESLint và `commitlint` bật cùng
+luôn với commit scaffold đầu tiên; (2) `gitleaks` bật ngay ở commit đầu, vì secret lọt vào history thì về sau
+rất đau; (3) `dependency-cruiser` bật khi có `apps/api/src`; (4) `schemathesis` + WS contract bật khi
+`06-api-spec.md` có bản OpenAPI sinh ra từ Zod (không phải file viết tay); (5) `pytest -m eval` bật khi có
+baseline trong `09-ai-evaluation.md` — **gate này không tồn tại được trước khi có số baseline**; (6) LHCI +
+`size-limit` bật khi `apps/web` build được. Hàng nào chưa tới lượt thì xem là `TBD`, không phải "xanh".
+
+**Không đưa vào bảng** (vì chưa có lệnh, đúng luật §11): các internal p95 target ở §8 (`CRUD read p95 < 300 ms`…)
+— mới là mục tiêu đo, chưa có harness; ngân sách KB theo **route** — §11 nêu luật nhưng không có con số: `[CẦN NGUỒN]`.
 
 Pipeline nơi các gate chạy (`NOTES-01.md` §B10 dòng 401–411):
 
@@ -418,7 +425,7 @@ LangChain/LangGraph · microservice phức tạp · Kubernetes** — "chưa tạ
 
 | Loại ở baseline | Lý do (theo NOTES-01) | Khi nào xem lại |
 |---|---|---|
-| NestJS | "Giữ Express.js. Không đổi sang NestJS nếu chưa có xác nhận của GVHD — Express đã nằm trong đầu bài" (§B2 dòng 150) | Khi/dưới sự chấp thuận của GVHD (`RESEARCH-PLAN.md` §7.1) — ADR-002 |
+| NestJS | "Giữ Express.js. Không đổi sang NestJS nếu chưa có xác nhận của GVHD — Express đã nằm trong đầu bài" (§B2) | Khi/dưới sự chấp thuận của GVHD (`RESEARCH-PLAN.md` §7.1) — ADR-002 |
 | Turborepo | "Ba người / 12 tuần → pnpm workspace là đủ. Turborepo chủ yếu đem caching và remote caching; thêm từ đầu chưa tạo nhiều giá trị. **Chỉ thêm khi CI/build thực sự chậm**" (§B2 dòng 148–149) | CI/build thật sự chậm — ADR-001 |
 | Redis | Socket.IO "Với một instance: `Socket.IO + MongoDB`, **không Redis**" (§B7 dòng 356) | Khi chạy > 1 instance API — ADR-010 |
 | BullMQ | "`BullMQ` mạnh nhưng **cần Redis**" (§B15 dòng 481) | Khi đã có Redis vì lý do khác — ADR-011 |
@@ -431,7 +438,7 @@ LangChain/LangGraph · microservice phức tạp · Kubernetes** — "chưa tạ
 | Namespace Socket.IO thứ hai | "Không cần 2 namespace ngay" (§B7 dòng 365–366) | Khi hội thoại và notification xung đột nhau về room/ack |
 | Fine-tune LLM cho policy QA | "Không fine-tune LLM cho policy QA ở baseline" (§B6 dòng 339) | Khi RAG + top-K chứng minh hết khả năng — ADR-005 |
 | Git Flow | "`main` · `feat/...` · `fix/...` · `docs/...`; **(!) Không Git Flow.** Ba người + 12 tuần → short-lived branches + PR + **squash merge**" (§B11 dòng 419–424) | Không ở khóa luận |
-| OVERDUE như một state | "Không dùng OVERDUE làm state chính. Overdue là dẫn xuất: `dueDate < now AND status NOT IN {COMPLETED, CANCELLED}`" (§B4 dòng 233–235) | Không — đây là sửa sai, không phải hoãn |
+| OVERDUE như một state | "Không dùng OVERDUE làm state chính. Overdue là dẫn xuất: `dueDate < now AND status != COMPLETED`" (§B4 dòng 233–235) | Không — đây là sửa sai, không phải hoãn |
 | Luồng UF-02 / UF-03 / UF-07 / UF-08 (nghỉ phép, onboarding, OKR, pulse survey) | "**nằm ngoài F1–F7 hiện tại** → để trong `docs/backlog-parked.md` tới khi GVHD duyệt" (§B0 dòng 47) | Khi GVHD duyệt mở scope (§B0 dòng 25–26) |
 
 ---
@@ -474,7 +481,7 @@ theo đúng tinh thần `RESEARCH-PLAN.md` §0.1 ("không bịa số liệu, kh�
 | 4 | **Vị trí agent loop / tool runtime**: `apps/api` hay `apps/ai-service` | Cắt đôi §5.3 và hợp đồng nội bộ; NOTES-01 đặt tool map thẳng tới `projectRepository.read()` (§B0 dòng 85) nhưng sơ đồ lớp lại để LLM dưới FastAPI | Chưa chốt — cần quyết định + ADR mới |
 | 5 | **Auth nội bộ giữa `api` và `ai-service`**: shared secret hay HMAC | Bảo mật biên trong; `RESEARCH-PLAN.md` §3 B2 nêu câu hỏi, NOTES-01 không trả lời | `[CẦN NGUỒN]` |
 | 6 | **VPS 2GB RAM có đủ cho Node API + FastAPI + PhoBERT CPU** | Chọn Render free hay VPS; số tiến trình trên một host | `[CẦN NGUỒN]` |
-| 7 | **Chatbot có phải client thứ hai độc lập không** (cookie HttpOnly không hoạt động khi embed cross-origin) | ADR-008 cần nhánh thiết kế cho public client không cookie | `RESEARCH-PLAN.md` §3 B3 dòng 135; NOTES-01 chỉ chốt cho **web** |
+| 7 | **Chatbot có phải client thứ hai độc lập không** (cookie HttpOnly không hoạt động khi embed cross-origin) | ADR-008 cần nhánh thiết kế cho public client không cookie | `RESEARCH-PLAN.md` §3 B3; NOTES-01 chỉ chốt cho **web** |
 | 8 | **F1 ≥ 85% đo bài toán nào** | Gate "Chất lượng mô hình" ở §9 không thể viết lệnh trước khi biết metric | `RESEARCH-PLAN.md` §7.2; NOTES-01 §B5 dòng 266–269 |
 | 9 | **Định dạng báo cáo HUIT** | Không ảnh hưởng kiến trúc nhưng chặn §14 rubric | NOTES-01 §B12 = `UNRESOLVED` |
 

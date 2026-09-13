@@ -63,7 +63,7 @@ auth | hr | project | chatbot | ai | dashboard | realtime | docs | ci
 | `docs` | Bộ tài liệu chuẩn trong `docs/` (kiến trúc, data model, API, báo cáo) | RESEARCH-PLAN §2 |
 | `ci` | GitHub Actions, Dockerfile, lint/typecheck config, husky/commitlint, Lighthouse CI | NOTES-01 B10, B2 |
 
-**Không có scope `task`.** `README.md` (dòng 34) và `RESEARCH-PLAN.md` §3 B11 (dòng 208) còn ghi `task`; `NOTES-01.md` B11 (dòng 420) chốt `project` và thêm `docs`. **Tài liệu này theo NOTES-01 B11** vì đó là kết quả research vòng 1 và "đề tài" là đúng từ vựng của F2. `README.md` sẽ được sửa khớp trong một PR `docs:` riêng (không sửa tay ở đây vì ngoài phạm vi giao việc).
+**Không có scope `task`.** `README.md` (mục Commit convention) và `RESEARCH-PLAN.md` §3 B11 từng ghi `task`; `NOTES-01.md` B11 chốt `project` và thêm `docs`. **Tài liệu này theo NOTES-01 B11** vì đó là kết quả research vòng 1 và "đề tài" là đúng từ vựng của F2. `README.md` **đã được sửa khớp** (`project`, `docs`, bỏ `chore`).
 
 ### 1.3 Bảng type được phép
 
@@ -392,10 +392,10 @@ PR chạm `apps/web` (route, chart, bundle) phải kèm số Lighthouse trước
 
 | # | Chỗ lệch | Các nguồn | Cách xử lý trong file này |
 |---|---|---|---|
-| 1 | Scope `task` vs `project` | `README.md` dòng 34 và RESEARCH-PLAN §3 B11 dòng 208 = `task`; NOTES-01 B11 dòng 420 = `project` | Theo **NOTES-01 B11**: `project`. `README.md` cần sửa trong PR `docs:` riêng |
+| 1 | Scope `task` vs `project` | `README.md` và RESEARCH-PLAN §3 B11 từng ghi `task`; NOTES-01 B11 = `project` | Theo **NOTES-01 B11**: `project`. `README.md` **đã sửa** khớp |
 | 2 | `docs` có trong scope không | README/§3 B11 không có; NOTES-01 B11 có | **Có** `docs` |
-| 3 | `style`/`chore` | §3 B11 và README có `chore`; NOTES-01 B11 chỉ nêu spec + `feat`/`fix`/`BREAKING CHANGE` | Bảng type §1.3 dùng `style`, **không** dùng `chore`; cần GVHD/nhóm chốt nếu muốn giữ `chore` |
-| 4 | URL nguồn | NOTES-01 dòng 6–8 và mục "CẦN BỔ SUNG": URL của B1/B5 chưa có | Không trích số nào vào báo cáo trước khi có URL; không phát minh URL mới |
+| 3 | `style` / `chore` | §3 B11 và README từng có `chore`; NOTES-01 B11 chỉ nêu spec + `feat`/`fix`/`BREAKING CHANGE` | Bảng type §1.3 dùng `style`, **không** dùng `chore`; README đã bỏ `chore` theo đây. Cần nhóm/GVHD chốt nếu muốn giữ lại |
+| 4 | URL nguồn | phần header của NOTES-01 và mục "CẦN BỔ SUNG": URL của B1/B5 chưa có | Không trích số nào vào báo cáo trước khi có URL; không phát minh URL mới |
 | 5 | Báo cáo / định dạng | NOTES-01 **B12 = UNRESOLVED** | Không chốt template; phụ thuộc GVHD (xem `docs/11-quality-testing.md` §9) |
 
 ---

@@ -8,8 +8,8 @@
 
 ## Context
 
-Đầu bài của đề cương ghi **MERN + TypeScript** (`RESEARCH-PLAN.md` §1 dòng 26), trong đó chữ "N" là Node
-với Express. Research B2 được giao đúng câu hỏi mở (`RESEARCH-PLAN.md` §3 B2 dòng 127): "NestJS vs Express
+Đầu bài của đề cương ghi **MERN + TypeScript** (`RESEARCH-PLAN.md` §1), trong đó chữ "N" là Node
+với Express. Research B2 được giao đúng câu hỏi mở (`RESEARCH-PLAN.md` §3 B2): "NestJS vs Express
 thuần — đề cương ghi Express.js; nếu muốn NestJS phải xin GVHD (§7)". Câu hỏi §7.1 gửi GVHD tới nay
 **chưa có trả lời**.
 
@@ -32,7 +32,7 @@ modules/auth/
 mà CI giữ hộ: mỗi module theo feature có đúng 5 file như khuôn ở trên, và luồng phụ thuộc
 `routes → controller → service → repository` một chiều (`02-architecture.md` §5.1).
 
-Rule "domain không import mongoose/express" (`RESEARCH-PLAN.md` §11 dòng 344) áp dụng **với cả hai lựa
+Rule "domain không import mongoose/express" (`RESEARCH-PLAN.md` §11) áp dụng **với cả hai lựa
 chọn framework**, nên đây không phải điểm khác biệt để chọn NestJS.
 
 ## Alternatives considered
@@ -70,5 +70,5 @@ chọn framework**, nên đây không phải điểm khác biệt để chọn N
 
 - `docs/research/NOTES-01.md` §B2 dòng 150 (quyết định giữ Express), dòng 153–173 (module layout)
 - `docs/research/NOTES-01.md` dòng 505–528 (sơ đồ lớp "Express + TypeScript"), dòng 530 ("Không thêm ở baseline: NestJS")
-- `docs/research/RESEARCH-PLAN.md` §1 dòng 26; §3 B2 dòng 127; §7.1 dòng 277 (câu hỏi còn treo)
+- `docs/research/RESEARCH-PLAN.md` §1; §3 B2; §7.1 (câu hỏi còn treo)
 - `docs/02-architecture.md` §5.1 (luật phân lớp), §9 (gate dependency-cruiser)

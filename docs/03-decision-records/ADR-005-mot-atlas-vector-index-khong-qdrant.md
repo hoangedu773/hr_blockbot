@@ -20,7 +20,7 @@ Hai chức năng AI đều cần tìm kiếm vectơ, nhưng với khối lượn
 Trần hạ tầng quyết định (`NOTES-01.md` dòng 115): Atlas free tier **có Search/Vector Search nhưng tối đa 3 index**;
 và §B6 dòng 332 nhắc lại: "Atlas Free có Vector Search nhưng tối đa 3 Search/Vector index."
 
-`RESEARCH-PLAN.md` §3 B6 dòng 166 giao đúng câu hỏi so sánh: "vector store: Atlas Vector Search vs Qdrant vs
+`RESEARCH-PLAN.md` §3 B6 giao đúng câu hỏi so sánh: "vector store: Atlas Vector Search vs Qdrant vs
 in-memory", kèm dòng 166 "Atlas M0 có Vector Search không?".
 
 ## Decision
@@ -57,7 +57,7 @@ Ba điều kèm theo đã được chốt cùng quyết định:
 | **Qdrant riêng cho cả RAG lẫn matching** | Thêm một service phải dựng và bảo trì, thêm một secret phải quản lý, đổi lấy thứ đã có sẵn trong Atlas; `NOTES-01.md` dòng 530 liệt kê Qdrant vào danh sách "**Không thêm ở baseline**". Lý do cụ thể ở §B1 dòng 129–130 là **tiết kiệm index**, không phải không dùng được |
 | **2 Atlas Vector index: một cho policy, một cho skill/employee** | Được phép về quota (tối đa 3) nhưng NOTES-01 chọn để trống 2 index cho thử nghiệm sau (§B1 dòng 130); matching cần **tính lại điểm + cosine trên nhiều model để so sánh (S3)** — việc đó ở Python tự nhiên hơn là ở index |
 | **in-memory vector (faiss/numpy) cho RAG luôn** | `RESEARCH-PLAN.md` §3 B6 có nêu in-memory như một lựa chọn, nhưng NOTES-01 chốt RAG đi qua Atlas Vector Search (§B6 dòng 334–335); in-memory mất lợi ích đọc chunk cạnh `policies` và phải tự quản embedding cache khi restart (Render có ngủ đông — ADR-010) |
-| **Prompt-stuffing (đưa hết policy vào context)** | Được nêu là phương án so sánh ở `RESEARCH-PLAN.md` §3 B6 dòng 166; NOTES-01 không chọn, vì câu trả lời phải trích được `document/version/source` (§B6 dòng 336) và policy là tập tài liệu lớn, không ổn định về chi phí token |
+| **Prompt-stuffing (đưa hết policy vào context)** | Được nêu là phương án so sánh ở `RESEARCH-PLAN.md` §3 B6; NOTES-01 không chọn, vì câu trả lời phải trích được `document/version/source` (§B6 dòng 336) và policy là tập tài liệu lớn, không ổn định về chi phí token |
 | **Fine-tune LLM cho policy QA** | Loại tường minh: "Không fine-tune LLM cho policy QA ở baseline" (§B6 dòng 339) |
 
 ## Consequences
@@ -92,5 +92,5 @@ Ba điều kèm theo đã được chốt cùng quyết định:
 - `docs/research/NOTES-01.md` §B5 dòng 252–268 (4 dòng model cho matching, PhoBERT bắt buộc)
 - `docs/research/NOTES-01.md` §B0 dòng 45 (UF-10 từ chối đoán khi thiếu bằng chứng); dòng 530 (Qdrant không thêm ở baseline)
 - `docs/research/NOTES-01.md` dòng 545–556 (CẦN BỔ SUNG: Vector Search trên M0, URL cho các con số)
-- `docs/research/RESEARCH-PLAN.md` §3 B6 dòng 166 (so sánh vector store); §1 dòng 26 (Atlas M0)
+- `docs/research/RESEARCH-PLAN.md` §3 B6 (so sánh vector store); §1 (Atlas M0)
 - `docs/02-architecture.md` §6 (hàng MongoDB Atlas M0), §10 (hàng Qdrant), §12 (điểm treo #2)
