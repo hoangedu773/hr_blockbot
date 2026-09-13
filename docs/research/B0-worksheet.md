@@ -64,7 +64,7 @@ sai ngành / đã đổi chủ / không còn hoạt động → gạch và thay 
 
 - Nhân viên thường tự làm việc gì mà không cần vào gặp HR? →
 - Quản lý trực tiếp được nhắc / được hỏi những gì, và bao lâu một lần? →
-- Có luồng nào bị **từ chối giữa chừng** không (sếp驳回 đề nghị, nhân viên từ chối việc được giao)? Hệ thống làm gì tiếp? →
+- Có luồng nào bị **từ chối giữa chừng** không (sếp từ chối đề nghị, nhân viên từ chối việc được giao)? Hệ thống làm gì tiếp? →
 - Có luồng nào bị **từ chối giữa chừng** không (sếp từ chối đề nghị, nhân viên từ chối việc được giao)? Hệ thống làm gì tiếp? →
 - Điểm nào bạn thấy **tốt và nên học**? (kèm screenshot) →
 - Điểm nào **dở / không phù hợp công ty VN**? →
