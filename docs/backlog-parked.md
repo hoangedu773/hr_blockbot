@@ -38,7 +38,7 @@ như kết quả khảo sát.
 
 | ID | Mục | Nhóm | Effort | Câu hỏi §7 đang chặn | Căn cứ park |
 |---|---|---|---|---|---|
-| PARK-01 | UF-02 Nghỉ phép | user flow | **L** (ước lượng) | §7.8, §7.4 | NOTES-01 dòng 47 |
+| PARK-01 | UF-02 Nghỉ phép / VC-02 Availability-absence | user flow | **L** (ước lượng) | §7.8, §7.4, §7.13 | NOTES-01 B0; **NOTES-02 có bằng chứng mới đủ URL** (MISA AMIS: nhân viên tạo đơn nghỉ qua chat AVA, quản lý duyệt trên mobile; 7shifts: availability `Pending` → manager approve/decline) — nhưng vẫn cần GVHD duyệt vì phải thêm collection + state machine request. Xem `19-vertical-workforce-assessment.md` §3 |
 | PARK-02 | UF-03 Onboarding / offboarding | user flow | **L** (ước lượng) | §7.8, §7.10 | NOTES-01 B0 "không đưa vào MVP nếu GVHD chưa duyệt mở scope" |
 | PARK-03 | UF-07 Goal/OKR | user flow | **L** (ước lượng) | §7.8, §7.2 | NOTES-01 dòng 47; RESEARCH-PLAN §3 "dễ overlap F5" |
 | PARK-04 | UF-08 Pulse survey | user flow | **M → L** (ước lượng) | §7.8, §7.5, §7.10 | NOTES-01 dòng 47; **chưa có bằng chứng sản phẩm** `[CẦN NGUỒN]` |
@@ -50,6 +50,10 @@ như kết quả khảo sát.
 | PARK-10 | CASL (ABAC khi trên 2 role) | auth | **S** (ước lượng) | §7.8 | NOTES-01 B3: "Không cần CASL ở MVP với chỉ hai role" |
 | PARK-11 | Namespace Socket.IO thứ hai | realtime | **S** (ước lượng) | — | NOTES-01 B7: "Không cần 2 namespace ngay" |
 | PARK-12 | ECharts / Ant Design thay shadcn + Recharts | UI | **M** (ước lượng) | — | NOTES-01 B8: "Ant Design… hơi nặng tay"; "Không cần ECharts lúc này" |
+| PARK-13 | VF-01 Shift trade / open-shift (F&B) | user flow dọc ngành | **L** (§G1 complexity 4/5) | §7.11 | NOTES-02 §F khuyến nghị nhưng **chờ GVHD**; cần `shift` thật — chính NOTES-02 ghi "Do not represent a real shift as a project" ⇒ hoặc model mới, hoặc giả mạo phạm vi |
+| PARK-14 | VS-01 Teacher absence → substitute coverage (School) | user flow dọc ngành | **L** (4/5) | §7.11 | Sai ngành so với phạm vi KLCN133 đã duyệt; cần `teaching session` + `coverage` + `qualification` (`19-…` §2.2) |
+| PARK-15 | VC-03 Shift/session checklist + bằng chứng hoàn thành | user flow | **M** (3/5) | §7.8 | Bằng chứng là **gói trả phí** của 7shifts ("Tasks is a paid add-on") ⇒ là tuyên bố sản phẩm, không phải chuẩn ngành; NOTES-02 tự hạ confidence MEDIUM và tự đề nghị PARK |
+| PARK-16 | `Manager` role thứ ba | auth | **M** (ước lượng) | §7.12 | Trái NOTES-01 B3 + ADR-009 (MVP 2 role). Thay bằng **scope theo `departmentId`** đã ghi ở `07-auth-rbac.md` — giải quyết ~80% nhu cầu với ~5% chi phí (`19-…` §2.3a) |
 
 ---
 

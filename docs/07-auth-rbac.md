@@ -41,6 +41,9 @@ Bốn hệ quả thiết kế, tất cả từ `B3`:
    `assign_project` + `override_kpi` mang nhãn `Admin` → cách phân vùng chi tiết là
    `// SUY DIỄN — cần xác nhận` (BR-16 ở docs 04).
 
+Bốn hệ quả trên **chưa đủ** để chặn một Admin đọc số liệu của phòng ban khác: chiều bị thiếu là **scope**,
+không phải role thứ ba — đặc tả ở §7.4 (`19` §2.3(a)). `role` vẫn **đúng 2 giá trị**.
+
 ---
 
 ## 2. Token: Access vs Refresh
@@ -285,6 +288,12 @@ trong `B6`; *(own)* = chỉ dữ liệu của chính người dùng.
 | `assign_project` | UF-04, UF-05 | ✅ 🔒 | ❌ | ⛳ + **Admin** — nhãn trong `B6`: `assign_project (confirm + Admin)`; transition T-02 |
 | `override_kpi` | UF-06 | ✅ 🔒 | ❌ | ⛳ + **reason** + **Admin** — nhãn trong `B6`: `override_kpi (confirm + reason + Admin)`; BR-09 |
 | Phê duyệt thay đổi field nhạy cảm của hồ sơ | UF-01 | ✅ | ❌ | `B0` UF-01 có bước "duyệt nếu field nhạy cảm" — **không** có tool nào trong `B6` cho việc này `// SUY DIỄN` |
+| Phản hồi phân công — `ACKNOWLEDGE` / `DECLINE` / `REQUEST_CHANGE` (`POST /projects/:id/acknowledgement`, `06 §2.4`) | UF-04, UF-05 | ✅ *(trong `departmentId` được gán — §7.4)* | ✅ **(own)** — chỉ người có tên trong `assigneeIds` | ⛳ **confirm** (write tạo thay đổi nghiệp vụ); `reason` bắt buộc với `DECLINE`/`REQUEST_CHANGE`; ghi `project_events` type `ACKNOWLEDGED`/`DECLINED`/`CHANGE_REQUESTED` (`05 §3.5`), **không** đổi `projects.status`; người gọi ngoài `assigneeIds` → `NOT_ASSIGNEE` (`06 §5`); **tên tool chưa có trong catalog `B6`** `// SUY DIỄN — cần xác nhận` + `[CẦN NGUỒN]` |
+| Duyệt phản hồi phân công (reassign / chấp nhận lý do từ chối) | UF-04, UF-05 | ✅ 🔒 *(trong scope, §7.4)* | ❌ | ⛳ + **Admin**; **SC-03**: không duyệt yêu cầu do chính mình tạo → `SELF_APPROVAL`; đường gán lại là `assign_project` (`06 §2.4`) — chưa có tool riêng `// SUY DIỄN` |
+
+**Toàn bộ cột "Admin" ở §7.1 và §7.2 còn bị chặn thêm bởi §7.4 (scope)** — `✅` nghĩa là "được làm **trong
+`departmentId` được gán**", không phải "toàn công ty" `// SUY DIỄN — cần xác nhận` (chiều scope không có trong
+`B3`).
 
 ### 7.3 Action chỉ có trong REST/dashboard, không phải tool chatbot
 
@@ -302,6 +311,45 @@ trong `B6`; *(own)* = chỉ dữ liệu của chính người dùng.
 
 Không có action nào cho `level` mở quyền (§1). Mọi dòng ⛳ ở trên là **điểm bắt buộc có bước xác nhận** —
 chatbot phải hiển thị "tôi sắp làm X, bạn có chắc không?" rồi mới gọi service (BR-05 docs 04).
+
+### 7.4 Thực thi scope — Admin bị chặn theo `departmentId` được gán
+
+`19` §2.3(a) + §3 chốt: **không** thêm role thứ ba, nhưng **phải** thêm **thực thi scope**. Đây là ràng buộc
+quyền, không phải tính năng.
+
+```text
+role  = Admin | Employee        ← vẫn ĐÚNG 2 giá trị (B3, ADR-009); không có Manager, không có role mới
+scope = giá trị departmentId trên hồ sơ của chính người dùng   ← chiều bị thiếu, docs đặt
+```
+
+Nguồn ủng hộ: trang 7shifts "Manager Permissions" / "Approve Availability Requests" (đã kiểm chứng ở `19` §1)
+mô tả quyền duyệt của quản lý gắn với điều kiện *"…who has the permission 'Can manage other employees'
+availability' enabled, **and is assigned to the same Department** as the Employee"* — tức ngành giải quyết bài
+toán "ai được duyệt" bằng **permission + scope**, không bằng cách nâng role. `NOTES-01` **không** có mô hình
+scope nào (`B3` chỉ định nghĩa `role` và `level`) → chi tiết dưới đây là `[CẦN NGUỒN]`.
+
+Bốn quy tắc bắt buộc:
+
+| # | Quy tắc | Hệ quả ở tầng code | Trạng thái |
+|---|---|---|---|
+| SC-01 | **Admin chỉ thao tác trong `departmentId` được gán** trên hồ sơ của mình: đọc (`get_employee`, `list_projects` chéo phòng, `get_department_kpi`, `find_candidates`) và ghi (`assign_project`, `change_project_status`, duyệt phản hồi) | một hàm `assertInScope(actor, resource)` chạy **trước** query, ở **service layer** — không phải middleware đọc header, không phải filter ở UI | `[CẦN NGUỒN]` cho chỗ lưu scope |
+| SC-02 | **Không tin client**: `departmentId`/`userId` trong payload hay trong đối số tool chỉ là *yêu cầu lọc*, phải đối chiếu với scope nạp từ phiên đã verify (cùng khuôn ADR-014 mục 4 / `§B15` "server inject scope") | `RBAC_DENIED` (403) khi yêu cầu nằm ngoài scope; **không** trả dữ liệu một phần (catalog `06 §5`) | kế thừa quyết định đã chốt |
+| SC-03 | **Self-approval guard**: không ai được duyệt/phê chuẩn một yêu cầu do **chính mình tạo** — kể cả Admin. Áp dụng cho `reports/:id/review`, `override_kpi`, và bước duyệt phản hồi phân công (`06 §2.4`) | so `actorId` của hành động duyệt với `createdBy`/`respondeeId` của bản ghi được duyệt; bằng nhau → từ chối (`06 §5` `SELF_APPROVAL`), **không** ghi event | `[CẦN NGUỒN]` — `NOTES-01` không có khái niệm separation of duties; nguồn ý tưởng: `NOTES-02` §E VC-01 ("Manager không tự approve request của chính mình nếu cùng actor") |
+| SC-04 | **Employee giữ quyền own** như cũ (`B6` cách đặt tên `get_my_*`, BR-16): scope của Employee là **sở hữu**, không phải phòng ban | phản hồi phân công chỉ thực hiện được trên đề tài có `employeeId` của mình trong `assigneeIds` | đã chốt ở `06 §2.4` |
+
+Hai khoảng trống phải chốt trước khi code, **không** được âm thầm vá:
+
+1. **Scope lưu ở đâu**: `05 §3.1` (`users`) và `05 §3.2` (`employees`) **không** có field scope nào; phương án
+   ít xâm phạm nhất là suy scope từ `employees.departmentId` của chính tài khoản Admin (một phòng ban), còn
+   "một Admin quản nhiều phòng" sẽ cần **thêm field** → chạm ràng buộc 11 collection (`05 §1.1`). Docs **không**
+   tự thêm field. → `[CẦN NGUỒN]` + GVHD, ghi là D-13 ở `06 §8`.
+2. **Admin toàn công ty**: nếu GVHD muốn có super-admin không giới hạn, đó là **một capability flag** ở server
+   chứ **không** phải role thứ ba (`19` §3 hàng "`Manager` role thứ ba" = **KHÔNG**). Tên flag và cách gán:
+   `TBD` — `[CẦN NGUỒN]`.
+
+Scope **không** thay thế RBAC mỗi tool call (§8 mục 3) mà là **lớp thứ hai**: `role` trả lời "được làm loại
+hành động này không", `scope` trả lời "được làm với **dữ liệu của ai/phòng nào**". Thiếu một trong hai là
+`13` §2.5 (IDOR) và §2.15–§2.17 (ba threat mới từ vòng đánh giá này).
 
 ---
 
@@ -397,3 +445,6 @@ yêu cầu bổ sung trước khi bất kỳ số nào được chép vào báo 
 | A-05 | `Lead` có phải `Admin` không (Q-09 docs 04) | §1, matrix §7 | GVHD |
 | A-06 | Phân vùng Employee ↔ `get_employee` / `find_candidates` / `list_projects` | §7 (các dòng `// SUY DIỄN`) | nhóm |
 | A-07 | Có giữ `reusedDetectedAt` không | §5 | nhóm |
+| A-08 | **Chỗ lưu scope của Admin**: suy từ `employees.departmentId` hay cần field riêng (một Admin nhiều phòng ban)? Kéo theo câu hỏi "có super-admin không giới hạn không" | §7.4 SC-01, `05 §3.1`/`05 §1.1` (11 collection), `06 §8` D-13 | nhóm + GVHD — `[CẦN NGUỒN]` |
+| A-09 | **Tên tool chatbot** cho `ACKNOWLEDGE`/`DECLINE`/`REQUEST_CHANGE` (catalog 15 tool của `B6` chưa có) và cách đăng ký vào ràng buộc `E-01` | §7.2 (hai dòng mới), `06 §2.9.1`, `06 §8` D-14 | nhóm (`18-user-flows.md`) |
+| A-10 | **Phạm vi của self-approval guard**: áp cho những hành động duyệt nào (`reports/:id/review`, `override_kpi`, duyệt phản hồi, gán lại đề tài) và cách xác định "người tạo yêu cầu" khi yêu cầu sinh ra từ chatbot | §7.4 SC-03, `06 §5` `SELF_APPROVAL` | nhóm — `[CẦN NGUỒN]` |

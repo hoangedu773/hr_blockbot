@@ -64,8 +64,8 @@ Không có endpoint `PUT /auth/password` hay "khoá tài khoản sau N lần sai
 
 | Method | Path | Vai | Request | Response | Mã lỗi | Idempotency | Index / filter |
 |---|---|---|---|---|---|---|---|
-| GET | `/employees` | `Admin` | filter: `departmentId?`, `level?` (`Intern\|Junior\|Middle\|Senior\|Lead`), `skill?`, `q?` (theo `employeeCode`); phân trang `TBD` | `200 { items: [EmployeeDto], paging: TBD }` | `RBAC_DENIED` (403), `VALIDATION_FAILED` (400) | Idempotent (đọc) | `employees.departmentId` — I-15; `employeeCode` UNIQUE — I-01. Text index trên `skills` **chưa chốt** (`05 §4.3`, I-20 `[CẦN NGUỒN]`) → lọc skill làm bằng query terms trên `skills[]` (`SUY DIỄN`) |
-| GET | `/employees/:id` | `Admin`; `Employee` **chỉ own** | — | `200 EmployeeDto` | `RBAC_DENIED` (403), `RESOURCE_NOT_FOUND` (404) | Idempotent (đọc) | `employees._id`; đường own đi I-14 |
+| GET | `/employees` | `Admin` | filter: `departmentId?`, `level?` (`Intern\|Junior\|Middle\|Senior\|Lead`), `skill?`, `q?` (theo `employeeCode`); phân trang `TBD` | `200 { items: [EmployeeSummaryDto], paging: TBD }` — **chỉ allowlist**, xem "Quy tắc dữ liệu tối thiểu" cuối §2.2; `Admin` chỉ nhận kết quả trong `departmentId` được gán (`07 §7.4`) | `RBAC_DENIED` (403), `VALIDATION_FAILED` (400) | Idempotent (đọc) | `employees.departmentId` — I-15; `employeeCode` UNIQUE — I-01. Text index trên `skills` **chưa chốt** (`05 §4.3`, I-20 `[CẦN NGUỒN]`) → lọc skill làm bằng query terms trên `skills[]` (`SUY DIỄN`) |
+| GET | `/employees/:id` | `Admin`; `Employee` **chỉ own** | — | `200 EmployeeDto` — **own**: hồ sơ đầy đủ của chính mình; **người khác**: `EmployeeSummaryDto` theo allowlist (`19` §2.3(b)) | `RBAC_DENIED` (403), `RESOURCE_NOT_FOUND` (404) | Idempotent (đọc) | `employees._id`; đường own đi I-14 |
 | PATCH | `/employees/:id` | `Admin`; `Employee` own, **nhóm không nhạy cảm** | `phone?`, `skills?`, … + `clientMessageId : string : required` | `200 EmployeeDto` | `VALIDATION_FAILED` (400), `RBAC_DENIED` (403), `DUPLICATE_KEY` (409 — trùng `employeeCode`) | Replay cùng `clientMessageId` → trả chính kết quả cũ, không ghi lần hai | `_id` |
 | POST | `/employees` | `Admin` | `employeeCode : string : required, UNIQUE`<br>`fullName : string : required`<br>`departmentId : ObjectId : required`<br>`level : enum5 : required`<br>`skills : string[] : required (rỗng được)` | `201 EmployeeDto` | `VALIDATION_FAILED` (400), `DUPLICATE_KEY` (409) | Không idempotent theo `clientMessageId` ở tầng REST → một lần bấm = một bản ghi (`SUY DIỄN` — `employeeCode` UNIQUE là thứ chặn trùng thật sự, I-01) | I-01 |
 | GET | `/employees/:id/kpi-history` | `Admin`; `Employee` own | filter: `period?` | `200 { items: [EvaluationDto] }` | `RBAC_DENIED` (403) | Idempotent (đọc) | `evaluations (employeeId, period)` — I-06; `(period)` — I-16 |
@@ -74,6 +74,24 @@ Không có endpoint `PUT /auth/password` hay "khoá tài khoản sau N lần sai
 `05 §1.1` đóng ở **11 collection** và không có collection nào chứa hàng đợi duyệt → xem §8 D-05. Vì vậy
 `PATCH /employees/:id` với field nhạy cảm trả `VALIDATION_FAILED` kèm `details.pendingApprovalUnsupported`
 `(SUY DIỄN)` cho tới khi hàng đợi duyệt được chốt.
+
+**Quy tắc dữ liệu tối thiểu (BR mới theo `19` §2.3(b)):** response của **mọi** đường đọc hồ sơ người khác —
+`get_employee` (tool) và `GET /employees/:id` / `GET /employees` (REST) — bị chặn bằng **allowlist field**, không
+bằng cách nhớ "field nào đừng đưa". Hai danh sách dưới đây là hợp đồng, Zod schema của `EmployeeDto` sinh ra từ
+đó (`B2`) phải phản ánh đúng nó.
+
+| Cho phép trả về | Cấm trả về |
+|---|---|
+| `employeeId`, `fullName` (tên hiển thị), `level`, `departmentId`/`department` (tên phòng ban), `skills` khớp yêu cầu, `matchScore`/`rank` tổng hợp, `matchedSkills`/`missingSkills` (breakdown kỹ năng), `activeLoad` dạng **tổng hợp** (số đề tài đang mở), `status` (`active`/`inactive`) | `phone`; email cá nhân; địa chỉ; CCCD/bất kỳ định danh pháp lý; lương; `hiredAt`; **lý do nghỉ/vắng** và mọi field thuộc nhóm "nhạy cảm" của UF-01; `selfReview`/`managerReview` nguyên văn; `sentiment`/`themes`/`riskSignals`; điểm KPI chi tiết (`machineScore`, `finalScore`, `suggestedScoreComponent`, `overrideReason`); nội dung `projects` của người khác ngoài dữ kiện cần để biết ai đang rảnh |
+
+Cấm **không phụ thuộc vai**: `Admin` muốn đọc số nhạy cảm thì dùng đường CRUD hồ sơ đầy đủ của module
+`employees` (đã ghi `07 §7.3`), **không** phải bằng cách xin `find_candidates` trả thêm field — vì kết quả của
+tool này đi thẳng vào prompt của LLM và vào card hiển thị cho người ra quyết định gán việc `// SUY DIỄN — cần
+xác nhận` (phạm vi allowlist do docs đặt; `NOTES-01` không có chính sách PII nào — `07 §9` mục 21,
+`13` §2.10, `[CẦN NGUỒN]`).
+
+`get_employee` khi được gọi cho **chính mình** (own) trả hồ sơ đầy đủ của chính người dùng; khi gọi cho
+**người khác** chỉ trả allowlist ở cột trái `// SUY DIỄN`. Chi tiết quyền: `07 §7.1`, `07 §7.4` (scope).
 
 ### 2.3 `departments`
 
@@ -103,6 +121,16 @@ Không có tool chatbot nào cho `departments`: `NOTES-01 §B6` không khai báo
 | GET | `/projects/:id/events` | cả hai (own) | paging `TBD`; sort `createdAt desc` | `200 { items: [ProjectEventDto] }` | `RBAC_DENIED` (403), `RESOURCE_NOT_FOUND` (404) | Idempotent (đọc) | `project_events (projectId, createdAt)` — **I-12** |
 | POST | `/projects/:id/progress` | `Employee` own, `Admin` (`submit_progress` — write ⇒ confirm) (T-06) | `progressPct : number : 0..100 : required`<br>`note? : string`<br>`clientMessageId : string : required` | `200 { projectId, event: ProjectEventDto }` — **không** đổi trạng thái duyệt | `CONFIRMATION_REQUIRED` (428), `RBAC_DENIED` (403), `ILLEGAL_STATE_TRANSITION` (422), `VALIDATION_FAILED` (400) | `clientMessageId` đã thấy → bỏ qua, trả `200` kèm event cũ (BR-13) | append `project_events` (I-12) |
 | POST | `/projects/:id/assign` | **`Admin` only** (`assign_project (confirm + Admin)` — `B6`) | `assigneeIds : ObjectId[] : required, không rỗng`<br>`expectedVersion : number : required`<br>`confirmed : boolean`<br>`clientMessageId : string : required` | `200 ProjectDto` at `ASSIGNED` → `project:updated` + `notification:new` "Assignment mới" | `CONFIRMATION_REQUIRED` (428), `RBAC_DENIED` (403), `PROJECT_VERSION_CONFLICT` (409), `VALIDATION_FAILED` (400) | điều kiện `status: DRAFT` + `version` → chỉ một lần gán có hiệu lực | `_id`, I-03 |
+| POST | `/projects/:id/acknowledgement` | `Employee` **own** (chỉ người có tên trong `assigneeIds`), `Admin` | `response : 'ACKNOWLEDGE'\|'DECLINE'\|'REQUEST_CHANGE' : required`<br>`reason? : string : required khi DECLINE hoặc REQUEST_CHANGE`<br>`expectedVersion : number : required`<br>`confirmed : boolean`<br>`clientMessageId : string : required` | `200 { projectId, event: ProjectEventDto }` với `type` = `ACKNOWLEDGED` \| `DECLINED` \| `CHANGE_REQUESTED` (`05 §3.5`) → **chỉ sau đó** notify cho `Admin`; **không** đổi `projects.status`, **không** đổi `version`, **không** sang `transition` | `CONFIRMATION_REQUIRED` (428), `NOT_ASSIGNEE` (403 — người gọi không còn trong `assigneeIds`, vd đề tài vừa bị gán lại), `RBAC_DENIED` (403 — ngoài `departmentId` được gán, `07 §7.4`), `VALIDATION_FAILED` (400 — thiếu `reason`), `RESOURCE_NOT_FOUND` (404) | `clientMessageId` đã thấy → bỏ qua, trả `200` kèm event cũ (BR-13); nhiều lần phản hồi của **cùng một** người cho **cùng** `response`: event cuối là dữ kiện đọc khi suy trạng thái, các bản trước vẫn giữ (append-only, BR-03) | append `project_events` — **I-12**; kiểm tra tư cách gán đọc `projects._id` + `assigneeIds` (I-03) |
+
+Endpoint acknowledgement **không phải** một cửa của bảng transition: `19` §3 chốt VC-01 là **dữ kiện
+append-only**, `projects.status` vẫn đúng 5 giá trị (`05 §3.4`). Trách nhiệm với đề tài **chưa chuyển** chỉ vì
+một người bấm "tôi nhận" hay "tôi không nhận" — đề tài vẫn thuộc `assigneeIds` cho tới khi `Admin` gán lại qua
+`POST /projects/:id/assign` (ngành chốt cùng một nguyên tắc: *"The original shift remains the responsibility
+of the employee **until** the shift trade request is approved by management"* — trích trong `19` §2.1, dẫn 7shifts
+Knowledge Base; `NOTES-02` §VF-01 nói cùng ý "original employee remains responsible until approved").
+`ACKNOWLEDGE`/`DECLINE`/`REQUEST_CHANGE` đều là **write ⇒ confirm** (BR-05), nên chatbot phải hiện challenge
+trước khi gọi; REST chỉ nhận cờ `confirmed`.
 
 Endpoint `PATCH /projects/:id/status` kiểu "đặt `status` tuỳ ý" **cố ý không tồn tại**: `change_project_status`
 phải đi qua bảng transition (`04 §7`).
@@ -162,6 +190,26 @@ Không có REST endpoint cho hội thoại: `B7` định nghĩa hội thoại ch
 đường **đọc lại** cho dashboard (notification, project, KPI). Đây là điểm cần nhắc khi code: `RP §3 B7` hỏi
 "có persist message vào Mongo không" và `NOTES-01` **không trả lời** → `05 §7` D-08 chốt MVP **không** lưu
 lịch sử chat, nên **không có** endpoint `GET /chatbot/history`.
+
+### 2.9.1 Hợp đồng response của tool đọc hồ sơ người khác
+
+`19` §2.3(b) chốt: **tool chỉ trả dữ liệu tối thiểu cần để ra quyết định**. Quy tắc áp cho `find_candidates` và
+`get_employee` (khi gọi cho người khác); nó là **ràng buộc response schema**, không phải lời khuyên trình bày.
+
+| Tool | Response được phép (`CandidateSummaryDto`) | Cấm trong response | Ghi chú |
+|---|---|---|---|
+| `find_candidates` | `aiSuggestionId`, `items: [{ employeeId, fullName (tên hiển thị), level, matchScore, rank, matchedSkills[], missingSkills[], workload (số đề tài đang mở — tổng hợp) }]`, `abstain`, `clarify?` | `phone`, email cá nhân, địa chỉ, lương, `hiredAt`, lý do nghỉ/vắng, `selfReview`/`managerReview`, `sentiment`/`themes`/`riskSignals`, điểm KPI chi tiết (`machineScore`/`finalScore`/`suggestedScoreComponent`/`overrideReason`), tiêu đề/nội dung đề tài của người khác | `IN-02` chỉ nhận `[{ employeeId, skills, level, activeLoad }]` làm đầu vào → đầu ra **không cần** gì thêm ngoài những thứ đã vào; `matchedSkills`/`missingSkills` lấy từ phần breakdown đã có của `IN-03` (card "bằng chứng" `B14`). `aiSuggestionId` đã tồn tại trong `feedback_events` (`05 §3.11`) |
+| `get_employee` (người khác) | `employeeId`, `fullName`, `level`, `departmentId`, `skills`, `status` | như cột giữa, cộng mọi field nhóm "nhạy cảm" của UF-01 | own (`get_my_profile`) mới trả hồ sơ đầy đủ; catalog `B6` **không** tách hai đường này → phân vùng là `// SUY DIỄN` (A-06 ở `07 §10`) |
+| `explain_candidate_match` | `contributions: [{ skill, delta }]`, `workloadPenalty`, `method` | mọi field định danh cá nhân bổ sung (tool đã biết `employeeId` từ kết quả trước) | đúng 3 nhóm field của `IN-03`; **cấm** attention (`B14`) |
+
+Cưỡng chế bằng **projection ở repository + allowlist ở Zod DTO** (`B2`), không bằng cách lọc thủ công trong
+prompt: kết quả tool đi thẳng vào ngữ cảnh LLM, nên một field lọt vào response là đã lọt vào prompt. Test
+tương ứng nằm ở `13` §2.16.
+
+**Chưa chốt:** hành vi acknowledgement (§2.4) **chưa có tên tool** trong catalog 15 cái của `B6` — `19` §3 ghi
+"3 intent chatbot mới" là việc của `18-user-flows.md`; đặt tên tool là `// SUY DIỄN — cần xác nhận` +
+`[CẦN NGUỒN]`, và tool mới **phải** được đăng ký trước khi code vì `E-01` ràng buộc `tool` nằm trong đúng 15
+tên đã khai báo (§4.2).
 
 ## 3. Công cụ sinh client
 
@@ -246,10 +294,12 @@ Chỉ dùng mã mà nghiệp vụ trong nguồn **thật sự sinh ra**. Cột "
 
 | Code | HTTP | Sinh ra từ | Nguồn | Client nên làm gì |
 |---|---|---|---|---|
-| `VALIDATION_FAILED` | 400 | Zod reject ở biên vào (mọi đối số, kể cả đối số LLM trả về); enum ngoài 5 giá trị `status`, ngoài 2 `role`, ngoài 5 `level`; bắt buộc `reason` khi reject/override | `B6` "Zod validate every argument"; `B2`; `04` BR-19 | Giữ dữ liệu người dùng đã nhập, highlight **field nào** sai trong `details`; **không** retry tự động |
+| `VALIDATION_FAILED` | 400 | Zod reject ở biên vào (mọi đối số, kể cả đối số LLM trả về); enum ngoài 5 giá trị `status`, ngoài 2 `role`, ngoài 5 `level`, ngoài 3 giá trị `response` của acknowledgement; bắt buộc `reason` khi reject/override/không nhận việc | `B6` "Zod validate every argument"; `B2`; `04` BR-19 | Giữ dữ liệu người dùng đã nhập, highlight **field nào** sai trong `details`; **không** retry tự động |
 | `UNAUTHENTICATED` | 401 | JWT thiếu/hết hạn; refresh fail; đăng nhập sai | `07 §2/.4` "trả 401, client xoá access token trong memory và chuyển về màn hình login" | Xoá access token trong memory, dừng thử refresh lại trong cùng trang, chuyển về login |
 | `TOKEN_REUSED` | 401 | Refresh token cũ xuất hiện lại → **revoke TOÀN BỘ family** | `B3`; `07 §3.3` | Thông báo "phiên đã bị thu hồi vì lý do bảo mật", yêu cầu login lại; không cho phép im lặng login lại |
-| `RBAC_DENIED` | 403 | RBAC check ở mỗi request và **mỗi tool call**; `Employee` chạm tool/cửa Admin (`assign_project`, `override_kpi`, `get_department_kpi`, `find_candidates`, duyệt hồ sơ) | `B6` "RBAC check every tool"; `07 §7`; BR-06 | Ẩn/bỏ action đó khỏi UI; **không** hiển thị dữ liệu một phần; giữ nguyên dữ liệu |
+| `RBAC_DENIED` | 403 | RBAC check ở mỗi request và **mỗi tool call**; `Employee` chạm tool/cửa Admin (`assign_project`, `override_kpi`, `get_department_kpi`, `find_candidates`, duyệt hồ sơ); **`Admin` chạm dữ liệu ngoài `departmentId` được gán** (`07 §7.4` — scope enforcement ở service layer) | `B6` "RBAC check every tool"; `07 §7`, `07 §7.4`; BR-06 | Ẩn/bỏ action đó khỏi UI; **không** hiển thị dữ liệu một phần; giữ nguyên dữ liệu |
+| `NOT_ASSIGNEE` | 403 | `POST /projects/:id/acknowledgement`: người gọi **không còn** nằm trong `assigneeIds` của đề tài (bị gán lại sau khi nhận notification), hoặc đề tài đang ở `DRAFT` — chưa có ai được giao mà phản hồi | `19` §3 hàng `VC-01` (ownership + response permission); suy ra từ BR-16 (`04`) — **tên mã do docs đặt** `// SUY DIỄN — cần xác nhận` | Ẩn nút/chip phản hồi khỏi card, reload đề tài; **không** retry; **không** đổi trạng thái nào (`ACKNOWLEDGED` không phải cửa của bảng transition) |
+| `SELF_APPROVAL` | 403 | actor của hành động **duyệt/phê chuẩn** trùng với người **tạo** yêu cầu được duyệt — guard "không tự duyệt yêu cầu do chính mình tạo" (`07 §7.4`) | `19` §2.3(a) + `NOTES-02` §E VC-01 ("Manager không tự approve request của chính mình nếu cùng actor"); **tên mã do docs đặt** `// SUY DIỄN — cần xác nhận` | Báo rõ "bạn không thể duyệt chính yêu cầu của mình", gợi ý chuyển cho Admin khác trong cùng `departmentId`; **không** mutate, **không** ghi event duyệt |
 | `CONFIRMATION_REQUIRED` | 428 | Tool **ghi** được gọi mà chưa có bước xác nhận | `B6` "Write tool → confirmation → execute"; `00 §4` S8; BR-05 | Hiển thị challenge "hệ thống sắp làm X — bạn có chắc không?", phát `chat:send` với `confirm.approved = true` khi người dùng đồng ý; **không** mutate gì cho tới lúc đó |
 | `ILLEGAL_STATE_TRANSITION` | 422 | `to` không phải cửa ra hợp pháp của trạng thái hiện tại theo bảng transition; `COMPLETED → *`; `DRAFT → PENDING_REVIEW` | `B4` sơ đồ; `04 §4.3` "chỉ một transition duy nhất cho một trạng thái", "không nhảy tắt"; BR-01 | Reload đề tài, hiển thị `status` hiện tại; action sai bị loại khỏi UI — **không** retry |
 | `PROJECT_VERSION_CONFLICT` | 409 | Điều kiện `(_id, status: expected, version: v)` không khớp: hai người cùng sửa / cùng bấm approve | `05 §5.2/.3`; `04` BR-02 | Đọc `details.actual` (document hiện tại) và **reload form**, người dùng bấm lại có ý thức; **không** auto-merge |
@@ -341,6 +391,8 @@ Toàn bộ các con số hạ tầng này `[CẦN NGUỒN]` (`NOTES-01` mục "C
 | D-10 | **`reports.attachments`** có upload file không; giới hạn loại/kích thước | §2.5 đang để `TBD` | `07 §9` checklist mục 25 | nhóm |
 | D-11 | **F1 ≥ 85% đo bài toán nào** (`RP §7.2`) | IN-02 `strategy` và bộ metric của F4; không chặn REST contract nhưng chặn chốt `09-ai-evaluation.md` | mục 8 | GVHD |
 | D-12 | **`period` granularity** (`04 §9` Q-07) | `POST /evaluations/periods`, filter `period` ở §2.6 | — | nhóm |
+| D-13 | **Scope của Admin nằm ở đâu trong schema**: `07 §7.4` chốt *hành vi* (chặn theo `departmentId` được gán) nhưng `05 §3.1` chỉ có `users{email, passwordHash, role, employeeId}` — **không có field scope nào** và `NOTES-01 §B3` không đề cập khái niệm scope | mọi filter `departmentId` ở §2.2/§2.4/§2.6 và `RBAC_DENIED` ngoài scope; chưa quyết được là (a) thêm field vào `users`/`employees` hay (b) lấy scope từ `employees.departmentId` của chính Admin | `07 §7.4` `[CẦN NGUỒN]` | nhóm + GVHD (chạm 11 collection, `05 §1.1`) |
+| D-14 | **Tên tool cho phản hồi phân công** chưa tồn tại trong catalog 15 tool của `B6`; `E-01` ràng buộc `tool` phải thuộc danh sách đóng đó | §2.4 (endpoint acknowledgement chạy được nhưng chatbot chưa gọi được) + §2.9.1 | `19` §3 ghi "3 intent chatbot mới" nhưng không đặt tên tool — `[CẦN NGUỒN]` | nhóm (`18-user-flows.md`, đang được người khác sửa) |
 
 ## 9. Việc tiếp theo từ file này
 

@@ -28,8 +28,8 @@ Bộ tài liệu thiết kế nằm trong [`docs/`](docs/), sinh ra từ vòng r
 | [`docs/11-quality-testing.md`](docs/11-quality-testing.md) · [`15-engineering-conventions.md`](docs/15-engineering-conventions.md) | Chiến lược test + UAT · Conventional Commits, branch/PR, quy ước code, gate CI |
 | [`docs/16-project-plan.md`](docs/16-project-plan.md) · [`17-innovation-playbook.md`](docs/17-innovation-playbook.md) · [`18-user-flows.md`](docs/18-user-flows.md) | WBS 12 tuần + RACI · các mục nhóm tự bổ sung + gate · 10 user flow + 28 intent chatbot |
 | [`docs/backlog-parked.md`](docs/backlog-parked.md) | Những gì bị dời ra ngoài phạm vi, kèm lý do và điều kiện mở lại |
-| [`docs/research/RESEARCH-PLAN.md`](docs/research/RESEARCH-PLAN.md) | Kế hoạch research (B0–B15) — giữ nguyên làm bằng chứng vòng 1, kèm danh sách bị research bác |
-| [`docs/research/NOTES-01.md`](docs/research/NOTES-01.md) | **Kết quả research của nhóm** — nguồn sự thật duy nhất của toàn bộ `docs/` |
+| [`docs/research/NOTES-01.md`](docs/research/NOTES-01.md) · [`NOTES-02.md`](docs/research/NOTES-02.md) | **Kết quả research của nhóm** — vòng 1 (B0–B15) và vòng 2 (luồng nhân sự theo ngành dọc). Nguồn sự thật của toàn bộ `docs/` |
+| [`docs/19-vertical-workforce-assessment.md`](docs/19-vertical-workforce-assessment.md) | Đánh giá vòng 2: kiểm chứng từng URL, quyết định LÀM / CÂN NHẮC / PARK, và những gì đã vá vào docs |
 | [`docs/research/B0-worksheet.md`](docs/research/B0-worksheet.md) | Phiếu trống để đối chiếu các hệ thống HRM thông minh |
 
 **Lưu ý trung thực:** nhiều con số trong `NOTES-01` **mất URL nguồn khi paste**, nên các file thiết kế đánh dấu

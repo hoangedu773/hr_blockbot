@@ -12,8 +12,8 @@ Nguồn sự thật duy nhất của mọi con số/tên trong file này:
 |---|---|
 | `NOTES-01 §Bn` | `docs/research/NOTES-01.md` — kết quả research vòng 1 (B0..B15) |
 | `RP §n` | `docs/research/RESEARCH-PLAN.md` — §1 ràng buộc đề cương + rubric, §11 fitness functions, §12 luật phạm vi |
-| `UF-xx` | `docs/18-user-flows.md` — 10 user flow, catalog 28 intent, notification matrix |
-| `04 §n` | `docs/04-domain-model.md` — state machine F2, quy tắc nghiệp vụ BR-01..BR-20 |
+| `UF-xx` | `docs/18-user-flows.md` — 10 user flow, catalog 28 intent (+3 intent xác nhận phân công `#12a..#12c`), notification matrix |
+| `04 §n` | `docs/04-domain-model.md` — state machine F2, quy tắc nghiệp vụ BR-01..BR-22 |
 | `05 §n` | `docs/05-data-model.md` — 11 collection, field, index I-01..I-20 |
 | `07 §n` | `docs/07-auth-rbac.md` — permission matrix, tool read/write |
 | `00 §n` | `docs/00-vision-scope.md` — phạm vi 3 tầng, Definition of Done |
@@ -24,9 +24,14 @@ Ký hiệu: `TBD` = nguồn không đưa con số → **không đoán** · `[C�
 chép vào báo cáo (URL của các con số ở `NOTES-01 §B1`/`§B5` bị mất khi paste — xem `NOTES-01` mục "CẦN BỔ SUNG")
 · `SUY DIỄN` = yêu cầu do tài liệu này đặt ra để hệ thống chạy được, nguồn nghiên cứu không nêu.
 
-**Quy ước đánh số FR:** F1 → `FR-001..005` · F2 → `FR-006..014` · F3 → `FR-015..022` · F4 → `FR-023..027` ·
-F5 → `FR-028..035` · F6 → `FR-036..039` · F7 → `FR-040..044` · yêu cầu nền (đề cương bắt buộc nhưng không
-thuộc F nào) → `FR-050..056` · mục nhóm bổ sung (S-series) → `FR-060..068`.
+**Quy ước đánh số FR:** F1 → `FR-001..005` · F2 → `FR-006..014` + `FR-045` · F3 → `FR-015..022` ·
+F4 → `FR-023..027` · F5 → `FR-028..035` · F6 → `FR-036..039` · F7 → `FR-040..044` · yêu cầu nền (đề cương
+bắt buộc nhưng không thuộc F nào) → `FR-050..057` · mục nhóm bổ sung (S-series) → `FR-060..068`.
+
+**Vì sao `FR-045` mang số của block F7 nhưng thuộc F2:** hai block `FR-006..014` (F2) và `FR-040..044` (F7) đã
+kín, nên các FR mới **nối tiếp** từ `045` và `057` thay vì đánh số lại cả file (mọi file khác đang dẫn chiếu
+theo số FR cũ). `FR-045` thuộc F2 (nhánh xác nhận phân công của UF-04/UF-05, chạm F7 ở phần nhắc hạn);
+`FR-057` thuộc nhóm nền (RBAC — scope).
 
 **Trạng thái:** `Must` = đúng đề cương, không được bỏ · `Should` = nhóm làm, effort nhỏ, không cần duyệt
 riêng (`00 §4`) · `stretch — chờ GVHD` = mục bổ sung phải qua `RP §7.8` trước khi thành cam kết nghiệm thu
@@ -42,7 +47,7 @@ hiện có duy nhất là rubric 10 điểm ở `RP §1`, và nó được dùng
 | F | Chức năng (nguyên văn đầu bài) | User flow | FR |
 |---|---|---|---|
 | F1 | Hồ sơ nhân sự, phòng ban, chuẩn hóa 5 cấp bậc | UF-01 | FR-001..005 |
-| F2 | Danh mục & vòng đời đề tài (Khởi tạo → Đã giao → Đang thực hiện → Chờ duyệt → Hoàn thành) | UF-05 | FR-006..014 |
+| F2 | Danh mục & vòng đời đề tài (Khởi tạo → Đã giao → Đang thực hiện → Chờ duyệt → Hoàn thành) | UF-05 (+ UF-04 phần xác nhận phân công) | FR-006..014, FR-045 |
 | F3 | Chatbot nhận diện ý định, tra cứu KPI & chính sách | UF-10 (+ UF-01/04/05/06 phần đọc) | FR-015..022 |
 | F4 | Thuật toán gợi ý phân công theo ngữ nghĩa PhoBERT | UF-04 | FR-023..027 |
 | F5 | Phân tích ngữ nghĩa nhận xét của quản lý → hỗ trợ lượng hóa KPI | UF-06 | FR-028..035 |
@@ -77,6 +82,7 @@ phong cách slide 0.5 · NCKH +1.0/+0.5.
 | FR-012 | F2 | UF-05 | thiết kế lớp+dữ liệu 0.5 · kiểm thử 0.75 | TBD | Must |
 | FR-013 | F2 | UF-05, UF-09 | thiết kế lớp+dữ liệu 0.5 | TBD | Must |
 | FR-014 | F2 | UF-05 | thiết kế lớp+dữ liệu 0.5 | TBD | Must |
+| FR-045 | F2 (+ chạm F7) | UF-04 bước 9–11, UF-05 bước 2a–2c | cài đặt 3.5 · kiểm thử 0.75 | TBD | Should (nhóm bổ sung từ NOTES-02 — `19-…` §3, mục VC-01) |
 | FR-015 | F3 | UF-10 (28 intent) | cài đặt 3.5 · phân tích 0.75 | TBD | Must |
 | FR-016 | F3 | UF-06 | cài đặt 3.5 | TBD | Must |
 | FR-017 | F3 | UF-10 | cài đặt 3.5 · khảo sát 0.75 | TBD | Must |
@@ -114,6 +120,7 @@ phong cách slide 0.5 · NCKH +1.0/+0.5.
 | FR-054 | nền (Realtime) | UF-09, UF-10 | thiết kế lớp 0.5 · kiểm thử 0.75 | TBD | Must |
 | FR-055 | nền (Kiến trúc) | — | thiết kế lớp 0.5 · định dạng 0.5 | TBD | Must |
 | FR-056 | nền (Triển khai) | — | kiểm thử & triển khai 0.75 | TBD | Must |
+| FR-057 | nền (RBAC — scope) | UF-04 bước 11, UF-05 bước 2b–2c, mọi UF có tool `write` | cài đặt 3.5 · kiểm thử 0.75 | TBD | Should (nhóm bổ sung từ NOTES-02 — `19-…` §2.3a; **không** phải role thứ ba) |
 | FR-060 | mọi F có số đo | UF-04/05/06 | nội dung báo cáo 0.5 · NCKH | TBD | stretch — chờ GVHD (S14) |
 | FR-061 | F4 | UF-04 | NCKH +1.0/+0.5 · nội dung báo cáo 0.5 | TBD | stretch — chờ GVHD (S3) |
 | FR-062 | F4 | UF-04 | NCKH · nội dung báo cáo 0.5 | TBD | stretch — chờ GVHD (S2) |
@@ -152,7 +159,10 @@ Luồng nghiệp vụ nguồn: `xem → sửa → validate → gửi → duyệt
 ### 3.2 F2 — Vòng đời đề tài (UF-05)
 
 Machine trạng thái và bảng transition lấy từ `04 §4` (`T-01..T-06`). Enum `projects.status` **đúng năm giá
-trị**: `DRAFT`, `ASSIGNED`, `IN_PROGRESS`, `PENDING_REVIEW`, `COMPLETED` (`05 §3.4`).
+trị**: `DRAFT`, `ASSIGNED`, `IN_PROGRESS`, `PENDING_REVIEW`, `COMPLETED` (`05 §3.4`). **FR-045** (nhánh xác
+nhận phân công của `NOTES-02`) nằm ở cuối bảng này vì nó **không** thêm transition nào: phản hồi của
+`Employee` là dữ kiện trong `project_events`, trace `18` UF-04 bước 9–11 + UF-05 bước 2a–2c → `04 §4.6`,
+BR-21, BR-22 (`19-…` §2.1, §3).
 
 | FR | Mô tả | Precondition | Luồng chính | Ngoại lệ | Tiêu chí chấp nhận | Đo bằng |
 |---|---|---|---|---|---|---|
@@ -165,6 +175,12 @@ trị**: `DRAFT`, `ASSIGNED`, `IN_PROGRESS`, `PENDING_REVIEW`, `COMPLETED` (`05 
 | FR-012 | Mọi transition là **một** atomic conditional update theo `(_id, status: expected, version: v)`; không dùng transaction đa collection (BR-02) | client đã đọc document và giữ `expectedStatus`/`expectedVersion` | `findOneAndUpdate` điều kiện → `$inc version` → `$push statusHistory` → chỉ sau đó mới audit + WS + notify | update không khớp → đọc lại document hiện tại, trả `409` + payload hiện tại, **không** auto-merge | Given `version` đã bị người khác tăng, When ghi, Then nhận `PROJECT_VERSION_CONFLICT` và dữ liệu không đổi hai lần | `11 §5` dòng F2; `05 §5.2/.3` |
 | FR-013 | "Quá hạn" **không** phải một trạng thái: chỉ là vị từ dẫn xuất `dueDate < now AND status != COMPLETED` (BR-01) | có `index (status, dueDate)` (I-02) | dashboard badge/bộ lọc; job nhắc hạn (`04 §4.4`) | cố ghi `status` = giá trị chỉ hạn → DB enum chặn, code là defect **S2** (`11 §8.3`) | Given đề tài quá hạn đang `IN_PROGRESS`, When Admin approve, Then vẫn chuyển `PENDING_REVIEW → COMPLETED` bình thường (`04 §4.4`) | `11 §3` (cạnh hợp pháp + phủ định); `11 §8.3` |
 | FR-014 | `project.statusHistory[]` và `project_events` là **append-only**; không ai sửa/xoá (BR-03) | — | mọi mutation trạng thái chỉ `$push`/`insertOne` | nỗ lực update/xoá event → không có endpoint nào cho việc đó (`07 §7.3` "không ai") | Given một event đã ghi, When liệt kê timeline, Then nội dung cũ không đổi kể cả sau nhiều transition | `11 §5` dòng F2 |
+| FR-045 | `Employee` trong `assigneeIds` phản hồi một đề tài vừa được giao (`ASSIGNED`) bằng **`ACKNOWLEDGED`** / **`DECLINED`** / **`CHANGE_REQUESTED`**; mỗi phản hồi là **một bản ghi `project_events` append-only** (`actor`, `time`, `source`, `reason` optional) — `projects.status` **không đổi** và enum vẫn **5 giá trị** (BR-21, `04 §4.6`); người xử lý phản hồi là `Admin` **trong cùng `departmentId`** (BR-22) | đề tài `ASSIGNED`, người gọi thuộc `assigneeIds` | `[UI]` mở đề tài → chọn một trong ba → **confirm** (S8) → `insertOne` `project_events` → `notification:new` cho `Admin` cùng `departmentId` → `[UI]` Admin **reassign** hoặc xác nhận lại để đóng phản hồi | **`DECLINED` không gỡ `assigneeIds`**, không đổi `status`; người được giao **vẫn chịu trách nhiệm** tới khi Admin xử lý (BR-21, `19-…` §2.1); **không phản hồi** → nhắc 1 lần/ngày có dedupe (BR-12), quá ngưỡng **`TBD`** ngày `[CẦN NGUỒN]` thì **báo Admin** — im lặng **không** là đồng ý; chatbot **chưa có tool** cho ba ý định này (`18` intent `#12a..#12c` ghi `— chưa có tool`) → baseline thao tác trên dashboard, **không tự đặt tên tool mới** (FR-022) | Given đề tài `ASSIGNED` và một phản hồi `DECLINED` đã confirm, When kiểm tra, Then `projects.status` vẫn `ASSIGNED`, có đúng **một** `project_events` loại `DECLINED` kèm `actor`/`time`/`source`, `assigneeIds` **không đổi**, và **không** có giá trị enum thứ 6 nào được ghi; Given Admin của phòng ban khác bấm xử lý phản hồi, Then `RBAC_DENIED` (BR-22, FR-057) | `11 §5` dòng F2 (Supertest: ba nhánh phản hồi + nhánh không phản hồi); `11 §3` (enum 5 giá trị — test phủ định); `11 §4.2` "tool ghi có bước xác nhận" + "RBAC check mỗi tool" |
+
+**Ghi chú nhãn của FR-045:** để `Should`, **không** phải `stretch — chờ GVHD` — vì `19-…` §3 chốt VC-01 là
+**LÀM** trong baseline (không thêm collection, không đổi enum 5 state, không thêm role). Nhãn `stretch` ở file
+này dành riêng cho mục còn chờ `RP §7.8`; phần *chưa chốt* của nhánh này chỉ là ngưỡng ngày nhắc (`TBD`) và
+tool chatbot mới (§8 mục 12), không phải bản thân nghiệp vụ xác nhận.
 
 ### 3.3 F3 — Chatbot nhận diện ý định, tra cứu KPI & chính sách (UF-10)
 
@@ -183,7 +199,7 @@ Catalog 28 intent → tool ở `18-user-flows.md` (mục "Chatbot intent catalog
 | FR-019 | Guard của Agent Loop bắt buộc có mặt: `maxSteps = 5`, `toolTimeout`, `LLM timeout`, trần kích thước kết quả tool, Zod validate **mọi** tham số, RBAC check **mỗi** tool call (BR-19, `07 §8`) | — | chu trình `Tool selection → Zod validate → Permission check → execute` | LLM trả đối số thiếu/sai kiểu (hallucinated args) → tool không chạy, có đường xử lý dự phòng | Given một tool trả treo, When quá `toolTimeout`, Then hội thoại kết thúc bằng `chat:error`, không deadlock | `11 §4.2` (toàn bộ checklist guard) |
 | FR-020 | Tool ghi chỉ thực thi sau một bước **confirm** do người dùng bấm (BR-05); tool đọc chạy ngay | tool nằm trong 5 tên write | agent đề xuất → hiển thị "tôi sắp làm X, bạn có chắc không?" → confirm → execute → audit | quá hạn confirm hoặc từ chối → **không** có mutation nào | Given không confirm, When chờ, Then `projects`/`reports`/`evaluations` không đổi bản ghi nào | `11 §4.2` "Tool ghi có bước xác nhận" |
 | FR-021 | Trả lời được stream và chịu ràng buộc idempotency: mỗi client message mang `clientMessageId`, message trùng id bị bỏ qua (BR-13) | kết nối WS một namespace (`NOTES-01 §B7`) | `chat:send` → `chat:chunk` → `chat:done` | reconnect giữa chừng → client gửi lại cùng `clientMessageId` → không tạo hai mutation | Given mất kết nối sau `chat:accepted`, When gửi lại cùng id, Then hệ thống chỉ xử lý một lần | `11 §5` dòng Realtime |
-| FR-022 | Intent chưa có tool **không** được "điền chỗ": 7/28 intent (`sửa số điện thoại`, `kiểm tra workload`, `hỏi thêm khi AI không chắc`, `so sánh KPI theo tháng`, `giải thích điểm KPI`, `gửi nhận xét`, `tóm tắt công việc hôm nay`) phải được (a) chuyển thành thao tác dashboard, (b) phủ bằng abstention, hoặc (c) xin GVHD thêm tool | `18-user-flows.md` mục catalog | hiển thị rõ giới hạn cho người dùng | tự đặt tên tool mới = vi phạm hợp đồng catalog | Given intent #23 "gửi nhận xét", When hỏi chatbot, Then hệ thống chỉ đường dashboard và **không** gọi tool nào | `11 §4.2` "Intent → tool"; review tài liệu |
+| FR-022 | Intent chưa có tool **không** được "điền chỗ": 10/31 dòng intent trong `18` (`sửa số điện thoại`, `tôi nhận đề tài này`, `tôi không nhận được, lý do…`, `tôi muốn xin đổi thời gian/yêu cầu`, `kiểm tra workload`, `hỏi thêm khi AI không chắc`, `so sánh KPI theo tháng`, `giải thích điểm KPI`, `gửi nhận xét`, `tóm tắt công việc hôm nay`) phải được (a) chuyển thành thao tác dashboard, (b) phủ bằng abstention, hoặc (c) xin GVHD thêm tool | `18-user-flows.md` mục catalog | hiển thị rõ giới hạn cho người dùng | tự đặt tên tool mới = vi phạm hợp đồng catalog; ba intent `#12a..#12c` là **khoảng trống catalog ghi nhận từ NOTES-02, phải bổ sung khi code** | Given intent #23 "gửi nhận xét" hoặc #12a "tôi nhận đề tài này", When hỏi chatbot, Then hệ thống chỉ đường dashboard và **không** gọi tool nào | `11 §4.2` "Intent → tool"; review tài liệu |
 
 ### 3.4 F4 — Gợi ý phân công theo ngữ nghĩa (UF-04)
 
@@ -242,6 +258,7 @@ calibration/approval → publish → history`. Đây là mở rộng phạm vi, 
 | FR-054 | Bộ event WS **đóng ở 9 tên** (`chat:send`, `chat:accepted`, `chat:chunk`, `chat:done`, `chat:error`, `notification:new`, `project:updated`, `report:updated`, `kpi:updated`); một namespace, một instance, không Redis adapter | — | khai báo trong `06-api-spec.md` | event chưa khai báo → gate "WS contract" fail CI (`RP §11`) | Given một event thứ 10, When chạy gate WS contract, Then build đỏ | `11 §5` dòng Realtime; `02 §9` |
 | FR-055 | Hợp đồng API sinh một chiều: `Zod schema → OpenAPI → Orval → typed React client` (`NOTES-01 §B2`); client không tự viết type tay | `packages/contracts` | schema ở module → sinh client → build | schema drift → fail build | Given API đổi shape mà schema không đổi, When chạy `schemathesis`, Then CI đỏ | `02 §9` hàng "API không trôi khỏi spec" |
 | FR-056 | Triển khai thật trên ba nền tảng cam kết: MongoDB Atlas M0 · Render hoặc VPS Ubuntu (API + AI service) · Vercel hoặc Netlify (client) — không chỉ `localhost` (`00 §7` DoD 1) | env matrix + runbook ở `14-devops-deployment.md` | deploy → smoke test trên môi trường thật | Render sleep sau 15 phút không traffic, wake-up có thể ~1 phút (`NOTES-01 §B1`) `[CẦN NGUỒN]` | Given bản `main`, When demo, Then mọi F1..F7 chạy trên URL công khai | `11 §5` + `11 §7` (UAT) |
+| FR-057 | **Scope quyền của `Admin`:** một Admin chỉ thao tác/duyệt đối với dữ liệu thuộc `departmentId` được gán, và **không tự duyệt** yêu cầu/phản hồi do chính mình tạo. **Không** thêm role thứ ba — `role` vẫn `Admin \| Employee` (`RP §1`, ADR-009, BR-22) | user có `role = Admin` gắn với `departmentId` (danh sách phòng ban được quản lý — cách lưu `TBD`, thuộc `05`/`07`) | `[UI]`/`[CHAT]` mọi tool `write` và mọi hành động duyệt → scope-check ở middleware + service (`07 §7`) | Admin ngoài phạm vi gọi tool với đối tượng khác phòng ban → `RBAC_DENIED` (hoặc `SCOPE_DENIED` — tên mã lỗi do `06-api-spec.md` chốt, **không tự đặt ở file này**); self-approval → chặn, ghi audit `// SUY DIỄN — docs đặt ra`: ràng buộc "mọi thao tác" rộng hơn phạm vi mà nguồn nêu | Given Admin của phòng ban A mở đề tài của phòng ban B, When bấm approve hoặc reassign, Then bị chặn và **không** có mutation nào; Given chính Admin đó là người tạo yêu cầu, When tự duyệt, Then bị chặn | `11 §4.2` "RBAC check mỗi tool" (ma trận `07 §7`, thêm chiều **scope**); `11 §5` dòng Auth/RBAC |
 
 ### 3.9 Yêu cầu nhóm bổ sung (S-series)
 
@@ -340,6 +357,14 @@ qua cả hai kênh.
 | PARK-11 | Namespace Socket.IO thứ hai | `NOTES-01 §B7`: "Không cần 2 namespace ngay" | khi traffic/room vượt khả năng 1 namespace |
 | PARK-12 | ECharts / Ant Design thay shadcn/ui + Recharts | `NOTES-01 §B8`: "Không cần ECharts lúc này"; AntD "hơi nặng tay" | khi shadcn + Recharts không vẽ được loại biểu đồ F6 cần |
 
+> **Ghi chú cho PARK-01 (UF-02 — Nghỉ phép / availability, tức `VC-02` của NOTES-02):** vòng research 2 đã có
+> **bằng chứng mới và mạnh hơn** cho ý tưởng này — MISA AMIS công khai luồng người dùng tạo đơn xin nghỉ qua
+> trợ lý AVA, có bước xác nhận chi tiết trước khi ghi, và quản lý duyệt trên mobile
+> (`research/NOTES-02.md` §B "MISA AMIS — EVIDENCE", đối chiếu `19-…` §1 và §3). **Mục này vẫn PARK**: là
+> domain model mới (`availability_requests` / `absence_requests`) + state machine riêng, phá baseline 11
+> collection → **chờ GVHD** duyệt theo `RP §7.8`. Bằng chứng mới làm thay đổi *lập luận khi mở lại*, không
+> thay đổi *trạng thái*.
+
 Ngoài ra, `00 §4` còn ghi rõ hai mục ngoài phạm vi khác: **multi-step approval & delegation** (chuẩn ngành có
 thật theo `NOTES-01 §B0`, nhưng MVP chỉ 2 role và 1 cấp duyệt), **lương / phiếu lương / bảo hiểm** (không có
 trong F1..F7 và không có collection nào trong `NOTES-01 §B4`), và **voice input / trả lời bằng ảnh, đa
@@ -381,7 +406,9 @@ LLM viết Mongo pipeline tự do (`§B15`) · Git Flow (`§B11`) · live LLM ev
 | 9 | `Lead` có phải `Admin` không (`04 §9` Q-09) | FR-052 | GVHD |
 | 10 | Agent loop nằm ở `apps/api` hay `apps/ai-service` (`02 §12` mục 4) | FR-015..021, hợp đồng nội bộ ở `06 §6` | nhóm + ADR mới |
 | 11 | Chatbot có phải client cross-origin độc lập không (`02 §12` mục 7) | FR-050, cookie `SameSite` | nhóm |
-| 12 | 2 intent **write** chưa có tool: "sửa số điện thoại" (FR-002), "gửi nhận xét" (FR-029) | hoặc đổi luồng nghiệp vụ, hoặc xin thêm tool kèm confirm | GVHD + nhóm |
+| 12 | **5 intent write chưa có tool**: "sửa số điện thoại" (FR-002), "gửi nhận xét" (FR-029), và ba phản hồi phân công "tôi nhận đề tài này" / "tôi không nhận được, lý do…" / "tôi muốn xin đổi thời gian/yêu cầu" (`18` intent `#12a..#12c`, FR-045) — NOTES-01 §B6 không có tool nào cho cả năm ý định | hoặc đổi luồng nghiệp vụ sang dashboard-only (baseline hiện chọn vậy), hoặc xin thêm tool kèm confirm; riêng `#12a..#12c` là **khoảng trống catalog phải bổ sung khi code** | GVHD + nhóm |
+| 12a | Ngưỡng "chưa xác nhận phân công sau N ngày → báo Admin" (`04 §4.6`, FR-045, notification matrix `18`) | nhịp nhắc của FR-045 và dòng leo thang trong matrix; **không đoán số** | nhóm + GVHD (NOTES-02 để `TBD`) |
+| 12b | `VC-02` (nghỉ phép / availability — UF-02) có vào phạm vi không; `19-…` §5 mục 2 | không có FR nào ở file này phụ thuộc; nếu được duyệt thì kéo theo collection + state machine riêng (`04 §8`, PARK-01) | **GVHD** |
 | 13 | Hàng đợi duyệt field nhạy cảm của UF-01 chưa có chỗ lưu, trong khi `05 §1.1` đóng ở 11 collection | FR-003, FR-004 | nhóm + GVHD |
 | 14 | Không có collection lưu lịch sử hội thoại (`05 §7` D-08) | FR-021 (chatbot không có "mở lại phiên cũ") | nhóm + GVHD |
 | 15 | Các ô "Đo bằng" dẫn tới `08`, `09`, `10`, `12`, `13`, `14`, `16`, `17` — những file này do agent khác soạn **đồng thời** lúc file này viết | hợp đồng chéo: nếu một file đó đổi tên mục thì cập nhật cột "Đo bằng" ở đây | nhóm đồng bộ khi review docs |

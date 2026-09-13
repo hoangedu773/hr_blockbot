@@ -199,6 +199,45 @@ không được coi là đã làm.
 | **Còn hở** | `07-auth-rbac.md` §9 mục 23: **KIỂM TRA PHỤ THUỘC / CVE ĐỊNH KỲ = CHƯA XÁC MINH** — "`§B10` liệt kê lint/typecheck/build/Lighthouse/gitleaks — **không có bước audit dependency**". Theo luật `RESEARCH-PLAN.md` §11 (không có lệnh → không có gate), dòng này **không được** ghi vào báo cáo như một control đã có. **Không có dependabot/renovate nào trong nguồn**. **Không có lockfile thật** (chưa có `pnpm-lock.yaml`). **Không có chính sách pin** cho `transformers`/model checkpoint — `11-quality-testing.md` §4.5 có nêu yêu cầu pin, `§B5` cảnh báo *"phải kiểm tra đúng checkpoint trước khi ghi license"*. **Licence model** (PhoBERT gốc công bố MIT nhưng mỗi checkpoint có thể khác — `§B5`), licence **PhoATIS** "phục vụ nghiên cứu/giáo dục, không tự ý phân phối lại" → là rủi ro **pháp lý**, không chỉ kỹ thuật, và thuộc `09-ai-evaluation.md` |
 | **Lệnh kiểm chứng (đề xuất thêm — hiện **chưa bật**)** | `pnpm audit --audit-level=high` · `pip list --format=freeze > apps/ai-service/requirements.lock` — **đưa vào CI thành gate mới** phải qua một PR `ci:` có review, theo đúng quy trình đảo ngược của `15-engineering-conventions.md` §6.3 |
 
+### 2.15 Admin đọc/ghi chéo phòng ban ngoài phạm vi được gán
+
+*(threat mới từ `19` §2.3(a) + §3 "Tách 'duyên trong phạm vi' khỏi super-admin" = LÀM)*
+
+| Hạng mục | Nội dung |
+|---|---|
+| **Tài sản** | A-3, A-4, A-6 |
+| **Kẻ tấn công** | một `Admin` **hợp lệ** — không cần token đánh cắp, không cần prompt injection: chỉ cần gọi `get_department_kpi`, `find_candidates`, `GET /employees`, `POST /projects/:id/assign` với `departmentId`/`employeeId` của phòng ban **khác** phòng ban mình được phân công. Đây là **đặc quyền theo chiều đứng** (một role duy nhất mang mọi quyền) cộng **chiều ngang** (cùng quyền, vượt biên giới dữ liệu) |
+| **Rủi ro** | với 2 role phẳng (`§B3`), **mọi** Admin hiện đang đọc được số liệu toàn công ty: nhận xét đánh giá, KPI, hồ sơ của những người mình không quản lý. Không có control nào trong `NOTES-01` chặn điều này |
+| **Control (T — thiết kế mới, **chưa làm**)** | `07-auth-rbac.md` §7.4 SC-01/SC-02: quyền Admin bị chặn theo `departmentId` được gán trên hồ sơ; `assertInScope(actor, resource)` chạy ở **service layer** **trước** query; `departmentId` do client gửi chỉ là *yêu cầu lọc* và phải đối chiếu với scope nạp từ phiên đã verify (cùng khuôn ADR-014 mục 4 và `§B15` "server inject scope"). `06 §5`: ra ngoài scope ⇒ `RBAC_DENIED`, **không** trả dữ liệu một phần |
+| **Còn hở** | Control **chưa có mã, chưa có test, chưa có chỗ lưu scope**: `05 §3.1`/`§3.2` không có field scope nào → `07 §10` **A-08**, `06 §8` **D-13**, `[CẦN NGUỒN]`. Chưa định nghĩa "Admin toàn công ty" có tồn tại không (`TBD`). Checklist §3 **không** được ghi dòng này là ĐÃ LÀM |
+| **Lệnh kiểm chứng** | `pnpm --filter api test` với fixture "**Admin của phòng A** gọi `get_department_kpi`/`find_candidates`/`GET /employees` cho phòng B → `403`, **không** query DB" — **chưa viết — đây mới là thiết kế** |
+
+### 2.16 Lộ PII của đồng nghiệp qua kết quả gợi ý ứng viên
+
+*(threat mới từ `19` §2.3(b) "Nguyên tắc dữ liệu tối thiểu cho Employee" = LÀM)*
+
+| Hạng mục | Nội dung |
+|---|---|
+| **Tài sản** | A-3 (`employees.phone`, hồ sơ nhạy cảm), A-4 (điểm KPI, nhận xét) |
+| **Kẻ tấn công / kịch bản** | không cần kẻ tấn công: **chính luồng bình thường** tạo rủi ro. Intent "tìm top 5 nhân viên phù hợp" (`18` #15) gọi `find_candidates`; nếu response schema không nói rõ field nào được trả, repository có xu hướng trả nguyên document `employees` (+ cả `evaluations` khi cần "giải thích vì sao khớp"). Kết quả đó đi vào **prompt của LLM** và vào card hiển thị |
+| **Rủi ro** | số điện thoại, email cá nhân, lý do nghỉ, điểm KPI chi tiết của người khác xuất hiện trên màn hình của một người không có thẩm quyền đọc; **và** bị gửi sang provider LLM bên ngoài (`RP §7.5` — GVHD chưa trả lời). Một lần lọt là lọt vào cả log hội thoại lẫn context model |
+| **Control (T — thiết kế mới, **chưa làm**)** | **allowlist response**, không phải blacklist: `06 §2.2` "Quy tắc dữ liệu tối thiểu" + `06 §2.9.1` định nghĩa đúng những field được trả (`employeeId`, tên hiển thị, `level`, `departmentId`, mức khớp + breakdown kỹ năng, `workload` tổng hợp, `rank`) và **cấm** `phone`, email cá nhân, địa chỉ, lương, lý do nghỉ/vắng, `selfReview`/`managerReview`, `sentiment`/`themes`/`riskSignals`, điểm KPI chi tiết. Cưỡng chế bằng **projection ở repository + Zod DTO** (`§B2`), không bằng cách lọc trong prompt |
+| **Còn hở** | Danh mục field **nhạy cảm** vẫn **không tồn tại** (§2.10, `07` §9 mục 21, `RP §7.10`) → allowlist hiện liệt kê theo những field **có thật** trong `05 §3.2`/`§3.7`, chưa khoá được "thế nào là PII" → `[CẦN NGUỒN]`. Chưa chốt `workload` được tính tới mức nào thì không suy ra được lịch làm việc của đồng nghiệp. `18` chưa được cập nhật (file khác đang sửa) |
+| **Lệnh kiểm chứng** | `pnpm --filter api test chatbot` fixture: gọi `find_candidates` → assert response **không** chứa key nào ngoài allowlist, và snapshot payload gửi sang `ai-service` không có `phone`/`finalScore` — **chưa viết — đây mới là thiết kế** |
+
+### 2.17 Self-approval — một người vừa tạo vừa duyệt
+
+*(threat mới từ `19` §2.3(a) + `07-auth-rbac.md` §7.4 SC-03)*
+
+| Hạng mục | Nội dung |
+|---|---|
+| **Tài sản** | A-4, A-6 (tính đáng tin của dấu vết phê duyệt) |
+| **Kẻ tấn công** | `Admin` hợp lệ tự `override_kpi` cho hồ sơ của chính mình, tự `reports/:id/review` cho báo cáo của đề tài mình nộp, hoặc tự "duyệt" phản hồi từ chối phân công mà chính mình khởi xướng |
+| **Rủi ro** | audit trail vẫn đầy đủ `actorId`/`timestamp` nên **không phát hiện được bằng log** — nó trở thành "quy trình đúng, kết quả sai": điểm số hoặc quyết định gán việc do một người khép lại. Rubric của đề tài nằm ở chính F5/F7 (công bằng + nghiệm thu) |
+| **Control (T — thiết kế mới, **chưa làm**)** | `07` §7.4 **SC-03**: guard từ chối khi `actorId` của hành động duyệt **trùng** với người tạo ra bản ghi được duyệt; `06 §5` mã lỗi `SELF_APPROVAL` (403) — từ chối là **hành vi từ chối**, không mutate, không ghi event duyệt. Kết hợp §7.4 SC-01: người duyệt còn phải ở **cùng scope** |
+| **Còn hở** | `NOTES-01` **không** có khái niệm separation of duties → đây là control **mượn từ ngành** (`NOTES-02` §E VC-01, đã kiểm chứng ở `19` §1) và `[CẦN NGUỒN]` cho mô hình chính thức. Chưa định nghĩa "người tạo yêu cầu" khi yêu cầu sinh ra bởi chatbot (`clientMessageId` có `actorId` của người xác nhận, nhưng người *khởi xướng* hội thoại có phải là người tạo?) → `07 §10` **A-10**. Với `evaluations`: người tạo bản ghi là **hệ thống khi mở kỳ**, không phải `Admin` → guard phải định nghĩa đối chiếu với field nào (`TBD`) |
+| **Lệnh kiểm chứng** | `pnpm --filter api test` fixture: `Admin` là `submitterId` của report → gọi `POST /reports/:id/review` cho chính report đó ⇒ `403`, `reports.status` **không đổi** — **chưa viết — đây mới là thiết kế** |
+
 ---
 
 ## 3. OWASP ASVS-style checklist
@@ -266,6 +305,14 @@ Ba trạng thái giữ nguyên từ `07-auth-rbac.md` §9, vì đó là cách tr
 | 53 | V14 | Audit dependency / CVE định kỳ | **CHƯA XÁC MINH** | `07` §9 mục 23; §2.14 |
 | 54 | V14 | Bí mật vận hành chỉ qua env, không trong repo | **CHƯA XÁC MINH** | `07` §9 mục 19 |
 | 55 | V14 | Backup & khả năng mất dữ liệu | **CHƯA LÀM** — **M0 không backup tự động** | `§B1`; phương án ở `14` |
+
+Ba dòng **bổ sung dưới đây** là control mới của vòng đánh giá này (`19` §3) — trạng thái đúng là **CHƯA LÀM
+(thiết kế)**: chưa có mã, chưa có test, chưa có chỗ lưu dữ liệu. **Không** được chép vào báo cáo như control
+đã có.
+
+| 56 | V4 Access Control | **Scope của Admin theo `departmentId` được gán** (chặn đọc/ghi chéo phòng ban) | **CHƯA LÀM (thiết kế)** | §2.15; `07` §7.4 SC-01/SC-02; `NOTES-01` **không có** khái niệm scope → `[CẦN NGUỒN]`, `07` §10 A-08 |
+| 57 | V4 | **Self-approval guard** — không duyệt yêu cầu do chính mình tạo | **CHƯA LÀM (thiết kế)** | §2.17; `07` §7.4 SC-03; `06` §5 `SELF_APPROVAL`; phạm vi áp dụng `TBD` (`07` §10 A-10) |
+| 58 | V8 Data Protection | **Allowlist field** trong response `find_candidates` / `get_employee` (chặn lộ PII của đồng nghiệp) | **CHƯA LÀM (thiết kế)** | §2.16; `06` §2.2 + §2.9.1; vẫn **thiếu danh mục dữ liệu nhạy cảm** (dòng 34, `RP §7.10`) → `[CẦN NGUỒN]` |
 
 **Tổng kết trung thực:** phần **ĐÃ LÀM** tập trung toàn bộ vào **kiến trúc quyền** (rotation, RBAC, confirm,
 audit, whitelist query, scope do server nạp) — đó là phần một nhóm 3 sinh viên **chủ động thiết kế** được.

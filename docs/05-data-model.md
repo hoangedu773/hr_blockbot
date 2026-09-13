@@ -8,6 +8,9 @@ chính sách index, quyết định "không transaction" và chính sách migrat
 Giống hệt `04-domain-model.md` §0: `(B<n>)` = `docs/research/NOTES-01.md`, `(RP §<n>)` =
 `docs/research/RESEARCH-PLAN.md`, `// SUY DIỄN — cần xác nhận` = field/khái niệm **nguồn không nêu** mà mô
 hình phải có để chạy được, `[CẦN NGUỒN]` = cần URL, `TBD` = nguồn không cho con số → để trống, không đoán.
+Riêng vòng này: `NOTES-02` = `docs/research/NOTES-02.md` (đề xuất của nhóm, **PROPOSED**, không phải yêu cầu
+nghiệm thu), `19` = `docs/19-vertical-workforce-assessment.md` (quyết định phạm vi — mọi mục dẫn `19` đã được
+chốt ở đó và **không** tự mở rộng thêm).
 
 ---
 
@@ -115,11 +118,12 @@ erDiagram
   PROJECT_EVENTS {
     ObjectId _id PK
     ObjectId projectId "-> projects"
-    string type "CREATED / ASSIGNED / STARTED / PROGRESS_UPDATED / REPORT_SUBMITTED / APPROVED / REJECTED" // SUY DIEN
+    string type "CREATED / ASSIGNED / STARTED / PROGRESS_UPDATED / REPORT_SUBMITTED / APPROVED / REJECTED / ACKNOWLEDGED / DECLINED / CHANGE_REQUESTED" // SUY DIEN
     string fromStatus
     string toStatus
     ObjectId actorId "-> users"
-    string reason "bat buoc khi REJECTED"
+    ObjectId respondeeId "-> employees nguoi duoc giao phan hoi (SUY DIEN)"
+    string reason "bat buoc khi REJECTED / DECLINED / CHANGE_REQUESTED"
     string source "rest / chatbot / scheduler"
     string clientMessageId "idempotency khi goi tu WS"
     string tool "ten tool neu gu tu Agent Loop"
@@ -320,11 +324,13 @@ mutation" `(B6)`.
 _id             : ObjectId : PK
 projectId       : ObjectId : required // SUY DIỄN — cần xác nhận
 type            : 'CREATED'|'ASSIGNED'|'STARTED'|'PROGRESS_UPDATED'|'REPORT_SUBMITTED'|'APPROVED'|'REJECTED'
-                : required // SUY DIỄN — cần xác nhận (bảng enum do docs đặt; `CANCELLED` **không** nằm trong enum — đã chốt ở Q-01)
+                |'ACKNOWLEDGED'|'DECLINED'|'CHANGE_REQUESTED'
+                : required // SUY DIỄN — cần xác nhận (bảng enum do docs đặt; `CANCELLED` **không** nằm trong enum — đã chốt ở Q-01; ba giá trị cuối thêm theo `19` §3 hàng `VC-01` và **chỉ** là loại event — xem mục "Mở rộng VC-01" dưới đây)
 fromStatus      : string?  // SUY DIỄN — cần xác nhận
 toStatus        : string?  // SUY DIỄN — cần xác nhận
 actorId         : ObjectId : required; null với job hệ thống // SUY DIỄN — cần xác nhận
-reason          : string?  : REQUIRED khi type = REJECTED (transition T-05b ở docs 04) // SUY DIỄN — cần xác nhận
+respondeeId     : ObjectId? : `employees._id` của người được giao mà phản hồi nói tới; chỉ dùng cho `ACKNOWLEDGED`/`DECLINED`/`CHANGE_REQUESTED` vì `actorId` là tài khoản đăng nhập còn phản hồi là hành vi trên `assigneeIds` // SUY DIỄN — cần xác nhận
+reason          : string?  : REQUIRED khi type = REJECTED (transition T-05b ở docs 04); REQUIRED khi `DECLINED` hoặc `CHANGE_REQUESTED` (nhân viên phải nhận được lý do khi bị từ chối — `NOTES-02` §A5) // SUY DIỄN — cần xác nhận
 source          : 'rest' | 'chatbot' | 'scheduler' // SUY DIỄN — cần xác nhận
 tool            : string?  : tên tool nếu sinh ra từ Agent Loop (B6) // SUY DIỄN — cần xác nhận
 clientMessageId : string?  : để audit một lần bấm nút đúng một sự kiện (B7) // SUY DIỄN — cần xác nhận
@@ -337,6 +343,36 @@ createdAt       : Date     : required // SUY DIỄN — cần xác nhận
 **Lý do:** collection này tồn tại trong baseline `B4` nhưng **không có field nào** được nguồn liệt kê → toàn
 bộ field ở trên là phần docs phải đặt để phục vụ các hiệu ứng phụ đã chốt ở `04-domain-model.md` §4.3. Đây là
 collection có nhiều `// SUY DIỄN` nhất; cần nhóm review trước khi code.
+
+**Mở rộng VC-01 — phản hồi phân công (`19` §3, hàng `VC-01` = LÀM):** enum `type` nhận thêm ba giá trị
+`ACKNOWLEDGED` (nhận việc), `DECLINED` (từ chối), `CHANGE_REQUESTED` (xin đổi). Đây là **dữ kiện append-only**
+— "lúc T, anh X nói anh X nhận ca này" — **không phải** lifecycle state: `projects.status` vẫn **đúng 5 giá
+trị** (`DRAFT|ASSIGNED|IN_PROGRESS|PENDING_REVIEW|COMPLETED`, `B4`) và **không** có state thứ 6 nào được thêm,
+kể cả `OFFERED`/`ACCEPTED`. Không có collection mới: đây chính là "Option A — conservative" mà `NOTES-02` §I4
+đề xuất và `19` §3 hàng "Đổi 11 collection baseline" chốt là **KHÔNG** đổi.
+
+```text
+ASSIGNED (event of the assignment itself)
+   + ACKNOWLEDGED      → dữ kiện "người được giao đã nhận"
+   + DECLINED          → dữ kiện "người được giao từ chối", bắt buộc reason
+   + CHANGE_REQUESTED  → dữ kiện "xin đổi nội dung/thời hạn", bắt buộc reason
+```
+
+Ba hệ quả phải ghi rõ trước khi code:
+
+1. **Trạng thái "đã xác nhận" là dẫn xuất**, đọc bằng `project_events (projectId, createdAt)` (I-12) — cùng
+   khuôn dẫn xuất mà `B4` đã dùng cho `overdue`: state machine không đổi, chỉ có thêm dữ kiện để suy ra.
+   Vì nhiều người có thể phản hồi trên **cùng một** đề tài (`assigneeIds` là mảng), một event chỉ kết luận
+   được cho **một** `respondeeId` `// SUY DIỄN — cần xác nhận`.
+2. **Một người chỉ phản hồi được phần của mình**: quyền và guard (kể cả "không tự duyệt yêu cầu do chính mình
+   tạo") thuộc `07-auth-rbac.md` §7.4; `project_events` chỉ là nơi ghi kết quả.
+3. **Không có `NO_RESPONSE`.** `NOTES-02` §E VC-01 đề xuất chuyển sang `NO_RESPONSE` sau một ngưỡng `TBD`;
+   ngưỡng đó **không có nguồn** → **không** thêm loại event thứ tư cho "im lặng", và **không** tự coi im lặng
+   là accept (`NOTES-02` tự để `TBD` cho ngưỡng này).
+
+Các field `respondeeId` và ràng buộc `reason` ở trên là **docs đặt**, không có trong `NOTES-01` `// SUY DIỄN —
+cần xác nhận`; `reason` bắt buộc với `DECLINED`/`CHANGE_REQUESTED` là cách đáp ứng yêu cầu "nhân viên nhận lý
+do khi bị từ chối" của `NOTES-02` §A5, và cùng khuôn với `reports.reviewReason` (§3.6).
 
 ### 3.6 `reports` — báo cáo nghiệm thu (F7)
 
@@ -703,6 +739,7 @@ Không tự sửa hộ nguồn; ghi lại kèm phương án tạm:
 | D-06 | `period` của `evaluations` không có granularity → không viết được quy tắc sinh seed hay job mở kỳ | `B4` (chỉ `(employeeId, period) UNIQUE`) | để `string`, format `TBD` | nhóm (Q-07 docs 04) |
 | D-07 | Không có collection cho **kỹ năng** → `skills[]` là free-text, dễ lệch chính tả ("React" vs "reactjs") làm giảm chất lượng cosine. `RP §3 B4` có nêu "employee ↔ department ↔ **level** ↔ skills" như một câu hỏi embed/reference, `NOTES-01 B4` trả lời bằng cách **không** tạo collection `levels`/`skills` | `RP §3 B4` vs `B4` | giữ `skills: string[]`; chuẩn hoá bằng whitelist khi seed `// SUY DIỄN` | nhóm |
 | D-08 | `B4` liệt kê 11 collection nhưng không có nơi nào chứa **message hội thoại** của chatbot, dù `B7` yêu cầu "durable notification vẫn phải persist phía app" (đã có `notifications`) và `RP §3 B7` hỏi "có persist message vào Mongo không" → **câu hỏi này `NOTES-01` không trả lời** | `B7` vs `RP §3 B7` | MVP **không** lưu lịch sử chat (không có collection) → ghi vào `06-api-spec.md` như một giới hạn | nhóm + GVHD |
+| D-09 | `NOTES-02` §E VC-01/VF-01/VS-01 đề xuất một **chuỗi state riêng cho phân công** (`OFFERED → ACCEPTED/DECLINED/CHANGE_REQUESTED`, `… → AWAITING_MANAGER_APPROVAL`, `NO_RESPONSE`) — tức là state machine **thứ hai** song song với `projects` | `NOTES-02` vs `B4` (5 state) và `19` §3 | **Quyết định: KHÔNG** chuyển các giá trị đó vào `projects.status`. Lý do: (i) vi phạm đúng điều `B4` đã cấm khi bỏ `OVERDUE` — trộn *lifecycle state* với *tình trạng phản hồi*; (ii) `assigneeIds` là mảng nên phản hồi là dữ kiện **per-person**, không phải trạng thái **per-project**; (iii) `19` §3 chốt VC-01 làm theo "Option A — conservative": **không** thêm collection, **không** đổi enum. Thay vào đó: ba **event type** mới trong `project_events` (§3.5), suy ra trạng thái khi đọc | GVHD nếu muốn mở state machine riêng |
 
 ---
 

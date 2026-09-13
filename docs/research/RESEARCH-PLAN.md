@@ -294,6 +294,10 @@ Yêu cầu: **URL nguồn cho mọi con số**. Không có nguồn → tôi ph�
 8. **Phạm vi sáng tạo (§9)**: nhóm được thêm bao nhiêu ngoài đề cương? Thầy ưu tiên hướng **thực nghiệm mô hình** (S2/S3/S12) hay hướng **sản phẩm agentic** (S6/S7/S10)? Xin duyệt danh sách 5 mục trước tuần 8.
 9. **Mốc nộp NCKH / hội thảo sinh viên**: deadline là khi nào? (quy định việc phải khóa dataset và chạy thực nghiệm trước tuần mấy — xem §12)
 10. **Dữ liệu thật hay giả lập**: được dùng dữ liệu nhân sự thật (kèm ràng buộc gì) hay bắt buộc/bao dung dữ liệu giả lập có khóa tái lập (S14)? Ảnh hưởng trực tiếp B4, B10, S4.
+11. **Có được thêm collection/state machine mới không?** Vòng research 2 tìm ra quy tắc "nhân viên xác nhận/nhận/từ chối việc được giao" là chuẩn ngành. Đã nhét được vào `project_events` mà không phá 11 collection, nhưng availability/nghỉ phép thì **không**. Cho thêm collection hay giữ baseline? (chặn PARK-01/VC-02, PARK-13/14 — xem `19-vertical-workforce-assessment.md` §3)
+12. **Có được thêm phạm vi quyền (scope) không?** Không xin role thứ ba — vẫn 2 vai. Nhưng Admin nên bị giới hạn theo `departmentId` được gán thay vì đọc được số liệu cả công ty. Đây là kiểm soát truy cập, không phải tính năng mới. (chặn `07-auth-rbac.md` mục scope)
+13. **Phạm vi ngành dọc**: đề cương nói "doanh nghiệp". Có được demo theo hai hồ sơ nghiệp vụ (ca/kíp và lịch giảng dạy) không, hay chỉ một? Nếu chỉ một thì VF-01/VS-01 ở lại backlog vĩnh viễn.
+14. **Cho phép phỏng vấn/khảo sát hiện trạng ở đâu?** Hai vòng research đều mới chỉ đọc tài liệu sản phẩm, chưa hỏi người làm HR thật nào — trong khi rubric cho 0.75đ đúng mục "khảo sát hiện trạng: cơ cấu tổ chức, quy trình, biểu mẫu". Nhóm có thể liên hệ đơn vị nào, và cần giấy xác nhận gì?
 
 ---
 

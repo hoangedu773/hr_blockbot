@@ -5,6 +5,12 @@
   matrix), cộng phần dữ liệu kỹ thuật ở **B3** (RBAC: `role` vs `level`), **B4** (state machine + collections),
   **B6** (tool catalog + agent architecture), **B7** (Socket.IO events), **B15** (Agenda scheduler + whitelist
   NL→data).
+- **Nguồn vòng 2 (bổ sung, không thay vòng 1):** [`docs/research/NOTES-02.md`](research/NOTES-02.md) — được
+  đánh giá ở [`19-vertical-workforce-assessment.md`](19-vertical-workforce-assessment.md). Chỉ mục **VC-01**
+  của nó được chốt **LÀM**, nên phần do NOTES-02 thêm vào file này giới hạn ở: UF-04 bước 9–11, UF-05 bước
+  2a–2c, intent `#12a..#12c`, 2 dòng notification matrix. **Không** thêm flow mới, **không** thêm tên event
+  WS mới, **không** đổi enum `projects.status` (vẫn 5 state). VF-01 / VS-01 / VC-02 / VC-03 **không** xuất
+  hiện ở file này (`19-…` §3: PARK / CÂN NHẮC).
 - **Ngày:** 13/09/2026 (cùng ngày batch B0 nộp kết quả).
 - **Phạm vi:** 7 chức năng F1..F7 theo [`README.md`](../README.md) và `RESEARCH-PLAN.md` §1.
 - **Trạng thái scope:** **UF-02 (nghỉ phép), UF-03 (onboarding), UF-07 (goal/OKR), UF-08 (pulse survey)
@@ -245,7 +251,7 @@ GVHD chưa duyệt mở scope".
 |---|---|
 | **Vai khởi xướng** | `Admin` (Quản lý nhân sự) |
 | **Precondition** | Có đề tài ở trạng thái cần người (`DRAFT`/`ASSIGNED`, B4) và dữ liệu kỹ năng nhân viên đã đủ để embed. `projects` có index `(assigneeIds, status)`, `(departmentId, status, dueDate)` (B4) |
-| **State / data chạm tới** | Đọc `employees` (kỹ năng, `level`, workload) → gọi ai-service; ghi `projects.assigneeIds`, `project.status` `DRAFT → ASSIGNED`, `project_events`; audit mutation (B6). `feedback_events` (S4) **không** nằm ở baseline |
+| **State / data chạm tới** | Đọc `employees` (kỹ năng, `level`, workload) → gọi ai-service; ghi `projects.assigneeIds`, `project.status` `DRAFT → ASSIGNED`, `project_events` (kèm bản ghi **phản hồi xác nhận** của người được giao — `04 §4.6`, không phải state); audit mutation (B6). `feedback_events` (S4) **không** nằm ở baseline |
 | **Event Socket.IO** | `chat:send`, `chat:accepted`, `chat:chunk`, `chat:done` (khi hỏi qua chatbot), `project:updated` + `notification:new` (khi giao việc). `chat:error` nếu ai-service timeout |
 | **Trạng thái scope** | `IN SCOPE (F4)` |
 
@@ -260,6 +266,9 @@ Các bước chính trong B0: `nhập yêu cầu → AI ranking → giải thíc
 6. `[UI]` Admin chọn ứng viên — hoặc **bác** gợi ý; đây là chỗ S1 tạo giá trị: quản lý có bằng chứng để tin hay bác.
 7. `[SYS]` `[UI]` Admin xác nhận giao việc bằng tool `assign_project` — **write** ⇒ bắt buộc **confirm** + **Admin** (B6, S8).
 8. `[SYS]` Ghi `projects` (`DRAFT → ASSIGNED`, `project.version`, `project.updatedAt`) bằng *atomic conditional update* (B1), ghi `project_events`, đẩy `project:updated` + `notification:new` tới room `user:<Employee>`.
+9. `[UI]` Employee (người vừa được giao) mở đề tài, thấy tối thiểu: `title` + `dueDate` + `requiredSkills` + ghi chú, rồi phản hồi một trong ba: **`ACKNOWLEDGED`** / **`DECLINED`** / **`CHANGE_REQUESTED`**. Đây là **write** ⇒ bắt buộc **confirm** trước khi ghi (S8). Ở baseline chatbot **chưa có tool** cho ba ý định này (NOTES-01 B6 không có → catalog intent `#12a..#12c`, cột Tool ghi `— chưa có tool`) ⇒ thao tác bắt buộc làm trên **Web dashboard**, chatbot chỉ dừng ở phần đọc.
+10. `[SYS]` Mỗi phản hồi = **một bản ghi `project_events`** append-only: `actor` là người được giao, `time`, `source` (`[UI]`/`[CHAT]`), `reason` optional → `notification:new` tới `Admin` phụ trách phòng ban. `projects.status` **không đổi** (vẫn `ASSIGNED`) — không có state thứ 6 (`04 §4.6`, BR-21).
+11. `[UI]` Admin **xử lý phản hồi** trong `departmentId` được gán (BR-22): **reassign** bằng `assign_project` (confirm + Admin) hoặc xác nhận lại để đóng phản hồi. Cho tới bước này, trách nhiệm đề tài **vẫn thuộc người được giao** (`19-vertical-workforce-assessment.md` §2.1).
 
 ```mermaid
 flowchart LR
@@ -273,11 +282,24 @@ flowchart LR
   G --> H["UI Admin xac nhan assign_project confirm Admin"]
   H --> I["SYS atomic update status DRAFT sang ASSIGNED"]
   I --> J["WS project:updated notification:new"]
+  J --> K["UI Employee phan hoi ACKNOWLEDGED DECLINED CHANGE REQUESTED confirm"]
+  K --> L["SYS append project_events actor time source status van ASSIGNED"]
+  L --> M["notification:new toi Admin trong departmentId duoc gan"]
+  M --> N["UI Admin xu ly phan hoi reassigned hoac xac nhan lai"]
+  J -- khong phan hoi sau nguong TBD --> O["SYS nhac Employee 1 lan moi ngay roi bao Admin"]
+  O --> N
 ```
 
 **Ngoại lệ quan trọng (từ B0):** `AI confidence thấp → hỏi thêm`. Notes thêm từ B5/B13/B14: **cosine 0.82 không
 nghĩa 82% xác suất đúng**, nên bước 4 bắt buộc có calibration; và **không** giải thích bằng attention của
 PhoBERT, chỉ dùng skill-to-skill cosine + leave-one-skill-out (B14).
+
+**Ngoại lệ của bước 9–11 (NOTES-02 + `19-…` §2.1):** `DECLINED` / `CHANGE_REQUESTED` nên kèm lý do để Admin còn
+căn cứ mà quyết (`reason` là field **optional** trên event, không bắt buộc ở tầng schema `// SUY DIỄN`) → Admin
+**reassign** bằng `assign_project` hoặc xác nhận lại, và chỉ trong `departmentId` được gán (BR-22; không tự
+duyệt phản hồi do chính mình tạo ra). `Employee` **không** tự gỡ tên mình khỏi đề tài bằng một phản hồi, và
+`projects.status` vẫn là `ASSIGNED` ở mọi nhánh (BR-21). **Không phản hồi** → nhắc có dedupe theo BR-12, quá
+ngưỡng `TBD` ngày `[CẦN NGUỒN]` thì **báo Admin**; im lặng **không** được coi là đồng ý.
 
 ---
 
@@ -287,21 +309,33 @@ PhoBERT, chỉ dùng skill-to-skill cosine + leave-one-skill-out (B14).
 |---|---|
 | **Vai khởi xướng** | `Admin` (tạo + giao); `Employee` (thực hiện + nộp) |
 | **Precondition** | Nhân viên đã đăng nhập; Admin có quyền `assign_project`. `project.status` là single document → transition an toàn không cần transaction nhiều collection (B1) |
-| **State / data chạm tới** | `projects` (`status`, `version`, `updatedAt`, `statusHistory[]`), `project_events`, `reports`; state machine B4: `DRAFT → ASSIGNED → IN_PROGRESS → PENDING_REVIEW → (approve) COMPLETED`, `reject → IN_PROGRESS`. `OVERDUE` **không** là state |
+| **State / data chạm tới** | `projects` (`status`, `version`, `updatedAt`, `statusHistory[]`), `project_events`, `reports`; state machine B4: `DRAFT → ASSIGNED → IN_PROGRESS → PENDING_REVIEW → (approve) COMPLETED`, `reject → IN_PROGRESS`. `OVERDUE` **không** là state. Phản hồi xác nhận phân công của Employee (`ACKNOWLEDGED` / `DECLINED` / `CHANGE_REQUESTED`) nằm ở `project_events`, **không** phải state thứ 6 (`04 §4.6`, BR-21) |
 | **Event Socket.IO** | `project:updated` (mọi transition), `report:updated` (nộp báo cáo), `notification:new` (kết quả duyệt), `chat:send`/`chat:accepted`/`chat:chunk`/`chat:done` khi nộp qua chatbot |
 | **Trạng thái scope** | `IN SCOPE (F2, F7)` |
 
 Các bước chính trong B0: `tạo → giao → thực hiện → nộp → duyệt → hoàn thành`, ngoại lệ
-`reject → quay lại thực hiện; quá hạn`.
+`reject → quay lại thực hiện; quá hạn`. **Hai ngoại lệ mới** từ NOTES-02 (`19-…` §3, mục **VC-01**):
+`từ chối / yêu cầu đổi → Admin reassign hoặc xác nhận lại`, `không phản hồi → nhắc rồi báo Admin`. Các bước
+chèn vào được đánh số chữ `2a..2c` để **không** đổi số các bước cũ — nhiều file khác (`01`, `10`, `12`) đang
+dẫn chiếu `UF-05 bước 3..8`.
 
 1. `[UI]` Admin tạo đề tài → `project.status = DRAFT`, nhập kỹ năng yêu cầu + `dueDate`.
 2. `[UI]`/`[CHAT]` Admin chạy UF-04 rồi xác nhận `assign_project` (confirm + Admin) → `ASSIGNED`, Employee nhận `notification:new`.
-3. `[UI]` hoặc `[CHAT]` Employee nhận việc, chuyển `IN_PROGRESS` qua tool `change_project_status` (write ⇒ confirm).
+2a. `[UI]` Employee mở đề tài vừa nhận, thấy tối thiểu `title` + `dueDate` + `requiredSkills` + ghi chú, rồi phản hồi **`ACKNOWLEDGED`** / **`DECLINED`** (kèm lý do) / **`CHANGE_REQUESTED`** (xin đổi thời gian/yêu cầu). Đây là **write** ⇒ bắt buộc **confirm** trước khi ghi (S8); baseline **chưa có tool chatbot** cho ba ý định này (NOTES-01 B6 → catalog intent `#12a..#12c` ghi `— chưa có tool`) ⇒ thao tác trên Web dashboard.
+2b. `[SYS]` Mỗi phản hồi = **một bản ghi `project_events`** append-only (`actor` + `time` + `source` + `reason` optional) → `projects.status` **không đổi**, vẫn `ASSIGNED`; `notification:new` đẩy tới `Admin` trong cùng `departmentId` (BR-22).
+2c. `[UI]` Admin **xử lý phản hồi**: reassign bằng `assign_project` (confirm + Admin) hoặc xác nhận lại để đóng phản hồi. **Cho tới lúc đó người được giao vẫn chịu trách nhiệm về đề tài** — kể cả khi đã `DECLINED` (`19-…` §2.1, `04 §4.6`). **Nhánh không phản hồi:** nhắc Employee có dedupe theo BR-12, quá ngưỡng `TBD` ngày `[CẦN NGUỒN]` thì **báo Admin**; **không** mặc định coi im lặng là đồng ý.
+3. `[UI]` hoặc `[CHAT]` Employee nhận việc, chuyển `IN_PROGRESS` qua tool `change_project_status` (write ⇒ confirm). Bước này **không chờ** 2a/2c chốt xong — T-03 (bắt đầu làm) và phản hồi xác nhận là hai dữ kiện độc lập; nếu Admin reassign sau đó thì đề tài thuộc người mới (`04 §4.6`).
 4. `[SYS]` Employee định kỳ gửi tiến độ bằng `submit_progress` (confirm) — `[CHAT]` "cập nhật tiến độ" hoặc `[UI]` form; mỗi lần ghi một `project_events`.
 5. `[UI]`/`[CHAT]` Employee nộp báo cáo nghiệm thu bằng `submit_report` (confirm; ví dụ intent→tool ở B0: `submit_report → confirm → reportService.create()`) → tạo bản ghi `reports`, status `PENDING_REVIEW`, đẩy `report:updated`.
 6. `[UI]` Admin nhận `notification:new`, mở báo cáo trên dashboard, đối chiếu `project_events` và kỹ năng/yêu cầu.
 7. `[SYS]` Admin **approve** → `COMPLETED` bằng atomic conditional update on `project.status/version`; `updatedAt` được ghi lại (B1).
 8. `[SYS]` **Ngoại lệ reject:** Admin reject → `change_project_status` đưa về `IN_PROGRESS`, lý do ghi vào `project.statusHistory[]`, Employee nhận `notification:new` và xem lại bằng intent "xem lý do bị từ chối". **Ngoại lệ quá hạn:** không đổi state — `dueDate < now AND status != COMPLETED` (B4) và UF-09 lo việc nhắc.
+
+**Ngoại lệ của nhánh 2a–2c (NOTES-02 + `19-…` §2.1):** `DECLINED` / `CHANGE_REQUESTED` nên kèm lý do để Admin
+còn căn cứ mà reassign hoặc xác nhận lại — `reason` là field **optional** trên event, không bắt buộc ở tầng
+schema `// SUY DIỄN`; phản hồi **không** đổi `projects.status` và **không** tự gỡ `assigneeIds` (BR-21);
+**không phản hồi** → nhắc Employee 1 lần/ngày có dedupe (BR-12), quá ngưỡng `TBD` ngày `[CẦN NGUỒN]` thì **báo
+Admin** — im lặng **không** được tính là đồng ý. Suốt cả nhánh này người được giao **vẫn** chịu trách nhiệm.
 
 ```mermaid
 sequenceDiagram
@@ -311,6 +345,15 @@ sequenceDiagram
   Adm->>Sys: tạo đề tài status DRAFT
   Adm->>Sys: assign_project confirm Admin
   Sys-->>Emp: notification:new status ASSIGNED
+  alt Employee co phan hoi
+    Emp->>Sys: phan hoi xac nhan ACKNOWLEDGED DECLINED CHANGE_REQUESTED confirm qua UI
+    Sys->>Sys: append project_events actor time source status van ASSIGNED
+    Sys-->>Adm: notification:new phan hoi cua Employee
+    Adm->>Sys: xu ly phan hoi reassigned hoac xac nhan lai trong departmentId duoc gan
+  else khong phan hoi
+    Sys-->>Emp: notification:new nhac 1 lan moi ngay co dedupe BR-12
+    Sys-->>Adm: notification:new bao Admin khi vuong qua nguong TBD
+  end
   Emp->>Sys: change_project_status confirm
   Sys->>Sys: status IN_PROGRESS
   loop trong lúc thực hiện
@@ -565,11 +608,15 @@ scheduler của S6 chạy trước). Chi tiết ở [`backlog-parked.md`](backlo
 
 ---
 
-## Chatbot intent catalog — 28 intent
+## Chatbot intent catalog — 28 intent + 3 intent xác nhận phân công
 
 Nguồn: NOTES-01 B0 "Catalog chatbot intent — bản nháp 28 intent" (cột `Nhóm`, `Intent` sao y). Ba cột
 `Tool`, `Read/Write`, `RBAC` được suy ra từ **tool catalog ở B6** — **chỉ dùng tên tool có trong B6**; intent
 nào chưa có tool tương ứng ghi `— chưa có tool`, **không đặt tên tool mới**.
+
+Ba dòng `#12a..#12c` là **bổ sung từ NOTES-02** (`19-…` §3, mục **VC-01**) cho nhóm Đề tài. Chúng được đánh số
+chữ để **không** đánh số lại 28 dòng cũ — nhiều file khác (`01`, `10`, `12`) đang dẫn chiếu theo số nguyên.
+Con số "28 intent" ở các file khác vì thế vẫn nói về bản NOTES-01, không phải tổng số dòng của bảng này.
 
 Luật áp dụng: `Write ⇒ bắt buộc confirm` (B6 agent architecture: `Read tool → execute` /
 `Write tool → confirmation → execute`; S8 confirm-before-write, NOTES-01 B0 dòng 29–30). Mỗi tool call đều đi
@@ -589,6 +636,9 @@ qua `Zod validate` + `RBAC check every tool` + `audit every mutation` (B6).
 | 10 | Đề tài | nộp báo cáo | `submit_report` | **Write** ⇒ confirm | Employee | UF-05 bước 5; B0 có ví dụ `submit_report → confirm → reportService.create()` |
 | 11 | Đề tài | yêu cầu duyệt báo cáo | `change_project_status` | **Write** ⇒ confirm | Employee | Suy ra từ state machine B4: `IN_PROGRESS → PENDING_REVIEW`. B6 không có tool "yêu cầu duyệt" riêng |
 | 12 | Đề tài | xem lý do bị từ chối | `get_project` | Read | both | Lý do nằm trong `project.statusHistory[]` (B1, B4); UF-05 nhánh reject |
+| 12a | Đề tài | tôi nhận đề tài này | `— chưa có tool` | **Write** ⇒ confirm | Employee | NOTES-02 VC-01 + `19-…` §3. Catalog B6 **không** có tool ghi nào cho phản hồi phân công → **khoảng trống catalog, phải bổ sung khi code** (tên tool do nhóm/`06-api-spec.md` chốt, không tự đặt ở file này). Hành vi nghiệp vụ: ghi `project_events` `ACCEPTED`, **không** đổi `projects.status` (`04 §4.6`, BR-21). Tạm thời làm trên Web dashboard (UF-04 bước 9, UF-05 bước 2a) |
+| 12b | Đề tài | tôi không nhận được, lý do… | `— chưa có tool` | **Write** ⇒ confirm | Employee | Như #12a — khoảng trống catalog phải bổ sung khi code. Event `DECLINED` + `reason` optional; **không** tự gỡ `assigneeIds`, trách nhiệm vẫn thuộc người được giao tới khi Admin xử lý (BR-21, `19-…` §2.1) |
+| 12c | Đề tài | tôi muốn xin đổi thời gian/yêu cầu | `— chưa có tool` | **Write** ⇒ confirm | Employee | Như #12a — khoảng trống catalog phải bổ sung khi code. Event `CHANGE_REQUESTED` → `notification:new` cho Admin trong cùng `departmentId` (BR-22); người xin đổi **không** tự đổi `dueDate`/`requiredSkills` |
 | 13 | Matching | tìm người phù hợp cho đề tài | `find_candidates` | Read | Admin | B0 có ví dụ `find_candidates → aiService.rankCandidates()`; quyền chọn người thuộc Admin (UF-04) |
 | 14 | Matching | vì sao đề xuất nhân viên này | `explain_candidate_match` | Read | Admin | B14: skill-to-skill cosine + leave-one-out, card match |
 | 15 | Matching | tìm top 5 nhân viên | `find_candidates` | Read | Admin | Đo bằng Precision@5/Recall@5/MRR (B5) — **không** dùng F1 đơn độc cho ranking |
@@ -606,17 +656,16 @@ qua `Zod validate` + `RBAC check every tool` + `audit every mutation` (B6).
 | 27 | Notification | việc nào sắp quá hạn | `get_upcoming_deadlines` | Read | both | Đọc tập dẫn xuất quá hạn/sắp hạn, không phải state (B4) |
 | 28 | Notification | tóm tắt công việc hôm nay | `— chưa có tool` | Read | both | Bản tóm tắt do **daily digest** của Agenda job sinh (B15, S6), không phải tool hội thoại; `list_projects` + `get_upcoming_deadlines` chỉ là primitive đọc từng phần |
 
-**Tổng kết khoảng trống tool:** 7/28 intent chưa map được tool (`#2, #17, #18, #21, #22, #23, #28`) và 4 intent
-chỉ map được bằng suy diễn field-level (`#3, #5, #11, #24`). Trong đó **2 intent là `Write` mà chưa có tool**
-(`#2` sửa số điện thoại, `#23` gửi nhận xét) → hai intent này phải chuyển thành nghiệp vụ chỉ-Web-dashboard ở
-baseline, hoặc xin GVHD cho thêm tool write tương ứng (có confirm) vào catalog B6.
+**Tổng kết khoảng trống tool:** 10/31 dòng intent chưa map được tool (`#2, #12a, #12b, #12c, #17, #18, #21, #22, #23, #28`) và 4 intent chỉ map được bằng suy diễn field-level (`#3, #5, #11, #24`). Trong đó **5 intent là `Write` mà chưa có tool** (`#2` sửa số điện thoại, `#23` gửi nhận xét, `#12a`/`#12b`/`#12c` ba phản hồi phân công) → các intent này phải chuyển thành nghiệp vụ chỉ-Web-dashboard ở baseline, hoặc xin GVHD cho thêm tool write tương ứng (có confirm) vào catalog B6. **Riêng `#12a..#12c`: NOTES-02 yêu cầu hành vi, còn tool thì chưa có tên — đây là khoảng trống catalog bắt buộc phải bổ sung khi code** (`06-api-spec.md` + `07-auth-rbac.md`), file này cố ý **không** đặt tên.
 
 ---
 
 ## Notification matrix
 
-9 dòng sao y từ NOTES-01 B0; cột thêm **"Channel impl"** chỉ dùng tên event có trong B7 hoặc digest qua Agenda
-job theo B15 — không tự sinh event mới.
+9 dòng đầu **sao y** từ NOTES-01 B0; cột thêm **"Channel impl"** chỉ dùng tên event có trong B7 hoặc digest qua
+Agenda job theo B15 — không tự sinh event mới. Hai dòng cuối (đánh dấu `+`) là **bổ sung từ NOTES-02**
+(`19-…` §3, mục **VC-01**) + suy luận của docs: chúng **không** thêm event mới, chỉ dùng `notification:new`
+(`project_events` là nơi ghi phản hồi — `04 §4.6`).
 
 | Sự kiện | Người nhận | Kênh (B0) | Chống spam (B0) | Channel impl |
 |---|---|---|---|---|
@@ -626,6 +675,8 @@ job theo B15 — không tự sinh event mới.
 | Báo cáo đã nộp | Admin | WS | theo event | `report:updated` khi `submit_report` tạo bản ghi `reports` + `project:updated` (status `PENDING_REVIEW`) |
 | Báo cáo bị reject | Employee | WS | theo event | `notification:new` + `project:updated` (quay về `IN_PROGRESS`, lý do trong `project.statusHistory[]`) |
 | Assignment mới | Employee | WS | theo event | `project:updated` + `notification:new` sau khi `assign_project` qua confirm |
+| **Nhân viên từ chối / yêu cầu đổi việc** `+` | Admin | WS | theo event | `notification:new` vào room `user:<Admin>` khi có `project_events` loại `DECLINED` / `CHANGE_REQUESTED` — chỉ Admin trong cùng `departmentId` (BR-22). `projects.status` **không đổi** nên **không** có `project:updated` cho dữ kiện này `// SUY DIỄN — docs đặt ra` |
+| **Chưa xác nhận phân công sau N ngày** `+` | Employee → escalate Admin | WS | 1 lần/ngày rồi escalate | Agenda job (B15) nhắc Employee có khoá chống trùng theo BR-12; vướng quá ngưỡng thì `notification:new` cho Admin. Ngưỡng ngày: **`TBD`** `[CẦN NGUỒN]` — NOTES-02 để `TBD`, docs **không** đoán số và **không** coi im lặng là đồng ý |
 | KPI cần review | Admin | digest | 1 lần/ngày | **Agenda digest job** (B15) — template digest chưa được NOTES-01 mô tả chi tiết `[CẦN NGUỒN]`; khi Admin chốt xong thì `kpi:updated` |
 | Daily standup (S6) | Employee | chatbot | 1 lần/ngày | Chatbot **chủ động hỏi** → NOTES-01 B7 chỉ khai báo `chat:send` là client message, **chưa có** event cho message do hệ thống khởi xướng → cần bổ sung hợp đồng event `[CẦN NGUỒN]` |
 | Daily digest (S6) | Admin | in-app | 1 bản/ngày | persist `notifications` (in-app) do Agenda job dựng (B15); không dùng WS push riêng vì B0 ghi kênh là in-app |
