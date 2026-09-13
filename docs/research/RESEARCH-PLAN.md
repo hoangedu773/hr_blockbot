@@ -1,8 +1,16 @@
 # RESEARCH PLAN — KLCN133: Chatbot chuyển đổi số quản lý nhân sự
 
 Nguồn ràng buộc: `docs/KLCN133_TranVietHung.docx` (đề cương, GVHD Trần Việt Hùng, 25/08/2026).
-Plan này chỉ định **bạn (hoặc nhóm) đi research cái gì, theo thứ tự nào, và nộp về dưới dạng nào**
-để tôi convert thành bộ docs chuẩn của project.
+Plan này chỉ định **nhóm đi research cái gì, theo thứ tự nào, nộp về dạng nào** để tôi convert thành docs chuẩn.
+
+**TRẠNG THÁI — sau vòng research 1 (13/09/2026).** Kết quả nhóm nộp lưu tại [`NOTES-01.md`](NOTES-01.md).
+Plan gốc dưới đây giữ nguyên làm bằng chứng vòng 1 và **đã bị research bác/đảo ngược tại**:
+B0 (thêm tầng approval + chu kỳ KPI có calibration) · B1 (**bỏ Qdrant**, Atlas Vector có trên free; Render sleep 15'
+→ WS không tức thì; **không multi-doc transaction**) · B2 (**bỏ Turborepo**, giữ Express) · B3 (**Argon2id thay bcrypt**,
+**`jose` thay `jsonwebtoken`**, tách `role` khỏi `level`, **bỏ CASL**) · B4 (**`OVERDUE` không phải state**) ·
+B5 (**danh sách dataset bị bác**, metric đổi sang P@K/MRR) · B6 (**LLM không sinh KPI cuối**) · B8 (chốt shadcn/ui +
+Recharts) · B11 (**không Git Flow**, scope `task` → `project`) · B15 (**Agenda**, không Redis/BullMQ).
+**B12 vẫn `UNRESOLVED` — bắt buộc xin GVHD/Khoa.**
 
 ---
 
@@ -154,9 +162,10 @@ Mục tiêu: biết trần của stack free để thiết kế không phải đ�
 - Tokenization tiếng Việt: RoBERTa byte-level, có cần tiền xử lý dấu thanh/viết không dấu?
 - Sentence embedding từ PhoBERT: mean-pooling vs CLS; các lựa chọn thay thế (`GloVe-25Vn`, `UTBank`, `multilingual-e5-small`, `paraphrase-multilingual-MiniLM`, `GlotFC`, `phoqwen`) — **phải có baseline so sánh**.
 - Bài toán short-text matching (skills ↔ yêu cầu đề tài): cosine similarity + threshold tuning, top-K ranking, tie-break bằng workload hiện tại.
-- Dataset tiếng Việt để fine-tune/eval: `UFoLD`, `ViETeDis`, `VNIntent`, `Shopee-ITS_VL`, `UiT-VSPC`, `NLUI-VN` — cái nào có sẵn, licence, tải ở đâu, bao nhiêu mẫu.
-- Đánh giá: F1 (macro/micro) cho classification vs Precision@K/Recall@K/MRR cho ranking → thống nhất metric với GVHD (§7).
-- Từ khóa: `PhoBERT sentence embedding semantic similarity`, `Vietnamese short text similarity dataset`, `UFoLD dataset`, `precision@k evaluation recommendation`, `phobert mean pooling`
+- ~~Dataset tiếng Việt: `UFoLD`, `ViETeDis`, `VNIntent`, `Shopee-ITS_VL`, `UiT-VSPC`, `NLUI-VN`~~ → **BÁC BỎ theo NOTES-01 B5.** `UFoLD` là tên sai ("UFold" công khai nổi bật là mô hình dự đoán cấu trúc **RNA**, không liên quan Vietnamese NLP); 5 tên còn lại **chưa xác minh được nguồn** → không trích vào báo cáo.
+- Đã xác minh: **PhoATIS** (5.871 utterances / 28 intents / 82 slot types; licence hạn chế nghiên cứu–giáo dục) và **VN-SLU 2024** (17.321 utterances / 240 người nói). Giới hạn: PhoATIS là domain **đặt vé máy bay** → chỉ dùng làm baseline/phương pháp, không được gọi là "dataset chuẩn cho HR chatbot". Dataset HR cuối cùng do nhóm tự xây + protocol rõ.
+- Đánh giá: **F1 không dùng đơn độc cho ranking Top-K** (NOTES-01 B5). F4 = Precision@1/@3/@5, Recall@5, MRR, nDCG@5 (optional), latency, RAM. Nếu GVHD giữ `F1 ≥ 85%` → định nghĩa thêm bài toán nhị phân `(employee, project) → phù hợp/không` rồi đo P/R/F1/Accuracy. Vẫn phải chốt ở §7.2.
+- Từ khóa: `PhoATIS intent detection Vietnamese`, `VN-SLU 2024 dataset`, `PhoBERT word segmentation requirement`, `PhoBERT sentence embedding semantic similarity`, `precision@k evaluation recommendation`, `phobert mean pooling`
 - Nộp về: **bảng so sánh mô hình** (tên / kích thước / chất lượng tiếng Việt / chạy ở đâu / licence / link) + dataset + protocol eval (cách chia train/test, cách tính F1) + **3 paper** để trích báo cáo.
 
 ### B6 — LLM: Function Calling + Agent Loop + hỏi đáp chính sách (F3, F5) · P1 · 8h · tuần 5–8
@@ -205,8 +214,9 @@ Mục tiêu: biết trần của stack free để thiết kế không phải đ�
 
 ### B11 — Conventional Commits & quy trình Git · P2 · 2h · tuần 1
 - Spec Conventional Commits 1.0: `feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert`, scope, `!`, `BREAKING CHANGE`.
-- Scope đặt theo module: `auth`, `hr`, `task`, `chatbot`, `ai`, `dashboard`, `realtime`, `ci`.
-- Enforce: husky + commitlint + lint-staged; branch model cho 3 người (trunk-based + short branch vs Git Flow); PR bắt buộc review.
+- Scope đặt theo module: auth, hr, project, chatbot, ai, dashboard, realtime, docs, ci.
+  Đổi `task` -> `project` theo NOTES-01 B11: collection trong data model là `projects` nên scope phải trùng tên domain; README cũng sửa theo.
+- Enforce: husky + commitlint + lint-staged; short-lived branch + PR + squash merge, KHÔNG Git Flow (NOTES-01 B11); PR bắt buộc 1 review.
 - CHANGELOG theo Keep a Changelog + semantic release (rẻ, đẹp trong báo cáo).
 - Từ khóa: `conventional commits specification`, `commitlint husky monorepo scopes`, `keep a changelog`
 - Nộp về: **commit template** (type list + scope list + 10 ví dụ tốt/xấu) + quy tắc đặt tên branch/PR.
@@ -276,7 +286,7 @@ Yêu cầu: **URL nguồn cho mọi con số**. Không có nguồn → tôi ph�
 
 1. **Backend framework**: đề cương ghi Express.js. Có được dùng NestJS thay không (kiến trúc module sạch hơn, dễ trình bày điểm "thiết kế")?
 2. **F1 ≥ 85% tính trên bài toán nào**: phân loại intent (classification) hay gợi ý đề tài (ranking)? Nếu là ranking thì F1 không phải chuẩn đo phù hợp — xin đổi sang Precision@5 / Recall@5 / MRR, hoặc giữ F1 cho intent classification.
-3. **"Tập dữ liệu thử nghiệm chuẩn"**: Khoa yêu cầu dataset cụ thể/tối thiểu bao nhiêu mẫu? Có chấp nhận dataset tự gom + công bố không?
+3. **"Tập dữ liệu thử nghiệm chuẩn"**: Khoa yêu cầu dataset cụ thể/tối thiểu bao nhiêu mẫu? Có chấp nhận dataset tự gom + công bố không? *Hệ quả từ B5: dataset tiếng Việt công khai duy nhất xác minh được (PhoATIS) thuộc domain đặt vé máy bay, nên cần thầy xác nhận phương án nhóm tự xây HR intent dataset + protocol rõ, thay vì trông chờ dataset chuẩn ngành.*
 4. **Timeline**: bảng công việc theo tuần liệt kê 14 mục nhưng thời gian ghi 12 tuần → mục nào gộp?
 5. **LLM bên thứ ba**: được phép gọi API Gemini/OpenAI/Groq cho chatbot không? Có ràng buộc dữ liệu nhân sự không được gửi ra service ngoài không?
 6. **Định dạng báo cáo**: xin file mẫu + chuẩn trích dẫn (APA/IEEE) + giới hạn số trang + quy định về dùng AI hỗ trợ viết.
@@ -323,15 +333,22 @@ Yêu cầu: **URL nguồn cho mọi con số**. Không có nguồn → tôi ph�
 
 ## 10. Nếu chỉ được chọn 5 (khuyến nghị của tôi)
 
-Chọn theo 3 tiêu chí: (1) người dùng thật có dùng hằng tuần không — chứng minh bằng **B0**; (2) có số liệu đo được không; (3) có phá cam kết P0 không.
+Tiêu chí: (1) ánh xạ được về một UF-xx trong `18-user-flows.md` (B0 đã chốt 10 flow); (2) đo được bằng số;
+(3) không phá cam kết P0. **Nhóm đã đảo thứ tự sau research (NOTES-01): `S14 → S3 → S2 → S1 → S6`** —
+khoá phần khoa học trước, agentic feature làm sau. Bộ 5 giữ nguyên, chỉ đổi trật tự:
 
-1. **S3** — biến phần AI từ "tích hợp thư viện" thành "có thực nghiệm so sánh"; là cửa thực tế duy nhất chạm +1.0 NCKH.
-2. **S2** — xử lý đúng điểm gãy thật của nghiệp vụ: mô hình không chắc thì **hỏi lại**, không giao nhầm việc cho người thiếu kỹ năng. Rẻ và hiếm nhóm nào làm.
-3. **S1** — quản lý cần **lý do** để tin hoặc bác một gợi ý; một công ăn hai chức năng (F4 minh bạch + F5 giải thích được).
-4. **S6** — chatbot **tự khởi xướng** hỏi tiến độ rồi gom digest: đúng tinh thần agentic của đề cương; B0 sẽ kiểm chứng đây có phải chuẩn ngành không.
-5. **S14** — `make demo` + dataset có khoá: phục vụ trực tiếp mục kiểm thử & triển khai trong rubric.
+1. **S14** — `make demo` + dataset có khoá: mọi con số trong báo cáo tái lập được; đi trước vì S3/S2 cần nó.
+2. **S3** — benchmark 4 hàng model: TF-IDF/BM25 (baseline rẻ) · PhoBERT mean-pool (bắt buộc theo đề cương) ·
+   multilingual-e5-small · paraphrase-multilingual-MiniLM-L12-v2. Cửa thực tế duy nhất chạm +1.0 NCKH.
+3. **S2** — calibration + abstention: cosine 0.82 **không phải** 82% xác suất đúng → Platt/logistic calibration
+   rồi mới ngắt ngưỡng; mô hình không chắc thì hỏi lại thay vì giao nhầm việc.
+4. **S1** — explainability bằng **skill-to-skill cosine + leave-one-out**, không dùng attention làm giải thích.
+5. **S6** — chatbot tự khởi xướng hỏi tiến độ + daily digest, chạy trên **Agenda** (không Redis/BullMQ).
 
-Để ngỏ: **S10** hay nhưng rủi ro cao và dễ nuốt 1 tuần — chỉ code khi baseline xong trước tuần 8. **S7** chỉ làm nếu S6 đã chạy (chung hạ tầng scheduler). **S5 + S8 + S11 + S13** nên làm bất kể: tổng < 3 buổi, không ý nào rủi ro.
+Để ngỏ: **S10** chỉ code khi baseline xong trước tuần 8 và bắt buộc qua whitelist report-template + Zod enum
+(B15). **S7** chỉ làm nếu S6 đã chạy (chung hạ tầng Agenda). **S5 + S8 + S11 + S13** làm bất kể (< 3 buổi,
+không rủi ro) — S8 và S13 đã có bằng chứng ngành trong NOTES-01 (Oracle HCM xác nhận khi AI đổi goal;
+MISA/Lattice có chu kỳ đánh giá + calibration).
 
 ---
 

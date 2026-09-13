@@ -30,8 +30,9 @@ theo mục §2 của RESEARCH-PLAN.
 
 ## Commit convention
 
-[Conventional Commits](https://www.conventionalcommits.org/): `feat|fix|docs|refactor|perf|test|build|ci|chore|revert`
-với scope theo module (`auth`, `hr`, `task`, `chatbot`, `ai`, `dashboard`, `realtime`, `ci`).
+[Conventional Commits](https://www.conventionalcommits.org/): `feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert`
+với scope theo module (`auth`, `hr`, `project`, `chatbot`, `ai`, `dashboard`, `realtime`, `docs`, `ci`).
+Chi tiết quy ước: [`docs/15-engineering-conventions.md`](docs/15-engineering-conventions.md).
 Nội dung cam kết bằng **tiếng Anh**; trao đổi trong nhóm bằng tiếng Việt.
 
 ## Nhóm
