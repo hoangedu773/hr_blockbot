@@ -121,14 +121,31 @@ Không có tool chatbot nào cho `departments`: `NOTES-01 §B6` không khai báo
 | GET | `/projects/:id/events` | cả hai (own) | paging `TBD`; sort `createdAt desc` | `200 { items: [ProjectEventDto] }` | `RBAC_DENIED` (403), `RESOURCE_NOT_FOUND` (404) | Idempotent (đọc) | `project_events (projectId, createdAt)` — **I-12** |
 | POST | `/projects/:id/progress` | `Employee` own, `Admin` (`submit_progress` — write ⇒ confirm) (T-06) | `progressPct : number : 0..100 : required`<br>`note? : string`<br>`clientMessageId : string : required` | `200 { projectId, event: ProjectEventDto }` — **không** đổi trạng thái duyệt | `CONFIRMATION_REQUIRED` (428), `RBAC_DENIED` (403), `ILLEGAL_STATE_TRANSITION` (422), `VALIDATION_FAILED` (400) | `clientMessageId` đã thấy → bỏ qua, trả `200` kèm event cũ (BR-13) | append `project_events` (I-12) |
 | POST | `/projects/:id/assign` | **`Admin` only** (`assign_project (confirm + Admin)` — `B6`) | `assigneeIds : ObjectId[] : required, không rỗng`<br>`expectedVersion : number : required`<br>`confirmed : boolean`<br>`clientMessageId : string : required` | `200 ProjectDto` at `ASSIGNED` → `project:updated` + `notification:new` "Assignment mới" | `CONFIRMATION_REQUIRED` (428), `RBAC_DENIED` (403), `PROJECT_VERSION_CONFLICT` (409), `VALIDATION_FAILED` (400) | điều kiện `status: DRAFT` + `version` → chỉ một lần gán có hiệu lực | `_id`, I-03 |
-| POST | `/projects/:id/acknowledgement` | `Employee` **own** (chỉ người có tên trong `assigneeIds`), `Admin` | `response : 'ACKNOWLEDGE'\|'DECLINE'\|'REQUEST_CHANGE' : required`<br>`reason? : string : required khi DECLINE hoặc REQUEST_CHANGE`<br>`expectedVersion : number : required`<br>`confirmed : boolean`<br>`clientMessageId : string : required` | `200 { projectId, event: ProjectEventDto }` với `type` = `ACKNOWLEDGED` \| `DECLINED` \| `CHANGE_REQUESTED` (`05 §3.5`) → **chỉ sau đó** notify cho `Admin`; **không** đổi `projects.status`, **không** đổi `version`, **không** sang `transition` | `CONFIRMATION_REQUIRED` (428), `NOT_ASSIGNEE` (403 — người gọi không còn trong `assigneeIds`, vd đề tài vừa bị gán lại), `RBAC_DENIED` (403 — ngoài `departmentId` được gán, `07 §7.4`), `VALIDATION_FAILED` (400 — thiếu `reason`), `RESOURCE_NOT_FOUND` (404) | `clientMessageId` đã thấy → bỏ qua, trả `200` kèm event cũ (BR-13); nhiều lần phản hồi của **cùng một** người cho **cùng** `response`: event cuối là dữ kiện đọc khi suy trạng thái, các bản trước vẫn giữ (append-only, BR-03) | append `project_events` — **I-12**; kiểm tra tư cách gán đọc `projects._id` + `assigneeIds` (I-03) |
+| POST | `/projects/:id/acknowledgement` | **bất kỳ `role`** — điều kiện duy nhất là **actor phải nằm trong `assigneeIds`**; Admin **không** có đường phản hồi thay Employee (BR-16, `07 §7.4` SC-04) | `response : 'ACKNOWLEDGE'\|'DECLINE'\|'REQUEST_CHANGE' : required`<br>`reasonCode : string : required khi DECLINE hoặc REQUEST_CHANGE` (**PROPOSED** — enum chưa chốt)<br>`comment? : string` (tự do, optional — **PROPOSED**)<br>`expectedVersion : number : required`<br>`confirmed : boolean`<br>`clientMessageId : string : required` | `200 { projectId, event: ProjectEventDto }` với `type` = `ACKNOWLEDGED` \| `DECLINED` \| `CHANGE_REQUESTED` (`05 §3.5`; mapping ở bảng dưới) → **chỉ sau đó** notify cho `Admin`; **không** đổi `projects.status`, **không** đổi `version`, **không** sang `transition` | `CONFIRMATION_REQUIRED` (428), `NOT_ASSIGNEE` (403 — actor không nằm trong `assigneeIds`), `VALIDATION_FAILED` (400 — thiếu `reasonCode` khi `DECLINE`/`REQUEST_CHANGE`), `RESOURCE_NOT_FOUND` (404) | `clientMessageId` đã thấy → bỏ qua, trả `200` kèm event cũ (BR-13); nhiều lần phản hồi của **cùng một** người cho **cùng** `response`: event cuối là dữ kiện đọc khi suy trạng thái, các bản trước vẫn giữ (append-only, BR-03) | append `project_events` — **I-12**; kiểm tra tư cách gán đọc `projects._id` + `assigneeIds` (I-03) |
 
+
+**Mapping request → event (một chiều, không tự suy).** `response` là *ý định* client gửi lên; `type` là *dữ kiện*
+được ghi vào `project_events`. Không có giá trị nào khác trong hai enum này.
+
+| `response` (request) | `project_events.type` (event canonical) | Lý do? |
+|---|---|---|
+| `ACKNOWLEDGE` | `ACKNOWLEDGED` | **Không** — `ACKNOWLEDGED` không dùng `reasonCode` |
+| `DECLINE` | `DECLINED` | Có — `reasonCode` **bắt buộc**, `comment` optional |
+| `REQUEST_CHANGE` | `CHANGE_REQUESTED` | Có — `reasonCode` **bắt buộc**, `comment` optional |
+
+`ACCEPTED` **không** nằm trong bảng này và **không** phải giá trị canonical: nó chỉ tồn tại trong
+`research/NOTES-02.md` (raw) và trong câu trích state của NOTES-02 (`04 §10` điểm 6, `05 §3.5`). Schema lý do
+(`reasonCode`/`comment`) mang nhãn **PROPOSED** — chờ phỏng vấn hiện trạng + GVHD (`19` §6).
 Endpoint acknowledgement **không phải** một cửa của bảng transition: `19` §3 chốt VC-01 là **dữ kiện
 append-only**, `projects.status` vẫn đúng 5 giá trị (`05 §3.4`). Trách nhiệm với đề tài **chưa chuyển** chỉ vì
-một người bấm "tôi nhận" hay "tôi không nhận" — đề tài vẫn thuộc `assigneeIds` cho tới khi `Admin` gán lại qua
-`POST /projects/:id/assign` (ngành chốt cùng một nguyên tắc: *"The original shift remains the responsibility
-of the employee **until** the shift trade request is approved by management"* — trích trong `19` §2.1, dẫn 7shifts
-Knowledge Base; `NOTES-02` §VF-01 nói cùng ý "original employee remains responsible until approved").
+một người bấm "tôi nhận" hay "tôi không nhận". Nhưng **"gán lại" hiện chưa phải một đường hợp lệ**:
+`POST /projects/:id/assign` chỉ hợp lệ ở `status = DRAFT`, nên **không** dùng được cho đề tài đang `ASSIGNED`, và
+cũng chưa có transition/endpoint nào để *đóng* một phản hồi `DECLINED`/`CHANGE_REQUESTED`. Docs **không** được
+claim "Admin reassign để xử lý phản hồi". Nguyên tắc trách nhiệm lấy từ 7shifts *"The original shift remains the
+responsibility of the employee **until** the shift trade request is approved by management"* (trích trong `19`
+§2.1) là **analogy** shift-trade — **không** chứng minh trực tiếp cho *initial* assignment, nên Q-02 chỉ là
+**PARTIALLY RESOLVED**. Hai câu hỏi chặn thiết kế Ticket/Project integration: **D-15** (reassign/resolution) và
+**D-16** (stale-response race) — §8.
 `ACKNOWLEDGE`/`DECLINE`/`REQUEST_CHANGE` đều là **write ⇒ confirm** (BR-05), nên chatbot phải hiện challenge
 trước khi gọi; REST chỉ nhận cờ `confirmed`.
 
@@ -294,7 +311,7 @@ Chỉ dùng mã mà nghiệp vụ trong nguồn **thật sự sinh ra**. Cột "
 
 | Code | HTTP | Sinh ra từ | Nguồn | Client nên làm gì |
 |---|---|---|---|---|
-| `VALIDATION_FAILED` | 400 | Zod reject ở biên vào (mọi đối số, kể cả đối số LLM trả về); enum ngoài 5 giá trị `status`, ngoài 2 `role`, ngoài 5 `level`, ngoài 3 giá trị `response` của acknowledgement; bắt buộc `reason` khi reject/override/không nhận việc | `B6` "Zod validate every argument"; `B2`; `04` BR-19 | Giữ dữ liệu người dùng đã nhập, highlight **field nào** sai trong `details`; **không** retry tự động |
+| `VALIDATION_FAILED` | 400 | Zod reject ở biên vào (mọi đối số, kể cả đối số LLM trả về); enum ngoài 5 giá trị `status`, ngoài 2 `role`, ngoài 5 `level`, ngoài 3 giá trị `response` của acknowledgement; bắt buộc `reasonCode` khi `DECLINE`/`REQUEST_CHANGE` (bắt buộc `reason` khi reject/override) | `B6` "Zod validate every argument"; `B2`; `04` BR-19 | Giữ dữ liệu người dùng đã nhập, highlight **field nào** sai trong `details`; **không** retry tự động |
 | `UNAUTHENTICATED` | 401 | JWT thiếu/hết hạn; refresh fail; đăng nhập sai | `07 §2/.4` "trả 401, client xoá access token trong memory và chuyển về màn hình login" | Xoá access token trong memory, dừng thử refresh lại trong cùng trang, chuyển về login |
 | `TOKEN_REUSED` | 401 | Refresh token cũ xuất hiện lại → **revoke TOÀN BỘ family** | `B3`; `07 §3.3` | Thông báo "phiên đã bị thu hồi vì lý do bảo mật", yêu cầu login lại; không cho phép im lặng login lại |
 | `RBAC_DENIED` | 403 | RBAC check ở mỗi request và **mỗi tool call**; `Employee` chạm tool/cửa Admin (`assign_project`, `override_kpi`, `get_department_kpi`, `find_candidates`, duyệt hồ sơ); **`Admin` chạm dữ liệu ngoài `departmentId` được gán** (`07 §7.4` — scope enforcement ở service layer) | `B6` "RBAC check every tool"; `07 §7`, `07 §7.4`; BR-06 | Ẩn/bỏ action đó khỏi UI; **không** hiển thị dữ liệu một phần; giữ nguyên dữ liệu |
@@ -393,6 +410,8 @@ Toàn bộ các con số hạ tầng này `[CẦN NGUỒN]` (`NOTES-01` mục "C
 | D-12 | **`period` granularity** (`04 §9` Q-07) | `POST /evaluations/periods`, filter `period` ở §2.6 | — | nhóm |
 | D-13 | **Scope của Admin nằm ở đâu trong schema**: `07 §7.4` chốt *hành vi* (chặn theo `departmentId` được gán) nhưng `05 §3.1` chỉ có `users{email, passwordHash, role, employeeId}` — **không có field scope nào** và `NOTES-01 §B3` không đề cập khái niệm scope | mọi filter `departmentId` ở §2.2/§2.4/§2.6 và `RBAC_DENIED` ngoài scope; chưa quyết được là (a) thêm field vào `users`/`employees` hay (b) lấy scope từ `employees.departmentId` của chính Admin | `07 §7.4` `[CẦN NGUỒN]` | nhóm + GVHD (chạm 11 collection, `05 §1.1`) |
 | D-14 | **Tên tool cho phản hồi phân công** chưa tồn tại trong catalog 15 tool của `B6`; `E-01` ràng buộc `tool` phải thuộc danh sách đóng đó | §2.4 (endpoint acknowledgement chạy được nhưng chatbot chưa gọi được) + §2.9.1 | `19` §3 ghi "3 intent chatbot mới" nhưng không đặt tên tool — `[CẦN NGUỒN]` | nhóm (`18-user-flows.md`, đang được người khác sửa) |
+| D-15 | **Đường "xử lý phản hồi" phân công chưa tồn tại**: `POST /projects/:id/assign` chỉ hợp lệ ở `DRAFT`, nên không gán lại được đề tài `ASSIGNED`; cũng chưa có endpoint/transition nào để *đóng* một phản hồi `DECLINED`/`CHANGE_REQUESTED` | §2.4 (endpoint acknowledgement ghi được phản hồi nhưng **không có** cửa nào để resolve) | `04 §9` Q-10; docs **không** được claim reassign | GVHD + nhóm |
+| D-16 | **Stale-response race**: phản hồi ghi `project_events` **không** đổi `projects.version` (BR-21) → phản hồi tạo trước khi Admin gán lại/xử lý vẫn được đọc là "đang hiệu lực"; chưa có luật nào vô hiệu hoá | §2.4 (idempotency chỉ theo `clientMessageId`, không theo mốc gán lại) | `04 §9` Q-11 | nhóm + GVHD |
 
 ## 9. Việc tiếp theo từ file này
 

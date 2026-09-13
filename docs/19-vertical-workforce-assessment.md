@@ -48,7 +48,7 @@ NOTES-01 mất toàn bộ URL khi paste; lần này nhóm có nộp link. Tôi f
 Trạng thái hiện tại của bộ docs (`04-domain-model.md` §4, `18-user-flows.md` UF-04/UF-05): đề tài đi
 `DRAFT → ASSIGNED → IN_PROGRESS → …`. **Nhân viên không có bước nào để nói "tôi nhận" hay "tôi không nhận".**
 
-Đây là lỗi của thiết kế hiện tại, và chính `04-domain-model.md` đã tự đánh dấu nó là **Q-02 chưa trả lời**
+Đây là lỗi của thiết kế hiện tại, và chính `04-domain-model.md` **lúc đó** đã tự đánh dấu nó là **Q-02 chưa trả lời** (sau vòng này đổi thành **PARTIALLY RESOLVED / PROPOSED** — xem §6 file này)
 ("Nhân viên có được từ chối đề tài được giao không? `B0` có UF-04 'chấp nhận/từ chối', `B4` state machine
 **không có nhánh này**"). NOTES-02 trả lời đúng câu đó, và có bằng chứng ngành:
 
@@ -59,6 +59,13 @@ Trạng thái hiện tại của bộ docs (`04-domain-model.md` §4, `18-user-f
 Câu thứ hai là quy tắc nghiệp vụ đáng học nhất trong toàn bộ NOTES-02: **trách nhiệm không chuyển bằng
 tuyên bố, nó chuyển bằng phê duyệt.** Gán việc mà không có bước xác nhận thì khi trễ, không ai nhận phần
 trễ đó là của mình — đúng vào cái F7 (nghiệm thu) và nhắc hạn đang yếu.
+
+**Giới hạn của bằng chứng này — Q-02 chỉ PARTIALLY RESOLVED / PROPOSED.** Trích dẫn trên nằm trên trang
+*Trade Shifts*: nó nói về một ca **đã được giao cho A** rồi A mới xin đổi cho B. Nó **không** phát biểu về
+*initial project assignment* — đúng chỗ mà `04-domain-model.md` đang dùng nó để chốt "trách nhiệm vẫn thuộc
+người được giao tới khi Admin xử lý phản hồi". Đó là **analogy cùng hình dạng** (trách nhiệm chuyển bằng phê
+duyệt), **không** phải bằng chứng trực tiếp. Vì vậy Q-02 chỉ được ghi là **PARTIALLY RESOLVED**, và phần schema
+lý do (`reasonCode`/`comment`) cùng đường reassign/resolution giữ nhãn **PROPOSED** — xem §6 file này.
 
 ### 2.2 — Vì sao **không** tách F&B / School
 
@@ -107,7 +114,7 @@ Ký hiệu: **LÀM** = vào baseline kỳ này · **CÂN NHẮC** = chỉ khi GV
 
 | Mục NOTES-02 | Quyết định | Lý do | Việc cụ thể phát sinh |
 |---|---|---|---|
-| **VC-01** Assignment acknowledgement | **LÀM** (extend) | Đóng Q-02; có bằng chứng ngành; **không thêm collection**; giá trị nghiệp vụ thật (trách nhiệm tới khi duyệt) | UF-04/UF-05 thêm bước accept/decline/request-change; event type mới trong `project_events`; 3 intent chatbot mới |
+| **VC-01** Assignment acknowledgement | **LÀM** (extend) | Q-02 **PARTIALLY RESOLVED / PROPOSED**: nguồn 7shifts là *shift-trade analogy*, **không** chứng minh trực tiếp trách nhiệm của *initial* assignment; **không thêm collection**; giá trị nghiệp vụ thật (trách nhiệm tới khi duyệt) | UF-04/UF-05 thêm bước acknowledge/decline/request-change; event type mới trong `project_events`; 3 intent chatbot mới; schema lý do (`reasonCode`/`comment`) và đường reassign/resolution còn **PROPOSED** (§6 file này) |
 | **Tách "duyên trong phạm vi" khỏi super-admin** (ý sau §2.3a) | **LÀM** (dưới dạng scope, **không** phải role mới) | ADR-009 giữ 2 role; 7shifts chứng minh ngành dùng permission+scope; đây là kiểm soát truy cập, không phải tính năng | `07-auth-rbac.md`: thêm cột/mục *scope enforcement*; `13-security.md`: threat "Admin đọc chéo phòng ban" |
 | **Nguyên tắc dữ liệu tối thiểu cho Employee** | **LÀM** | Chi phí = vài dòng response schema, lợi ích = chặn lộ PII | `06-api-spec.md` siết field trả về của `find_candidates` / `get_employee` |
 | **VC-02** Availability / absence | **CÂN NHẮC** | Trùng UF-02 (đang PARK); là domain model mới (`availability_requests`) → phá baseline 11 collection; **nhưng** MISA AMIS là bằng chứng VN mạnh nhất cho chatbot-tạo-đơn | Nếu GVHD duyệt: là flow thứ 2 có giá trị nhất sau VC-01. Cần thêm 1 collection + 1 state machine request |
@@ -131,7 +138,7 @@ generality*. Không làm.
 |---|---|
 | `research/NOTES-02.md` | lưu nguyên văn bản nộp (new) |
 | `19-vertical-workforce-assessment.md` | file này (new) |
-| `04-domain-model.md` | **Q-02 được trả lời và đóng**; thêm quy tắc xác nhận assignment (append-only event, **không** phải state thứ 6 của `projects`); BR mới cho "trách nhiệm chuyển khi được duyệt"; thêm quy tắc scope của Admin |
+| `04-domain-model.md` | **Q-02 PARTIALLY RESOLVED / PROPOSED** (chưa đóng — 7shifts chỉ là *analogy*); thêm quy tắc xác nhận assignment (append-only event, **không** phải state thứ 6 của `projects`); BR mới cho "trách nhiệm chuyển khi được duyệt"; thêm quy tắc scope của Admin |
 | `18-user-flows.md` | UF-04/UF-05 thêm bước Employee **Accept / Decline / Request change** + confirm + nhánh không phản hồi; catalog intent +3; notification matrix +2 dòng |
 | `01-requirements.md` | FR mới cho acknowledgement (nhóm F2/F7), FR scope cho quyền |
 | `05-data-model.md` | `project_events.type` mở rộng có kiểm soát (thêm loại event xác nhận); ghi rõ **không** thêm collection mới cho VC-01 |
@@ -154,3 +161,34 @@ Không có file nào ở trên đổi **enum 5 state** của `projects`, và kh�
 | 3 | Xác nhận tay 2 link 403 hoặc xoá khỏi danh mục tham khảo | nhóm | Selah, cloudfront PDF |
 | 4 | Bổ sung URL cho các phát hiện của **NOTES-01** (Personio workflow, Lattice calibration, Oracle HCM confirm) — đến giờ vẫn chưa có | nhóm | ADR-013 và `18-user-flows.md` còn nợ chỗ này |
 | 5 | Các con số hạ tầng B1 (Atlas M0, Vector Search, Render sleep) vẫn **chưa có URL** — rủi ro lớn nhất vẫn là *Atlas Vector Search có trên M0 hay không* | nhóm | chặn ADR-005 và toàn bộ RAG |
+
+---
+
+## 6. Resolved / Still open — hợp đồng assignment acknowledgement
+
+Ghi lại trạng thái chốt của hợp đồng này **tại thời điểm đồng bộ docs**, để §2–§4 ở trên không bị đọc như một
+bản đã đóng hoàn toàn. Mọi mục `PROPOSED` dưới đây **chưa** qua phỏng vấn hiện trạng thật và **chưa** có GVHD duyệt.
+
+### 6.1 Đã chốt — dùng được để code
+
+| Hạng mục | Chốt | Nguồn |
+|---|---|---|
+| Event canonical | `project_events.type` nhận đúng ba giá trị mới: `ACKNOWLEDGED` / `DECLINED` / `CHANGE_REQUESTED`. **`ACCEPTED` không phải** giá trị canonical — nó chỉ còn trong `research/NOTES-02.md` (raw research) và trong câu trích state của NOTES-02 | `04 §4.6`, `05 §3.5`, BR-21 |
+| Request enum + mapping | `response ∈ {ACKNOWLEDGE, DECLINE, REQUEST_CHANGE}`; mapping 1–1 sang event: `ACKNOWLEDGE→ACKNOWLEDGED`, `DECLINE→DECLINED`, `REQUEST_CHANGE→CHANGE_REQUESTED` | `06 §2.4` (bảng mapping) |
+| Không phải state | Phản hồi là **dữ kiện append-only**; `projects.status` vẫn đúng 5 giá trị; không có state/transition mới | BR-21, `04 §4.6` |
+| Actor hợp lệ | Chỉ actor đang nằm trong `assigneeIds` được phản hồi, **bất kể `role`**; Admin **không** phản hồi thay Employee; người gọi ngoài `assigneeIds` → `NOT_ASSIGNEE` | `07 §7.2` + `07 §7.4` SC-04, `06 §5` |
+| Vocabulary field | `project_events.assigneeId` (đổi tên từ `respondeeId` — xem `05 §3.5`) | `05 §3.5` |
+| Trách nhiệm | `DECLINED` không tự gỡ `assigneeIds`; người được giao vẫn chịu trách nhiệm tới khi Admin xử lý phản hồi | BR-21, `04 §4.6` |
+
+### 6.2 Còn mở — chặn code hoặc chặn quyết định
+
+| # | Còn mở | Vì sao chưa đóng | Ai chốt | Chỗ ghi |
+|---|---|---|---|---|
+| 1 | **Q-02 chỉ PARTIALLY RESOLVED / PROPOSED** | Nguồn 7shifts là *shift-trade analogy*: trang đó nói về một ca **đã giao** rồi mới xin đổi, **không** phát biểu về trách nhiệm của *initial* assignment. Chưa có nguồn nào chứng minh trực tiếp quy tắc "trách nhiệm vẫn thuộc người được giao tới khi quản lý duyệt" cho đề tài được giao lần đầu | nhóm + GVHD | Q-02 ở `04 §9`; §2.1 file này |
+| 2 | **Schema lý do là PROPOSED**: `reasonCode` (bắt buộc với `DECLINED`/`CHANGE_REQUESTED`) + `comment` (tự do, optional); `ACKNOWLEDGED` không cần lý do | Chưa có phỏng vấn HR thật để chốt danh mục `reasonCode`; nguồn **không** bắt buộc field này | nhóm (phỏng vấn) + GVHD | `04 §4.6`, `05 §3.5`, `06 §2.4` |
+| 3 | **Q-10 — chưa có đường "xử lý phản hồi"**: `POST /projects/:id/assign` chỉ hợp lệ ở `status = DRAFT`, nên **không** reassign được đề tài đang `ASSIGNED`; chưa có endpoint/transition nào để Admin đóng phản hồi | Contract hiện tại **không có cửa nào** để resolve một phản hồi. Đây là **câu hỏi chặn thiết kế Ticket/Project integration** — phải chốt trước khi code F2/F7 | GVHD + nhóm | Q-10 ở `04 §9`; D-15 ở `06 §8` |
+| 4 | **Q-11 — stale-response race**: phản hồi ghi vào `project_events` **không** đổi `projects.version`, nên một phản hồi gửi trước khi Admin gán lại vẫn "thắng" khi đọc lại; không có luật nào vô hiệu hoá phản hồi đã cũ | Cần luật "phản hồi sau mốc gán lại bị vô hiệu" trước khi có Ticket/Project integration | nhóm + GVHD | Q-11 ở `04 §9`; D-16 ở `06 §8` |
+| 5 | Ngưỡng ngày nhắc + escalate | NOTES-02 để `TBD`; docs **không** đoán số | nhóm | `04 §4.6`; `18` notification matrix |
+| 6 | Tên tool chatbot cho ba intent `#12a..#12c` | Catalog `B6` đóng ở 15 tool; `E-01` ràng buộc `tool` thuộc đúng danh sách đó | nhóm + GVHD | D-14 ở `06 §8`; A-09 ở `07 §10` |
+| 7 | **`ACKNOWLEDGED` có notify `Admin` hay không** | Notification matrix của `18` chỉ có dòng cho `DECLINED`/`CHANGE_REQUESTED` (cộng dòng escalate) — **không** có dòng nào cho `ACKNOWLEDGED`, dù đó là một phản hồi hợp lệ. Các câu mô tả "notify `Admin` sau mỗi phản hồi" đã được siết lại theo matrix | nhóm + GVHD | `18` notification matrix; `18` UF-04 bước 10 / UF-05 bước 2b |
+| 8 | **Neo nguồn cho câu trích 7shifts** | Câu *"The original shift remains the responsibility of the employee **until** the shift trade request is approved by management"* (§2.1) chưa có URL/ID nội dòng và **không** nằm trong `research/NOTES-02.md`, nên không reproduce được từ repo (ID trang chỉ xuất hiện gián tiếp ở §1) | nhóm | §2.1 file này; §5 mục 4 |

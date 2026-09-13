@@ -206,7 +206,7 @@ append-only), **notify** (`B0` notification matrix).
 | ID | From | To | Actor (role) | Điều kiện trước (precondition) | Hiệu ứng phụ: WS · audit · notify | Hành vi khi từ chối |
 |---|---|---|---|---|---|---|
 | T-01 | — | `DRAFT` | Admin | title + `dueDate` + `departmentId` hợp lệ | `project:updated` · event `CREATED` · *(không gửi notification — `B0` không có dòng này)* | — |
-| T-02 | `DRAFT` | `ASSIGNED` | Admin | `assigneeIds` không rỗng; công cụ `assign_project` **confirm + Admin** `(B6)` | `project:updated` · event `ASSIGNED` · notify **Assignment mới** → Employee, WS theo event `(B0)` | Nhân viên từ chối việc được giao: **được** — nhưng bằng **response ghi trên event**, không bằng state mới → xem 4.6, BR-21 (Q-02 đã đóng) |
+| T-02 | `DRAFT` | `ASSIGNED` | Admin | `assigneeIds` không rỗng; công cụ `assign_project` **confirm + Admin** `(B6)`; **chỉ hợp lệ ở `DRAFT`** — **không** dùng được để gán lại đề tài đang `ASSIGNED` (Q-10) | `project:updated` · event `ASSIGNED` · notify **Assignment mới** → Employee, WS theo event `(B0)` | Nhân viên từ chối việc được giao: **được** — nhưng bằng **response ghi trên event**, không bằng state mới → xem 4.6, BR-21 (Q-02: PARTIALLY RESOLVED — PROPOSED) |
 | T-03 | `ASSIGNED` | `IN_PROGRESS` | Employee (hoặc Admin qua `change_project_status`) | Người đổi phải thuộc `assigneeIds` `// SUY DIỄN — cần xác nhận` | `project:updated` · event `STARTED` · không notify | — |
 | T-04 | `IN_PROGRESS` | `PENDING_REVIEW` | Employee | `submit_report` **confirm** `(B6)`; report được ghi `(B4: reports)` | `report:updated` + `project:updated` · event `REPORT_SUBMITTED` · notify **Báo cáo đã nộp** → Admin, WS theo event `(B0)` | — |
 | T-05a | `PENDING_REVIEW` | `COMPLETED` | Admin | Có báo cáo nộp gần nhất; `reason` nên có để truy vết `// SUY DIỄN` | `project:updated` + `kpi:updated` · event `APPROVED` · notify: **không có dòng approve trong `B0`** → xem Q-04 | — |
@@ -258,32 +258,34 @@ Hệ quả nghiệp vụ:
 
 ### 4.6 Xác nhận phân công (assignment acknowledgement) — dữ kiện, không phải state
 
-**Đã chốt** từ `19-vertical-workforce-assessment.md` §2.1 và §3 (mục **VC-01** = **LÀM**). Đóng câu hỏi Q-02.
+**PROPOSED / PARTIALLY RESOLVED** — lấy từ `19-vertical-workforce-assessment.md` §2.1 và §3 (mục **VC-01** = **LÀM**), nhưng **chưa** đóng Q-02: nguồn 7shifts là *shift-trade analogy*, không chứng minh trực tiếp trách nhiệm của *initial* assignment (xem §9 Q-02, và `19` §6).
 
 **Vấn đề.** Sơ đồ 4.2 chỉ đường một chiều từ `ASSIGNED` trở đi: nhân viên nhận việc rồi *cứ thế làm*. Không có
 bước nào để nói "tôi nhận" hay "tôi không nhận được". Kết quả là khi đề tài trễ, không ai nhận phần trễ đó là
 của mình — đúng chỗ mà F7 (nghiệm thu) và nhắc hạn đang yếu nhất.
 
-**Quy tắc đã chọn.** Sau T-02 (`DRAFT → ASSIGNED`), người được giao có **ba** phản hồi:
+**Quy tắc đã chọn (PROPOSED).** Sau T-02 (`DRAFT → ASSIGNED`), người được giao có **ba** phản hồi. Vocabulary có
+**hai tầng** và phải giữ đúng để không lẫn "ý định" với "dữ kiện": **request** (enum nhận từ client, `06 §2.4`) và
+**event** (`project_events.type` được ghi):
 
 ```text
-ACKNOWLEDGED            "tôi nhận đề tài này"
-DECLINED            "tôi không nhận được, lý do …"
-CHANGE_REQUESTED    "tôi muốn xin đổi thời gian / đổi yêu cầu"
+request          →  event (canonical)
+ACKNOWLEDGE      →  ACKNOWLEDGED        "tôi nhận đề tài này"
+DECLINE          →  DECLINED            "tôi không nhận được, lý do …"
+REQUEST_CHANGE   →  CHANGE_REQUESTED    "tôi muốn xin đổi thời gian / đổi yêu cầu"
 ```
 
-- Mỗi phản hồi là **một bản ghi `project_events`** (append-only, cùng khung BR-03) với `actor` là người được
-  giao, `time`, `source` (`[CHAT]` tool / `[UI]` dashboard) và **`reason` optional** — riêng `DECLINED` nên
-  có lý do để Admin quyết bước tiếp `// SUY DIỄN — cần xác nhận` (nguồn không bắt buộc field này).
+`ACCEPTED` **không** phải giá trị canonical của `project_events.type`; nó chỉ còn trong `research/NOTES-02.md`
+(raw research) và trong câu trích state của NOTES-02 (§10 điểm 6 dưới đây).
+
+- Mỗi phản hồi là **một bản ghi `project_events`** (append-only, cùng khung BR-03) với `actor` là người được giao (`actor` **phải** nằm trong `assigneeIds`, bất kể `role`), `time`, `source` (`[CHAT]` tool / `[UI]` dashboard), `assigneeId`, và lý do theo schema **PROPOSED**: `reasonCode` **bắt buộc** khi `DECLINED`/`CHANGE_REQUESTED`, `comment` (tự do) **optional**; `ACKNOWLEDGED` **không** cần lý do `// PROPOSED — chờ phỏng vấn/GVHD; nguồn không bắt buộc field này`.
 - **State machine 4.2 giữ nguyên, không thêm transition nào.** `projects.status` vẫn đúng 5 giá trị
   `DRAFT | ASSIGNED | IN_PROGRESS | PENDING_REVIEW | COMPLETED`. Đây là lựa chọn có tính toán, không phải
   thiếu dữ liệu: xem BR-21 và mục 10 điểm 6.
 - Loại event mới (`ACKNOWLEDGED` / `DECLINED` / `CHANGE_REQUESTED`) được thêm vào enum `project_events.type`
   — chi tiết field nằm ở `05-data-model.md` §3.5; **không** thêm collection mới.
 
-**Quy tắc trách nhiệm (nghiệp vụ, không phải chi tiết UI).** *Người được giao vẫn chịu trách nhiệm về đề tài
-cho tới khi Admin xử lý phản hồi* — reassign (`assign_project`, quyền Admin) hoặc xác nhận lại. Đây là phát
-hiện nghiệp vụ đáng học nhất từ nguồn 7shifts, được trích trong `19-…` §2.1:
+**Quy tắc trách nhiệm (nghiệp vụ, không phải chi tiết UI).** *Người được giao vẫn chịu trách nhiệm về đề tài cho tới khi Admin xử lý phản hồi* — nhưng **đường xử lý chưa được đặc tả**: reassign bằng `assign_project` **chưa** hợp lệ ở `ASSIGNED`, và cũng chưa có cách nào để *đóng* một phản hồi (Q-10). Quy tắc này lấy từ 7shifts **như analogy**, trích trong `19-…` §2.1, nên mang nhãn **PROPOSED** (Q-02 chỉ PARTIALLY RESOLVED):
 
 > "The original shift remains the responsibility of the employee until the shift trade request is approved by
 > management."
@@ -293,7 +295,7 @@ Nó là quy tắc nghiệp vụ vì nó trả lời ba câu hỏi mà hệ thố
 `DECLINED` mà chưa được xử lý; (b) **truy vết trách nhiệm khi trễ** — timeline `project_events` cho thấy phản
 hồi đã gửi lúc nào và Admin đã đóng nó chưa, thay vì tranh luận "em có nói là em không làm được"; (c) **phản
 hồi không phải một lệnh** — `DECLINED` không tự gỡ tên ai khỏi đề tài, nên nó không cần (và không được) nhân
-một trạng thái lifecycle. Trạng thái là thứ hệ thống suy ra để *đọc*; quyền chuyển giao công việc nằm ở Admin.
+một trạng thái lifecycle. Trạng thái là thứ hệ thống suy ra để *đọc*; quyền chuyển giao công việc nằm ở Admin — nhưng **đường thực thi chưa được đặc tả** (Q-10 ở §9).
 
 Các quyền "không tự đổi quyền cho mình" đi kèm (Admin xử lý phản hồi, không phải Employee) thuộc
 `07-auth-rbac.md`; ở tầng miền, nó là hệ quả của BR-22.
@@ -339,7 +341,7 @@ Cột "Điểm thi hành" chỉ nơi **duy nhất** được phép enforcing, đ
 | **BR-18** | Một đề tài có nhiều người làm (`assigneeIds` là mảng). Việc quy đổi công sức từng người vào KPI của ai đó là **chưa có trong nguồn** — MVP tính theo đề tài, không chia tỷ lệ đóng góp. | `B4` index `(assigneeIds, status)` | `kpiService` |
 | **BR-19** | Guard của Agent Loop: `maxSteps = 5`, tool timeout, LLM timeout, trần kích thước kết quả tool; Zod validate mọi tham số trước khi thực thi. | `B6` | agent runtime |
 | **BR-20** | Tính năng ngoài phạm vi **không** được xuất hiện trong state machine/collection. UF-02 (nghỉ phép), UF-03 (onboarding), UF-07 (OKR), UF-08 (pulse survey) nằm ở `docs/backlog-parked.md` tới khi GVHD duyệt. | `B0` | review tài liệu |
-| **BR-21** | **Phản hồi phân công là dữ kiện append-only, không phải state.** `ACKNOWLEDGED` / `DECLINED` / `CHANGE_REQUESTED` (4.6) chỉ là một bản ghi `project_events` có `actor` + `time` + `source` (+ `reason` optional). **Cấm** mở rộng enum `projects.status` quá 5 giá trị `DRAFT`/`ASSIGNED`/`IN_PROGRESS`/`PENDING_REVIEW`/`COMPLETED`; `DECLINED` không tự đổi `assigneeIds`, không tự đổi `status`. Người được giao vẫn chịu trách nhiệm tới khi Admin xử lý phản hồi. | `NOTES-02` §VC-01 ("Entity cần lưu", "State transition — PROPOSED") + `19-…` §2.1, §3; quy tắc trách nhiệm lấy từ 7shifts, dẫn qua `19-…` §2.1. **`// SUY DIỄN`**: vế "cấm mở rộng enum" và cách đóng nhánh phản hồi là docs đặt ra, nguồn chỉ PROPOSED state riêng | `projectEventService` (chỉ `insertOne`) + DB enum `projects.status` + test `11 §3` |
+| **BR-21** | **Phản hồi phân công là dữ kiện append-only, không phải state.** `ACKNOWLEDGED` / `DECLINED` / `CHANGE_REQUESTED` (4.6) chỉ là một bản ghi `project_events` có `actor` + `time` + `source` + `assigneeId` (+ `reasonCode` bắt buộc với `DECLINED`/`CHANGE_REQUESTED` và `comment` optional — **PROPOSED**). **Cấm** mở rộng enum `projects.status` quá 5 giá trị `DRAFT`/`ASSIGNED`/`IN_PROGRESS`/`PENDING_REVIEW`/`COMPLETED`; `DECLINED` không tự đổi `assigneeIds`, không tự đổi `status`. Người được giao vẫn chịu trách nhiệm tới khi Admin xử lý phản hồi. | `NOTES-02` §VC-01 ("Entity cần lưu", "State transition — PROPOSED") + `19-…` §2.1, §3. Quy tắc trách nhiệm lấy từ 7shifts **như một analogy** (shift trade), dẫn qua `19-…` §2.1 — **không** phải bằng chứng trực tiếp cho *initial* assignment (Q-02: PARTIALLY RESOLVED). **`// SUY DIỄN`**: vế "cấm mở rộng enum" và cách đóng nhánh phản hồi là docs đặt ra, nguồn chỉ PROPOSED state riêng | `projectEventService` (chỉ `insertOne`) + DB enum `projects.status` + test `11 §3` |
 | **BR-22** | **Admin chỉ thao tác/duyệt trong phạm vi `departmentId` được gán**, và **không tự duyệt** yêu cầu do chính mình tạo (self-approval bị chặn). **Không** thêm role thứ ba: đây là *ràng buộc scope* đặt trên `role = Admin`, không phải quyền mới — `role` vẫn đúng hai giá trị theo ADR-009. | `NOTES-02` §A4 (phương án fallback `scope.departmentIds`) + §VC-01/Audit ("Manager không tự approve request của chính mình nếu cùng actor"); 7shifts *"…and is assigned to the same Department as the Employee"* qua `19-…` §2.3a. **`// SUY DIỄN`**: ràng buộc theo `departmentId` áp cho **mọi** thao tác/duyệt là docs đặt ra — nguồn chỉ nói nó cho bài toán availability; chi tiết permission thuộc `07-auth-rbac.md`, threat thuộc `13-security.md` | tool middleware scope-check (nhánh `write`) + service tầng duyệt |
 
 ---
@@ -440,7 +442,7 @@ Ba hệ quả miền (không phải chi tiết kỹ thuật):
 | ID | Câu hỏi | Chỗ chặn | Thuộc |
 |---|---|---|---|
 | ~~Q-01~~ **đã chốt** | `CANCELLED` **không** là state: sơ đồ `B4` có đúng 5 state, không có transition nào tới nó. Hệ quả: MVP **không có nghiệp vụ hủy đề tài** → thành mục park ở `backlog-parked.md`, cần GVHD duyệt nếu muốn mở. | 4.1, 4.4, 4.5 | GVHD (chỉ khi mở lại) |
-| ~~Q-02~~ **đã chốt** | Nhân viên **có** được từ chối đề tài được giao — nhưng bằng **response ghi trên `project_events`**, **không** bằng state mới. Ba phản hồi `ACKNOWLEDGED` / `DECLINED` / `CHANGE_REQUESTED` ở 4.6; enum `projects.status` vẫn 5 giá trị (BR-21). Trách nhiệm **không** chuyển bằng tuyên bố mà chỉ khi Admin xử lý phản hồi — theo 7shifts: *"The original shift remains the responsibility of the employee until the shift trade request is approved by management"* (dẫn trong `19-vertical-workforce-assessment.md` §2.1). | 4.6, BR-21, T-02 | đã đóng (`19-…` §3) |
+| Q-02 **PARTIALLY RESOLVED / PROPOSED** | Nhân viên **có** được phản hồi đề tài được giao — nhưng bằng **response ghi trên `project_events`**, **không** bằng state mới. Ba phản hồi `ACKNOWLEDGED` / `DECLINED` / `CHANGE_REQUESTED` ở 4.6; enum `projects.status` vẫn 5 giá trị (BR-21). **Chưa đóng vì:** quy tắc *"trách nhiệm không chuyển bằng tuyên bố mà chỉ khi Admin xử lý phản hồi"* tựa vào 7shifts *"The original shift remains the responsibility of the employee until the shift trade request is approved by management"* — nhưng đó là **shift-trade analogy** (một ca **đã giao** rồi mới xin đổi), **không** chứng minh trực tiếp trách nhiệm của *initial* project assignment. Còn thiếu: (a) nguồn trực tiếp hoặc phỏng vấn HR; (b) đường reassign/resolution (Q-10); (c) luật vô hiệu phản hồi cũ (Q-11); (d) schema lý do `reasonCode`/`comment` (PROPOSED) | 4.6, BR-21, T-02 | **một phần** — nhóm + GVHD |
 | Q-03 | Từ `ASSIGNED`, nhân viên "bắt đầu" hay Admin mới mở `IN_PROGRESS`? | T-03 | nhóm |
 | Q-04 | Có notification cho Employee khi **approve/completed** không? `B0` matrix chỉ liệt kê 9 dòng, không có dòng approve | notify sau T-05a | nhóm |
 | Q-05 | Có cho reopen sau `COMPLETED` không? | 4.5 | GVHD |
@@ -448,6 +450,8 @@ Ba hệ quả miền (không phải chi tiết kỹ thuật):
 | Q-07 | `period` là tháng/quý/theo kỳ HR nào? `B4` chỉ nói `(employeeId, period)` UNIQUE, không định nghĩa granularity của `period` | bước 0 mục 6.2 | nhóm |
 | Q-08 | Trọng số của `F` trong 6.3 | S12/S13 có đo được không | `08-algorithms.md` |
 | Q-09 | Lead có phải Admin không (mục 3) | BR-16 | GVHD |
+| Q-10 | **Đường "xử lý phản hồi" của Admin chưa tồn tại**: `POST /projects/:id/assign` (và tool `assign_project`) chỉ hợp lệ ở `status = DRAFT` (`06 §2.4`), nên **không** gán lại được đề tài đang `ASSIGNED`; cũng **chưa** có transition/endpoint nào để *đóng* một phản hồi `DECLINED`/`CHANGE_REQUESTED`. Docs **không** được claim "Admin reassign để xử lý". Đây là **câu hỏi chặn thiết kế Ticket/Project integration** | 4.6, T-02, `06 §2.4` + D-15 | GVHD + nhóm |
+| Q-11 | **Stale-response race**: phản hồi ghi `project_events` **không** đổi `projects.version` (BR-21), nên một phản hồi tạo trước khi Admin gán lại/xử lý vẫn được đọc như dữ kiện "đang hiệu lực"; chưa có luật nào vô hiệu hoá phản hồi đã cũ. Cùng Q-10, chặn thiết kế Ticket/Project integration | 4.6, BR-21, `06 §8` D-16 | nhóm + GVHD |
 
 ---
 
@@ -477,5 +481,5 @@ Ghi lại để không bị động khi hội đồng hỏi; **không** tự s�
    (c) `BR-01` đã lập tiền lệ "điều kiện/phản hồi không được nhầm thành lifecycle state" (case `OVERDUE`);
    (d) `NOTES-02` tự ghi "Không tự ghép các state này vào `projects.status` hiện tại" và phương án Option A
    (append-only event, không collection mới) chính là đường đang đi ở 4.6. Phản hồi do đó là **dữ kiện**,
-   còn `status` chỉ phản ánh bước đi tiếp theo do **Admin** thực hiện (`assign_project` để reassign, hoặc
-   xác nhận lại).
+   còn `status` chỉ phản ánh bước đi tiếp theo do **Admin** thực hiện (**xác nhận lại để đóng phản hồi**;
+   **reassign chưa có đường hợp lệ** vì `assign_project` / `POST /projects/:id/assign` chỉ nhận `DRAFT` — xem Q-10).

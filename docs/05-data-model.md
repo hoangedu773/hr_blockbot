@@ -122,8 +122,10 @@ erDiagram
     string fromStatus
     string toStatus
     ObjectId actorId "-> users"
-    ObjectId respondeeId "-> employees nguoi duoc giao phan hoi (SUY DIEN)"
-    string reason "bat buoc khi REJECTED / DECLINED / CHANGE_REQUESTED"
+    ObjectId assigneeId "-> employees, nguoi duoc giao ma phan hoi noi toi (SUY DIEN)"
+    string reason "bat buoc khi REJECTED (T-05b)"
+    string reasonCode "PROPOSED - bat buoc khi DECLINED / CHANGE_REQUESTED, enum chua chot"
+    string comment "PROPOSED - tu do, optional"
     string source "rest / chatbot / scheduler"
     string clientMessageId "idempotency khi goi tu WS"
     string tool "ten tool neu gu tu Agent Loop"
@@ -329,8 +331,10 @@ type            : 'CREATED'|'ASSIGNED'|'STARTED'|'PROGRESS_UPDATED'|'REPORT_SUBM
 fromStatus      : string?  // SUY DIỄN — cần xác nhận
 toStatus        : string?  // SUY DIỄN — cần xác nhận
 actorId         : ObjectId : required; null với job hệ thống // SUY DIỄN — cần xác nhận
-respondeeId     : ObjectId? : `employees._id` của người được giao mà phản hồi nói tới; chỉ dùng cho `ACKNOWLEDGED`/`DECLINED`/`CHANGE_REQUESTED` vì `actorId` là tài khoản đăng nhập còn phản hồi là hành vi trên `assigneeIds` // SUY DIỄN — cần xác nhận
-reason          : string?  : REQUIRED khi type = REJECTED (transition T-05b ở docs 04); REQUIRED khi `DECLINED` hoặc `CHANGE_REQUESTED` (nhân viên phải nhận được lý do khi bị từ chối — `NOTES-02` §A5) // SUY DIỄN — cần xác nhận
+assigneeId      : ObjectId? : `employees._id` của người được giao mà phản hồi nói tới; chỉ dùng cho `ACKNOWLEDGED`/`DECLINED`/`CHANGE_REQUESTED`. **Đổi tên từ `respondeeId`** để đồng vocabulary với `projects.assigneeIds`: `actorId` là `users._id` còn phản hồi là hành vi **trên một assignee cụ thể**, nên event phải nêu đích danh assignee đó. Validation phải kiểm `users(actorId).employeeId == assigneeId` **và** `assigneeId ∈ projects.assigneeIds` // SUY DIỄN — cần xác nhận
+reason          : string?  : REQUIRED khi type = REJECTED (transition T-05b ở docs 04) — **không** dùng cho ba phản hồi phân công // SUY DIỄN — cần xác nhận
+reasonCode      : enum?    : **PROPOSED** — REQUIRED khi type = `DECLINED` hoặc `CHANGE_REQUESTED`; **không** dùng cho `ACKNOWLEDGED` (nhân viên phải nhận được lý do khi bị từ chối — `NOTES-02` §A5). Danh mục giá trị **chưa chốt** → chờ phỏng vấn + GVHD (`04 §9` Q-02)
+comment         : string?  : **PROPOSED** — tự do, optional; chỉ có nghĩa khi `reasonCode` có mặt (giải thích thêm cho `DECLINED`/`CHANGE_REQUESTED`)
 source          : 'rest' | 'chatbot' | 'scheduler' // SUY DIỄN — cần xác nhận
 tool            : string?  : tên tool nếu sinh ra từ Agent Loop (B6) // SUY DIỄN — cần xác nhận
 clientMessageId : string?  : để audit một lần bấm nút đúng một sự kiện (B7) // SUY DIỄN — cần xác nhận
@@ -354,8 +358,8 @@ kể cả `OFFERED`/`ACCEPTED`. Không có collection mới: đây chính là "O
 ```text
 ASSIGNED (event of the assignment itself)
    + ACKNOWLEDGED      → dữ kiện "người được giao đã nhận"
-   + DECLINED          → dữ kiện "người được giao từ chối", bắt buộc reason
-   + CHANGE_REQUESTED  → dữ kiện "xin đổi nội dung/thời hạn", bắt buộc reason
+   + DECLINED          → dữ kiện "người được giao từ chối", bắt buộc `reasonCode` (PROPOSED)
+   + CHANGE_REQUESTED  → dữ kiện "xin đổi nội dung/thời hạn", bắt buộc `reasonCode` (PROPOSED)
 ```
 
 Ba hệ quả phải ghi rõ trước khi code:
@@ -363,16 +367,20 @@ Ba hệ quả phải ghi rõ trước khi code:
 1. **Trạng thái "đã xác nhận" là dẫn xuất**, đọc bằng `project_events (projectId, createdAt)` (I-12) — cùng
    khuôn dẫn xuất mà `B4` đã dùng cho `overdue`: state machine không đổi, chỉ có thêm dữ kiện để suy ra.
    Vì nhiều người có thể phản hồi trên **cùng một** đề tài (`assigneeIds` là mảng), một event chỉ kết luận
-   được cho **một** `respondeeId` `// SUY DIỄN — cần xác nhận`.
+   được cho **một** `assigneeId` `// SUY DIỄN — cần xác nhận`.
 2. **Một người chỉ phản hồi được phần của mình**: quyền và guard (kể cả "không tự duyệt yêu cầu do chính mình
    tạo") thuộc `07-auth-rbac.md` §7.4; `project_events` chỉ là nơi ghi kết quả.
 3. **Không có `NO_RESPONSE`.** `NOTES-02` §E VC-01 đề xuất chuyển sang `NO_RESPONSE` sau một ngưỡng `TBD`;
    ngưỡng đó **không có nguồn** → **không** thêm loại event thứ tư cho "im lặng", và **không** tự coi im lặng
    là accept (`NOTES-02` tự để `TBD` cho ngưỡng này).
 
-Các field `respondeeId` và ràng buộc `reason` ở trên là **docs đặt**, không có trong `NOTES-01` `// SUY DIỄN —
-cần xác nhận`; `reason` bắt buộc với `DECLINED`/`CHANGE_REQUESTED` là cách đáp ứng yêu cầu "nhân viên nhận lý
-do khi bị từ chối" của `NOTES-02` §A5, và cùng khuôn với `reports.reviewReason` (§3.6).
+Các field `assigneeId` và cặp `reasonCode`/`comment` ở trên là **docs đặt** và mang nhãn **PROPOSED** — không có
+trong `NOTES-01` `// SUY DIỄN — cần xác nhận`; `reasonCode` bắt buộc với `DECLINED`/`CHANGE_REQUESTED` là cách
+đáp ứng yêu cầu "nhân viên nhận lý do khi bị từ chối" của `NOTES-02` §A5, và cùng khuôn với
+`reports.reviewReason` (§3.6). **Danh mục giá trị của `reasonCode` chưa chốt** → chờ phỏng vấn hiện trạng +
+GVHD (`04 §9` Q-02, `19` §6). Tên `assigneeId` (thay cho `respondeeId`) là để **đồng vocabulary với
+`projects.assigneeIds`**: `actorId` là `users._id` (tài khoản đăng nhập) còn người được giao là `employees._id`,
+nên event phải nói rõ nó nói về **assignee nào**; đây là lựa chọn "đổi tên", không phải thêm field mới.
 
 ### 3.6 `reports` — báo cáo nghiệm thu (F7)
 
