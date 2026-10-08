@@ -12,6 +12,7 @@ coverage/
 *.tsbuildinfo
 
 # Local tooling / editor state
+.playwright-mcp/
 .mimosa/
 .pi/
 .zcode/

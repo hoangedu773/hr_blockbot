@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Guta Hub — Next-Gen Workforce Command Center</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07090e;
+      --bg-elevated: #0e121a;
+      --surface: rgba(18, 23, 34, 0.75);
+      --surface-card: rgba(24, 30, 44, 0.65);
+      --surface-hover: rgba(35, 44, 64, 0.8);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-highlight: rgba(255, 209, 0, 0.35);
+
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-faint: #475569;
+
+      /* Guta Signature Rebrand */
+      --guta-yellow: #ffd100;
+      --guta-yellow-glow: rgba(255, 209, 0, 0.2);
+      --guta-blue: #0047ba;
+      --guta-blue-glow: rgba(0, 71, 186, 0.25);
+      --emerald: #10b981;
+      --amber: #f59e0b;
+      --rose: #f43f5e;
+
+      --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      --ease: cubic-bezier(0.16, 1, 0.3, 1);
+      --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    /* Subdued custom scrollbars */
+    *::-webkit-scrollbar { width: 4px; height: 4px; }
+    *::-webkit-scrollbar-track { background: transparent; }
+    *::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 999px; }
+    *:hover::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.3); }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      width: 100%;
+      height: 100dvh;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    /* Subtle top radial lighting */
+    body::before {
+      content: "";
+      position: fixed;
+      top: 0;
+      left: 20%;
+      width: 60%;
+      height: 350px;
+      background: radial-gradient(ellipse at top, rgba(0, 71, 186, 0.15), rgba(255, 209, 0, 0.03) 60%, transparent 80%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .icon {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      stroke-width: 1.75;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+      flex-shrink: 0;
+    }
+
+    /* Sidebar Navigation (Desktop) */
+    aside {
+      width: 250px;
+      background: rgba(11, 14, 21, 0.85);
+      backdrop-filter: blur(20px);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      z-index: 20;
+    }
+
+    .brand-wrap {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: flex-start;
+      overflow: hidden;
+      max-width: 100%;
+    }
+    .brand-logo-img {
+      max-width: 120px;
+      height: auto;
+      object-fit: contain;
+      display: block;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));
+    }
+    .brand-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .brand-badge {
+      font-size: 10px;
+      color: var(--guta-yellow);
+      font-family: var(--mono);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      background: rgba(255, 209, 0, 0.12);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 209, 0, 0.25);
+    }
+    .brand-stores {
+      font-size: 10px;
+      color: var(--text-faint);
+      font-family: var(--mono);
+      font-weight: 600;
+    }
+
+    nav { padding: 14px 10px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+    .nav-label { font-size: 10px; text-transform: uppercase; color: var(--text-faint); font-weight: 700; padding: 10px 10px 4px; letter-spacing: 0.06em; }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      color: var(--text-muted);
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 140ms var(--ease);
+      border: 1px solid transparent;
+      user-select: none;
+    }
+    .nav-item:hover { color: #fff; background: rgba(255, 255, 255, 0.04); }
+    .nav-item.active {
+      background: rgba(255, 209, 0, 0.08);
+      color: var(--guta-yellow);
+      border-color: rgba(255, 209, 0, 0.25);
+      font-weight: 600;
+      box-shadow: 0 2px 8px rgba(255, 209, 0, 0.05);
+    }
+    .nav-item.active .icon { stroke: var(--guta-yellow); }
+
+    .nav-badge {
+      margin-left: auto;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 10px;
+      background: rgba(245, 158, 11, 0.2);
+      color: #fbbf24;
+      font-family: var(--mono);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .store-pill-box {
+      padding: 14px 16px;
+      border-top: 1px solid var(--border);
+      background: rgba(7, 9, 14, 0.9);
+    }
+    .store-title-small { font-size: 10px; color: var(--text-faint); margin-bottom: 6px; font-weight: 700; text-transform: uppercase; }
+    .store-active-badge {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface-card);
+      border: 1px solid var(--border);
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      color: #fff;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .store-active-badge:hover { border-color: rgba(255, 255, 255, 0.2); }
+
+    /* Main Content Area */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      overflow-x: hidden;
+      position: relative;
+      z-index: 10;
+    }
+
+    header {
+      padding: 12px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(11, 14, 21, 0.85);
+      backdrop-filter: blur(16px);
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      gap: 16px;
+    }
+
+    .header-titles {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .header-titles h1 {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .header-titles p {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: var(--mono);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .pulse-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--emerald); box-shadow: 0 0 10px var(--emerald); display: inline-block; flex-shrink: 0; }
+
+    .header-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+
+    .btn {
+      padding: 7px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--surface-card);
+      color: var(--text);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 140ms var(--ease);
+      min-height: 34px;
+    }
+    .btn:hover { background: var(--surface-hover); border-color: rgba(255, 255, 255, 0.2); }
+    .btn:active { transform: scale(0.97); }
+    .btn-gold {
+      background: var(--guta-yellow);
+      border-color: var(--guta-yellow);
+      color: #07090e;
+      font-weight: 700;
+      box-shadow: 0 2px 12px rgba(255, 209, 0, 0.25);
+    }
+    .btn-gold:hover { background: #ffe04d; transform: translateY(-1px); }
+
+    .content-body {
+      padding: 20px 28px 100px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      max-width: 1400px;
+    }
+
+    /* Fast Action Chips (Copilot Prompts) */
+    .quick-chips-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    .quick-chips-row::-webkit-scrollbar { display: none; }
+    .chips-label { font-size: 11px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; font-family: var(--mono); flex-shrink: 0; }
+    .chip {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 11px;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 120ms var(--ease);
+      flex-shrink: 0;
+    }
+    .chip:hover { background: rgba(255, 209, 0, 0.08); color: var(--guta-yellow); border-color: rgba(255, 209, 0, 0.3); }
+
+    /* Top Metric Cards With Micro Sparklines */
+    .hero-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+    .h-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      position: relative;
+      overflow: hidden;
+      transition: all 180ms var(--ease);
+    }
+    .h-card:hover {
+      border-color: rgba(255, 255, 255, 0.15);
+      background: rgba(24, 30, 44, 0.85);
+      transform: translateY(-2px);
+    }
+    .h-label { font-size: 11px; color: var(--text-muted); font-weight: 600; display: flex; justify-content: space-between; }
+    .h-val { font-size: 22px; font-weight: 800; font-family: var(--mono); color: #fff; letter-spacing: -0.5px; }
+    .h-sub { font-size: 11px; color: var(--emerald); font-weight: 500; display: flex; align-items: center; gap: 4px; }
+    .h-sub.warn { color: var(--amber); }
+
+    /* Visual Shift Timeline (The WOW Element: Replaces Flat Table) */
+    .timeline-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .panel-top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .panel-heading { font-size: 14px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; }
+
+    /* Gantt / Shift Timeline Canvas */
+    .gantt-container {
+      background: rgba(10, 13, 20, 0.8);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .time-header {
+      display: grid;
+      grid-template-columns: 180px repeat(16, 1fr);
+      border-bottom: 1px solid var(--border);
+      background: rgba(14, 18, 27, 0.9);
+      padding: 8px 12px;
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--text-faint);
+      text-align: center;
+    }
+
+    .gantt-row {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      padding: 10px 12px;
+      align-items: center;
+      transition: background 120ms ease;
+      cursor: pointer;
+    }
+    .gantt-row:hover { background: rgba(255, 255, 255, 0.02); }
+    .gantt-row:last-child { border-bottom: none; }
+
+    .emp-col {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .emp-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #1e293b;
+      border: 1px solid #334155;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 10px;
+      color: #cbd5e1;
+      font-family: var(--mono);
+    }
+    .emp-info h4 { font-size: 12px; font-weight: 600; color: #fff; }
+    .emp-info p { font-size: 10px; color: var(--text-muted); font-family: var(--mono); }
+
+    /* Timeline Bars */
+    .timeline-track {
+      position: relative;
+      height: 28px;
+      display: flex;
+      align-items: center;
+    }
+
+    .shift-block {
+      position: absolute;
+      height: 24px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: var(--mono);
+      transition: all 140ms var(--ease);
+      border: 1px solid transparent;
+    }
+    .shift-block:hover { transform: scale(1.02); z-index: 5; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+
+    /* Shift block colors */
+    .block-morning {
+      left: 0%;
+      width: 50%; /* 06:00 - 14:00 (8h) */
+      background: linear-gradient(90deg, rgba(255, 209, 0, 0.18), rgba(255, 209, 0, 0.28));
+      color: #fef08a;
+      border-color: rgba(255, 209, 0, 0.4);
+    }
+    .block-afternoon {
+      left: 50%;
+      width: 50%; /* 14:00 - 22:00 (8h) */
+      background: linear-gradient(90deg, rgba(56, 189, 248, 0.18), rgba(56, 189, 248, 0.28));
+      color: #bae6fd;
+      border-color: rgba(56, 189, 248, 0.4);
+    }
+
+    /* 2 Columns: Cash Count & Verification Queue */
+    .double-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .card-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .card-panel-header {
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(14, 18, 27, 0.7);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .item-row {
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition: background 120ms ease;
+    }
+    .item-row:last-child { border-bottom: none; }
+    .item-row:hover { background: rgba(255, 255, 255, 0.02); }
+
+    .item-top { display: flex; justify-content: space-between; align-items: center; }
+    .item-quote {
+      font-size: 12px;
+      color: #cbd5e1;
+      background: rgba(10, 13, 20, 0.8);
+      padding: 8px 12px;
+      border-radius: 5px;
+      border-left: 3px solid var(--guta-yellow);
+    }
+
+    /* Slide-over Profile Drawer (Hidden by default, triggered on click) */
+    .drawer-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 90;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 200ms ease;
+    }
+    .drawer-overlay.open { opacity: 1; pointer-events: auto; }
+
+    .slide-drawer {
+      position: fixed;
+      top: 0;
+      right: -420px;
+      width: 400px;
+      height: 100dvh;
+      background: #0f131c;
+      border-left: 1px solid var(--border);
+      box-shadow: -20px 0 50px rgba(0,0,0,0.8);
+      z-index: 100;
+      transition: right 260ms var(--spring);
+      display: flex;
+      flex-direction: column;
+      padding: 24px;
+      gap: 18px;
+    }
+    .slide-drawer.open { right: 0; }
+
+    .drawer-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 14px; }
+    .drawer-close { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 18px; }
+
+    /* Interactive AI Copilot Bar */
+    .ai-copilot-card {
+      background: linear-gradient(135deg, rgba(0, 71, 186, 0.12), rgba(18, 23, 34, 0.9));
+      border: 1px solid rgba(0, 71, 186, 0.35);
+      border-radius: 10px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    }
+    .ai-sparkle-mark {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background: var(--guta-blue);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+    }
+    .ai-input-text {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-size: 13px;
+      outline: none;
+    }
+    .kbd {
+      font-family: var(--mono);
+      font-size: 10px;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 3px 6px;
+      border-radius: 4px;
+      color: var(--text-muted);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Mobile Bottom Navigation */
+    .mobile-bottom-nav {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 60px;
+      background: rgba(11, 14, 21, 0.95);
+      backdrop-filter: blur(16px);
+      border-top: 1px solid var(--border);
+      z-index: 50;
+      padding-bottom: env(safe-area-inset-bottom);
+      justify-content: space-around;
+      align-items: center;
+    }
+    .m-nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      font-size: 10px;
+      gap: 3px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .m-nav-item.active { color: var(--guta-yellow); font-weight: 700; }
+    .m-nav-item.active .icon { stroke: var(--guta-yellow); }
+
+    /* Responsive Adaptation */
+    @media (max-width: 1100px) {
+      .hero-metrics { grid-template-columns: repeat(2, 1fr); }
+      .double-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 768px) {
+      aside { display: none; }
+      .mobile-bottom-nav { display: flex; }
+      header {
+        padding: 10px 14px;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .header-titles {
+        flex: 1 1 100%;
+      }
+      .header-actions {
+        width: 100%;
+        display: flex;
+        justify-content: stretch;
+        gap: 8px;
+      }
+      .header-actions .btn {
+        flex: 1;
+        justify-content: center;
+      }
+      .content-body { padding: 12px 14px 80px; gap: 14px; }
+      .hero-metrics { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+      .double-grid { grid-template-columns: 1fr; }
+
+      /* Timeline transformation on small screen */
+      .time-header { display: none; }
+      .gantt-row { grid-template-columns: 1fr; gap: 6px; padding: 10px; }
+      .timeline-track { width: 100%; position: static; height: auto; }
+      .shift-block { position: static; width: 100% !important; height: 32px; margin-top: 4px; }
+
+      .slide-drawer { width: 100%; right: -100%; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Left Sidebar Navigation -->
+  <aside>
+    <div class="brand-wrap">
+      <img src="assets/guta-logo.png" alt="GUTA CAFE" class="brand-logo-img">
+      <div class="brand-meta">
+        <span class="brand-badge">WORKSPACE</span>
+        <span class="brand-stores">144 QUÁN • 2,439 NV</span>
+      </div>
+    </div>
+
+    <nav>
+      <div class="nav-label">Vận Hành Chi Nhánh</div>
+      <div class="nav-item active">
+        <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span>Lịch Ca & Phân Bổ</span>
+      </div>
+      <div class="nav-item">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <span>Duyệt Giải Trình</span>
+        <span class="nav-badge">115 Tồn</span>
+      </div>
+      <div class="nav-item">
+        <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+        <span>Đối Soát Két Tiền</span>
+      </div>
+
+      <div class="nav-label">Hệ Thống Trụ Sở</div>
+      <div class="nav-item">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span>Hồ Sơ 2,439 Nhân Sự</span>
+      </div>
+      <div class="nav-item">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span>Mạng Lưới 144 Quán</span>
+      </div>
+      <div class="nav-item">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <span>RAG Quy Chế & SOP</span>
+      </div>
+    </nav>
+
+    <!-- Active Store Switcher -->
+    <div class="store-pill-box">
+      <div class="store-title-small">Chi nhánh đang chọn:</div>
+      <div class="store-active-badge" onclick="alert('Đổi cửa hàng khác')">
+        <span>📍 120 Hai Bà Trưng (Q.1)</span>
+        <svg class="icon" style="width:12px; height:12px;" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Viewport -->
+  <main>
+    <header>
+      <div class="header-titles">
+        <h1>
+          120 Hai Bà Trưng, Quận 1
+          <span class="pulse-dot" title="Live sync với MongoDB Atlas"></span>
+        </h1>
+        <p>Kỳ Lương 06/05 – 05/06/2026 • 45 Nhân sự • Khối ca 1BNK</p>
+      </div>
+      <div class="header-actions">
+        <button class="btn" onclick="alert('Dữ liệu đã đồng bộ tức thời')">
+          <svg class="icon" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+          Đồng Bộ
+        </button>
+        <button class="btn btn-gold" onclick="alert('Mở form thêm ca bù')">+ Xếp Thêm Ca</button>
+      </div>
+    </header>
+
+    <div class="content-body">
+      <!-- Quick Prompt Chips for Copilot -->
+      <div class="quick-chips-row">
+        <span class="chips-label">AI Gợi Ý:</span>
+        <div class="chip" onclick="runPrompt('Tìm 2 bạn Pha chế rảnh ca sáng mai')">⚡ Tìm 2 bạn Pha chế rảnh ca sáng mai</div>
+        <div class="chip" onclick="runPrompt('Duyệt nhanh 7 phiếu công tồn kỳ 6/5')">📋 Duyệt nhanh 7 phiếu công tồn</div>
+        <div class="chip" onclick="runPrompt('Đối soát lệch két 1B Nguyễn Kiệm')">💰 Đối soát két ca 1B Nguyễn Kiệm</div>
+        <div class="chip" onclick="runPrompt('Quy định quên quẹt vân tay phạt thế nào?')">📖 Tra quy chế quên vân tay</div>
+      </div>
+
+      <!-- 4 Top Cards -->
+      <div class="hero-metrics">
+        <div class="h-card">
+          <div class="h-label">
+            <span>NHÂN SỰ ĐIỂM BÁN</span>
+            <svg class="icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+          </div>
+          <div class="h-val">45 NV</div>
+          <div class="h-sub">✓ 100% tài khoản ACB/VCB sẵn sàng</div>
+        </div>
+
+        <div class="h-card">
+          <div class="h-label">
+            <span>CA TRỰC HÔM NAY</span>
+            <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <div class="h-val" style="color: var(--guta-yellow);">12 Ca</div>
+          <div class="h-sub">Đủ định mức 6 Bếp, 6 Barista</div>
+        </div>
+
+        <div class="h-card">
+          <div class="h-label">
+            <span>PHIẾU GIẢI TRÌNH CHỜ DUYỆT</span>
+            <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </div>
+          <div class="h-val" style="color: #fbbf24;">7 Phiếu</div>
+          <div class="h-sub warn">Hạn chót 23h59 ngày 05/06</div>
+        </div>
+
+        <div class="h-card">
+          <div class="h-label">
+            <span>QUỸ KÉT TIỀN GIAO CA</span>
+            <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/></svg>
+          </div>
+          <div class="h-val" style="color: #34d399;">1,745,000 ₫</div>
+          <div class="h-sub">Khớp 100% bảng đếm mệnh giá</div>
+        </div>
+      </div>
+
+      <!-- VISUAL SHIFT TIMELINE (GANTT) -->
+      <div class="timeline-panel">
+        <div class="panel-top-bar">
+          <div class="panel-heading">
+            <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
+            Dòng Thời Gian Phân Ca (Visual Timeline 24H)
+          </div>
+          <span class="kbd">Bấm vào hàng nhân viên để xem hồ sơ & đổi ca</span>
+        </div>
+
+        <div class="gantt-container">
+          <!-- Time Rulers -->
+          <div class="time-header">
+            <span>NHÂN SỰ</span>
+            <span>06:00</span><span>07:00</span><span>08:00</span><span>09:00</span>
+            <span>10:00</span><span>11:00</span><span>12:00</span><span>13:00</span>
+            <span>14:00</span><span>15:00</span><span>16:00</span><span>17:00</span>
+            <span>18:00</span><span>19:00</span><span>20:00</span><span>22:00</span>
+          </div>
+
+          <!-- Employee Row 1: Bùi Việt Hùng -->
+          <div class="gantt-row" onclick="openDrawer('BÙI VIỆT HÙNG', 'GT-CH25036607', 'BẾP - Bếp nấu', 'Ca A1.749 (06:00 - 14:00)', 'Vietcombank')">
+            <div class="emp-col">
+              <div class="emp-avatar" style="border-color: #ffd100; color: #ffd100;">H</div>
+              <div class="emp-info">
+                <h4>BÙI VIỆT HÙNG</h4>
+                <p>GT-CH25036607 • Bếp</p>
+              </div>
+            </div>
+            <div class="timeline-track">
+              <div class="shift-block block-morning">
+                <span>Ca A1.749 (06:00 - 14:00) • Đang trong ca</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Employee Row 2: Nguyễn Thị Thanh Thúy -->
+          <div class="gantt-row" onclick="openDrawer('NGUYỄN THỊ THANH THÚY', 'GT-CH18030009', 'BẾP - Bếp nấu', 'Ca A (06:00 - 14:00)', 'ACB - 261411259')">
+            <div class="emp-col">
+              <div class="emp-avatar" style="border-color: #ffd100; color: #ffd100;">T</div>
+              <div class="emp-info">
+                <h4>NGUYỄN THỊ THANH THÚY</h4>
+                <p>GT-CH18030009 • Bếp</p>
+              </div>
+            </div>
+            <div class="timeline-track">
+              <div class="shift-block block-morning">
+                <span>Ca A (06:00 - 14:00) • Đang trong ca</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Employee Row 3: Vũ Anh Tú -->
+          <div class="gantt-row" onclick="openDrawer('VŨ ANH TÚ', 'GT-CH26047865', 'PHA CHẾ - Barista', 'Ca B (14:00 - 22:00)', 'MB Bank')">
+            <div class="emp-col">
+              <div class="emp-avatar" style="border-color: #38bdf8; color: #38bdf8;">U</div>
+              <div class="emp-info">
+                <h4>VŨ ANH TÚ</h4>
+                <p>GT-CH26047865 • Barista</p>
+              </div>
+            </div>
+            <div class="timeline-track">
+              <div class="shift-block block-afternoon">
+                <span>Ca B (14:00 - 22:00) • Ca kế tiếp</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2 Columns: Cash counts and Queue -->
+      <div class="double-grid">
+        <!-- Cash Counts -->
+        <div class="card-panel">
+          <div class="card-panel-header">
+            <span style="font-weight: 700; font-size: 13px; color: #fff;">Bảng Kê Tiền Két Điểm Bán</span>
+            <span class="kbd">cash_counts</span>
+          </div>
+
+          <div class="item-row">
+            <div class="item-top">
+              <strong style="color: #fff;">1B Nguyễn Kiệm</strong>
+              <span style="font-family: var(--mono); color: #34d399; font-weight: 700;">1,960,000 ₫</span>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); font-family: var(--mono);">Tiền mặt: 1,745,000 ₫ • Vãng lai: 215,000 ₫ • Khớp két 100%</div>
+          </div>
+
+          <div class="item-row">
+            <div class="item-top">
+              <strong style="color: #fff;">749 Nguyễn Kiệm</strong>
+              <span style="font-family: var(--mono); color: #34d399; font-weight: 700;">638,000 ₫</span>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); font-family: var(--mono);">Tiền mặt: 580,000 ₫ • Vãng lai: 58,000 ₫ • Đã ký nộp</div>
+          </div>
+        </div>
+
+        <!-- Attendance Corrections -->
+        <div class="card-panel">
+          <div class="card-panel-header">
+            <span style="font-weight: 700; font-size: 13px; color: #fff;">Phiếu Khiếu Nại Chờ Duyệt (115)</span>
+            <span class="nav-badge">Kỳ 6/5 - 5/6</span>
+          </div>
+
+          <div class="item-row">
+            <div class="item-top">
+              <span style="font-weight: 700; color: #fff;">GT-CH22102995</span>
+              <span style="font-size: 11px; color: var(--text-muted); font-family: var(--mono);">Ca A • 11/05</span>
+            </div>
+            <div class="item-quote">"Dạ IT chưa thêm mã ca nên mấy bạn không vào ca được ạ"</div>
+            <div style="display:flex; gap: 8px; margin-top: 4px;">
+              <button class="btn btn-gold" style="min-height: 28px; padding: 3px 10px;" onclick="this.innerText='✓ Đã duyệt'; this.disabled=true;">Duyệt Công</button>
+              <button class="btn" style="min-height: 28px; padding: 3px 10px;" onclick="alert('Yêu cầu giải trình lại')">Từ Chối</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Copilot Bar -->
+      <div class="ai-copilot-card">
+        <div class="ai-sparkle-mark">
+          <svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </div>
+        <input type="text" class="ai-input-text" id="ai-command-box" placeholder="Hỏi Trợ Lý AI Guta: 'Ai rảnh ca sáng mai?', 'Tra cứu quy chế thưởng Tết'..." onkeydown="if(event.key==='Enter') executeAiPrompt(this.value)">
+        <span class="kbd">⌘K / Enter ↵</span>
+      </div>
+    </div>
+  </main>
+
+  <!-- Slide-Over Profile Drawer -->
+  <div class="drawer-overlay" id="overlay" onclick="closeDrawer()"></div>
+  <div class="slide-drawer" id="drawer">
+    <div class="drawer-header">
+      <h3 style="color: #fff; font-size: 15px;">Hồ Sơ Vận Hành Nhân Viên</h3>
+      <button class="drawer-close" onclick="closeDrawer()">✕</button>
+    </div>
+    <div>
+      <div style="font-size: 18px; font-weight: 800; color: #fff;" id="d-name">BÙI VIỆT HÙNG</div>
+      <div style="font-family: var(--mono); color: var(--guta-yellow); font-size: 12px;" id="d-code">GT-CH25036607</div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap: 10px; font-size: 12px; background: rgba(0,0,0,0.3); padding: 14px; border-radius: 6px; border: 1px solid var(--border);">
+      <div>Chức Danh: <strong style="color:#fff;" id="d-role">BẾP - Bếp nấu</strong></div>
+      <div>Ca Trực Hiện Tại: <strong style="color:#fde047;" id="d-shift">Ca A1.749 (06:00 - 14:00)</strong></div>
+      <div>Tài Khoản Lương: <strong style="color:#fff;" id="d-bank">Vietcombank</strong></div>
+      <div>Trạng Thái: <span style="color: #34d399;">● Đang làm việc tại 120 Hai Bà Trưng</span></div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px; margin-top: auto;">
+      <button class="btn btn-gold" onclick="alert('Đã mở luồng điều chuyển ca linh hoạt!')">⚡ Điều Chuyển Sang Chi Nhánh Khác</button>
+      <button class="btn" onclick="alert('Mở lịch sử chấm công')">Xem Bảng Công Tháng Này</button>
+    </div>
+  </div>
+
+  <!-- Mobile Bottom Bar -->
+  <div class="mobile-bottom-nav">
+    <div class="m-nav-item active">
+      <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
+      Lịch Ca
+    </div>
+    <div class="m-nav-item" onclick="alert('Mở duyệt công')">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+      Duyệt Công
+    </div>
+    <div class="m-nav-item" onclick="alert('Mở két tiền')">
+      <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/></svg>
+      Két Tiền
+    </div>
+    <div class="m-nav-item" onclick="document.getElementById('ai-command-box').focus();">
+      <svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      AI Bot
+    </div>
+  </div>
+
+  <script>
+    function openDrawer(name, code, role, shift, bank) {
+      document.getElementById('d-name').innerText = name;
+      document.getElementById('d-code').innerText = code;
+      document.getElementById('d-role').innerText = role;
+      document.getElementById('d-shift').innerText = shift;
+      document.getElementById('d-bank').innerText = bank;
+
+      document.getElementById('overlay').classList.add('open');
+      document.getElementById('drawer').classList.add('open');
+    }
+
+    function closeDrawer() {
+      document.getElementById('overlay').classList.remove('open');
+      document.getElementById('drawer').classList.remove('open');
+    }
+
+    function runPrompt(text) {
+      document.getElementById('ai-command-box').value = text;
+      executeAiPrompt(text);
+    }
+
+    function executeAiPrompt(text) {
+      if (!text) return;
+      alert(`[GUTA AI COPILOT]: Đang xử lý câu lệnh qua MongoDB Atlas RAG & Tool Execution:\n"${text}"\n\n→ Đã đối soát 144 cửa hàng và trả kết quả chính xác.`);
+    }
+  </script>
+</body>
+</html>

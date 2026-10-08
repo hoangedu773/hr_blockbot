@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Mẫu 1: Enterprise Slate — Mobile Adaptive Console</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f1115;
+      --surface: #16181d;
+      --surface-subtle: #1c1f26;
+      --surface-hover: #222630;
+      --border: #262a34;
+      --border-strong: #333846;
+      --text: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --success: #059669;
+      --success-subtle: rgba(5, 150, 105, 0.12);
+      --warning: #d97706;
+      --warning-subtle: rgba(217, 119, 6, 0.12);
+      --danger: #dc2626;
+      --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      --ease: cubic-bezier(0.23, 1, 0.32, 1);
+
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+    }
+
+    /* Subdued custom scrollbars - no white OS native scrollbar */
+    *::-webkit-scrollbar { width: 5px; height: 5px; }
+    *::-webkit-scrollbar-track { background: transparent; }
+    *::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 999px; }
+    *:hover::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.25); }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      width: 100%;
+      height: 100dvh;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .icon {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      stroke-width: 1.75;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+      flex-shrink: 0;
+    }
+
+    /* Sidebar - Desktop Only */
+    aside {
+      width: 240px;
+      background: #111318;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      z-index: 20;
+    }
+
+    .brand {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .brand-mark {
+      width: 26px;
+      height: 26px;
+      background: #1e293b;
+      border: 1px solid #333d52;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 11px;
+      color: #94a3b8;
+      font-family: var(--mono);
+    }
+    .brand-text { font-weight: 600; font-size: 13px; color: #fff; }
+    .brand-tag { font-size: 10px; color: var(--text-muted); font-family: var(--mono); }
+
+    nav { padding: 12px 8px; flex: 1; overflow-y: auto; }
+    .nav-label { font-size: 10px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; padding: 8px 10px 4px; letter-spacing: 0.05em; }
+    .nav-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      color: var(--text-secondary);
+      border-radius: 5px;
+      text-decoration: none;
+      font-weight: 500;
+      margin-bottom: 2px;
+      cursor: pointer;
+      transition: all 120ms var(--ease);
+      border: 1px solid transparent;
+      min-height: 36px;
+    }
+    .nav-btn:hover { color: #fff; background: var(--surface-subtle); }
+    .nav-btn.active { background: var(--surface-subtle); color: #fff; border-color: var(--border-strong); }
+    .badge-count { margin-left: auto; font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; background: var(--surface-hover); color: var(--text-secondary); font-family: var(--mono); }
+
+    .store-filter {
+      padding: 12px;
+      border-top: 1px solid var(--border);
+      background: #0d0f13;
+    }
+    .store-label { font-size: 10px; color: var(--text-muted); margin-bottom: 4px; font-weight: 600; text-transform: uppercase; }
+    select.select-box {
+      width: 100%;
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 6px 8px;
+      border-radius: 5px;
+      font-size: 12px;
+      outline: none;
+    }
+
+    /* Main Content Area */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    header {
+      padding: 12px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #111318;
+      position: sticky;
+      top: 0;
+      z-index: 15;
+    }
+    .header-info h1 { font-size: 14px; font-weight: 600; color: #fff; }
+    .header-info p { font-size: 11px; color: var(--text-muted); font-family: var(--mono); }
+
+    .header-tools { display: flex; gap: 8px; }
+    .btn {
+      padding: 6px 12px;
+      border-radius: 5px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 120ms var(--ease);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      min-height: 34px;
+    }
+    .btn:hover { background: var(--surface-hover); border-color: var(--border-strong); }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
+    .btn-primary:hover { background: var(--primary-hover); }
+
+    .page-content {
+      padding: 18px 24px 80px; /* Thêm padding-bottom để tránh bị che bởi thanh đáy trên mobile */
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Metric Grid */
+    .metrics-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .metric-cell {
+      padding: 12px 16px;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .metric-cell:last-child { border-right: none; }
+    .metric-tag { font-size: 11px; color: var(--text-muted); font-weight: 500; }
+    .metric-number { font-size: 18px; font-weight: 700; font-family: var(--mono); color: #fff; }
+    .metric-note { font-size: 10px; color: var(--text-secondary); }
+
+    /* Layout 2 Columns on Desktop */
+    .view-grid {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .table-container {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .table-toolbar {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #13151b;
+    }
+    .table-title { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+
+    /* Desktop Table */
+    table.data-grid {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      text-align: left;
+    }
+    table.data-grid th {
+      background: #111318;
+      color: var(--text-muted);
+      font-weight: 600;
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    table.data-grid td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      color: #cbd5e1;
+    }
+    table.data-grid tr:hover td { background: var(--surface-subtle); }
+
+    .code-id { font-family: var(--mono); font-weight: 600; color: #94a3b8; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      font-family: var(--mono);
+      gap: 4px;
+    }
+    .pill-green { background: var(--success-subtle); color: #34d399; }
+    .pill-amber { background: var(--warning-subtle); color: #fbbf24; }
+    .pill-blue { background: rgba(37, 99, 235, 0.12); color: #60a5fa; }
+    .status-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+    /* MOBILE CARDS VIEW (Ẩn trên Desktop, Tự hiện trên Mobile) */
+    .mobile-cards-view {
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .mobile-shift-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .m-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .m-emp-name { font-weight: 700; font-size: 14px; color: #fff; }
+    .m-card-body {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .m-card-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+      border-top: 1px solid var(--border);
+      padding-top: 8px;
+    }
+    .btn-touch {
+      flex: 1;
+      min-height: 40px; /* Touch target tối thiểu */
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    /* Verification Queue */
+    .queue-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .queue-header {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      background: #13151b;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .queue-item {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .queue-item:last-child { border-bottom: none; }
+    .queue-top { display: flex; justify-content: space-between; font-size: 11px; }
+    .queue-name { font-weight: 600; color: #fff; }
+    .queue-context { font-family: var(--mono); color: var(--text-muted); }
+    .queue-body {
+      font-size: 12px;
+      color: #94a3b8;
+      background: #0f1115;
+      padding: 8px 10px;
+      border-radius: 4px;
+      border-left: 2px solid var(--warning);
+    }
+    .queue-actions { display: flex; gap: 6px; margin-top: 4px; }
+    .btn-xs { padding: 6px 10px; font-size: 11px; border-radius: 4px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); background: var(--surface-subtle); color: #fff; min-height: 32px; }
+    .btn-xs-approve { background: #065f46; border-color: #047857; color: #a7f3d0; }
+
+    /* Bottom Copilot Bar on Desktop */
+    .copilot-bar {
+      margin-top: 8px;
+      background: #111318;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .copilot-prefix {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-family: var(--mono);
+      font-weight: 600;
+    }
+    .copilot-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-size: 13px;
+      outline: none;
+    }
+    .kbd-shortcut {
+      font-family: var(--mono);
+      font-size: 10px;
+      background: #1e222b;
+      padding: 2px 5px;
+      border-radius: 3px;
+      border: 1px solid #2e3340;
+      color: var(--text-muted);
+    }
+
+    /* BOTTOM APP BAR (Native Mobile Navigation) */
+    .bottom-nav {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 60px;
+      background: #111318;
+      border-top: 1px solid var(--border);
+      z-index: 100;
+      padding-bottom: env(safe-area-inset-bottom);
+      justify-content: space-around;
+      align-items: center;
+    }
+    .b-nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 10px;
+      font-weight: 500;
+      gap: 4px;
+      min-width: 60px;
+      height: 100%;
+      cursor: pointer;
+    }
+    .b-nav-item.active { color: var(--primary); font-weight: 700; }
+
+    /* =========================================
+       TRUE MOBILE ADAPTIVE BREAKPOINT (< 768px)
+       ========================================= */
+    @media (max-width: 768px) {
+      aside { display: none; } /* Ẩn sidebar desktop */
+      .bottom-nav { display: flex; } /* Hiện thanh điều hướng đáy kiểu app di động */
+
+      header { padding: 10px 16px; }
+      .page-content { padding: 12px 16px 80px; gap: 12px; }
+
+      .metrics-bar { grid-template-columns: repeat(2, 1fr); }
+      .metric-cell:nth-child(2) { border-right: none; }
+      .metric-cell:nth-child(1), .metric-cell:nth-child(2) { border-bottom: 1px solid var(--border); }
+
+      .view-grid { grid-template-columns: 1fr; }
+
+      /* Chuyển đổi: Ẩn bảng 6 cột, Thay bằng danh sách thẻ cảm ứng */
+      table.data-grid { display: none; }
+      .mobile-cards-view { display: flex; }
+
+      .copilot-bar { display: none; } /* Trên mobile tích hợp vào nút AI ở bottom nav */
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Desktop Sidebar Navigation -->
+  <aside>
+    <div class="brand">
+      <div class="brand-mark">GT</div>
+      <div>
+        <div class="brand-text">Guta Workspace</div>
+        <div class="brand-tag">Store Console</div>
+      </div>
+    </div>
+
+    <nav>
+      <div class="nav-label">Quản Lý Điểm Bán</div>
+      <div class="nav-btn active">
+        <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Lịch Xếp Ca Tuần
+      </div>
+      <div class="nav-btn">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Duyệt Giải Trình Công
+        <span class="badge-count">115</span>
+      </div>
+      <div class="nav-btn">
+        <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+        Kiểm Kê Két Tiền Ca
+      </div>
+
+      <div class="nav-label">Hệ Thống Chuỗi</div>
+      <div class="nav-btn">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Danh Sách 2,439 NV
+      </div>
+      <div class="nav-btn">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Mạng Lưới 144 Quán
+      </div>
+      <div class="nav-btn">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        RAG Quy Chuẩn & SOP
+      </div>
+    </nav>
+
+    <div class="store-filter">
+      <div class="store-label">Cửa hàng làm việc:</div>
+      <select class="select-box">
+        <option>Quận 1 - 120 Hai Bà Trưng (45 NV)</option>
+        <option>Quận 3 - 100 Nguyễn Thị Minh Khai (36 NV)</option>
+      </select>
+    </div>
+  </aside>
+
+  <!-- Main Viewport -->
+  <main>
+    <header>
+      <div class="header-info">
+        <h1>120 Hai Bà Trưng</h1>
+        <p>Kỳ Lương 06/05 – 05/06 • Khối ca 1BNK</p>
+      </div>
+      <div class="header-tools">
+        <button class="btn btn-primary" onclick="alert('Mở form xếp ca mới')">+ Xếp Ca</button>
+      </div>
+    </header>
+
+    <div class="page-content">
+      <!-- 4 Compact Metrics (2x2 on mobile) -->
+      <div class="metrics-bar">
+        <div class="metric-cell">
+          <span class="metric-tag">Nhân sự</span>
+          <span class="metric-number">45</span>
+          <span class="metric-note">Chi nhánh Q.1</span>
+        </div>
+        <div class="metric-cell">
+          <span class="metric-tag">Ca hôm nay</span>
+          <span class="metric-number">12</span>
+          <span class="metric-note">6 Bếp, 6 Barista</span>
+        </div>
+        <div class="metric-cell">
+          <span class="metric-tag">Chờ duyệt</span>
+          <span class="metric-number" style="color: #fbbf24;">7</span>
+          <span class="metric-note">Phiếu công</span>
+        </div>
+        <div class="metric-cell">
+          <span class="metric-tag">Két ca trước</span>
+          <span class="metric-number" style="color: #34d399;">1,745k ₫</span>
+          <span class="metric-note">Khớp 100%</span>
+        </div>
+      </div>
+
+      <!-- Main Layout -->
+      <div class="view-grid">
+        <!-- Schedule Section -->
+        <div class="table-container">
+          <div class="table-toolbar">
+            <div class="table-title">
+              <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              Lịch Phân Ca Làm Việc
+            </div>
+            <span class="kbd-shortcut">schedule_entries</span>
+          </div>
+
+          <!-- 1. DESKTOP VIEW: Table 6 Columns -->
+          <table class="data-grid">
+            <thead>
+              <tr>
+                <th>Mã NV</th>
+                <th>Họ Tên</th>
+                <th>Chức Danh</th>
+                <th>Ngày Làm</th>
+                <th>Mã Ca</th>
+                <th>Tình Trạng</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="code-id">GT-CH25036607</td>
+                <td style="font-weight: 500; color: #fff;">BÙI VIỆT HÙNG</td>
+                <td>BẾP - Bếp nấu</td>
+                <td style="font-family: var(--mono);">05/10/2026</td>
+                <td><span class="pill pill-amber">A1.749</span></td>
+                <td><span class="pill pill-green"><span class="status-dot"></span> Đang làm</span></td>
+              </tr>
+              <tr>
+                <td class="code-id">GT-CH18030009</td>
+                <td style="font-weight: 500; color: #fff;">NGUYỄN THỊ THANH THÚY</td>
+                <td>BẾP - Bếp nấu</td>
+                <td style="font-family: var(--mono);">05/10/2026</td>
+                <td><span class="pill pill-blue">A</span></td>
+                <td><span class="pill pill-green"><span class="status-dot"></span> Đang làm</span></td>
+              </tr>
+              <tr>
+                <td class="code-id">GT-CH26047865</td>
+                <td style="font-weight: 500; color: #fff;">VŨ ANH TÚ</td>
+                <td>PHA CHẾ - Barista</td>
+                <td style="font-family: var(--mono);">05/10/2026</td>
+                <td><span class="pill pill-blue">B</span></td>
+                <td><span class="pill" style="background:#1e293b; color:#94a3b8;"><span class="status-dot"></span> Ca chiều</span></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- 2. MOBILE ADAPTIVE VIEW: Stacked Touch Cards -->
+          <div class="mobile-cards-view" style="padding: 10px;">
+            <div class="mobile-shift-card">
+              <div class="m-card-header">
+                <span class="m-emp-name">BÙI VIỆT HÙNG</span>
+                <span class="pill pill-amber">Ca A1.749 (6h-14h)</span>
+              </div>
+              <div class="m-card-body">
+                <div>Mã: <span class="code-id">GT-CH25036607</span> • BẾP - Bếp nấu</div>
+                <div>Ngày làm: <strong style="color: #fff;">05/10/2026</strong> • Trạng thái: <span style="color:#34d399;">● Đang làm</span></div>
+              </div>
+              <div class="m-card-actions">
+                <button class="btn btn-touch" onclick="alert('Xem chi tiết ca Bùi Việt Hùng')">Xem Chi Tiết</button>
+                <button class="btn btn-touch" onclick="alert('Đổi ca cho nhân sự khác')">Đổi Ca</button>
+              </div>
+            </div>
+
+            <div class="mobile-shift-card">
+              <div class="m-card-header">
+                <span class="m-emp-name">NGUYỄN THỊ THANH THÚY</span>
+                <span class="pill pill-blue">Ca A (6h-14h)</span>
+              </div>
+              <div class="m-card-body">
+                <div>Mã: <span class="code-id">GT-CH18030009</span> • BẾP - Bếp nấu</div>
+                <div>Ngày làm: <strong style="color: #fff;">05/10/2026</strong> • Trạng thái: <span style="color:#34d399;">● Đang làm</span></div>
+              </div>
+              <div class="m-card-actions">
+                <button class="btn btn-touch" onclick="alert('Xem chi tiết ca')">Xem Chi Tiết</button>
+                <button class="btn btn-touch" onclick="alert('Đổi ca')">Đổi Ca</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Verification Queue Panel -->
+        <div class="queue-panel">
+          <div class="queue-header">
+            <span style="font-weight: 600; font-size: 12px;">Phiếu Giải Trình Chờ Duyệt (115)</span>
+            <span class="kbd-shortcut">Kỳ 6/5 - 5/6</span>
+          </div>
+
+          <div class="queue-item">
+            <div class="queue-top">
+              <span class="queue-name">GT-CH22102995</span>
+              <span class="queue-context">Ca A • 11/05</span>
+            </div>
+            <div class="queue-body">
+              "Dạ IT chưa thêm mã ca nên mấy bạn không vào ca được ạ"
+            </div>
+            <div class="queue-actions">
+              <button class="btn-xs btn-xs-approve" onclick="this.innerText='Đã duyệt'; this.disabled=true;">Duyệt Công</button>
+              <button class="btn-xs" onclick="alert('Yêu cầu giải trình thêm')">Từ chối</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Desktop Copilot Bar -->
+      <div class="copilot-bar">
+        <span class="copilot-prefix">
+          <svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          COPILOT:
+        </span>
+        <input type="text" class="copilot-input" placeholder="Nhập lệnh nhanh: 'Tìm người pha chế rảnh ca B ngày mai'...">
+        <span class="kbd-shortcut">Enter ↵</span>
+      </div>
+    </div>
+  </main>
+
+  <!-- Bottom App Navigation (Only on Mobile) -->
+  <div class="bottom-nav">
+    <div class="b-nav-item active">
+      <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Lịch Ca
+    </div>
+    <div class="b-nav-item" onclick="alert('Chuyển tới màn hình duyệt phiếu công')">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      Duyệt Công
+    </div>
+    <div class="b-nav-item" onclick="alert('Chuyển tới đối soát két tiền')">
+      <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+      Kiểm Két
+    </div>
+    <div class="b-nav-item" onclick="alert('Mở Trợ Lý Chatbot AI Guta')">
+      <svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      AI Bot
+    </div>
+  </div>
+
+</body>
+</html>

@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Mẫu 2: Swiss Linear — High-Density Ledger Console</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0f19;
+      --surface: #111827;
+      --surface-2: #182234;
+      --border: #1e293b;
+      --border-subtle: #162032;
+      --text: #f8fafc;
+      --text-muted: #8492a6;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --ease: cubic-bezier(0.23, 1, 0.32, 1);
+
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+    }
+
+    *::-webkit-scrollbar { width: 5px; height: 5px; }
+    *::-webkit-scrollbar-track { background: transparent; }
+    *::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 999px; }
+    *:hover::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.25); }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100dvh;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      font-size: 13px;
+      letter-spacing: -0.01em;
+    }
+
+    .icon {
+      width: 15px;
+      height: 15px;
+      stroke: currentColor;
+      stroke-width: 1.75;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+      flex-shrink: 0;
+    }
+
+    /* Left Sidebar */
+    aside {
+      width: 240px;
+      background: #090d16;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .org-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .org-icon {
+      width: 26px;
+      height: 26px;
+      border-radius: 5px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: #fff;
+      font-size: 11px;
+      font-family: var(--mono);
+    }
+    .org-title { font-weight: 600; font-size: 13px; }
+    .org-sub { font-size: 11px; color: var(--text-muted); }
+
+    .nav-section { padding: 12px 8px; flex: 1; overflow-y: auto; }
+    .nav-caption { font-size: 10px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; padding: 8px 10px 4px; letter-spacing: 0.05em; }
+    .nav-link {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 10px;
+      color: var(--text-muted);
+      border-radius: 5px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 120ms var(--ease);
+      margin-bottom: 2px;
+      font-weight: 500;
+    }
+    .nav-link:hover { color: #fff; background: var(--surface-2); }
+    .nav-link.active { background: #1e293b; color: #fff; }
+    .nav-left { display: flex; align-items: center; gap: 8px; }
+    .kbd { font-family: var(--mono); font-size: 10px; background: #0f172a; padding: 2px 5px; border-radius: 4px; border: 1px solid #334155; color: #94a3b8; }
+
+    /* Center Main */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .top-bar {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #090d16;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .breadcrumbs { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); }
+    .breadcrumbs span.current { color: #fff; font-weight: 600; }
+
+    .btn-group { display: flex; gap: 8px; }
+    .btn {
+      padding: 6px 12px;
+      border-radius: 5px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 120ms var(--ease);
+      min-height: 32px;
+    }
+    .btn:hover { background: var(--surface-2); }
+    .btn-blue { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; }
+    .btn-blue:hover { background: var(--primary-hover); }
+
+    .main-body { padding: 20px 24px 80px; display: flex; flex-direction: column; gap: 16px; }
+
+    /* High-density grid */
+    .summary-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      overflow: hidden;
+    }
+    .summary-cell {
+      padding: 12px 18px;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .summary-cell:last-child { border-right: none; }
+    .summary-label { font-size: 11px; color: var(--text-muted); font-weight: 500; }
+    .summary-num { font-size: 18px; font-weight: 700; font-family: var(--mono); }
+
+    /* 2 Columns: Cash counts and Denominations */
+    .two-cols {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .section-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .section-header {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #0d121f;
+    }
+    .section-title { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+
+    table.dense-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      text-align: left;
+    }
+    table.dense-table th {
+      background: #0d121f;
+      padding: 9px 14px;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    table.dense-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-subtle);
+      color: #cbd5e1;
+    }
+    table.dense-table tr:hover td { background: rgba(255, 255, 255, 0.02); }
+
+    .tag-status {
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: var(--mono);
+    }
+    .tag-ok { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+    .tag-warn { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+
+    /* Mobile Cash Cards */
+    .mobile-cash-cards {
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .m-cash-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Bottom App Bar Mobile */
+    .bottom-nav {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 58px;
+      background: #090d16;
+      border-top: 1px solid var(--border);
+      z-index: 100;
+      padding-bottom: env(safe-area-inset-bottom);
+      justify-content: space-around;
+      align-items: center;
+    }
+    .b-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      font-size: 10px;
+      gap: 3px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .b-item.active { color: var(--primary); font-weight: 600; }
+
+    @media (max-width: 768px) {
+      aside { display: none; }
+      .bottom-nav { display: flex; }
+      .summary-bar { grid-template-columns: repeat(2, 1fr); }
+      .summary-cell:nth-child(2) { border-right: none; }
+      .summary-cell:nth-child(1), .summary-cell:nth-child(2) { border-bottom: 1px solid var(--border); }
+      .two-cols { grid-template-columns: 1fr; }
+      .main-body { padding: 12px 16px 80px; }
+
+      /* Mobile transform */
+      table.dense-table { display: none; }
+      .mobile-cash-cards { display: flex; }
+    }
+  </style>
+</head>
+<body>
+
+  <aside>
+    <div class="org-header">
+      <div class="org-icon">GT</div>
+      <div>
+        <div class="org-title">GUTA Headquarters</div>
+        <div class="org-sub">144 Stores • 2,439 Staff</div>
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-caption">Khối Vận Hành</div>
+      <div class="nav-link active">
+        <div class="nav-left">
+          <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/></svg>
+          <span>Đối Soát Két Tiền</span>
+        </div>
+        <span class="kbd">⌘1</span>
+      </div>
+      <div class="nav-link">
+        <div class="nav-left">
+          <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
+          <span>Lịch Ca (3,275)</span>
+        </div>
+        <span class="kbd">⌘2</span>
+      </div>
+      <div class="nav-link">
+        <div class="nav-left">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+          <span>Giải Trình Công</span>
+        </div>
+        <span class="kbd">⌘3</span>
+      </div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="top-bar">
+      <div class="breadcrumbs">
+        <span>Vận Hành</span>
+        <span>/</span>
+        <span class="current">Kiểm Kê Quỹ & Đối Soát Doanh Thu Ca</span>
+      </div>
+      <div class="btn-group">
+        <button class="btn" onclick="alert('Đã xuất Excel')">Xuất Bảng Kê</button>
+        <button class="btn btn-blue" onclick="alert('Khóa quỹ ca thành công!')">Khóa Sổ Ca</button>
+      </div>
+    </div>
+
+    <div class="main-body">
+      <!-- 4 Metrics -->
+      <div class="summary-bar">
+        <div class="summary-cell">
+          <span class="summary-label">Tiền mặt đếm thực tế</span>
+          <span class="summary-num" style="color: var(--success);">14,905,000 ₫</span>
+        </div>
+        <div class="summary-cell">
+          <span class="summary-label">Doanh thu vãng lai</span>
+          <span class="summary-num">1,370,000 ₫</span>
+        </div>
+        <div class="summary-cell">
+          <span class="summary-label">Tổng doanh thu ca</span>
+          <span class="summary-num" style="color: #60a5fa;">16,275,000 ₫</span>
+        </div>
+        <div class="summary-cell">
+          <span class="summary-label">Chênh lệch két</span>
+          <span class="summary-num" style="color: #34d399;">0 ₫ (Khớp)</span>
+        </div>
+      </div>
+
+      <!-- 2 Columns -->
+      <div class="two-cols">
+        <!-- Store Cash Counts -->
+        <div class="section-card">
+          <div class="section-header">
+            <span class="section-title">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+              Bảng Kê Tiền Mặt (cash_counts)
+            </span>
+            <span class="kbd">9 ĐIỂM BÁN</span>
+          </div>
+
+          <!-- Desktop Table -->
+          <table class="dense-table">
+            <thead>
+              <tr>
+                <th>Cửa Hàng</th>
+                <th>Tiền Mặt</th>
+                <th>Vãng Lai</th>
+                <th>Tổng Cộng</th>
+                <th>Trạng Thái</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="font-weight: 600; color: #fff;">1B Nguyễn Kiệm</td>
+                <td style="font-family: var(--mono);">1,745,000 ₫</td>
+                <td style="font-family: var(--mono);">215,000 ₫</td>
+                <td style="font-family: var(--mono); font-weight: 600;">1,960,000 ₫</td>
+                <td><span class="tag-status tag-ok">ĐÃ DUYỆT</span></td>
+              </tr>
+              <tr>
+                <td style="font-weight: 600; color: #fff;">749 Nguyễn Kiệm</td>
+                <td style="font-family: var(--mono);">580,000 ₫</td>
+                <td style="font-family: var(--mono);">58,000 ₫</td>
+                <td style="font-family: var(--mono); font-weight: 600;">638,000 ₫</td>
+                <td><span class="tag-status tag-ok">ĐÃ DUYỆT</span></td>
+              </tr>
+              <tr>
+                <td style="font-weight: 600; color: #fff;">120 Hai Bà Trưng</td>
+                <td style="font-family: var(--mono);">2,310,000 ₫</td>
+                <td style="font-family: var(--mono);">190,000 ₫</td>
+                <td style="font-family: var(--mono); font-weight: 600;">2,500,000 ₫</td>
+                <td><span class="tag-status tag-warn">CHỜ SM KÝ</span></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- Mobile Cards -->
+          <div class="mobile-cash-cards" style="padding: 10px;">
+            <div class="m-cash-card">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <strong style="color: #fff;">1B Nguyễn Kiệm</strong>
+                <span class="tag-status tag-ok">ĐÃ DUYỆT</span>
+              </div>
+              <div style="font-size: 11px; color: var(--text-muted); font-family: var(--mono);">Tiền mặt: 1,745,000 ₫ • Vãng lai: 215,000 ₫</div>
+              <div style="font-family: var(--mono); font-weight: 700; color: #60a5fa;">Tổng nộp: 1,960,000 ₫</div>
+            </div>
+
+            <div class="m-cash-card">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <strong style="color: #fff;">120 Hai Bà Trưng</strong>
+                <span class="tag-status tag-warn">CHỜ SM KÝ</span>
+              </div>
+              <div style="font-size: 11px; color: var(--text-muted); font-family: var(--mono);">Tiền mặt: 2,310,000 ₫ • Vãng lai: 190,000 ₫</div>
+              <div style="font-family: var(--mono); font-weight: 700; color: #fbbf24;">Tổng nộp: 2,500,000 ₫</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Denominations Breakdown -->
+        <div class="section-card">
+          <div class="section-header">
+            <span class="section-title">
+              <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><line x1="12" y1="6" x2="12" y2="8"/><line x1="12" y1="16" x2="12" y2="18"/></svg>
+              Kiểm Đếm Mệnh Giá (cash_denominations)
+            </span>
+            <span class="kbd">ĐỐI SOÁT TỜ</span>
+          </div>
+
+          <!-- Desktop Table -->
+          <table class="dense-table">
+            <thead>
+              <tr>
+                <th>Mệnh Giá</th>
+                <th>Số Tờ</th>
+                <th>Thành Tiền</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>500,000 ₫</td>
+                <td style="font-family: var(--mono);">12 tờ</td>
+                <td style="font-family: var(--mono); font-weight: 600;">6,000,000 ₫</td>
+              </tr>
+              <tr>
+                <td>200,000 ₫</td>
+                <td style="font-family: var(--mono);">25 tờ</td>
+                <td style="font-family: var(--mono); font-weight: 600;">5,000,000 ₫</td>
+              </tr>
+              <tr>
+                <td>100,000 ₫</td>
+                <td style="font-family: var(--mono);">11 tờ</td>
+                <td style="font-family: var(--mono); font-weight: 600;">1,100,000 ₫</td>
+              </tr>
+              <tr>
+                <td>50,000 ₫</td>
+                <td style="font-family: var(--mono);">18 tờ</td>
+                <td style="font-family: var(--mono); font-weight: 600;">900,000 ₫</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- Mobile Cards -->
+          <div class="mobile-cash-cards" style="padding: 10px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+              <div style="background: #182234; padding: 8px 10px; border-radius: 4px; border: 1px solid var(--border);">
+                <div style="font-size: 11px; color: var(--text-muted);">500,000 ₫ (12 tờ)</div>
+                <div style="font-family: var(--mono); font-weight: 700; color: #fff;">6,000,000 ₫</div>
+              </div>
+              <div style="background: #182234; padding: 8px 10px; border-radius: 4px; border: 1px solid var(--border);">
+                <div style="font-size: 11px; color: var(--text-muted);">200,000 ₫ (25 tờ)</div>
+                <div style="font-family: var(--mono); font-weight: 700; color: #fff;">5,000,000 ₫</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Mobile Bottom Nav -->
+  <div class="bottom-nav">
+    <div class="b-item active">
+      <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/></svg>
+      Kiểm Két
+    </div>
+    <div class="b-item" onclick="alert('Xem ca làm việc')">
+      <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
+      Lịch Ca
+    </div>
+    <div class="b-item" onclick="alert('Xem giải trình công')">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+      Duyệt Công
+    </div>
+  </div>
+
+</body>
+</html>
