@@ -564,6 +564,91 @@
       border: 1px solid rgba(255, 255, 255, 0.1);
     }
 
+    /* In-App Custom Modal Window (Zero native alert) */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
+      z-index: 150;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 160ms ease;
+    }
+    .modal-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .modal-card {
+      background: #0d111a;
+      border: 1px solid rgba(255, 209, 0, 0.35);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 560px;
+      max-height: 90dvh;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.85), 0 0 25px rgba(255, 209, 0, 0.08);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transform: scale(0.96);
+      transition: transform 160ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .modal-overlay.open .modal-card {
+      transform: scale(1);
+    }
+    .modal-head {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(14, 20, 32, 0.9);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-body {
+      padding: 18px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .modal-foot {
+      padding: 12px 18px;
+      border-top: 1px solid var(--border);
+      background: rgba(14, 20, 32, 0.9);
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    /* Toast Container */
+    .toast-shelf {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-width: 360px;
+      pointer-events: none;
+    }
+    .toast-msg {
+      pointer-events: auto;
+      background: #0e121a;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-left: 3px solid var(--guta-yellow);
+      border-radius: 8px;
+      padding: 12px 14px;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.7);
+      font-size: 12px;
+      color: #cbd5e1;
+      animation: slideIn 160ms ease;
+    }
+
     /* Mobile Bottom Navigation */
     .mobile-bottom-nav {
       display: none;
@@ -866,8 +951,8 @@
             </div>
             <div class="item-quote">"Dạ IT chưa thêm mã ca nên mấy bạn không vào ca được ạ"</div>
             <div style="display:flex; gap: 8px; margin-top: 4px;">
-              <button class="btn btn-gold" style="min-height: 28px; padding: 3px 10px;" onclick="this.innerText='✓ Đã duyệt'; this.disabled=true;">Duyệt Công</button>
-              <button class="btn" style="min-height: 28px; padding: 3px 10px;" onclick="alert('Yêu cầu giải trình lại')">Từ Chối</button>
+              <button class="btn btn-gold" style="min-height: 28px; padding: 3px 10px;" onclick="this.innerText='✓ Đã duyệt'; this.disabled=true; showToast('Đã duyệt bù công cho GT-CH22102995!');">Duyệt Công</button>
+              <button class="btn" style="min-height: 28px; padding: 3px 10px;" onclick="showToast('Đã yêu cầu nhân viên giải trình lại!');">Từ Chối</button>
             </div>
           </div>
         </div>
@@ -902,10 +987,50 @@
       <div>Trạng Thái: <span style="color: #34d399;">● Đang làm việc tại 120 Hai Bà Trưng</span></div>
     </div>
     <div style="display: flex; flex-direction: column; gap: 8px; margin-top: auto;">
-      <button class="btn btn-gold" onclick="alert('Đã mở luồng điều chuyển ca linh hoạt!')">⚡ Điều Chuyển Sang Chi Nhánh Khác</button>
-      <button class="btn" onclick="alert('Mở lịch sử chấm công')">Xem Bảng Công Tháng Này</button>
+      <button class="btn btn-gold" onclick="showToast('Yêu cầu đổi ca cho nhân sự đã được gửi tới hệ thống!'); closeDrawer();">⚡ Điều Chuyển Sang Chi Nhánh Khác</button>
+      <button class="btn" onclick="showToast('Đang tải bảng chấm công tháng này...'); closeDrawer();">Xem Bảng Công Tháng Này</button>
     </div>
   </div>
+
+  <!-- Custom Dark Glassmorphism Modal for AI Copilot (Replaces browser alert) -->
+  <div class="modal-overlay" id="ai-modal-overlay" onclick="closeAiModal()">
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <div class="modal-head">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 26px; height: 26px; border-radius: 6px; background: var(--guta-blue); display: flex; align-items: center; justify-content: center; color: #fff;">
+            <svg class="icon" style="width: 13px; height: 13px; fill: currentColor;" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </div>
+          <div>
+            <div style="font-weight: 700; font-size: 13px; color: #fff;">GUTA AI COPILOT</div>
+            <div style="font-size: 10px; color: var(--guta-yellow); font-family: var(--mono);">Atlas Function Calling • 144 Cửa Hàng</div>
+          </div>
+        </div>
+        <button onclick="closeAiModal()" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 18px;">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px;">
+          <div style="font-size: 10px; text-transform: uppercase; color: var(--text-faint); font-weight: 700; font-family: var(--mono); margin-bottom: 2px;">Yêu Cầu Cửa Hàng Trưởng:</div>
+          <div style="font-size: 13px; font-weight: 600; color: #fff;" id="ai-modal-query">...</div>
+        </div>
+
+        <div style="background: var(--surface-card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+          <div style="font-size: 11px; color: var(--guta-yellow); font-weight: 700; font-family: var(--mono);">✦ KẾT QUẢ ĐỐI SOÁT & ĐỀ XUẤT THỰC THI:</div>
+          <div style="font-size: 12px; color: #cbd5e1; line-height: 1.5;" id="ai-modal-content">
+            Đang tải dữ liệu...
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-foot">
+        <button class="btn" onclick="closeAiModal()">Đóng</button>
+        <button class="btn btn-gold" onclick="confirmAiModalAction()">✓ Xác Nhận Thực Thi</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Shelf -->
+  <div class="toast-shelf" id="toast-shelf"></div>
 
   <!-- Mobile Bottom Bar -->
   <div class="mobile-bottom-nav">
@@ -913,11 +1038,11 @@
       <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
       Lịch Ca
     </div>
-    <div class="m-nav-item" onclick="alert('Mở duyệt công')">
+    <div class="m-nav-item" onclick="showToast('Chuyển tới duyệt công');">
       <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
       Duyệt Công
     </div>
-    <div class="m-nav-item" onclick="alert('Mở két tiền')">
+    <div class="m-nav-item" onclick="showToast('Chuyển tới đối soát két tiền');">
       <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/></svg>
       Két Tiền
     </div>
@@ -944,6 +1069,19 @@
       document.getElementById('drawer').classList.remove('open');
     }
 
+    function showToast(msg) {
+      const shelf = document.getElementById('toast-shelf');
+      const item = document.createElement('div');
+      item.className = 'toast-msg';
+      item.innerText = msg;
+      shelf.appendChild(item);
+      setTimeout(() => {
+        item.style.opacity = '0';
+        item.style.transition = 'opacity 200ms ease';
+        setTimeout(() => item.remove(), 200);
+      }, 3000);
+    }
+
     function runPrompt(text) {
       document.getElementById('ai-command-box').value = text;
       executeAiPrompt(text);
@@ -951,7 +1089,43 @@
 
     function executeAiPrompt(text) {
       if (!text) return;
-      alert(`[GUTA AI COPILOT]: Đang xử lý câu lệnh qua MongoDB Atlas RAG & Tool Execution:\n"${text}"\n\n→ Đã đối soát 144 cửa hàng và trả kết quả chính xác.`);
+      document.getElementById('ai-modal-query').innerText = `"${text}"`;
+
+      const content = document.getElementById('ai-modal-content');
+      if (text.includes('Pha chế') || text.includes('pha chế')) {
+        content.innerHTML = `
+          Đã quét 144 chi nhánh và tìm thấy <strong>2 nhân sự Barista</strong> sẵn sàng ca sáng mai:<br>
+          1. <strong>VŨ ANH TÚ</strong> (GT-CH26047865) • Quán 100 Nguyễn Thị Minh Khai • <em>Rảnh ca sáng</em><br>
+          2. <strong>LÊ QUỐC TRUNG</strong> (GT-CH26047888) • Quán 1B Nguyễn Kiệm • <em>Rảnh ca sáng</em>
+        `;
+      } else if (text.includes('Duyệt') || text.includes('duyệt')) {
+        content.innerHTML = `
+          Đã kiểm tra <strong>7 phiếu giải trình tồn đọng</strong> trong kỳ lương 06/05 – 05/06/2026.<br>
+          Tất cả phiếu đều hợp lệ do hệ thống IT chưa cấp mã ca hoặc nhân viên mới chưa nhận vân tay. Khuyên duyệt đồng loạt.
+        `;
+      } else if (text.includes('két') || text.includes('Két')) {
+        content.innerHTML = `
+          Chi nhánh <strong>1B Nguyễn Kiệm</strong>:<br>
+          • Tiền mặt thực tế: <strong>1,745,000 ₫</strong><br>
+          • Vãng lai: <strong>215,000 ₫</strong><br>
+          • Tổng nộp: <strong>1,960,000 ₫</strong> • Độ lệch: <strong>0 ₫ (Khớp 100%)</strong>
+        `;
+      } else {
+        content.innerHTML = `
+          Theo <strong>Quy chế chấm công Guta Cafe (Điều 12, Khoản 3)</strong>: Nhân viên có 48 giờ để gửi giải trình bù công và không muộn hơn ngày 05 hàng tháng để kịp chốt kỳ lương.
+        `;
+      }
+
+      document.getElementById('ai-modal-overlay').classList.add('open');
+    }
+
+    function closeAiModal() {
+      document.getElementById('ai-modal-overlay').classList.remove('open');
+    }
+
+    function confirmAiModalAction() {
+      closeAiModal();
+      showToast('✓ Đã áp dụng đề xuất của GUTA AI Copilot vào hệ thống vận hành!');
     }
   </script>
 </body>

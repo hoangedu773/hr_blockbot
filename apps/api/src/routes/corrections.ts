@@ -1,4 +1,5 @@
 import { Router } from "express";
+import mongoose from "mongoose";
 import { AttendanceCorrectionModel } from "../models/AttendanceCorrection.js";
 import { getIO } from "../socket.js";
 
@@ -97,8 +98,12 @@ router.patch("/corrections/:id/status", async (req, res) => {
       });
     }
 
-    const updated = await AttendanceCorrectionModel.findByIdAndUpdate(
-      id,
+    const filter = mongoose.Types.ObjectId.isValid(id)
+      ? { _id: id }
+      : { $or: [{ id: isNaN(Number(id)) ? -1 : Number(id) }, { employee_code: id }] };
+
+    const updated = await AttendanceCorrectionModel.findOneAndUpdate(
+      filter,
       {
         status,
         reviewed_by,

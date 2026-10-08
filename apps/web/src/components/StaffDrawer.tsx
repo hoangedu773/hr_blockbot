@@ -4,9 +4,10 @@ import { ScheduleEntry } from '../services/api';
 interface StaffDrawerProps {
   schedule: ScheduleEntry | null;
   onClose: () => void;
+  onActionMessage?: (msg: string) => void;
 }
 
-export const StaffDrawer: React.FC<StaffDrawerProps> = ({ schedule, onClose }) => {
+export const StaffDrawer: React.FC<StaffDrawerProps> = ({ schedule, onClose, onActionMessage }) => {
   if (!schedule) return null;
 
   return (
@@ -77,7 +78,9 @@ export const StaffDrawer: React.FC<StaffDrawerProps> = ({ schedule, onClose }) =
           <button
             className="btn btn-gold"
             onClick={() => {
-              alert(`Yêu cầu đổi ca cho nhân sự ${schedule.employee_name} đã được gửi tới hệ thống!`);
+              if (onActionMessage) {
+                onActionMessage(`Yêu cầu đổi ca cho nhân sự ${schedule.employee_name} đã được gửi tới hệ thống!`);
+              }
               onClose();
             }}
             style={{
@@ -95,7 +98,9 @@ export const StaffDrawer: React.FC<StaffDrawerProps> = ({ schedule, onClose }) =
           <button
             className="btn"
             onClick={() => {
-              alert(`Mở bảng chấm công của ${schedule.employee_code}`);
+              if (onActionMessage) {
+                onActionMessage(`Đang tải bảng chấm công của ${schedule.employee_code} (${schedule.employee_name})...`);
+              }
               onClose();
             }}
             style={{
