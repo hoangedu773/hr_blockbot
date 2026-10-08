@@ -8,7 +8,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ storeName, onSync, onAddShift }) => {
   return (
-    <header style={{
+    <header className="app-header" style={{
       padding: '12px 24px',
       borderBottom: '1px solid var(--border)',
       display: 'flex',
@@ -21,7 +21,7 @@ export const Header: React.FC<HeaderProps> = ({ storeName, onSync, onAddShift })
       zIndex: 30,
       gap: '16px'
     }}>
-      <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+      <div className="header-titles" style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '2px' }}>
         <h1 style={{
           fontSize: '15px',
           fontWeight: 700,
@@ -59,7 +59,7 @@ export const Header: React.FC<HeaderProps> = ({ storeName, onSync, onAddShift })
         </p>
       </div>
 
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+      <div className="header-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
         <button
           className="btn"
           onClick={onSync}

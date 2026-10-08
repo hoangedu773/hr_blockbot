@@ -15,9 +15,9 @@ export const TwoColumnGrid: React.FC<TwoColumnGridProps> = ({
   onRejectCorrection
 }) => {
   return (
-    <div style={{
+    <div className="two-col-responsive" style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
       gap: '16px'
     }}>
       {/* Col 1: Cash Counts */}

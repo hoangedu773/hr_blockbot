@@ -49,17 +49,7 @@ export const VisualTimeline: React.FC<VisualTimelineProps> = ({
         flexDirection: 'column'
       }}>
         {/* Time ruler */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '180px repeat(16, 1fr)',
-          borderBottom: '1px solid var(--border)',
-          background: 'rgba(14, 18, 27, 0.9)',
-          padding: '8px 12px',
-          fontSize: '10px',
-          fontFamily: 'var(--mono)',
-          color: 'var(--text-faint)',
-          textAlign: 'center'
-        }}>
+        <div className="timeline-time-header">
           <span style={{ textAlign: 'left' }}>NHÂN SỰ</span>
           <span>06:00</span><span>07:00</span><span>08:00</span><span>09:00</span>
           <span>10:00</span><span>11:00</span><span>12:00</span><span>13:00</span>
@@ -73,18 +63,8 @@ export const VisualTimeline: React.FC<VisualTimelineProps> = ({
           return (
             <div
               key={idx}
+              className="timeline-row"
               onClick={() => onSelectEmployee(item)}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '180px 1fr',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
-                padding: '10px 12px',
-                alignItems: 'center',
-                cursor: 'pointer',
-                transition: 'background 120ms ease'
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{
@@ -99,7 +79,8 @@ export const VisualTimeline: React.FC<VisualTimelineProps> = ({
                   justifyContent: 'center',
                   fontWeight: 700,
                   fontSize: '10px',
-                  fontFamily: 'var(--mono)'
+                  fontFamily: 'var(--mono)',
+                  flexShrink: 0
                 }}>
                   {item.employee_name.charAt(0)}
                 </div>
@@ -113,26 +94,22 @@ export const VisualTimeline: React.FC<VisualTimelineProps> = ({
                 </div>
               </div>
 
-              <div style={{ position: 'relative', height: '28px', display: 'flex', alignItems: 'center' }}>
-                <div style={{
-                  position: 'absolute',
-                  left: isMorning ? '0%' : '50%',
-                  width: '50%',
-                  height: '24px',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: '0 10px',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  fontFamily: 'var(--mono)',
-                  background: isMorning
-                    ? 'linear-gradient(90deg, rgba(255, 209, 0, 0.18), rgba(255, 209, 0, 0.28))'
-                    : 'linear-gradient(90deg, rgba(56, 189, 248, 0.18), rgba(56, 189, 248, 0.28))',
-                  color: isMorning ? '#fef08a' : '#bae6fd',
-                  border: `1px solid ${isMorning ? 'rgba(255, 209, 0, 0.4)' : 'rgba(56, 189, 248, 0.4)'}`
-                }}>
-                  <span>{item.shift_code} • {isMorning ? '06:00 - 14:00 (Ca sáng)' : '14:00 - 22:00 (Ca chiều)'}</span>
+              <div className="timeline-track-cell">
+                <div
+                  className="shift-pill-block"
+                  style={{
+                    left: isMorning ? '0%' : '50%',
+                    width: '50%',
+                    background: isMorning
+                      ? 'linear-gradient(90deg, rgba(255, 209, 0, 0.18), rgba(255, 209, 0, 0.28))'
+                      : 'linear-gradient(90deg, rgba(56, 189, 248, 0.18), rgba(56, 189, 248, 0.28))',
+                    color: isMorning ? '#fef08a' : '#bae6fd',
+                    border: `1px solid ${isMorning ? 'rgba(255, 209, 0, 0.4)' : 'rgba(56, 189, 248, 0.4)'}`
+                  }}
+                >
+                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {item.shift_code} • {isMorning ? '06:00 - 14:00 (Ca sáng)' : '14:00 - 22:00 (Ca chiều)'}
+                  </span>
                 </div>
               </div>
             </div>

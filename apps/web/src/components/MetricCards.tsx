@@ -14,13 +14,9 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
   cashFund
 }) => {
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-      gap: '14px'
-    }}>
+    <div className="metric-grid-container">
       {/* Metric 1 */}
-      <div style={{
+      <div className="metric-card-box" style={{
         background: 'var(--surface)',
         border: '1px solid var(--border)',
         borderRadius: '10px',
@@ -45,7 +41,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
       </div>
 
       {/* Metric 2 */}
-      <div style={{
+      <div className="metric-card-box" style={{
         background: 'var(--surface)',
         border: '1px solid var(--border)',
         borderRadius: '10px',
@@ -70,7 +66,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
       </div>
 
       {/* Metric 3 */}
-      <div style={{
+      <div className="metric-card-box" style={{
         background: 'var(--surface)',
         border: '1px solid var(--border)',
         borderRadius: '10px',
@@ -95,7 +91,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
       </div>
 
       {/* Metric 4 */}
-      <div style={{
+      <div className="metric-card-box" style={{
         background: 'var(--surface)',
         border: '1px solid var(--border)',
         borderRadius: '10px',
