@@ -170,7 +170,8 @@ export async function fetchStores(): Promise<Store[]> {
   try {
     const res = await fetch(`${API_BASE}/stores`);
     if (!res.ok) throw new Error('API error');
-    return await res.json();
+    const json = await res.json();
+    return Array.isArray(json) ? json : json.data || SEED_STORES;
   } catch {
     return SEED_STORES;
   }
@@ -178,10 +179,11 @@ export async function fetchStores(): Promise<Store[]> {
 
 export async function fetchSchedules(store?: string): Promise<ScheduleEntry[]> {
   try {
-    const url = store ? `${API_BASE}/schedules?store=${encodeURIComponent(store)}` : `${API_BASE}/schedules`;
+    const url = store ? `${API_BASE}/schedules?store_name=${encodeURIComponent(store)}` : `${API_BASE}/schedules`;
     const res = await fetch(url);
     if (!res.ok) throw new Error('API error');
-    return await res.json();
+    const json = await res.json();
+    return Array.isArray(json) ? json : json.data || SEED_SCHEDULES;
   } catch {
     return SEED_SCHEDULES;
   }
@@ -191,7 +193,8 @@ export async function fetchCorrections(): Promise<AttendanceCorrection[]> {
   try {
     const res = await fetch(`${API_BASE}/corrections`);
     if (!res.ok) throw new Error('API error');
-    return await res.json();
+    const json = await res.json();
+    return Array.isArray(json) ? json : json.data || SEED_CORRECTIONS;
   } catch {
     return SEED_CORRECTIONS;
   }
@@ -214,7 +217,9 @@ export async function fetchCashCounts(): Promise<CashCount[]> {
   try {
     const res = await fetch(`${API_BASE}/cash`);
     if (!res.ok) throw new Error('API error');
-    return await res.json();
+    const json = await res.json();
+    if (json.counts && Array.isArray(json.counts)) return json.counts;
+    return Array.isArray(json) ? json : json.data || SEED_CASH_COUNTS;
   } catch {
     return SEED_CASH_COUNTS;
   }

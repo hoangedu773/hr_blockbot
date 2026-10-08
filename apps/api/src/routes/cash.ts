@@ -7,6 +7,21 @@ import {
 
 const router = Router();
 
+// GET /api/cash - Combined overview for dashboard
+router.get("/cash", async (_req, res) => {
+  try {
+    const [counts, denominations, summary] = await Promise.all([
+      CashCountModel.find().lean(),
+      CashDenominationModel.find().lean(),
+      CashSummaryModel.find().lean(),
+    ]);
+    res.json({ counts, denominations, summary });
+  } catch (err) {
+    console.error("Error fetching combined cash data:", err);
+    res.status(500).json({ error: "Failed to fetch cash data" });
+  }
+});
+
 // GET /api/cash/counts - List cash counts
 router.get("/cash/counts", async (req, res) => {
   try {
