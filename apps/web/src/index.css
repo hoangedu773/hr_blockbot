@@ -1,0 +1,96 @@
+:root {
+  color-scheme: dark;
+  --bg: #07090e;
+  --bg-elevated: #0e121a;
+  --surface: rgba(18, 23, 34, 0.75);
+  --surface-card: rgba(24, 30, 44, 0.65);
+  --surface-hover: rgba(35, 44, 64, 0.8);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-highlight: rgba(255, 209, 0, 0.35);
+
+  --text: #f8fafc;
+  --text-muted: #94a3b8;
+  --text-faint: #475569;
+
+  --guta-yellow: #ffd100;
+  --guta-blue: #0047ba;
+  --emerald: #10b981;
+  --amber: #f59e0b;
+  --rose: #f43f5e;
+
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+*::-webkit-scrollbar { width: 4px; height: 4px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 999px; }
+*:hover::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.3); }
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body {
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  z-index: 10;
+}
+
+.content-body {
+  padding: 20px 28px 100px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1400px;
+}
+
+.mobile-bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: rgba(11, 14, 21, 0.95);
+  backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border);
+  z-index: 50;
+  padding-bottom: env(safe-area-inset-bottom);
+  justify-content: space-around;
+  align-items: center;
+}
+
+.m-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 10px;
+  gap: 3px;
+  cursor: pointer;
+  text-decoration: none;
+}
+.m-nav-item.active { color: var(--guta-yellow); font-weight: 700; }
+
+@media (max-width: 768px) {
+  aside { display: none !important; }
+  .mobile-bottom-nav { display: flex !important; }
+  .content-body { padding: 14px 16px 80px; gap: 14px; }
+}
