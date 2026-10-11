@@ -66,3 +66,34 @@ Kế hoạch chi tiết được quản lý tại:
 - **Frontend:** Xem [`docs/10-ui-ux-spec.md`](10-ui-ux-spec.md), [`docs/18-user-flows.md`](18-user-flows.md).
 - **AI/NLP:** Xem [`docs/08-algorithms.md`](08-algorithms.md), [`docs/09-ai-evaluation.md`](09-ai-evaluation.md), [`apps/ai-service/README.md`](../apps/ai-service/README.md).
 - **Tổng quan dự án:** Xem [`docs/README.md`](README.md) và [`docs/20-project-map-and-direction.md`](20-project-map-and-direction.md).
+
+---
+
+## 5. Trạng Thái Các Nhánh Bootstrap & Hướng Dẫn Tiếp Quản
+
+### 5.1 Trạng Thái Các Nhánh Đã Hoàn Thành & Push GitHub (Tuần 7)
+
+| Nhánh | Worktree | Commit SHA | Trạng thái & Kết quả kiểm chứng |
+|---|---|---|---|
+| `feat/pm-agentkit` | `../hr-blockbot-pm` | `27ff731` | **DONE:** Chốt Zod contracts (Auth, Employee allowlist không PII, pagination, error catalog), phân quyền đọc/ghi các app, kịch bản Phase 5. Test 10/10 pass. |
+| `feat/api-backend` | `../hr-blockbot-api` | `32f4000` | **DONE:** Xóa hardcode secrets, Argon2id + jose (JWT + RTR fail-closed), scope guard `assertInScope()`, Allowlist API `/api/employees`, khóa routes cũ và Socket.IO. Test `pnpm --filter api test:auth` 22/22 pass. |
+| `feat/frontend-web` | `../hr-blockbot-web` | `b0d9cdc` | **DONE:** Liên kết contracts, in-memory token, interceptor 401 single-flight refresh, xóa sạch `SEED_*` và optimistic toasts giả, dựng UI preview gate 6 trạng thái tại `apps/web/previews/index.html`. Build pass. |
+| `feat/ai-service` | `../hr-blockbot-ai` | `ba08fd2` | **DONE:** Xóa hardcode secrets, endpoint `/health` ping DB Atlas thật báo liveness/readiness trung thực, khóa mock chat (403), giữ requirements tinh gọn. Test 11/11 pass. |
+
+### 5.2 Hướng Dẫn Đồng Nghiệp & Dev Tiếp Quản Nhánh
+
+1. **Kéo mã nguồn mới nhất:**
+   ```bash
+   git fetch origin
+   git checkout <tên_nhánh>
+   git pull origin <tên_nhánh>
+   ```
+2. **Kiểm tra kiểm thử tự động:**
+   - Backend API: `pnpm --filter api test:auth` (22/22 tests pass)
+   - Contracts: `pnpm --filter @hr-blockbot/contracts test` (10/10 tests pass)
+   - Frontend Web: `pnpm --filter web build` (TypeScript + Vite build pass)
+   - AI Service: `pytest apps/ai-service/tests/test_health_probe.py`
+3. **Môi trường & Biến môi trường (`.env`):**
+   - Đảm bảo file `.env` chứa `MONGODB_URI` hoặc `ATLAS_URI` hợp lệ kết nối tới cụm Atlas của dự án.
+   - Không commit file `.env` lên git repository.
+

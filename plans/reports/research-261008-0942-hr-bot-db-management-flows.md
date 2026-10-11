@@ -3,7 +3,7 @@
 - **Mã báo cáo:** `research-261008-0942-hr-bot-db-management-flows`
 - **Ngày thực hiện:** 08/10/2026 (Múi giờ Asia/Bangkok)
 - **Hệ thống phân tích:** Database `hr_bot` trên MongoDB Atlas (Cluster `hr-blockbot`)
-- **Tác giả:** Researcher & Database Architect Agent (AgentKit)
+- **Tác giả:** Researcher & Database Architect Agent
 - **Mục tiêu:** Phân tích cấu trúc thực tế của database đang vận hành (dữ liệu chuỗi chuỗi F&B / bán lẻ GUTA CAFE với 144 cửa hàng, 2,439 nhân sự); từ đó thiết kế toàn diện các luồng vận hành (operational flows), kiểm soát dữ liệu (data governance), phân quyền (RBAC) và tích hợp Chatbot AI để quản trị hiệu quả hệ thống trong thực tế.
 
 ---

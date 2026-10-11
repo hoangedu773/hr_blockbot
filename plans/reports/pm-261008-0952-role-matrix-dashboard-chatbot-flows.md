@@ -4,7 +4,7 @@
 - **Ngày lập:** 08/10/2026 (Múi giờ Asia/Bangkok)
 - **Dự án:** Khóa luận KLCN133 — Chatbot & Dashboard Chuyển Đổi Số Quản Lý Nhân Sự (HR BlockBot)
 - **Cơ sở dữ liệu thực tế:** Cluster `hr-blockbot` (144 cửa hàng Guta Cafe, 2,439 nhân viên)
-- **Tác giả:** Project Manager & System Architect Agent (AgentKit)
+- **Tác giả:** Project Manager & System Architect Agent
 
 ---
 
