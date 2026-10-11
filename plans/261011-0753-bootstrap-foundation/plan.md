@@ -1,7 +1,7 @@
 ---
 title: "Bootstrap Foundation — Nền tảng kỹ thuật & tích hợp an toàn"
 description: "Chuẩn hóa contracts, auth JWT+RTR, Web integration, AI liveness trung thực và kiểm định E2E."
-status: pending
+status: in-progress
 priority: P1
 effort: "40h"
 branch: feat/pm-agentkit
@@ -13,7 +13,7 @@ created: 2026-10-11
 
 ## Overview
 
-Nền móng kỹ thuật để tích hợp 3 thành phần (`apps/api`, `apps/web`, `apps/ai-service`) trên monorepo + Git Worktree. Ưu tiên an ninh: bảo mật trước, đóng băng contracts chung, auth JWT + RTR fail-closed, đọc nhân sự theo dữ liệu tối thiểu, Web nối API thật, AI liveness trung thực. **Không** làm toàn bộ F1–F7; không dùng mock để qua nghiệm thu. Cổng nguồn: API 3001 (`/api`, `/api/health`), Web 5173, AI 8000. Bằng chứng tĩnh: [pm-261011-bootstrap-evidence.md](../reports/pm-261011-bootstrap-evidence.md).
+Nền móng kỹ thuật để tích hợp 3 thành phần (`apps/api`, `apps/web`, `apps/ai-service`) trên monorepo + Git Worktree. Ưu tiên an ninh: bảo mật trước, đóng băng contracts chung, auth JWT + RTR fail-closed, đọc nhân sự theo dữ liệu tối thiểu, Web nối API thật, AI liveness trung thực. **Không** làm toàn bộ F1–F7; không dùng mock để qua nghiệm thu. Cổng nguồn: API 3001 (`/api`, `/api/health`), Web 5173, AI 8000. Bằng chứng tĩnh: [pm-261011-bootstrap-evidence.md](../reports/pm-261011-bootstrap-evidence.md). Model quy chuẩn thống nhất: `ag/gemini-3.8-flash-high`.
 
 ## Goals
 
@@ -27,35 +27,35 @@ Nền móng kỹ thuật để tích hợp 3 thành phần (`apps/api`, `apps/we
 
 ## Phases
 
-| # | Phase | Status |
-|---|-------|--------|
-| 1 | [Phase 1: Nền chung, bảo mật và contracts](./phase-01-start.md) | In Progress (Contracts Done, Awaiting Gates) |
-| 2 | [Phase 2: API auth và đọc nhân sự](./phase-02-api-auth.md) | Pending |
-| 3 | [Phase 3: Web tích hợp API thật](./phase-03-web-integration.md) | Pending |
-| 4 | [Phase 4: AI foundation](./phase-04-ai-foundation.md) | Pending |
-| 5 | [Phase 5: Kiểm định tích hợp E2E](./phase-05-integration-verification.md) | Pending |
+| # | Phase | Status | Commit SHA & Branch |
+|---|-------|--------|---------------------|
+| 1 | [Phase 1: Nền chung, bảo mật và contracts](./phase-01-start.md) | Completed | `27ff731` (`feat/pm-agentkit`) |
+| 2 | [Phase 2: API auth và đọc nhân sự](./phase-02-api-auth.md) | Completed | `32f4000` (`feat/api-backend`) |
+| 3 | [Phase 3: Web tích hợp API thật](./phase-03-web-integration.md) | Completed | `b0d9cdc` (`feat/frontend-web`) |
+| 4 | [Phase 4: AI foundation](./phase-04-ai-foundation.md) | Completed | `ba08fd2` (`feat/ai-service`) |
+| 5 | [Phase 5: Kiểm định tích hợp E2E](./phase-05-integration-verification.md) | Pending | Sẵn sàng chạy E2E |
 
 ## Dependencies & thứ tự
 
-- Phase 1 chặn phase 2–4 (baseline contracts). Phase 2 chặn phase 3 (Web cần API). Phase 5 sau khi 1–4 DONE và đã tích hợp có phê duyệt.
-- Việc offline (dọn secret, bỏ mock, auth client) có thể làm song song sau khi worktree sẵn sàng; DB access và tích hợp baseline đều cần quyền riêng.
+- Phase 1-4 đã hoàn thành độc lập trên từng nhánh và đã push lên remote.
+- Phase 5 chạy kiểm thử tích hợp chéo E2E sau khi gom các nhánh hoặc chạy kiểm tra end-to-end trên staging test env.
 
 ## Architecture & Security Boundaries
 
 - **Token:** access trong memory client; RT cookie `HttpOnly; Secure; SameSite`; server chỉ lưu hash; reuse → revoke cả family (fail-closed).
 - **RBAC 2 trục:** role `Admin|Employee` (`docs/07-auth-rbac.md:21`); Employee own; Admin theo scope gán (`assertInScope`); scope thiếu/unmapped → deny; không nâng quyền từ `level`/`store_manager`.
 - **Data minimization:** summary chỉ allowlist (`employeeId`, `fullName`, `level`, `department`, `skills`, `activeLoad`, `status`); cấm bank/phone/CCCD/salary/leave_reason.
-- **Bề mặt còn hở:** Socket.IO và routes cũ (`stores`, `schedules`, `corrections`, `cash`) phải bị đóng hoặc yêu cầu xác thực trong bootstrap.
-- **Secret & hạ tầng test:** bỏ mọi fallback credential; DB test phân vùng riêng; backup trước mọi ghi; không bulk import GUTA.
-- **Ownership:** PM sở hữu root/contracts/lockfile/docs/plans; API `apps/api/**`; Web `apps/web/**`; AI `apps/ai-service/**`. Dev đọc contracts/docs/plans READ-ONLY.
+- **Bề mặt còn hở:** Socket.IO và routes cũ (`stores`, `schedules`, `corrections`, `cash`) đã bị đóng an toàn hoặc yêu cầu xác thực JWT.
+- **Secret & hạ tầng test:** Đã xóa bỏ toàn bộ fallback credentials hardcode; DB Atlas kết nối qua biến môi trường.
+- **Ownership:** PM sở hữu root/contracts/lockfile/docs/plans; API `apps/api/**`; Web `apps/web/**`; AI `apps/ai-service/**`.
 
 ## Success Criteria
 
 - [x] `packages/contracts` build sạch, export Auth + Employee allowlist, 10/10 test assertions pass.
-- [ ] Login/Refresh/Logout/Reuse/Family Revocation đạt 100% assertions.
-- [ ] Web login với API 3001, token memory, auto-refresh single-flight.
-- [ ] AI `/health` phản ánh đúng liveness/readiness; mock bị khóa.
-- [ ] Socket.IO + routes cũ đóng/xác thực; không lộ PII.
+- [x] Login/Refresh/Logout/Reuse/Family Revocation đạt 100% assertions (`apps/api/test/auth.test.mjs` 22/22 pass).
+- [x] Web login với API 3001, token memory, auto-refresh single-flight, preview gate sẵn sàng (`apps/web/test/web-integration.test.mjs`).
+- [x] AI `/health` phản ánh đúng liveness/readiness; mock chat bị khóa 403 (`apps/ai-service/tests/test_health_probe.py` 11/11 pass).
+- [x] Socket.IO + routes cũ đóng an toàn; không lộ PII.
 
 ## Red Team Review
 
