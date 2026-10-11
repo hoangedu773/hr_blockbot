@@ -31,6 +31,40 @@ hr_blockbot/
 
 ---
 
+## 🚦 Hiện Trạng Triển Khai & Bản Đồ Tính Năng (Feature Status)
+
+### 1. 5 Giai Đoạn Nền Móng Đã Hoàn Thành (Bootstrap Foundation — Tuần 7)
+Hệ thống đã hoàn tất toàn bộ 5 phase nền tảng, bảo mật và kết nối thực tế:
+
+| Phase Bootstrap | Công việc đã hoàn tất trong mã nguồn | Kết quả kiểm thử | Nhánh phụ trách |
+|---|---|---|---|
+| **Phase 1: Contracts** | Zod schemas chuẩn cho Auth, phân quyền 2 vai (`Admin`/`Employee`), allowlist loại bỏ 100% PII nhạy cảm (bank, lương, cccd, phone). | 10 / 10 tests pass | `feat/pm-agentkit` |
+| **Phase 2: Backend API** | Express API cổng 3001, hash Argon2id, jose JWT, Refresh Token Rotation (RTR fail-closed), scope guard `assertInScope()`, khóa 503 legacy routes và Socket.IO. | 22 / 22 tests pass | `feat/api-backend` |
+| **Phase 3: Frontend Web** | Web React cổng 5173, token lưu trong memory (zero-storage), auto-refresh 401 single-flight, xóa sạch mock data `SEED_*` và fake toasts, UI preview gate 6 trạng thái. | Build & test pass | `feat/frontend-web` |
+| **Phase 4: AI Service** | FastAPI cổng 8000, xóa sạch credentials hardcode, endpoint `/health` ping DB Atlas thật (phân biệt liveness vs readiness), khóa mock chat (403). | 11 / 11 tests pass | `feat/ai-service` |
+| **Phase 5: Kiểm định QA** | Kiểm thử tích hợp tự động toàn diện trên cả 4 phân hệ, ghi nhận báo cáo QA chi tiết. | 47 / 47 tests pass (100%) | `feat/pm-agentkit` |
+
+---
+
+### 2. Các Luồng Nghiệp Vụ ĐÃ CHẠY THẬT Ngay Hôm Nay:
+- 🔐 **Xác thực & Vòng đời Token:** Đăng nhập `POST /api/auth/login` -> cấp Access Token (memory) + Refresh Token (HttpOnly cookie). Tự động xoay vòng token `POST /api/auth/refresh` (phát hiện replay attack thu hồi ngay toàn bộ session family). Đăng xuất `POST /api/auth/logout`. Lấy danh tính `GET /api/auth/me`.
+- 👥 **Tra cứu nhân sự có kiểm soát (Data Minimization):**
+  - **Quản lý (Admin):** Gọi `GET /api/employees` chỉ nhận allowlist (họ tên, cấp bậc, kỹ năng, trạng thái), không lộ số tài khoản hay lương; chặn truy cập ngoài scope phòng ban/cửa hàng (403 `RBAC_DENIED`).
+  - **Nhân viên (Employee):** Chỉ được xem hồ sơ chính mình `GET /api/employees/:id`; xem người khác bị chặn 403.
+- 🖥️ **Giao diện Web Command Center:** Xử lý token bộ nhớ, tự động refresh ngầm khi token hết hạn; trang xem trước giao diện độc lập tại `apps/web/previews/index.html` với 6 trạng thái thực tế.
+- 🤖 **Giám sát AI:** `/health` phản ánh trung thực liveness và readiness của MongoDB Atlas.
+
+---
+
+### 3. Kế Hoạch Các Luồng Tiếp Theo Theo Lộ Trình (Tuần 8 – 12):
+- **Tuần 8:** Hoàn thiện F1 (Hồ sơ nhân viên chuyên sâu) & F2 (Vòng đời ca kíp & giải trình công với State Machine 5 bước `DRAFT` → `ASSIGNED` → `IN_PROGRESS` → `SUBMITTED` → `APPROVED`).
+- **Tuần 9:** Hoàn thiện F3 (Chatbot tra cứu chính sách RAG) & F4 (Gợi ý phân công ca qua PhoBERT semantic matching).
+- **Tuần 10:** Hoàn thiện F5 (Lượng hóa điểm KPI qua phân tích cảm xúc) & F7 (Báo cáo nghiệm thu & nhắc hạn).
+- **Tuần 11:** Đóng băng tính năng (Feature Freeze 09/11/2026), kiểm thử UAT và triển khai Staging Cloud.
+- **Tuần 12:** Hoàn thiện báo cáo khóa luận Word/PDF và bảo vệ đề tài (16/11/2026).
+
+---
+
 ## 🌿 Mô hình Phân nhánh & Vận hành Đa Dịch Vụ
 
 Dự án áp dụng quy trình phát triển song song 3 dịch vụ cốt lõi theo từng nhánh chuyên biệt. Mỗi nhánh đại diện cho một mảng kỹ thuật độc lập để các thành viên trong nhóm có thể phát triển song song mà không gây xung đột working tree:
@@ -147,6 +181,23 @@ docs/
 ├── 🚀 Vận hành & Quy ước:         11-quality-testing, 12-performance, 14-devops, 15-conventions, 16-plan
 └── 🔬 Nghiên cứu thị trường:      research/ (NOTES-01, 02, 03), 19-vertical-workforce-assessment
 ```
+
+### 🧭 Bản Đồ Điều Hướng Tài Liệu (Docs Router)
+
+Bảng tra cứu nhanh tài liệu theo nhu cầu tìm hiểu và luồng nghiệp vụ:
+
+| Bạn cần tìm hiểu về... | Tài liệu cần đọc | Tóm tắt nội dung chính |
+|---|---|---|
+| **Báo cáo QA & Kiểm thử tự động** | [`plans/reports/qa-261011-bootstrap-verification.md`](plans/reports/qa-261011-bootstrap-verification.md)<br>[`docs/11-quality-testing.md`](docs/11-quality-testing.md) | Báo cáo chi tiết 47 test assertions đạt 100%, kim tự tháp test, số liệu kiểm thử thực tế. |
+| **Kế hoạch 5 Phase Bootstrap** | [`plans/261011-0753-bootstrap-foundation/plan.md`](plans/261011-0753-bootstrap-foundation/plan.md) | Toàn văn kế hoạch nền móng kỹ thuật, ranh giới file ownership, checklist từng phase. |
+| **Lộ trình 6 tuần cuối (Tuần 7-12)** | [`plans/261011-1423-project-kickoff/plan.md`](plans/261011-1423-project-kickoff/plan.md)<br>[`docs/16-project-plan.md`](docs/16-project-plan.md) | Kế hoạch WBS 12 tuần của khóa luận KLCN133, ma trận RACI và các mốc deadline. |
+| **Xác thực JWT, RTR & Phân quyền RBAC** | [`docs/07-auth-rbac.md`](docs/07-auth-rbac.md) | Cơ chế token trong memory, HttpOnly cookie, thuật toán Argon2id, scope guard `assertInScope()`. |
+| **Đặc tả REST API & Catalog mã lỗi** | [`docs/06-api-spec.md`](docs/06-api-spec.md) | Danh mục endpoints `/api/*`, bao gói chuẩn `{ items, paging }`, catalog lỗi hệ thống. |
+| **Cơ sở dữ liệu & 11 Collections** | [`docs/05-data-model.md`](docs/05-data-model.md)<br>[`docs/database-design.md`](docs/database-design.md) | Thiết kế 11 collections MongoDB Atlas, schema mapping chuỗi GUTA Cafe, atomic updates. |
+| **Lõi AI, PhoBERT & RAG Chính Sách** | [`docs/08-algorithms.md`](docs/08-algorithms.md)<br>[`docs/09-ai-evaluation.md`](docs/09-ai-evaluation.md) | Thuật toán semantic matching, bộ quy chế trích dẫn BR-15, cơ chế từ chối đoán (Abstention). |
+| **Giao diện Dark Command Center & UX** | [`docs/10-ui-ux-spec.md`](docs/10-ui-ux-spec.md)<br>[`docs/18-user-flows.md`](docs/18-user-flows.md) | Thiết kế visual timeline, bảng màu nền tối, 10 luồng người dùng (UF-01 đến UF-10). |
+| **Kiến trúc hệ thống C4 & 16 ADRs** | [`docs/02-architecture.md`](docs/02-architecture.md)<br>[`docs/03-decision-records/`](docs/03-decision-records/) | Sơ đồ C4, trần tài nguyên container, 16 quyết định kiến trúc giải thích lý do chọn công nghệ. |
+| **Quy chuẩn cộng tác cho Dev** | [`docs/AGENT-GUIDELINES.md`](docs/AGENT-GUIDELINES.md)<br>[`docs/15-engineering-conventions.md`](docs/15-engineering-conventions.md) | Quy tắc phân quyền đọc/ghi, hướng dẫn kéo nhánh, quy ước Conventional Commits. |
 
 ### Điểm nhấn cho người mới tham gia dự án (5 phút nắm bắt):
 1. **Mục tiêu & Ranh giới:** Đọc [`docs/00-vision-scope.md`](docs/00-vision-scope.md) để biết 7 chức năng bắt buộc và các rủi ro.
