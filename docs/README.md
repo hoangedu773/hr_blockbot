@@ -27,12 +27,14 @@ Chọn vai trò của bạn để đi theo luồng tài liệu tối ưu nhất:
 
 ### 1. 🎯 Dành cho PM & Tech Lead (Tổng quan & Quản lý)
 *Nắm vững phạm vi, kiến trúc hệ thống, quyết định kỹ thuật và tiến độ:*
-1. [`00-vision-scope.md`](00-vision-scope.md) — Bài toán, phạm vi 3 tầng (In-scope / Pending / Out-of-scope), 6 rủi ro chính.
-2. [`20-project-map-and-direction.md`](20-project-map-and-direction.md) — Bản đồ 3 tuyến công việc và kế hoạch hành động.
-3. [`02-architecture.md`](02-architecture.md) — Kiến trúc tổng thể C4, ràng buộc hạ tầng và fitness functions.
-4. [`03-decision-records/`](03-decision-records/) — 16 ADRs giải thích vì sao chọn/bỏ từng công nghệ.
-5. [`16-project-plan.md`](16-project-plan.md) — Kế hoạch WBS 12 tuần và ma trận phân công RACI.
-6. [`backlog-parked.md`](backlog-parked.md) — Danh sách tính năng tạm hoãn ngoài phạm vi kèm lý do.
+1. [`AGENT-GUIDELINES.md`](AGENT-GUIDELINES.md) — Hướng dẫn cộng tác dành riêng cho AI Agent & Git Worktree ownership.
+2. [`../plans/261011-1423-project-kickoff/plan.md`](../plans/261011-1423-project-kickoff/plan.md) — Kế hoạch khởi động & lộ trình 6 tuần cuối.
+3. [`00-vision-scope.md`](00-vision-scope.md) — Bài toán, phạm vi 3 tầng (In-scope / Pending / Out-of-scope), 6 rủi ro chính.
+4. [`20-project-map-and-direction.md`](20-project-map-and-direction.md) — Bản đồ 3 tuyến công việc và kế hoạch hành động.
+5. [`02-architecture.md`](02-architecture.md) — Kiến trúc tổng thể C4, ràng buộc hạ tầng và fitness functions.
+6. [`03-decision-records/`](03-decision-records/) — 16 ADRs giải thích vì sao chọn/bỏ từng công nghệ.
+7. [`16-project-plan.md`](16-project-plan.md) — Kế hoạch WBS 12 tuần và ma trận phân công RACI.
+8. [`backlog-parked.md`](backlog-parked.md) — Danh sách tính năng tạm hoãn ngoài phạm vi kèm lý do.
 
 ---
 
@@ -76,11 +78,19 @@ Chọn vai trò của bạn để đi theo luồng tài liệu tối ưu nhất:
 
 ---
 
+### 6. 🤖 Dành cho AI Agents & Đồng Nghiệp Sử Dụng Coding Agents
+*Quy chuẩn ranh giới file, nhánh Git Worktree và techstack bất biến:*
+1. [`AGENT-GUIDELINES.md`](AGENT-GUIDELINES.md) — Quy tắc bắt buộc khi Agent thực hiện code/review/test trên repo.
+2. [`../plans/261011-1423-project-kickoff/plan.md`](../plans/261011-1423-project-kickoff/plan.md) — Kế hoạch khởi động & ranh giới 4 nhánh worktree.
+
+---
+
 ## 📑 Danh mục chi tiết toàn bộ tài liệu
 
 | Nhóm tài liệu | File | Tóm tắt nội dung chính |
 |---|---|---|
-| **Cốt lõi & Định hướng** | [`00-vision-scope.md`](00-vision-scope.md) | Mục tiêu đề tài, phạm vi 3 tầng, 6 rủi ro, định nghĩa "Done". |
+| **Cốt lõi & Định hướng** | [`AGENT-GUIDELINES.md`](AGENT-GUIDELINES.md) | **Cẩm nang cho AI Agent:** Quy chuẩn nhánh, techstack cấm/cho phép, file ownership. |
+| | [`00-vision-scope.md`](00-vision-scope.md) | Mục tiêu đề tài, phạm vi 3 tầng, 6 rủi ro, định nghĩa "Done". |
 | | [`20-project-map-and-direction.md`](20-project-map-and-direction.md) | Bản đồ 3 tuyến, giải quyết mâu thuẫn tài liệu, lộ trình hành động. |
 | | [`backlog-parked.md`](backlog-parked.md) | Các hạng mục tạm gác ngoài phạm vi (Parked items). |
 | **Kiến trúc & Quyết định** | [`02-architecture.md`](02-architecture.md) | Kiến trúc C4, trần tài nguyên container, fitness functions. |
