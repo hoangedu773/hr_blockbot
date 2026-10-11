@@ -1,7 +1,7 @@
 ---
 title: "Bootstrap Foundation — Nền tảng kỹ thuật & tích hợp an toàn"
 description: "Chuẩn hóa contracts, auth JWT+RTR, Web integration, AI liveness trung thực và kiểm định E2E."
-status: in-progress
+status: completed
 priority: P1
 effort: "40h"
 branch: feat/pm-agentkit
@@ -13,7 +13,7 @@ created: 2026-10-11
 
 ## Overview
 
-Nền móng kỹ thuật để tích hợp 3 thành phần (`apps/api`, `apps/web`, `apps/ai-service`) trên monorepo + Git Worktree. Ưu tiên an ninh: bảo mật trước, đóng băng contracts chung, auth JWT + RTR fail-closed, đọc nhân sự theo dữ liệu tối thiểu, Web nối API thật, AI liveness trung thực. **Không** làm toàn bộ F1–F7; không dùng mock để qua nghiệm thu. Cổng nguồn: API 3001 (`/api`, `/api/health`), Web 5173, AI 8000. Bằng chứng tĩnh: [pm-261011-bootstrap-evidence.md](../reports/pm-261011-bootstrap-evidence.md).
+Nền móng kỹ thuật để tích hợp 3 thành phần (`apps/api`, `apps/web`, `apps/ai-service`) trên monorepo + Git Worktree. Ưu tiên an ninh: bảo mật trước, đóng băng contracts chung, auth JWT + RTR fail-closed, đọc nhân sự theo dữ liệu tối thiểu, Web nối API thật, AI liveness trung thực. **Không** làm toàn bộ F1–F7; không dùng mock để qua nghiệm thu. Cổng nguồn: API 3001 (`/api`, `/api/health`), Web 5173, AI 8000. Báo cáo kiểm định QA: [qa-261011-bootstrap-verification.md](../reports/qa-261011-bootstrap-verification.md).
 
 ## Goals
 
@@ -33,12 +33,12 @@ Nền móng kỹ thuật để tích hợp 3 thành phần (`apps/api`, `apps/we
 | 2 | [Phase 2: API auth và đọc nhân sự](./phase-02-api-auth.md) | Completed | `32f4000` (`feat/api-backend`) |
 | 3 | [Phase 3: Web tích hợp API thật](./phase-03-web-integration.md) | Completed | `b0d9cdc` (`feat/frontend-web`) |
 | 4 | [Phase 4: AI foundation](./phase-04-ai-foundation.md) | Completed | `ba08fd2` (`feat/ai-service`) |
-| 5 | [Phase 5: Kiểm định tích hợp E2E](./phase-05-integration-verification.md) | Pending | Sẵn sàng chạy E2E |
+| 5 | [Phase 5: Kiểm định tích hợp E2E](./phase-05-integration-verification.md) | Completed | 47 assertions pass, QA report |
 
 ## Dependencies & thứ tự
 
-- Phase 1-4 đã hoàn thành độc lập trên từng nhánh và đã push lên remote.
-- Phase 5 chạy kiểm thử tích hợp chéo E2E sau khi gom các nhánh hoặc chạy kiểm tra end-to-end trên staging test env.
+- Toàn bộ Phase 1-5 đã hoàn thành toàn diện, 100% assertions pass (47 tests/checks), đã báo cáo và push lên remote.
+- Hệ thống đã sẵn sàng cho Giai đoạn 2 (Tuần 8) phát triển F1 và F2.
 
 ## Architecture & Security Boundaries
 

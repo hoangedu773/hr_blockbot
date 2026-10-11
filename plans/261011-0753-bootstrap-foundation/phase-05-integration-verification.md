@@ -1,6 +1,6 @@
 ---
 title: "Phase 5: Kiểm định tích hợp E2E"
-status: pending
+status: completed
 ---
 
 # Phase 5 — QA / integration verification
@@ -24,12 +24,12 @@ Prerequisites: phase 1–4 báo DONE; các nhánh đã được **tích hợp c�
 ## Acceptance và checks
 
 Lệnh: `node scripts/verify-bootstrap.mjs` (hoặc `pnpm test:e2e` do PM thêm). Assert: auth flow, replay/family revocation, concurrency, RBAC/scope, data minimization, socket/legacy lockdown, AI health degradation.
-- [ ] Auth + auto-refresh + logout pass.
-- [ ] Replay/family revocation pass; concurrency pass.
-- [ ] RBAC/scope pass (Employee cross-user 403, Admin out-of-scope 403).
-- [ ] Zero PII trong summary/detail.
-- [ ] Socket.IO và legacy routes bị đóng/xác thực; AI health trung thực.
-- [ ] Báo cáo QA lưu; phần chưa kiểm chứng ghi rõ.
+- [x] Auth + auto-refresh + logout pass (`apps/api/test/auth.test.mjs`, `apps/web/test/web-integration.test.mjs`).
+- [x] Replay/family revocation pass; concurrency pass (`apps/api/test/auth.test.mjs` suite 6).
+- [x] RBAC/scope pass: Employee cross-user 403, Admin out-of-scope 403 (`apps/api/test/auth.test.mjs` suite 3 & 7).
+- [x] Zero PII trong summary/detail (`packages/contracts/test/contracts.test.mjs`, `apps/api/test/auth.test.mjs` suite 4).
+- [x] Socket.IO và legacy routes bị đóng/xác thực; AI health trung thực (`apps/api/test/auth.test.mjs` suite 8, `apps/ai-service/tests/test_health_probe.py`).
+- [x] Báo cáo QA lưu tại `plans/reports/qa-261011-bootstrap-verification.md`; phần chưa kiểm chứng ghi rõ.
 
 ## Dừng, rollback và báo cáo
 

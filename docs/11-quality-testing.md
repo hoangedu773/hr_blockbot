@@ -342,3 +342,19 @@ Không đóng issue thủ công khi chưa có test; nhãn `test-gaps` phải v�
 | 10 | **Tỉ lệ các tầng test + coverage `apps/ai-service` + contracts** | Nguồn không có con số → **TBD**, nhóm tự đặt kèm lý do | Tuần 9 |
 
 Dòng nào ở trên chưa có câu trả lời thì tài liệu này **giữ nguyên `TBD`**, không điền số "cho có" — theo `RESEARCH-PLAN.md` §0 nguyên tắc 1: không bịa số liệu, không giả sử ràng buộc của Khoa.
+
+---
+
+## 10. Kết Quả Kiểm Thử Thực Tế — Bootstrap Foundation (Tuần 7)
+
+> **Báo cáo chi tiết:** [`plans/reports/qa-261011-bootstrap-verification.md`](../plans/reports/qa-261011-bootstrap-verification.md)  
+> **Thời điểm đo:** 11/10/2026, 16:55 (Asia/Bangkok)  
+> **Tổng kết:** **47 assertions / checks đạt chuẩn 100% (0 Failures, 0 Regressions).**
+
+| Phân hệ / Gói | Lệnh chạy thực tế | Số lượng Test / Kịch bản | Kết quả | Nội dung kiểm chứng trọng tâm |
+|---|---|---|---|---|
+| **Shared Contracts** (`packages/contracts`) | `pnpm --filter @hr-blockbot/contracts test` | **10 / 10 pass** | ✅ 100% PASS (144ms) | Zod validation: Khóa 2 role `Admin`/`Employee`, loại bỏ PII khỏi `EmployeeSummary`, kiểm tra `EmployeeDetail` (own), pagination meta, error envelope. |
+| **Backend API** (`apps/api`) | `pnpm --filter api test:auth` | **22 / 22 pass** | ✅ 100% PASS (9.86s) | Argon2id (~19 MiB, 2 iter), jose JWT, RTR atomic conditional update, replay attack fail-closed, assertInScope guard, allowlist API `/api/employees`, 503 lockdown routes cũ. |
+| **Frontend Web** (`apps/web`) | `pnpm --filter web test`<br>`pnpm --filter web build` | **4 / 4 pass**<br>Build sạch (10.59s) | ✅ 100% PASS | In-memory token (zero storage), single-flight 401 refresh, xóa sạch `SEED_*` và toasts giả, UI preview 6 trạng thái tại `apps/web/previews/index.html`. |
+| **AI Service** (`apps/ai-service`) | `python apps/ai-service/tests/test_health_probe.py`<br>`python apps/ai-service/tests/test_vector_probe.py` | **11 / 11 pass** | ✅ 100% PASS | Xóa credentials hardcode, `/health` ping DB Atlas thật (liveness/readiness), 403 mock chat lockdown, trích dẫn BR-15 & abstention. |
+
