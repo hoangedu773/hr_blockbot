@@ -1,0 +1,96 @@
+{
+  "file": "C:\\work-space\\hr-blockbot\\previews\\db-preview.html",
+  "type": "mockup",
+  "verdict": "PASS",
+  "qualified": true,
+  "verdict_label": "PASS (with skipped/not-applicable checks)",
+  "contract": null,
+  "checks": [
+    {
+      "label": "Plan check",
+      "status": "pass"
+    },
+    {
+      "label": "Design lint (generic habits, tokens, a11y)",
+      "status": "pass"
+    },
+    {
+      "label": "Screenshots + audit",
+      "status": "pass"
+    },
+    {
+      "label": "Designer notes",
+      "status": "not-applicable"
+    },
+    {
+      "label": "assets.provenance",
+      "status": "not-applicable"
+    },
+    {
+      "label": "assets.attribution",
+      "status": "not-applicable"
+    }
+  ],
+  "failed": [],
+  "report": "C:\\work-space\\hr-blockbot\\design-check\\design-report.md",
+  "contactSheet": "C:\\work-space\\hr-blockbot\\design-check\\contact-sheet.png",
+  "screenshots": [
+    "C:\\work-space\\hr-blockbot\\design-check\\shots\\1280x800.png",
+    "C:\\work-space\\hr-blockbot\\design-check\\shots\\1440x900.png",
+    "C:\\work-space\\hr-blockbot\\design-check\\shots\\390x844.png"
+  ],
+  "audit": [
+    {
+      "viewport": "1440x900",
+      "files": [
+        "C:\\work-space\\hr-blockbot\\design-check\\shots/1440x900.png"
+      ],
+      "problems": [],
+      "warnings": [],
+      "issues": []
+    },
+    {
+      "viewport": "1280x800",
+      "files": [
+        "C:\\work-space\\hr-blockbot\\design-check\\shots/1280x800.png"
+      ],
+      "problems": [],
+      "warnings": [],
+      "issues": []
+    },
+    {
+      "viewport": "390x844",
+      "files": [
+        "C:\\work-space\\hr-blockbot\\design-check\\shots/390x844.png"
+      ],
+      "problems": [],
+      "warnings": [
+        "Lede <p.muted.cluster> \"Extract 07/10/2026 từ Google Sheet GUTA \" renders at 13px over ~5 lines (50% of the h1). Drop it one step at narrow — it should cost ≤3 lines of fold space.",
+        "Body text outside 25–85ch per line: <p.muted.cluster> \"Extract 07/10/2026 từ Google Sheet GUTA \" ≈25ch/line. Aim for 45–75ch."
+      ],
+      "issues": [
+        {
+          "rule": "lede.heavy",
+          "message": "Lede <p.muted.cluster> \"Extract 07/10/2026 từ Google Sheet GUTA \" renders at 13px over ~5 lines (50% of the h1). Drop it one step at narrow — it should cost ≤3 lines of fold space.",
+          "count": 1,
+          "samples": [
+            "<p.muted.cluster> \"Extract 07/10/2026 từ Google Sheet GUTA \""
+          ],
+          "severity": "warn",
+          "sels": [
+            "p.muted.cluster"
+          ]
+        },
+        {
+          "rule": "measure",
+          "message": "Body text outside 25–85ch per line: <p.muted.cluster> \"Extract 07/10/2026 từ Google Sheet GUTA \" ≈25ch/line. Aim for 45–75ch.",
+          "count": 1,
+          "samples": [
+            "<p.muted.cluster> \"Extract 07/10/2026 từ Google Sheet GUTA \" ≈25ch/line"
+          ],
+          "severity": "warn"
+        }
+      ]
+    }
+  ]
+}

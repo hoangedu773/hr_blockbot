@@ -30,6 +30,8 @@ Bộ tài liệu thiết kế nằm trong [`docs/`](docs/), sinh ra từ vòng r
 | [`docs/backlog-parked.md`](docs/backlog-parked.md) | Những gì bị dời ra ngoài phạm vi, kèm lý do và điều kiện mở lại |
 | [`docs/research/NOTES-01.md`](docs/research/NOTES-01.md) · [`NOTES-02.md`](docs/research/NOTES-02.md) | **Kết quả research của nhóm** — vòng 1 (B0–B15) và vòng 2 (luồng nhân sự theo ngành dọc). Nguồn sự thật của toàn bộ `docs/` |
 | [`docs/19-vertical-workforce-assessment.md`](docs/19-vertical-workforce-assessment.md) | Đánh giá vòng 2: kiểm chứng từng URL, quyết định LÀM / CÂN NHẮC / PARK, và những gì đã vá vào docs |
+| [`docs/research/NOTES-03.md`](docs/research/NOTES-03.md) | Research vòng 3 (**có URL**): pháp lý tiền lương 2026 · thị trường HRM VN · AI/NLP tiếng Việt · workforce ops F&B |
+| [`docs/20-project-map-and-direction.md`](docs/20-project-map-and-direction.md) | Bản đồ 3 tuyến công việc (khóa luận · VietHR Core · dữ liệu GUTA), định hướng và khung plan phục hồi 6 tuần cuối |
 | [`docs/research/B0-worksheet.md`](docs/research/B0-worksheet.md) | Phiếu trống để đối chiếu các hệ thống HRM thông minh |
 
 **Lưu ý trung thực:** nhiều con số trong `NOTES-01` **mất URL nguồn khi paste**, nên các file thiết kế đánh dấu

@@ -1,0 +1,54 @@
+[
+  {
+    "viewport": "1440x900",
+    "files": [
+      "C:\\work-space\\hr-blockbot\\design-check\\shots/1440x900.png"
+    ],
+    "problems": [],
+    "warnings": [],
+    "issues": []
+  },
+  {
+    "viewport": "1280x800",
+    "files": [
+      "C:\\work-space\\hr-blockbot\\design-check\\shots/1280x800.png"
+    ],
+    "problems": [],
+    "warnings": [],
+    "issues": []
+  },
+  {
+    "viewport": "390x844",
+    "files": [
+      "C:\\work-space\\hr-blockbot\\design-check\\shots/390x844.png"
+    ],
+    "problems": [],
+    "warnings": [
+      "Lede <p.muted.cluster> \"Extract 07/10/2026 từ Google Sheet GUTA \" renders at 13px over ~5 lines (50% of the h1). Drop it one step at narrow — it should cost ≤3 lines of fold space.",
+      "Body text outside 25–85ch per line: <p.muted.cluster> \"Extract 07/10/2026 từ Google Sheet GUTA \" ≈25ch/line. Aim for 45–75ch."
+    ],
+    "issues": [
+      {
+        "rule": "lede.heavy",
+        "message": "Lede <p.muted.cluster> \"Extract 07/10/2026 từ Google Sheet GUTA \" renders at 13px over ~5 lines (50% of the h1). Drop it one step at narrow — it should cost ≤3 lines of fold space.",
+        "count": 1,
+        "samples": [
+          "<p.muted.cluster> \"Extract 07/10/2026 từ Google Sheet GUTA \""
+        ],
+        "severity": "warn",
+        "sels": [
+          "p.muted.cluster"
+        ]
+      },
+      {
+        "rule": "measure",
+        "message": "Body text outside 25–85ch per line: <p.muted.cluster> \"Extract 07/10/2026 từ Google Sheet GUTA \" ≈25ch/line. Aim for 45–75ch.",
+        "count": 1,
+        "samples": [
+          "<p.muted.cluster> \"Extract 07/10/2026 từ Google Sheet GUTA \" ≈25ch/line"
+        ],
+        "severity": "warn"
+      }
+    ]
+  }
+]

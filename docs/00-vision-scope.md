@@ -5,6 +5,12 @@ Nguồn đầu bài: [`KLCN133_TranVietHung.docx`](KLCN133_TranVietHung.docx) ·
 Bằng chứng research: [`research/NOTES-01.md`](research/NOTES-01.md) ·
 Kế hoạch: [`research/RESEARCH-PLAN.md`](research/RESEARCH-PLAN.md)
 
+> **Cập nhật 06/10/2026 (tuần 7/12):** dự án chưa có mã nguồn, lịch của `16-project-plan.md` đã trễ so với thực tế.
+> Repo hiện có **ba tuyến công việc** (khóa luận · VietHR Core · dữ liệu GUTA) — bản đồ, định hướng khuyến nghị và
+> khung plan phục hồi 6 tuần: [`20-project-map-and-direction.md`](20-project-map-and-direction.md).
+> Research vòng 3 (có URL, vá nợ `[CẦN NGUỒN]`): [`research/NOTES-03.md`](research/NOTES-03.md).
+> Phạm vi F1–F7 và các ràng buộc dưới đây **giữ nguyên** — mọi điều chỉnh phạm vi đi qua doc 20 và GVHD.
+
 ---
 
 ## 1. Vấn đề

@@ -28,6 +28,10 @@ Nguồn của file này:
 > cách đánh số dưới đây, trong khi `RESEARCH-PLAN.md` §6 xếp B0/B1/B2/B11/B12 vào **tuần 0–1**. Đây là một
 > trong những thứ thuộc câu hỏi §7.4 ("bảng công việc theo tuần liệt kê 14 mục nhưng thời gian ghi 12 tuần →
 > mục nào gộp") — **phải chốt lại với GVHD, không tự sửa lịch cho khớp**.
+>
+> **Cập nhật 06/10/2026 (tuần 7):** các tuần 1–6 của bảng dưới chưa được thực hiện (repo chưa có monorepo/CI/DB).
+> Lịch phục hồi tuần 7–12 được dựng tại [`20-project-map-and-direction.md`](20-project-map-and-direction.md) §4;
+> bảng dưới giữ nguyên làm cơ sở đối chiếu — câu hỏi §7.4 vẫn trình GVHD, không tự sửa lịch trong file này.
 
 ---
 
