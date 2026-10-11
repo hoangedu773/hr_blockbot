@@ -1,6 +1,160 @@
 import { z } from "zod";
 
-// --- Employee Schema ---
+// ============================================================================
+// 1. Core Auth & RBAC Schemas
+// ============================================================================
+
+export const UserRoleSchema = z.enum(["Admin", "Employee"]);
+export type UserRole = z.infer<typeof UserRoleSchema>;
+
+export const AuthUserSchema = z.object({
+  id: z.string(),
+  role: UserRoleSchema,
+});
+export type AuthUser = z.infer<typeof AuthUserSchema>;
+
+export const LoginRequestSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+export type LoginRequest = z.infer<typeof LoginRequestSchema>;
+
+/**
+ * Login response body - chứa Access Token và user identity.
+ * Refresh Token TUYỆT ĐỐI KHÔNG có trong body, chỉ được truyền qua cookie HttpOnly.
+ */
+export const LoginResponseSchema = z.object({
+  accessToken: z.string(),
+  user: AuthUserSchema,
+});
+export type LoginResponse = z.infer<typeof LoginResponseSchema>;
+export type AuthTokens = LoginResponse;
+
+/**
+ * Refresh response body - chứa Access Token mới.
+ * Refresh Token mới TUYỆT ĐỐI KHÔNG có trong body, chỉ được set qua cookie HttpOnly.
+ */
+export const RefreshResponseSchema = z.object({
+  accessToken: z.string(),
+});
+export type RefreshResponse = z.infer<typeof RefreshResponseSchema>;
+
+export const EmployeeLevelSchema = z.enum(["Intern", "Junior", "Middle", "Senior", "Lead"]);
+export type EmployeeLevel = z.infer<typeof EmployeeLevelSchema>;
+
+export const MeResponseSchema = z.object({
+  userId: z.string(),
+  role: UserRoleSchema,
+  employeeId: z.string().nullable().optional(),
+  departmentId: z.string().nullable().optional(),
+  level: EmployeeLevelSchema.nullable().optional(),
+  skills: z.array(z.string()).default([]),
+});
+export type MeResponse = z.infer<typeof MeResponseSchema>;
+
+// ============================================================================
+// 2. Employee Public DTOs (Data Minimization / Allowlist Only)
+// ============================================================================
+
+export const EmployeeStatusSchema = z.enum(["active", "inactive"]);
+export type EmployeeStatus = z.infer<typeof EmployeeStatusSchema>;
+
+/**
+ * Public Employee Summary - Allowlist tối thiểu (Admin list / cross-user query).
+ * TUYỆT ĐỐI KHÔNG chứa: bank, phone, CCCD, salary, hiredAt, leave_reason, internal reviews.
+ */
+export const EmployeeSummarySchema = z.object({
+  employeeId: z.string(),
+  fullName: z.string(),
+  level: EmployeeLevelSchema,
+  department: z.string(),
+  skills: z.array(z.string()),
+  activeLoad: z.number().int().nonnegative().nullable().optional(),
+  status: EmployeeStatusSchema,
+});
+export type EmployeeSummary = z.infer<typeof EmployeeSummarySchema>;
+
+/**
+ * Own Employee Detail - Allowlist cho hồ sơ chính chủ.
+ * Cho phép xem phone, hiredAt, employeeCode của chính mình.
+ * TUYỆT ĐỐI KHÔNG chứa: bank_name, bank_account_number, bank_account_raw, leave_reason, salary, CCCD.
+ */
+export const EmployeeDetailSchema = EmployeeSummarySchema.extend({
+  employeeCode: z.string(),
+  departmentId: z.string().optional(),
+  phone: z.string().nullable().optional(),
+  hiredAt: z.string().nullable().optional(),
+});
+export type EmployeeDetail = z.infer<typeof EmployeeDetailSchema>;
+
+// ============================================================================
+// 3. Pagination & Envelope Schemas
+// ============================================================================
+
+export const PaginationQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+});
+export type PaginationQuery = z.infer<typeof PaginationQuerySchema>;
+
+export const PaginationMetaSchema = z.object({
+  page: z.number().int().positive(),
+  limit: z.number().int().positive(),
+  totalItems: z.number().int().nonnegative(),
+  totalPages: z.number().int().nonnegative(),
+  hasNext: z.boolean(),
+  hasPrev: z.boolean(),
+});
+export type PaginationMeta = z.infer<typeof PaginationMetaSchema>;
+
+export const PaginatedEmployeesResponseSchema = z.object({
+  items: z.array(EmployeeSummarySchema),
+  paging: PaginationMetaSchema,
+});
+export type PaginatedEmployeesResponse = z.infer<typeof PaginatedEmployeesResponseSchema>;
+
+// ============================================================================
+// 4. Standard Error Catalog & Envelope
+// ============================================================================
+
+export const ErrorCodeSchema = z.enum([
+  "VALIDATION_FAILED",
+  "UNAUTHENTICATED",
+  "TOKEN_REUSED",
+  "RBAC_DENIED",
+  "NOT_ASSIGNEE",
+  "SELF_APPROVAL",
+  "CONFIRMATION_REQUIRED",
+  "ILLEGAL_STATE_TRANSITION",
+  "PROJECT_VERSION_CONFLICT",
+  "DUPLICATE_KEY",
+  "RESOURCE_NOT_FOUND",
+  "LOW_CONFIDENCE_ABSTENTION",
+  "AI_SERVICE_UNAVAILABLE",
+  "AI_SERVICE_TIMEOUT",
+  "QUOTA_EXCEEDED",
+  "INTERNAL_ERROR",
+  "DUPLICATE_REQUEST",
+]);
+export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
+
+export const ApiErrorPayloadSchema = z.object({
+  code: ErrorCodeSchema.or(z.string()),
+  message: z.string(),
+  details: z.record(z.unknown()).optional(),
+  correlationId: z.string().optional(),
+});
+export type ApiErrorPayload = z.infer<typeof ApiErrorPayloadSchema>;
+
+export const ApiErrorResponseSchema = z.object({
+  error: ApiErrorPayloadSchema,
+});
+export type ApiErrorResponse = z.infer<typeof ApiErrorResponseSchema>;
+
+// ============================================================================
+// 5. Internal Raw Schemas (MongoDB / Extraction ETL Only - CẤM dùng làm public API response)
+// ============================================================================
+
 export const EmployeeSchema = z.object({
   _id: z.string().optional(),
   employee_code: z.string(),
@@ -18,7 +172,6 @@ export const EmployeeSchema = z.object({
 });
 export type Employee = z.infer<typeof EmployeeSchema>;
 
-// --- Store Schema ---
 export const StoreSchema = z.object({
   _id: z.string().optional(),
   store_name: z.string(),
@@ -26,7 +179,6 @@ export const StoreSchema = z.object({
 });
 export type Store = z.infer<typeof StoreSchema>;
 
-// --- Schedule Entry Schema ---
 export const ScheduleEntrySchema = z.object({
   _id: z.string().optional(),
   id: z.number().optional(),
@@ -43,7 +195,6 @@ export const ScheduleEntrySchema = z.object({
 });
 export type ScheduleEntry = z.infer<typeof ScheduleEntrySchema>;
 
-// --- Schedule Week Schema ---
 export const ScheduleWeekSchema = z.object({
   _id: z.string().optional(),
   sheet_name: z.string(),
@@ -52,7 +203,6 @@ export const ScheduleWeekSchema = z.object({
 });
 export type ScheduleWeek = z.infer<typeof ScheduleWeekSchema>;
 
-// --- Attendance Correction Schema ---
 export const AttendanceCorrectionSchema = z.object({
   _id: z.string().optional(),
   id: z.number().optional(),
@@ -70,7 +220,6 @@ export const AttendanceCorrectionSchema = z.object({
 });
 export type AttendanceCorrection = z.infer<typeof AttendanceCorrectionSchema>;
 
-// --- Cash Count Schema ---
 export const CashCountSchema = z.object({
   _id: z.string().optional(),
   id: z.number().optional(),
@@ -82,7 +231,6 @@ export const CashCountSchema = z.object({
 });
 export type CashCount = z.infer<typeof CashCountSchema>;
 
-// --- Cash Denomination Schema ---
 export const CashDenominationSchema = z.object({
   _id: z.string().optional(),
   id: z.number().optional(),
@@ -93,7 +241,6 @@ export const CashDenominationSchema = z.object({
 });
 export type CashDenomination = z.infer<typeof CashDenominationSchema>;
 
-// --- Cash Summary Schema ---
 export const CashSummarySchema = z.object({
   _id: z.string().optional(),
   id: z.number().optional(),
@@ -105,7 +252,6 @@ export const CashSummarySchema = z.object({
 });
 export type CashSummary = z.infer<typeof CashSummarySchema>;
 
-// --- Chat & Copilot Messages ---
 export const ChatMessageSchema = z.object({
   id: z.string(),
   sender: z.enum(["user", "bot", "system"]),
@@ -118,7 +264,6 @@ export const ChatMessageSchema = z.object({
 });
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 
-// --- RAG Query & Answer ---
 export const RagQueryRequestSchema = z.object({
   question: z.string(),
   store_name: z.string().optional(),

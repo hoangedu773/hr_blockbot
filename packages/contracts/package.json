@@ -5,7 +5,9 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/**/*.test.mjs",
+    "generate:openapi": "node -e \"console.error('[contracts] OpenAPI generation not implemented: @asteasolutions/zod-to-openapi tooling not installed; deferred pending manifest approval. Target: openapi/openapi.json'); process.exit(1)\""
   },
   "dependencies": {
     "zod": "^3.23.8"

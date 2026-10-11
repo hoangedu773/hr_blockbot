@@ -36,10 +36,13 @@ hr_blockbot/
 ```
 
 ### Quy tắc bất biến cho Agent (Invariants):
-1. **Không can thiệp chéo app:** 
-   - Agent trên nhánh `feat/frontend-web` chỉ được đọc và sửa file trong `apps/web/`.
-   - Agent trên nhánh `feat/api-backend` chỉ được đọc và sửa file trong `apps/api/`.
-   - Agent trên nhánh `feat/ai-service` chỉ được đọc và sửa file trong `apps/ai-service/`.
+1. **Phân quyền đọc/ghi minh bạch (Read/Write Boundaries):**
+   - **Quyền đọc chung (Read-only):** Mọi Agent trên các nhánh dev (`feat/frontend-web`, `feat/api-backend`, `feat/ai-service`) được phép đọc **READ-ONLY** các thư mục dùng chung: `packages/contracts/**`, `docs/**`, và `plans/**` để đối chiếu hợp đồng, spec và kế hoạch kỹ thuật.
+   - **Quyền ghi cô lập (Write isolation):** Quyền ghi bị cô lập nghiêm ngặt theo từng ứng dụng được giao:
+     - Agent trên nhánh `feat/frontend-web` chỉ được ghi/sửa file trong `apps/web/`.
+     - Agent trên nhánh `feat/api-backend` chỉ được ghi/sửa file trong `apps/api/`.
+     - Agent trên nhánh `feat/ai-service` chỉ được ghi/sửa file trong `apps/ai-service/`.
+     - Tuyệt đối không can thiệp ghi chéo app hoặc tự ý sửa `packages/**`, `docs/**`, `plans/**` trên nhánh dev.
 2. **Sửa đổi schema dùng chung:** Nếu cần thêm trường hoặc đổi type dữ liệu, phải tạo đề xuất/PR vào `packages/contracts` trên nhánh `feat/pm-agentkit`. Không tự ý định nghĩa kiểu cục bộ sai lệch contract chung.
 3. **Surgical Changes (Sửa đổi vi phẫu):** Chỉ chạm đúng những dòng cần sửa; không tự ý format lại toàn bộ file, không sửa comment hoặc refactor code xung quanh ngoài phạm vi task.
 

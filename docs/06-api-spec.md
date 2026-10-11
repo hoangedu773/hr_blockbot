@@ -32,14 +32,15 @@ Quy ước chung (`SUY DIỄN` về cú pháp, vì nguồn không đặt):
 
 | Mục | Quy ước |
 |---|---|
-| Prefix | `/auth`, `/employees`, `/departments`, `/projects`, `/reports`, `/evaluations`, `/policies`, `/notifications` — mỗi module một tài nguyên số nhiều, khớp tên collection ở `05 §3` |
+| Prefix canonical | Toàn bộ REST API mount dưới `/api`: `/api/auth`, `/api/employees`, `/api/departments`, `/api/projects`, `/api/reports`, `/api/evaluations`, `/api/policies`, `/api/notifications` |
 | Content type | `application/json; charset=utf-8`; UTF-8 là bắt buộc vì toàn bộ dữ liệu là tiếng Việt (`B5`: PhoBERT cần tiếng Việt đã word-segmented) |
 | Auth | `Authorization: Bearer <Access Token>`; RT nằm ở cookie `HttpOnly + Secure + SameSite` (`B3`) |
 | Idempotency | mọi endpoint ghi nhận `clientMessageId` trong body — field này đã có trong `project_events` (`05 §3.5`) và là luật `B7` |
 | Error envelope | `{ error: { code, message, details?, correlationId? } }` — `code` lấy **duy nhất** từ catalog §5 (`SUY DIỄN` về hình thức bao gói; nguồn không định nghĩa envelope → `02 §7.5` ghi "Không có danh sách error code trong tài liệu này") |
 | Ngày giờ | ISO 8601, UTC, trường `Date` của `05` |
 | `departmentId` | `ObjectId` hoặc **mã phòng ban** — nguồn mâu thuẫn (`B15` ví dụ `"DEV"` vs `B4` index kiểu ObjectId) → xem §8 D-03; service resolve `code → _id` |
-| Phân trang | **chưa chốt**: `RP §3 B4` hỏi "offset vs cursor", `NOTES-01` không trả lời → tên tham số là `TBD`; cột "Index phục vụ" ở các bảng dưới là phần đã chốt |
+| Phân trang canonical | Query chuẩn: `page : number (default 1, >= 1)` và `limit : number (default 20, max 100)`. Response chuẩn dạng envelope `{ items: [...], paging: { page, limit, totalItems, totalPages, hasNext, hasPrev } }` |
+| Định danh nhân sự | `:id` trong `/api/employees/:id` là **MongoDB ObjectId** (24 hex characters). `employee_code` (`employeeCode`) là trường định danh nghiệp vụ phục vụ tìm kiếm/bộ lọc (`?q=` hoặc `?employeeCode=`), TUYỆT ĐỐI KHÔNG dùng `employee_code` làm `:id` URL param. |
 
 ## 2. Bảng endpoint REST theo module
 
@@ -64,8 +65,8 @@ Không có endpoint `PUT /auth/password` hay "khoá tài khoản sau N lần sai
 
 | Method | Path | Vai | Request | Response | Mã lỗi | Idempotency | Index / filter |
 |---|---|---|---|---|---|---|---|
-| GET | `/employees` | `Admin` | filter: `departmentId?`, `level?` (`Intern\|Junior\|Middle\|Senior\|Lead`), `skill?`, `q?` (theo `employeeCode`); phân trang `TBD` | `200 { items: [EmployeeSummaryDto], paging: TBD }` — **chỉ allowlist**, xem "Quy tắc dữ liệu tối thiểu" cuối §2.2; `Admin` chỉ nhận kết quả trong `departmentId` được gán (`07 §7.4`) | `RBAC_DENIED` (403), `VALIDATION_FAILED` (400) | Idempotent (đọc) | `employees.departmentId` — I-15; `employeeCode` UNIQUE — I-01. Text index trên `skills` **chưa chốt** (`05 §4.3`, I-20 `[CẦN NGUỒN]`) → lọc skill làm bằng query terms trên `skills[]` (`SUY DIỄN`) |
-| GET | `/employees/:id` | `Admin`; `Employee` **chỉ own** | — | `200 EmployeeDto` — **own**: hồ sơ đầy đủ của chính mình; **người khác**: `EmployeeSummaryDto` theo allowlist (`19` §2.3(b)) | `RBAC_DENIED` (403), `RESOURCE_NOT_FOUND` (404) | Idempotent (đọc) | `employees._id`; đường own đi I-14 |
+| GET | `/api/employees` | `Admin` | filter: `departmentId?`, `level?` (`Intern\|Junior\|Middle\|Senior\|Lead`), `skill?`, `q?` (tìm kiếm theo `employeeCode` hoặc tên); phân trang `page? : number (default 1)`, `limit? : number (default 20, max 100)` | `200 { items: [EmployeeSummaryDto], paging: PaginationMeta }` — **chỉ allowlist**, xem "Quy tắc dữ liệu tối thiểu" cuối §2.2; `Admin` chỉ nhận kết quả trong `departmentId` được gán (`07 §7.4`) | `RBAC_DENIED` (403), `VALIDATION_FAILED` (400) | Idempotent (đọc) | `employees.departmentId` — I-15; `employeeCode` UNIQUE — I-01. Text index trên `skills` **chưa chốt** (`05 §4.3`, I-20 `[CẦN NGUỒN]`) → lọc skill làm bằng query terms trên `skills[]` (`SUY DIỄN`) |
+| GET | `/api/employees/:id` | `Admin`; `Employee` **chỉ own** | `:id : ObjectId (hex 24 ký tự)`. Không dùng `employeeCode` làm `:id`. | `200 EmployeeDto` — **own**: `EmployeeDetailDto` (hồ sơ của chính mình theo allowlist); **người khác**: `EmployeeSummaryDto` theo allowlist (`19` §2.3(b)) | `RBAC_DENIED` (403), `RESOURCE_NOT_FOUND` (404) | Idempotent (đọc) | `employees._id`; đường own đi I-14 |
 | PATCH | `/employees/:id` | `Admin`; `Employee` own, **nhóm không nhạy cảm** | `phone?`, `skills?`, … + `clientMessageId : string : required` | `200 EmployeeDto` | `VALIDATION_FAILED` (400), `RBAC_DENIED` (403), `DUPLICATE_KEY` (409 — trùng `employeeCode`) | Replay cùng `clientMessageId` → trả chính kết quả cũ, không ghi lần hai | `_id` |
 | POST | `/employees` | `Admin` | `employeeCode : string : required, UNIQUE`<br>`fullName : string : required`<br>`departmentId : ObjectId : required`<br>`level : enum5 : required`<br>`skills : string[] : required (rỗng được)` | `201 EmployeeDto` | `VALIDATION_FAILED` (400), `DUPLICATE_KEY` (409) | Không idempotent theo `clientMessageId` ở tầng REST → một lần bấm = một bản ghi (`SUY DIỄN` — `employeeCode` UNIQUE là thứ chặn trùng thật sự, I-01) | I-01 |
 | GET | `/employees/:id/kpi-history` | `Admin`; `Employee` own | filter: `period?` | `200 { items: [EvaluationDto] }` | `RBAC_DENIED` (403) | Idempotent (đọc) | `evaluations (employeeId, period)` — I-06; `(period)` — I-16 |
@@ -186,7 +187,7 @@ phải đi qua bảng transition (`04 §7`).
 | POST | `/policies/:id/reindex` | `Admin` | — | `202 { policyId, chunks }` | `RESOURCE_NOT_FOUND` (404), `AI_SERVICE_UNAVAILABLE` (503), `QUOTA_EXCEEDED` (429 — provider embedding hết hạn mức, `B6`) | Chạy lại an toàn: re-embed toàn bộ chunk của một policy (`SUY DIỄN`) | I-10 |
 | POST | `/policies/search` | cả hai (`search_policy` — read, **không** confirm) | `query : string : required`<br>`topK? : number` | `200 { answers: [{ text, document, version, source, score }] }` — `score` là **điểm retrieval**, không phải xác suất đúng (`B13`) | `QUOTA_EXCEEDED` (429), `AI_SERVICE_UNAVAILABLE` (503), `VALIDATION_FAILED` (400) | Idempotent (đọc) | **I-10** Atlas Vector Search top-K chunks |
 
-`LOW_CONFIDENCE_ABNSTENTION` (§5) là kết quả **hợp lệ**, không phải lỗi: `B0` UF-10 "không đủ bằng chứng → từ
+`LOW_CONFIDENCE_ABSTENTION` (§5) là kết quả **hợp lệ**, không phải lỗi: `B0` UF-10 "không đủ bằng chứng → từ
 chối đoán". Import policy **không** có tool chatbot (`18` bước 8 của UF-10).
 
 ### 2.8 `notifications` (C5)
@@ -322,7 +323,7 @@ Chỉ dùng mã mà nghiệp vụ trong nguồn **thật sự sinh ra**. Cột "
 | `PROJECT_VERSION_CONFLICT` | 409 | Điều kiện `(_id, status: expected, version: v)` không khớp: hai người cùng sửa / cùng bấm approve | `05 §5.2/.3`; `04` BR-02 | Đọc `details.actual` (document hiện tại) và **reload form**, người dùng bấm lại có ý thức; **không** auto-merge |
 | `DUPLICATE_KEY` | 409 | Vi phạm UNIQUE: `employees.employeeCode` (I-01), `evaluations (employeeId, period)` (I-06), `refresh_sessions.tokenHash` (I-08), `notifications (userId, dedupeKey)` (I-17) | `B4` index; `05 §3` | Báo "bản ghi đã tồn tại" kèm giá trị trùng; job digest **bỏ qua** đây là hành vi đúng khi retry |
 | `RESOURCE_NOT_FOUND` | 404 | `_id` không tồn tại hoặc bị lọc mất bởi scope ownership (BR-16) | `B6` phân vùng own/department (`07 §7.1`) | Hiển thị empty state; **không** tiết lộ sự tồn tại của tài nguyên ngoài scope |
-| `LOW_CONFIDENCE_ABNSTENTION` | 200 | Điểm sau calibration dưới ngưỡng → **không đoán**, hỏi lại; retrieval không đủ bằng chứng → từ chối trả lời | `B13`; `B0` UF-10 "không đủ bằng chứng → từ chối đoán"; BR-10, BR-15 | Không phải lỗi. Hiển thị câu hỏi làm rõ ("Anh/chị đã làm React chưa?") hoặc "chưa có trong tài liệu chính sách"; **không** hiển thị gợi ý nào |
+| `LOW_CONFIDENCE_ABSTENTION` | 200 | Điểm sau calibration dưới ngưỡng → **không đoán**, hỏi lại; retrieval không đủ bằng chứng → từ chối trả lời | `B13`; `B0` UF-10 "không đủ bằng chứng → từ chối đoán"; BR-10, BR-15 | Không phải lỗi. Hiển thị câu hỏi làm rõ ("Anh/chị đã làm React chưa?") hoặc "chưa có trong tài liệu chính sách"; **không** hiển thị gợi ý nào |
 | `AI_SERVICE_UNAVAILABLE` | 503 | `apps/ai-service` không trả lời (cold start, OOM, VPS chưa đủ RAM — con số `TBD` `[CẦN NGUỒN]`) | kiến trúc `B5`/kết luận `NOTES-01`; `02 §6` hàng `apps/ai-service` | Với tool đọc: báo "không dùng được lúc này" + cho phép thử lại. Với mutation: **không** đổi trạng thái nghiệp vụ |
 | `AI_SERVICE_TIMEOUT` | 504 | Vượt `toolTimeout`/`LLM timeout` của guard; `max tool result size` | `B6` guard; BR-19 | Phát `chat:error` với `retryable: true`; loop **dừng ở `maxSteps = 5`**, không tự nối thêm bước |
 | `QUOTA_EXCEEDED` | 429 | Provider LLM/embedding chạm hạn mức free tier (`B6`: Groq nhiều model 30 RPM; `gpt-oss-120b` ~1.000 RPD, 8K TPM) | `B6`; `RP §9` S9 | Hiển thị "vượt hạn mức", kích hoạt con đường **graceful degradation** (S9) nếu đã bật; **không** spam retry. Số lần thử lại và backoff: `TBD` (nguồn không đặt) |
@@ -359,11 +360,11 @@ chỉ được `apps/api` gọi.
 | # | Method + path | Vai trò | Request | Response | Lỗi | Nguồn |
 |---|---|---|---|---|---|---|
 | IN-01 | POST `/internal/embeddings` | text → vector (nền của `search_policy`, `find_candidates`) | `model : string : required` (tên checkpoint đã pin)<br>`texts : string[] : required`<br>`normalize : boolean` | `items : [{ text, vector : number[], dims : number, model }]` | `VALIDATION_FAILED`, `AI_SERVICE_UNAVAILABLE`, `AI_SERVICE_TIMEOUT`, `QUOTA_EXCEEDED` | `B6` flow "chunk → embedding"; `B5` (4 model ứng viên: TF-IDF/BM25, PhoBERT mean-pool, multilingual-e5-small 384 dims, MiniLM 384 dims) |
-| IN-02 | POST `/internal/rank-candidates` | tool `find_candidates` → `aiService.rankCandidates()` (`B0`) | `requirement : { projectId, title, description?, requiredSkills : string[] }`<br>`candidates : [{ employeeId, skills : string[], level, activeLoad }]`<br>`topK : number`<br>`strategy : enum : TBD` (tên chiến lược embedding — **chưa khoá dataset/model**, `B5`) | `items : [{ employeeId, rawScore : number, rank, calibrated? : number }]`<br>`abstain : boolean` + `clarify? : { ask : string }` (S2) | như IN-01 + `LOW_CONFIDENCE_ABNSTENTION` (200) | `B5` (cosine + threshold tuning + top-K ranking + **tie-break bằng workload**), `B6`, `B13` |
+| IN-02 | POST `/internal/rank-candidates` | tool `find_candidates` → `aiService.rankCandidates()` (`B0`) | `requirement : { projectId, title, description?, requiredSkills : string[] }`<br>`candidates : [{ employeeId, skills : string[], level, activeLoad }]`<br>`topK : number`<br>`strategy : enum : TBD` (tên chiến lược embedding — **chưa khoá dataset/model**, `B5`) | `items : [{ employeeId, rawScore : number, rank, calibrated? : number }]`<br>`abstain : boolean` + `clarify? : { ask : string }` (S2) | như IN-01 + `LOW_CONFIDENCE_ABSTENTION` (200) | `B5` (cosine + threshold tuning + top-K ranking + **tie-break bằng workload**), `B6`, `B13` |
 | IN-03 | POST `/internal/explain-match` | tool `explain_candidate_match` — card "bằng chứng" | `projectId`, `employeeId`, `skills[]`, `requiredSkills[]`, `rawScore` | `contributions : [{ skill, delta }]` + `workloadPenalty` + `method : 'skill-to-skill-cosine' \| 'leave-one-skill-out'` | như IN-01 | `B14` (chọn skill-to-skill cosine + leave-one-out; **cấm** attention; số trong card chỉ minh hoạ **format**) |
 | IN-04 | POST `/internal/calibrate` | hiệu chuẩn điểm cosine → xác suất ước lượng trước khi cắt ngưỡng | `rawScores : number[]`, `model : string`, `thresholdPolicy : string : TBD` | `probabilities : number[]`, `threshold : number : TBD`, `metrics? : { ece, brier }` | như IN-01 | `B13` (Platt / logistic; cosine 0.82 **không** phải 82% xác suất) — **path do docs đặt** `SUY DIỄN` |
 | IN-05 | POST `/internal/sentiment` | F5: phân tích `selfReview` + `managerReview` | `evaluationId`, `selfReview? : string`, `managerReview : string`, `objectiveCompletionScore : number` | `sentiment`, `themes : string[]`, `riskSignals : string[]`, `suggestedScoreComponent : number`, `explanation : string` — **chỉ 5 field này** | như IN-01 + `VALIDATION_FAILED` nếu response chứa điểm tổng | `B6` "AI chỉ tạo: sentiment \| themes \| risk signals \| suggested score component \| explanation"; BR-07 |
-| IN-06 | POST `/internal/policy/retrieve` | top-K chunk cho RAG chính sách | `query : string`, `topK : number` | `chunks : [{ policyId, order, text, document, version, source, score }]` | như IN-01; thiếu bằng chứng → `LOW_CONFIDENCE_ABNSTENTION` ở tầng tool | `B6` "Policy documents → chunk → embedding → Atlas Vector Search → top-K chunks"; `B0` UF-10 |
+| IN-06 | POST `/internal/policy/retrieve` | top-K chunk cho RAG chính sách | `query : string`, `topK : number` | `chunks : [{ policyId, order, text, document, version, source, score }]` | như IN-01; thiếu bằng chứng → `LOW_CONFIDENCE_ABSTENTION` ở tầng tool | `B6` "Policy documents → chunk → embedding → Atlas Vector Search → top-K chunks"; `B0` UF-10 |
 | IN-07 | GET `/internal/health` | readiness — service có ngủ đông/warm-up không | — | `200 { ready : boolean, loadedModels : string[] }` | `503` khi model chưa warm | `02 §6` (warm embedding), `B1` (wake-up có thể ~1 phút) |
 
 **IN-06 có thể không tồn tại**: nếu agent loop nằm ở `apps/ai-service` thì `search_policy` chạy luôn trong
@@ -412,6 +413,31 @@ Toàn bộ các con số hạ tầng này `[CẦN NGUỒN]` (`NOTES-01` mục "C
 | D-14 | **Tên tool cho phản hồi phân công** chưa tồn tại trong catalog 15 tool của `B6`; `E-01` ràng buộc `tool` phải thuộc danh sách đóng đó | §2.4 (endpoint acknowledgement chạy được nhưng chatbot chưa gọi được) + §2.9.1 | `19` §3 ghi "3 intent chatbot mới" nhưng không đặt tên tool — `[CẦN NGUỒN]` | nhóm (`18-user-flows.md`, đang được người khác sửa) |
 | D-15 | **Đường "xử lý phản hồi" phân công chưa tồn tại**: `POST /projects/:id/assign` chỉ hợp lệ ở `DRAFT`, nên không gán lại được đề tài `ASSIGNED`; cũng chưa có endpoint/transition nào để *đóng* một phản hồi `DECLINED`/`CHANGE_REQUESTED` | §2.4 (endpoint acknowledgement ghi được phản hồi nhưng **không có** cửa nào để resolve) | `04 §9` Q-10; docs **không** được claim reassign | GVHD + nhóm |
 | D-16 | **Stale-response race**: phản hồi ghi `project_events` **không** đổi `projects.version` (BR-21) → phản hồi tạo trước khi Admin gán lại/xử lý vẫn được đọc là "đang hiệu lực"; chưa có luật nào vô hiệu hoá | §2.4 (idempotency chỉ theo `clientMessageId`, không theo mốc gán lại) | `04 §9` Q-11 | nhóm + GVHD |
+
+---
+
+## 8.1 Quyết định kỹ thuật Bootstrap & Đề xuất chờ Lead phê duyệt (Phase 1)
+
+### A. Quyết định kỹ thuật đã chốt (Canonical Contract Baseline)
+1. **API Prefix Canonical:** `/api` là prefix thống nhất cho toàn bộ endpoints backend (REST + health): `/api/auth/*`, `/api/employees/*`, `/api/health`.
+2. **Detail Route & Param:** `/api/employees/:id` trong đó `:id` bắt buộc là **MongoDB ObjectId** (24 hex characters). Trường `employee_code` (`employeeCode`) là mã nghiệp vụ, chỉ dùng làm query param tìm kiếm (`GET /api/employees?q=...`), tuyệt đối không dùng thay thế ObjectId.
+3. **List Envelope & Pagination:** Response danh sách trả về `{ items: [EmployeeSummaryDto], paging: PaginationMeta }`. Query phân trang chuẩn `page` (mặc định 1) và `limit` (mặc định 20, max 100).
+4. **Error Envelope:** `{ error: { code: ErrorCode, message: string, details?: object, correlationId?: string } }`.
+5. **Token Security:** Access Token nằm trong memory (body response khi login/refresh); Refresh Token **CHỈ** truyền qua cookie `HttpOnly; Secure; SameSite`, không bao giờ nằm trong response body.
+
+### B. Đề xuất mapping & identity — CHỜ LEAD PHÊ DUYỆT (Không tự chốt thay Lead)
+1. **Mapping `store_raw` → `departmentId`:**
+   - *Đề xuất:* Mỗi cửa hàng GUTA Cafe tạo 1 document `departments` tương ứng (`code: STORE_CODE`, `name: store_raw`).
+   - *Chờ Lead duyệt:* 34 cửa hàng là 34 department độc lập hay gom chung vào một department "Khối Cửa Hàng / Vận Hành"?
+2. **Mapping `job_title` → `level` (`Intern | Junior | Middle | Senior | Lead`):**
+   - *Đề xuất:* Thử việc/Part-time → `Intern`; Pha chế/Thu ngân mới → `Junior`; Pha chế cứng → `Middle`; Trưởng ca → `Senior`; Cửa hàng trưởng → `Lead`.
+   - *Chờ Lead duyệt:* Bảng ma trận từ điển chuẩn hóa `job_title` → `level`. Tuyệt đối không tự suy `job_title` thành quyền hệ thống.
+3. **Phân vai Cửa hàng trưởng (Store Manager) → `role` (`Admin | Employee`):**
+   - *Đề xuất:* Role hệ thống chỉ có `Admin` và `Employee`. Cửa hàng trưởng là `Employee` (chỉ thao tác dữ liệu theo phạm vi gán). Role `Admin` dành cho Quản lý cấp cao/HR.
+   - *Chờ Lead duyệt:* Xác nhận Cửa hàng trưởng thuộc vai `Employee` hay `Admin` scoped.
+4. **Admin Scope:**
+   - *Đề xuất:* Phương án A (ít xâm phạm): lấy scope từ `employees.departmentId` của Admin. Phương án B: thêm trường `scopeDepartmentIds: ObjectId[]` vào model.
+   - *Chờ Lead duyệt:* Chọn phương án A hay B trước khi code DB query. Trường hợp không có scope hợp lệ: **Deny (403 RBAC_DENIED)**, tuyệt đối không mặc định toàn công ty.
 
 ## 9. Việc tiếp theo từ file này
 
