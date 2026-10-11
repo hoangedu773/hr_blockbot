@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Mẫu 3: Guta Operations — F&B Workforce Console</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #111215;
+      --surface: #18191d;
+      --surface-card: #1f2026;
+      --surface-hover: #26272f;
+      --border: #2a2b34;
+      --border-focus: #d97706;
+      --text: #f4f4f5;
+      --text-muted: #9ca3af;
+      --text-faint: #6b7280;
+      --brand: #d97706;
+      --brand-hover: #b45309;
+      --brand-subtle: rgba(217, 119, 6, 0.12);
+      --success: #059669;
+      --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      --ease: cubic-bezier(0.23, 1, 0.32, 1);
+
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+    }
+
+    *::-webkit-scrollbar { width: 5px; height: 5px; }
+    *::-webkit-scrollbar-track { background: transparent; }
+    *::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 999px; }
+    *:hover::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.25); }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      width: 100%;
+      height: 100dvh;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .icon {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      stroke-width: 1.75;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+      flex-shrink: 0;
+    }
+
+    /* Left Sidebar */
+    aside {
+      width: 240px;
+      background: #141519;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .brand-box {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .brand-sq {
+      width: 28px;
+      height: 28px;
+      background: var(--brand);
+      color: #000;
+      font-weight: 800;
+      font-size: 13px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      letter-spacing: -0.5px;
+    }
+    .brand-title { font-weight: 700; font-size: 13px; color: #fff; }
+    .brand-sub { font-size: 10px; color: var(--text-muted); font-family: var(--mono); }
+
+    nav { padding: 12px 8px; flex: 1; overflow-y: auto; }
+    .nav-label { font-size: 10px; text-transform: uppercase; color: var(--text-faint); font-weight: 700; padding: 8px 10px 4px; letter-spacing: 0.05em; }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      color: var(--text-muted);
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: 500;
+      margin-bottom: 2px;
+      transition: all 120ms var(--ease);
+      border: 1px solid transparent;
+    }
+    .nav-item:hover { color: #fff; background: var(--surface-card); }
+    .nav-item.active { background: var(--brand-subtle); color: #fbbf24; border-color: rgba(217, 119, 6, 0.3); font-weight: 600; }
+
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    header {
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #141519;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .header-text h1 { font-size: 15px; font-weight: 600; color: #fff; }
+    .header-text p { font-size: 11px; color: var(--text-muted); font-family: var(--mono); }
+
+    .btn {
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 120ms var(--ease);
+      min-height: 32px;
+    }
+    .btn:hover { background: var(--surface-hover); }
+    .btn-brand { background: var(--brand); border-color: var(--brand); color: #000; font-weight: 600; }
+    .btn-brand:hover { background: var(--brand-hover); color: #fff; }
+
+    .content-wrap { padding: 20px 24px 80px; display: flex; flex-direction: column; gap: 16px; }
+
+    /* Operational Status Alert */
+    .status-alert {
+      background: #191612;
+      border: 1px solid #78350f;
+      border-left: 3px solid var(--brand);
+      border-radius: 4px;
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .alert-text { color: #fef3c7; }
+    .alert-text strong { color: #fff; }
+
+    /* 3 Metrics */
+    .metric-strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    .m-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .m-label { font-size: 11px; color: var(--text-muted); font-weight: 500; }
+    .m-val { font-size: 18px; font-weight: 700; font-family: var(--mono); color: #fff; }
+    .m-sub { font-size: 10px; color: var(--text-faint); font-family: var(--mono); }
+
+    /* Staff Roster Grid */
+    .card-block {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .card-head {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #15161a;
+    }
+    .card-title { font-size: 13px; font-weight: 600; }
+
+    table.fnb-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      text-align: left;
+    }
+    table.fnb-table th {
+      background: #131417;
+      padding: 9px 14px;
+      color: var(--text-faint);
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      text-transform: uppercase;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+    }
+    table.fnb-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      color: #d1d5db;
+    }
+    table.fnb-table tr:hover td { background: var(--surface-card); }
+
+    .role-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      font-family: var(--mono);
+      background: #27272a;
+      color: #d4d4d8;
+    }
+    .role-barista { background: rgba(217, 119, 6, 0.15); color: #fbbf24; border: 1px solid rgba(217, 119, 6, 0.3); }
+    .role-kitchen { background: rgba(220, 38, 38, 0.12); color: #fca5a5; border: 1px solid rgba(220, 38, 38, 0.25); }
+
+    .dot-active {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: #34d399;
+      font-size: 11px;
+      font-family: var(--mono);
+    }
+    .dot-active::before {
+      content: "";
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #10b981;
+    }
+
+    /* Mobile Adaptive Cards */
+    .mobile-fnb-cards {
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      padding: 10px;
+    }
+    .m-fnb-card {
+      background: #18191d;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Bottom App Bar Mobile */
+    .bottom-nav {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 58px;
+      background: #141519;
+      border-top: 1px solid var(--border);
+      z-index: 100;
+      padding-bottom: env(safe-area-inset-bottom);
+      justify-content: space-around;
+      align-items: center;
+    }
+    .b-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      font-size: 10px;
+      gap: 3px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .b-item.active { color: #fbbf24; font-weight: 600; }
+
+    @media (max-width: 768px) {
+      aside { display: none; }
+      .bottom-nav { display: flex; }
+      .metric-strip { grid-template-columns: repeat(2, 1fr); }
+      .content-wrap { padding: 12px 16px 80px; }
+
+      /* Adaptive: Table to Cards */
+      table.fnb-table { display: none; }
+      .mobile-fnb-cards { display: flex; }
+    }
+  </style>
+</head>
+<body>
+
+  <aside>
+    <div class="brand-box">
+      <div class="brand-sq">GT</div>
+      <div>
+        <div class="brand-title">GUTA CAFE</div>
+        <div class="brand-sub">Workforce Console</div>
+      </div>
+    </div>
+
+    <nav>
+      <div class="nav-label">Vận Hành Cửa Hàng</div>
+      <div class="nav-item active">
+        <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Lịch Ca & Phân Bổ
+      </div>
+      <div class="nav-item">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Phiếu Giải Trình Công
+      </div>
+      <div class="nav-item">
+        <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+        Đối Soát Tiền Mặt
+      </div>
+
+      <div class="nav-label">Chuỗi 144 Chi Nhánh</div>
+      <div class="nav-item">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Nhân Sự (2,439 NV)
+      </div>
+      <div class="nav-item">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        Quy Chuẩn & Đào Tạo
+      </div>
+    </nav>
+  </aside>
+
+  <main>
+    <header>
+      <div class="header-text">
+        <h1>100 Nguyễn Thị Minh Khai</h1>
+        <p>Quận 3 • 36 Nhân Sự • Ca Trực Hiện Tại</p>
+      </div>
+      <button class="btn btn-brand" onclick="alert('Đã cập nhật ca làm!')">+ Ca Bù</button>
+    </header>
+
+    <div class="content-wrap">
+      <!-- Operational Alert -->
+      <div class="status-alert">
+        <div class="alert-text">
+          <strong>Kỳ Lương 06/05 – 05/06:</strong> Còn 7 phiếu khiếu nại công chờ duyệt.
+        </div>
+        <button class="btn" onclick="alert('Mở danh sách phiếu')">Xem 7 Phiếu</button>
+      </div>
+
+      <!-- 3 Metrics -->
+      <div class="metric-strip">
+        <div class="m-box">
+          <span class="m-label">Nhân sự</span>
+          <span class="m-val">36</span>
+          <span class="m-sub">100% hồ sơ</span>
+        </div>
+        <div class="m-box">
+          <span class="m-label">Ca hôm nay</span>
+          <span class="m-val">8 Ca</span>
+          <span class="m-sub">Ca A & Ca B</span>
+        </div>
+        <div class="m-box">
+          <span class="m-label">Quỹ két giao</span>
+          <span class="m-val" style="color: #34d399;">1,745k ₫</span>
+          <span class="m-sub">Khớp 100%</span>
+        </div>
+      </div>
+
+      <!-- Staff Roster -->
+      <div class="card-block">
+        <div class="card-head">
+          <div class="card-title">Nhân Sự Đang Trong Ca Làm Việc</div>
+          <span style="font-family: var(--mono); font-size: 11px; color: var(--text-faint);">MongoDB Atlas</span>
+        </div>
+
+        <!-- Desktop Table -->
+        <table class="fnb-table">
+          <thead>
+            <tr>
+              <th>Mã NV</th>
+              <th>Họ Và Tên</th>
+              <th>Chức Danh</th>
+              <th>Ca Trực</th>
+              <th>Tài Khoản Lương</th>
+              <th>Trạng Thái</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="font-family: var(--mono); color: #9ca3af;">GT-CH18030009</td>
+              <td style="font-weight: 500; color: #fff;">NGUYỄN THỊ THANH THÚY</td>
+              <td><span class="role-badge role-kitchen">BẾP - Bếp nấu</span></td>
+              <td style="font-family: var(--mono);">Ca A1.749</td>
+              <td style="font-family: var(--mono);">ACB (261411259)</td>
+              <td><span class="dot-active">Đang trong ca</span></td>
+            </tr>
+            <tr>
+              <td style="font-family: var(--mono); color: #9ca3af;">GT-CH25036607</td>
+              <td style="font-weight: 500; color: #fff;">BÙI VIỆT HÙNG</td>
+              <td><span class="role-badge role-kitchen">BẾP - Bếp nấu</span></td>
+              <td style="font-family: var(--mono);">Ca A</td>
+              <td style="font-family: var(--mono);">Vietcombank</td>
+              <td><span class="dot-active">Đang trong ca</span></td>
+            </tr>
+            <tr>
+              <td style="font-family: var(--mono); color: #9ca3af;">GT-CH26047865</td>
+              <td style="font-weight: 500; color: #fff;">VŨ ANH TÚ</td>
+              <td><span class="role-badge role-barista">PHA CHẾ - Barista</span></td>
+              <td style="font-family: var(--mono);">Ca B</td>
+              <td style="font-family: var(--mono);">MB Bank</td>
+              <td style="color: var(--text-faint); font-family: var(--mono);">Ca chiều (14h)</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Mobile Adaptive Cards -->
+        <div class="mobile-fnb-cards">
+          <div class="m-fnb-card">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <strong style="color: #fff; font-size: 13px;">NGUYỄN THỊ THANH THÚY</strong>
+              <span class="role-badge role-kitchen">BẾP</span>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); font-family: var(--mono);">GT-CH18030009 • ACB: 261411259</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top: 4px;">
+              <span style="font-family: var(--mono); color: #fbbf24;">Ca A1.749 (6h-14h)</span>
+              <span class="dot-active">Đang trực ca</span>
+            </div>
+          </div>
+
+          <div class="m-fnb-card">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <strong style="color: #fff; font-size: 13px;">BÙI VIỆT HÙNG</strong>
+              <span class="role-badge role-kitchen">BẾP</span>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); font-family: var(--mono);">GT-CH25036607 • Vietcombank</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top: 4px;">
+              <span style="font-family: var(--mono); color: #fbbf24;">Ca A (6h-14h)</span>
+              <span class="dot-active">Đang trực ca</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div class="bottom-nav">
+    <div class="b-item active">
+      <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Ca Kíp
+    </div>
+    <div class="b-item" onclick="alert('Xem giải trình')">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+      Giải Trình
+    </div>
+    <div class="b-item" onclick="alert('Kiểm kê két')">
+      <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/></svg>
+      Két Tiền
+    </div>
+  </div>
+
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "hr-blockbot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chatbot chuyen doi so quan ly nhan su - KLCN133",
+  "scripts": {
+    "dev:api": "pnpm --filter api dev",
+    "dev:web": "pnpm --filter web dev",
+    "dev:ai": "cd apps/ai-service && python start.py",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test"
+  }
+}

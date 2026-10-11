@@ -1,14 +1,286 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Previews — hr-blockbot</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Guta Workspace — Flagship Design Showcase (HR BlockBot)</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #05070a;
+      --surface: #0e121a;
+      --surface-hover: #161c28;
+      --border: #1a2232;
+      --guta-yellow: #ffd100;
+      --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      --ease: cubic-bezier(0.23, 1, 0.32, 1);
+
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+    }
+
+    *::-webkit-scrollbar { width: 5px; height: 5px; }
+    *::-webkit-scrollbar-track { background: transparent; }
+    *::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 999px; }
+    *:hover::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.25); }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100dvh;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      font-size: 13px;
+    }
+
+    header {
+      background: #090c12;
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      flex-shrink: 0;
+      z-index: 50;
+    }
+
+    .brand-wrap { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .brand-logo-img { max-width: 95px; height: auto; object-fit: contain; display: block; }
+    .badge {
+      background: rgba(255, 209, 0, 0.15);
+      border: 1px solid rgba(255, 209, 0, 0.35);
+      color: var(--guta-yellow);
+      font-weight: 800;
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-family: var(--mono);
+      letter-spacing: 0.5px;
+    }
+    .brand-title { font-size: 13px; font-weight: 700; color: #fff; }
+
+    .controls-center {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .theme-group, .viewport-group {
+      display: flex;
+      background: #040508;
+      padding: 2px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      gap: 2px;
+    }
+
+    .tab-btn, .vp-btn {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      padding: 5px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 120ms var(--ease);
+      min-height: 28px;
+    }
+    .tab-btn:hover, .vp-btn:hover { color: #fff; background: var(--surface-hover); }
+    .tab-btn.active, .vp-btn.active {
+      background: #151b26;
+      color: #fff;
+      font-weight: 600;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    }
+    .tab-btn.active#btn-flagship {
+      color: var(--guta-yellow);
+      border: 1px solid rgba(255, 209, 0, 0.4);
+      background: rgba(255, 209, 0, 0.1);
+    }
+
+    .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+    .dot-gold { background: #ffd100; box-shadow: 0 0 6px #ffd100; }
+    .dot-espresso { background: #e29d38; }
+    .dot-carbon { background: #ffffff; }
+
+    .btn-standalone {
+      color: #38bdf8;
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 10px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .btn-standalone:hover { background: var(--surface-hover); color: #7dd3fc; }
+
+    main {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #020305;
+      overflow: hidden;
+      padding: 12px;
+      position: relative;
+    }
+
+    .frame-wrapper {
+      width: 100%;
+      height: 100%;
+      transition: width 240ms var(--ease), height 240ms var(--ease);
+      border-radius: 0;
+      box-shadow: none;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      background: #07090e;
+    }
+
+    .frame-wrapper.mode-tablet {
+      width: 768px;
+      height: 100%;
+      border: 1px solid #1e2634;
+      border-radius: 12px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.8);
+    }
+
+    .frame-wrapper.mode-mobile {
+      width: 390px;
+      height: 100%;
+      max-height: 844px;
+      border: 1px solid #28374f;
+      border-radius: 28px;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.9), 0 0 0 8px #0b0f16;
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+      background: transparent;
+    }
+
+    footer {
+      background: #090c12;
+      border-top: 1px solid var(--border);
+      padding: 6px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: #64748b;
+      flex-shrink: 0;
+    }
+    .hint-highlight { color: var(--guta-yellow); font-family: var(--mono); }
+  </style>
 </head>
 <body>
-<h1>Previews</h1>
-<ul>
-  <li><a href="db-preview.html">db-preview.html</a> — sơ đồ quan hệ &amp; dữ liệu mẫu của <code>db/hr_bot.db</code> (extract 07/10/2026, data đề bài chỉ đọc)</li>
-</ul>
+
+  <header>
+    <div class="brand-wrap">
+      <img src="assets/guta-logo.png" alt="Guta Logo" class="brand-logo-img">
+      <div class="brand-title">Guta Workspace Flagship</div>
+      <div class="badge">NEXT-GEN</div>
+    </div>
+
+    <div class="controls-center">
+      <!-- Templates -->
+      <div class="theme-group" role="tablist">
+        <button class="tab-btn active" onclick="setTheme('flagship')" id="btn-flagship">
+          <span class="dot dot-gold"></span>
+          Mẫu WOW: Flagship Timeline (Kéo Thả & Copilot)
+        </button>
+        <button class="tab-btn" onclick="setTheme('espresso')" id="btn-espresso">
+          <span class="dot dot-espresso"></span>
+          Mẫu B: Warm Espresso (Nâu Hạt Cà Phê)
+        </button>
+        <button class="tab-btn" onclick="setTheme('carbon')" id="btn-carbon">
+          <span class="dot dot-carbon"></span>
+          Mẫu C: Carbon Minimal (Đen Raycast)
+        </button>
+      </div>
+
+      <!-- Viewport Device Switcher -->
+      <div class="viewport-group" role="group">
+        <button class="vp-btn active" onclick="setViewport('desktop')" id="vp-desktop">
+          🖥 Màn Hình Lớn
+        </button>
+        <button class="vp-btn" onclick="setViewport('tablet')" id="vp-tablet">
+          📱 Tablet (768px)
+        </button>
+        <button class="vp-btn" onclick="setViewport('mobile')" id="vp-mobile">
+          📲 Điện Thoại (390px)
+        </button>
+      </div>
+    </div>
+
+    <div>
+      <a id="btn-external" href="preview-wow-flagship.html" target="_blank" class="btn-standalone">
+        <span>↗ Mở Tab Độc Lập</span>
+      </a>
+    </div>
+  </header>
+
+  <main>
+    <div class="frame-wrapper" id="frame-box">
+      <iframe id="view-frame" src="preview-wow-flagship.html" title="Trình xem mẫu giao diện"></iframe>
+    </div>
+  </main>
+
+  <footer>
+    <div>Trực quan hóa: <strong>Dòng Thời Gian Phân Ca 24H (Visual Shift Timeline)</strong> • Bấm vào nhân viên để mở <strong>Slide-Over Sheet</strong>.</div>
+    <div>
+      Đang xem: <strong class="hint-highlight" id="lbl-theme">Mẫu WOW Flagship (Visual Timeline & Copilot)</strong>
+    </div>
+  </footer>
+
+  <script>
+    const themes = {
+      'flagship': { url: 'preview-wow-flagship.html', label: 'Mẫu WOW Flagship (Visual Timeline & Copilot)' },
+      'espresso': { url: 'preview-espresso-warm.html', label: 'Mẫu B (Warm Espresso: Nâu Hạt Cà Phê)' },
+      'carbon': { url: 'preview-carbon-mono.html', label: 'Mẫu C (Carbon Minimal: Đen Raycast)' }
+    };
+
+    function setTheme(key) {
+      const frame = document.getElementById('view-frame');
+      const ext = document.getElementById('btn-external');
+      const lbl = document.getElementById('lbl-theme');
+      const item = themes[key];
+      frame.src = item.url;
+      ext.href = item.url;
+      lbl.innerText = item.label;
+
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('btn-' + key).classList.add('active');
+    }
+
+    function setViewport(mode) {
+      const box = document.getElementById('frame-box');
+      box.className = 'frame-wrapper';
+
+      document.querySelectorAll('.vp-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('vp-' + mode).classList.add('active');
+
+      if (mode === 'tablet') box.classList.add('mode-tablet');
+      if (mode === 'mobile') box.classList.add('mode-mobile');
+    }
+  </script>
 </body>
 </html>
