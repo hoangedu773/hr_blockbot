@@ -69,25 +69,18 @@ Kế hoạch chi tiết được quản lý tại:
 
 ---
 
-## 5. Quy Chuẩn Model & Trạng Thái Nhánh Bootstrap
+## 5. Trạng Thái Các Nhánh Bootstrap & Hướng Dẫn Tiếp Quản
 
-### 5.1 Model AI Quy Chuẩn Cho Dự Án
-- **Model chuẩn hóa:** Toàn bộ AI Agent điều phối, lập trình viên và đồng nghiệp cộng tác thống nhất cấu hình và sử dụng model:
-  ```text
-  ag/gemini-3.8-flash-high
-  ```
-- **Lý do:** Tốc độ phản hồi cao, khả năng code và tuân thủ AgentKit tốt, chi phí tối ưu cho các phiên chạy song song trên multi-worktree.
-
-### 5.2 Trạng Thái Các Nhánh Đã Hoàn Thành & Push GitHub (Tuần 7)
+### 5.1 Trạng Thái Các Nhánh Đã Hoàn Thành & Push GitHub (Tuần 7)
 
 | Nhánh | Worktree | Commit SHA | Trạng thái & Kết quả kiểm chứng |
 |---|---|---|---|
-| `feat/pm-agentkit` | `../hr-blockbot-pm` | `27ff731` | **DONE:** Chốt Zod contracts (Auth, Employee allowlist không PII, pagination, error catalog), quy chế đọc/ghi AgentKit, kịch bản Phase 5. Test 10/10 pass. |
+| `feat/pm-agentkit` | `../hr-blockbot-pm` | `27ff731` | **DONE:** Chốt Zod contracts (Auth, Employee allowlist không PII, pagination, error catalog), phân quyền đọc/ghi các app, kịch bản Phase 5. Test 10/10 pass. |
 | `feat/api-backend` | `../hr-blockbot-api` | `32f4000` | **DONE:** Xóa hardcode secrets, Argon2id + jose (JWT + RTR fail-closed), scope guard `assertInScope()`, Allowlist API `/api/employees`, khóa routes cũ và Socket.IO. Test `pnpm --filter api test:auth` 22/22 pass. |
 | `feat/frontend-web` | `../hr-blockbot-web` | `b0d9cdc` | **DONE:** Liên kết contracts, in-memory token, interceptor 401 single-flight refresh, xóa sạch `SEED_*` và optimistic toasts giả, dựng UI preview gate 6 trạng thái tại `apps/web/previews/index.html`. Build pass. |
 | `feat/ai-service` | `../hr-blockbot-ai` | `ba08fd2` | **DONE:** Xóa hardcode secrets, endpoint `/health` ping DB Atlas thật báo liveness/readiness trung thực, khóa mock chat (403), giữ requirements tinh gọn. Test 11/11 pass. |
 
-### 5.3 Hướng Dẫn Đồng Nghiệp & Dev Tiếp Quản Nhánh
+### 5.2 Hướng Dẫn Đồng Nghiệp & Dev Tiếp Quản Nhánh
 
 1. **Kéo mã nguồn mới nhất:**
    ```bash

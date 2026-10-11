@@ -13,7 +13,7 @@ created: 2026-10-11
 
 ## Overview
 
-Nền móng kỹ thuật để tích hợp 3 thành phần (`apps/api`, `apps/web`, `apps/ai-service`) trên monorepo + Git Worktree. Ưu tiên an ninh: bảo mật trước, đóng băng contracts chung, auth JWT + RTR fail-closed, đọc nhân sự theo dữ liệu tối thiểu, Web nối API thật, AI liveness trung thực. **Không** làm toàn bộ F1–F7; không dùng mock để qua nghiệm thu. Cổng nguồn: API 3001 (`/api`, `/api/health`), Web 5173, AI 8000. Bằng chứng tĩnh: [pm-261011-bootstrap-evidence.md](../reports/pm-261011-bootstrap-evidence.md). Model quy chuẩn thống nhất: `ag/gemini-3.8-flash-high`.
+Nền móng kỹ thuật để tích hợp 3 thành phần (`apps/api`, `apps/web`, `apps/ai-service`) trên monorepo + Git Worktree. Ưu tiên an ninh: bảo mật trước, đóng băng contracts chung, auth JWT + RTR fail-closed, đọc nhân sự theo dữ liệu tối thiểu, Web nối API thật, AI liveness trung thực. **Không** làm toàn bộ F1–F7; không dùng mock để qua nghiệm thu. Cổng nguồn: API 3001 (`/api`, `/api/health`), Web 5173, AI 8000. Bằng chứng tĩnh: [pm-261011-bootstrap-evidence.md](../reports/pm-261011-bootstrap-evidence.md).
 
 ## Goals
 
