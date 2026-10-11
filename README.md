@@ -31,80 +31,104 @@ hr_blockbot/
 
 ---
 
-## 🌿 Mô hình Git Worktree & Phân nhánh
+## 🌿 Mô hình Phân nhánh & Vận hành Đa Dịch Vụ
 
-Để đáp ứng quy trình phát triển song song nhiều dịch vụ (Web, API, AI) và hỗ trợ điều phối đa luồng mà không gây xung đột working tree, dự án áp dụng chiến lược **Git Worktree Isolation**.
+Dự án áp dụng quy trình phát triển song song 3 dịch vụ cốt lõi theo từng nhánh chuyên biệt. Mỗi nhánh đại diện cho một mảng kỹ thuật độc lập để các thành viên trong nhóm có thể phát triển song song mà không gây xung đột working tree:
 
-### 1. Tại sao dùng Git Worktree thay vì `git checkout` truyền thống?
-- **Không xung đột dependencies:** Không phải cài lại `node_modules` hay kích hoạt lại môi trường ảo Python `venv` khi chuyển ngữ cảnh giữa các phần việc.
-- **Phát triển song song không chặn nhau:** Lập trình viên hoặc AI Agent có thể sửa và chạy thử đồng thời giao diện `apps/web` ở một thư mục, trong khi backend `apps/api` hay logic AI `apps/ai-service` đang được kiểm thử ở một thư mục khác.
-- **Hỗ trợ Multi-Agent / Trợ lý AI:** Cho phép các luồng phát triển làm việc độc lập trên từng worktree vật lý riêng biệt, tránh triệt để lỗi file lock trên Windows và dirty state.
+| Nhánh (Branch) | Thành phần phụ trách | Stack & Cổng chạy | Trạng thái hiện tại |
+|---|---|---|---|
+| **`feat/api-backend`** | REST API & WebSocket Backend | Express, TypeScript, MongoDB Atlas (Cổng `3001`, prefix `/api`) | ✅ Hoàn thành Auth JWT + RTR, Scope Guard, API allowlist nhân viên. **22/22 tests pass**. |
+| **`feat/frontend-web`** | Web Command Center | React 18, Vite, Tailwind CSS (Cổng `5173`) | ✅ Hoàn thành in-memory auth, 401 single-flight refresh, UI preview 6 trạng thái. |
+| **`feat/ai-service`** | Lõi AI Sidecar | FastAPI, Python 3.10+ (Cổng `8000`) | ✅ Hoàn thành `/health` ping DB Atlas thật, khóa mock chat (403), probe RAG. **11/11 tests pass**. |
+| **`feat/pm-agentkit`** | Điều phối & Hợp đồng chung | Zod schemas, Docs, Kế hoạch kiểm định | ✅ Hoàn thành `@hr-blockbot/contracts`, bộ test contract **10/10 pass**. |
+| **`main`** | Nhánh tích hợp tổng thể | Monorepo hoàn chỉnh | Nhánh ổn định để hội đồng nghiệm thu và triển khai staging. |
 
-### 2. Sơ đồ nhánh & Thư mục Worktree chuẩn
+---
 
-| Nhánh (Branch) | Thư mục Worktree gợi ý | Vai trò & Phạm vi phụ trách |
-|---|---|---|
-| `main` | `C:/work-space/hr-blockbot` | Nhánh ổn định, tích hợp toàn bộ monorepo |
-| `feat/pm-agentkit` | `C:/work-space/hr-blockbot-pm` | **Nhánh hiện tại:** Điều phối dự án, kiến trúc, tài liệu và quy chuẩn tích hợp |
-| `feat/frontend-web` | `../hr-blockbot-web` | Phát triển giao diện Web Command Center (`apps/web`) |
-| `feat/api-backend` | `../hr-blockbot-api` | Phát triển REST API, MongoDB Atlas, Socket.IO (`apps/api`) |
-| `feat/ai-service` | `../hr-blockbot-ai` | Phát triển FastAPI AI Sidecar, Policy RAG & Tools (`apps/ai-service`) |
+## ⚡ Hướng Dẫn Vận Hành Cho Đồng Nghiệp & Dev (Step-by-Step)
 
-### 3. Hướng dẫn thao tác Git Worktree cho Team
+### Cách 1: Chạy và kiểm thử theo từng nhánh chuyên biệt (Khuyên dùng khi dev tính năng)
 
+Khi bạn được phân công làm việc ở mảng nào, hãy checkout sang nhánh tương ứng:
+
+#### 1. Phát triển & Chạy Backend API (`feat/api-backend`):
 ```bash
-# 1. Xem danh sách các worktree đang hoạt động
-git worktree list
+# Chuyển sang nhánh Backend
+git checkout feat/api-backend
+git pull origin feat/api-backend
 
-# 2. Tạo một worktree mới cho tính năng mới (tách ra từ main)
-git worktree add ../hr-blockbot-feature-x -b feat/feature-x
+# Cài đặt thư viện
+pnpm install
 
-# 3. Di chuyển vào worktree để làm việc độc lập
-cd ../hr-blockbot-feature-x
+# Cấu hình biến môi trường: tạo file apps/api/.env (sao chép từ .env.example)
+# Đảm bảo có: PORT=3001 và MONGODB_URI=<chuỗi_kết_nối_Atlas>
 
-# 4. Khi hoàn thành và đã merge nhánh, xóa worktree an toàn
-cd C:/work-space/hr-blockbot
-git worktree remove ../hr-blockbot-feature-x
+# Chạy bộ test xác thực 22 kịch bản (Auth, RTR, RBAC, Data Minimization):
+pnpm --filter api test:auth
+
+# Khởi chạy API dev server:
+pnpm dev:api
+# -> API chạy tại http://localhost:3001 (Kiểm tra health: http://localhost:3001/api/health)
+```
+
+#### 2. Phát triển & Chạy Giao diện Web (`feat/frontend-web`):
+```bash
+# Chuyển sang nhánh Web Frontend
+git checkout feat/frontend-web
+git pull origin feat/frontend-web
+
+# Cài đặt thư viện & build contracts
+pnpm install
+pnpm --filter @hr-blockbot/contracts build
+
+# Chạy kiểm tra test giao diện & build:
+pnpm --filter web test
+pnpm --filter web build
+
+# Khởi chạy Web dev server:
+pnpm dev:web
+# -> Web chạy tại http://localhost:5173
+# -> Xem trang Preview UI kiểm duyệt: mở file apps/web/previews/index.html trên trình duyệt
+```
+
+#### 3. Phát triển & Chạy AI Service (`feat/ai-service`):
+```bash
+# Chuyển sang nhánh AI Service
+git checkout feat/ai-service
+git pull origin feat/ai-service
+
+# Cài đặt thư viện Python
+cd apps/ai-service
+pip install -r requirements.txt
+
+# Cấu hình file .env: đảm bảo có MONGODB_URI=<chuỗi_kết_nối_Atlas>
+
+# Chạy test kiểm tra liveness và health probe:
+python tests/test_health_probe.py
+python tests/test_vector_probe.py
+
+# Khởi chạy AI FastAPI server:
+python -m uvicorn app.main:app --port 8000 --reload
+# -> Swagger Docs xem tại: http://localhost:8000/docs
 ```
 
 ---
 
-## ⚡ Hướng dẫn Khởi động Nhanh (Quickstart)
+### Cách 2: Vận hành đồng thời cả 3 dịch vụ qua Git Worktree (Multi-Service Workspace)
 
-### Yêu cầu môi trường
-- **Node.js** >= 18.x & **pnpm** >= 9.x
-- **Python** >= 3.10
-- **MongoDB Atlas** (hoặc local MongoDB URI)
-
-### 1. Cài đặt Dependencies
+Nếu máy tính của bạn muốn mở và chạy đồng thời cả 3 dịch vụ cùng lúc mà không phải switch branch liên tục:
 
 ```bash
-# Cài đặt toàn bộ Node.js packages trong monorepo
-pnpm install
+# 1. Tạo 3 thư mục làm việc vật lý song song tách biệt:
+git worktree add ../hr-blockbot-api feat/api-backend
+git worktree add ../hr-blockbot-web feat/frontend-web
+git worktree add ../hr-blockbot-ai feat/ai-service
 
-# Cài đặt Python dependencies cho AI Service
-cd apps/ai-service
-pip install -r requirements.txt
-cd ../..
+# 2. Mở từng terminal riêng để khởi chạy:
+# Terminal 1: cd ../hr-blockbot-api && pnpm dev:api   (Cổng 3001)
+# Terminal 2: cd ../hr-blockbot-web && pnpm dev:web   (Cổng 5173)
+# Terminal 3: cd ../hr-blockbot-ai/apps/ai-service && uvicorn app.main:app --port 8000  (Cổng 8000)
 ```
-
-### 2. Cấu hình biến môi trường (`.env`)
-
-- **Backend API:** Copy `apps/api/.env.example` thành `apps/api/.env` và cập nhật:
-  ```env
-  PORT=5000
-  MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/hr_bot?retryWrites=true&w=majority
-  CLIENT_ORIGIN=http://localhost:5173
-  ```
-- **AI Service:** Copy `apps/ai-service/.env.example` thành `apps/ai-service/.env` (nếu cần cấu hình khóa LLM).
-
-### 3. Khởi chạy các dịch vụ (Local Development)
-
-| Dịch vụ | Lệnh chạy | Địa chỉ cục bộ |
-|---|---|---|
-| **API Backend** | `pnpm dev:api` | `http://localhost:5000` (Health: `/health`) |
-| **Web Command Center** | `pnpm dev:web` | `http://localhost:5173` |
-| **AI Service (FastAPI)** | `pnpm dev:ai` | `http://localhost:8000` (Swagger: `/docs`) |
 
 ---
 
