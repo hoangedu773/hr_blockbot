@@ -1,16 +1,33 @@
 import mongoose from "mongoose";
 
-const DEFAULT_URI =
-  "mongodb+srv://hr_admin:clajTXjKpf4O4HUh@hr-blockbot.a2gbplq.mongodb.net/hr_bot?retryWrites=true&w=majority&appName=hr-blockbot";
+export function getMongoUri(): string {
+  const uri = process.env.MONGODB_URI || process.env.ATLAS_URI;
+  if (!uri || uri.trim() === "") {
+    throw new Error(
+      "MongoDB URI is not configured. Please set MONGODB_URI or ATLAS_URI in environment variables."
+    );
+  }
+  return uri.trim();
+}
 
 export async function connectDB(): Promise<typeof mongoose> {
-  const uri = process.env.MONGODB_URI || DEFAULT_URI;
+  const uri = getMongoUri();
   try {
     const conn = await mongoose.connect(uri);
     console.log(`[MongoDB] Connected successfully to: ${conn.connection.name}`);
     return conn;
   } catch (err) {
-    console.error("[MongoDB] Connection failed:", err);
-    throw err;
+    const msg =
+      err instanceof Error
+        ? err.message.replace(/\/\/[^@]+@/, "//***:***@")
+        : "Database connection failed";
+    console.error("[MongoDB] Connection failed:", msg);
+    throw new Error("Failed to connect to MongoDB");
+  }
+}
+
+export async function disconnectDB(): Promise<void> {
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.disconnect();
   }
 }

@@ -1,36 +1,11 @@
-import express from "express";
-import cors from "cors";
-import dotenv from "dotenv";
 import { createServer } from "http";
+import { app } from "./app.js";
 import { connectDB } from "./db.js";
 import { initSocket } from "./socket.js";
 
-// Routes
-import healthRouter from "./routes/health.js";
-import employeesRouter from "./routes/employees.js";
-import storesRouter from "./routes/stores.js";
-import schedulesRouter from "./routes/schedules.js";
-import correctionsRouter from "./routes/corrections.js";
-import cashRouter from "./routes/cash.js";
-
-dotenv.config();
-
-const app = express();
 const httpServer = createServer(app);
 
-// Middlewares
-app.use(cors({ origin: "*" }));
-app.use(express.json());
-
-// Register API Routes
-app.use("/api", healthRouter);
-app.use("/api", employeesRouter);
-app.use("/api", storesRouter);
-app.use("/api", schedulesRouter);
-app.use("/api", correctionsRouter);
-app.use("/api", cashRouter);
-
-// Initialize Socket.IO
+// Initialize Socket.IO with authenticated handshake
 initSocket(httpServer);
 
 const PORT = process.env.PORT || 3001;
