@@ -1,9 +1,11 @@
 """
 Policy RAG Engine for Guta Cafe HR & Operations.
 Implements hierarchical chunking, retrieval, scoring, and abstention rule (FR-018 / BR-15).
+Operates strictly READ-ONLY when interacting with MongoDB `policies` collection.
+Reports honest status for Atlas Vector Search capability (no fake empty vectors).
 """
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import re
 
 POLICIES_SEED: List[Dict[str, Any]] = [
@@ -73,23 +75,82 @@ POLICIES_SEED: List[Dict[str, Any]] = [
     }
 ]
 
+
 class PolicyEngine:
     def __init__(self, abstain_threshold: float = 0.28):
         self.abstain_threshold = abstain_threshold
-        self.corpus = self._build_corpus()
+        self.corpus = self._build_corpus(POLICIES_SEED)
 
-    def _build_corpus(self) -> List[Dict[str, Any]]:
+    def _build_corpus(self, doc_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         chunks = []
-        for doc in POLICIES_SEED:
-            for art in doc["articles"]:
+        for doc in doc_list:
+            doc_name = doc.get("document") or doc.get("title", "Tài liệu GUTA")
+            ver = doc.get("version", "v1.0")
+            articles = doc.get("articles") or []
+            for art in articles:
                 chunks.append({
-                    "document": doc["document"],
-                    "version": doc["version"],
-                    "article": art["article"],
-                    "text": art["text"],
-                    "full_content": f"{doc['document']} ({doc['version']}) - {art['article']}: {art['text']}"
+                    "document": doc_name,
+                    "version": ver,
+                    "article": art.get("article", ""),
+                    "text": art.get("text", ""),
+                    "full_content": f"{doc_name} ({ver}) - {art.get('article', '')}: {art.get('text', '')}"
                 })
         return chunks
+
+    def sync_policies_from_db(self, db: Any) -> bool:
+        """
+        Đọc READ-ONLY từ MongoDB policies collection nếu DB khả dụng.
+        Tuyệt đối không tạo index hoặc ghi thêm schema/data khi chưa có quyền.
+        """
+        if db is None:
+            return False
+        try:
+            db_docs = list(db.policies.find({}, {"_id": 0}).limit(50))
+            if db_docs:
+                parsed_chunks = []
+                for d in db_docs:
+                    doc_title = d.get("document") or d.get("title", "Tài liệu Chính sách")
+                    version = d.get("version", "v1.0")
+                    # Định dạng articles
+                    for art in d.get("articles", []):
+                        parsed_chunks.append({
+                            "document": doc_title,
+                            "version": version,
+                            "article": art.get("article", ""),
+                            "text": art.get("text", ""),
+                            "full_content": f"{doc_title} ({version}) - {art.get('article', '')}: {art.get('text', '')}"
+                        })
+                    # Định dạng chunks
+                    for c in d.get("chunks", []):
+                        parsed_chunks.append({
+                            "document": doc_title,
+                            "version": version,
+                            "article": c.get("title", c.get("article", "Khoản mục")),
+                            "text": c.get("text", ""),
+                            "full_content": f"{doc_title} ({version}) - {c.get('text', '')}"
+                        })
+                if parsed_chunks:
+                    self.corpus = parsed_chunks
+                    return True
+        except Exception:
+            pass
+        return False
+
+    def check_vector_search_capability(self, db: Any = None) -> Dict[str, Any]:
+        """
+        Kiểm tra tính khả dụng của $vectorSearch trên Atlas.
+        Trung thực: Trong phase bootstrap này, thư viện embedding (PyTorch/Transformers)
+        chưa cài đặt và Atlas Vector Index chưa dựng. Trả về status 'BLOCKED' có căn cứ.
+        """
+        return {
+            "status": "BLOCKED",
+            "vector_search_available": False,
+            "reason": (
+                "Atlas Vector Search Index is not configured on policies collection. "
+                "Embedding models (PyTorch/Transformers) deferred to Week 9 according to roadmap."
+            ),
+            "engine_mode": "lexical_jaccard_fallback"
+        }
 
     def _tokenize(self, text: str) -> set:
         clean = re.sub(r'[^\w\s]', ' ', text.lower())
@@ -112,7 +173,6 @@ class PolicyEngine:
             if not intersection:
                 score = 0.0
             else:
-                # Combined Jaccard + keyword importance
                 jaccard = len(intersection) / len(q_tokens.union(c_tokens))
                 coverage = len(intersection) / len(q_tokens)
                 score = 0.7 * coverage + 0.3 * jaccard
@@ -126,14 +186,14 @@ class PolicyEngine:
         top_candidates = [c for c in scored_chunks if c["score"] >= self.abstain_threshold][:3]
 
         if not top_candidates:
-            # Rule Abstention FR-018: Không có bằng chứng -> từ chối đoán
+            # Rule Abstention FR-018 / BR-15: Không có bằng chứng -> từ chối đoán
             return {
                 "answer": "Thông tin bạn hỏi chưa được quy định trong các tài liệu chính sách và quy chuẩn hiện hành của Guta Cafe. Vui lòng liên hệ trực tiếp phòng Nhân sự hoặc Cửa hàng trưởng để được hỗ trợ cụ thể.",
                 "citations": [],
                 "abstain": True
             }
 
-        # Build grounded response with citations
+        # Build grounded response with citations (BR-15: document, version, article, score)
         best = top_candidates[0]
         answer_parts = [
             f"Theo quy định tại **{best['article']}** ({best['document']} - Phiên bản {best['version']}):",
@@ -155,5 +215,6 @@ class PolicyEngine:
             "citations": citations,
             "abstain": False
         }
+
 
 policy_engine = PolicyEngine()
