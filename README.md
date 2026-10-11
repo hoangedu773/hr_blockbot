@@ -31,21 +31,21 @@ hr_blockbot/
 
 ---
 
-## 🌿 Mô hình Git Worktree & Phân nhánh (`/ak-agentkit`)
+## 🌿 Mô hình Git Worktree & Phân nhánh
 
-Để đáp ứng quy trình phát triển song song nhiều dịch vụ (Web, API, AI) và hỗ trợ điều phối đa Agent tự động thông qua **AgentKit** mà không gây xung đột working tree, dự án áp dụng chiến lược **Git Worktree Isolation**.
+Để đáp ứng quy trình phát triển song song nhiều dịch vụ (Web, API, AI) và hỗ trợ điều phối đa luồng mà không gây xung đột working tree, dự án áp dụng chiến lược **Git Worktree Isolation**.
 
 ### 1. Tại sao dùng Git Worktree thay vì `git checkout` truyền thống?
 - **Không xung đột dependencies:** Không phải cài lại `node_modules` hay kích hoạt lại môi trường ảo Python `venv` khi chuyển ngữ cảnh giữa các phần việc.
 - **Phát triển song song không chặn nhau:** Lập trình viên hoặc AI Agent có thể sửa và chạy thử đồng thời giao diện `apps/web` ở một thư mục, trong khi backend `apps/api` hay logic AI `apps/ai-service` đang được kiểm thử ở một thư mục khác.
-- **Hỗ trợ AgentKit / Multi-Agent Orchestration:** Cho phép các subagent (như `fullstack-developer`, `code-reviewer`, `tester`, `pm`) làm việc độc lập trên từng worktree vật lý riêng biệt, tránh triệt để lỗi file lock trên Windows và dirty state.
+- **Hỗ trợ Multi-Agent / Trợ lý AI:** Cho phép các luồng phát triển làm việc độc lập trên từng worktree vật lý riêng biệt, tránh triệt để lỗi file lock trên Windows và dirty state.
 
 ### 2. Sơ đồ nhánh & Thư mục Worktree chuẩn
 
 | Nhánh (Branch) | Thư mục Worktree gợi ý | Vai trò & Phạm vi phụ trách |
 |---|---|---|
 | `main` | `C:/work-space/hr-blockbot` | Nhánh ổn định, tích hợp toàn bộ monorepo |
-| `feat/pm-agentkit` | `C:/work-space/hr-blockbot-pm` | **Nhánh hiện tại:** Điều phối dự án, kiến trúc, tài liệu và AgentKit orchestration |
+| `feat/pm-agentkit` | `C:/work-space/hr-blockbot-pm` | **Nhánh hiện tại:** Điều phối dự án, kiến trúc, tài liệu và quy chuẩn tích hợp |
 | `feat/frontend-web` | `../hr-blockbot-web` | Phát triển giao diện Web Command Center (`apps/web`) |
 | `feat/api-backend` | `../hr-blockbot-api` | Phát triển REST API, MongoDB Atlas, Socket.IO (`apps/api`) |
 | `feat/ai-service` | `../hr-blockbot-ai` | Phát triển FastAPI AI Sidecar, Policy RAG & Tools (`apps/ai-service`) |
@@ -65,9 +65,6 @@ cd ../hr-blockbot-feature-x
 # 4. Khi hoàn thành và đã merge nhánh, xóa worktree an toàn
 cd C:/work-space/hr-blockbot
 git worktree remove ../hr-blockbot-feature-x
-
-# Hoặc sử dụng skill AgentKit có sẵn trong môi trường:
-/ak-worktree
 ```
 
 ---

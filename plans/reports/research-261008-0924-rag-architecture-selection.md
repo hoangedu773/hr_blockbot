@@ -3,7 +3,7 @@
 - **Mã báo cáo:** `research-261008-0924-rag-architecture-selection`
 - **Ngày thực hiện:** 08/10/2026 (Múi giờ Asia/Bangkok)
 - **Dự án:** Khóa luận KLCN133 — Chatbot Chuyển Đổi Số Quản Lý Nhân Sự
-- **Tác giả:** Researcher Agent (AgentKit)
+- **Tác giả:** Researcher Agent
 - **Mục tiêu:** Khảo sát toàn diện các mô hình kiến trúc RAG (Retrieval-Augmented Generation) hiện đại, phân tích đặc thù xử lý tiếng Việt và văn bản quy chế/nhân sự, đối chiếu ràng buộc hạ tầng của dự án, và xây dựng khung đề xuất triển khai RAG tối ưu.
 
 ---
