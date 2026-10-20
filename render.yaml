@@ -28,7 +28,7 @@ services:
     # Build contracts trước web: apps/web import @hr-blockbot/contracts và package đó
     # trỏ `types` vào dist/ (dist bị .gitignore → bắt buộc build trong CI/Render).
     # `npm install -g pnpm@11`: Render Node image chưa chắc có pnpm sẵn — CHƯA kiểm chứng.
-    buildCommand: npm install -g pnpm@11 && pnpm install --frozen-lockfile && pnpm --filter @hr-blockbot/contracts build && pnpm --filter web build
+    buildCommand: mkdir -p /tmp/pnpm && npm install -g --prefix /tmp/pnpm pnpm@11 && export PATH="/tmp/pnpm/bin:$PATH" && pnpm install --frozen-lockfile && pnpm --filter @hr-blockbot/contracts build && pnpm --filter web build
     staticPublishPath: apps/web/dist
     # SPA: mọi path không phải file tĩnh đều trả index.html (React Router phía client).
     routes:
@@ -57,7 +57,7 @@ services:
     healthCheckPath: /api/health # trả 503 khi Mongo không ping được (bản feat/api-backend)
     # Build cả contracts (dist/ đang gitignore) rồi mới build api. `pnpm --filter api build`
     # = `tsc` với outDir apps/api/dist (apps/api/tsconfig.json).
-    buildCommand: npm install -g pnpm@11 && pnpm install --frozen-lockfile && pnpm --filter @hr-blockbot/contracts build && pnpm --filter api build
+    buildCommand: mkdir -p /tmp/pnpm && npm install -g --prefix /tmp/pnpm pnpm@11 && export PATH="/tmp/pnpm/bin:$PATH" && pnpm install --frozen-lockfile && pnpm --filter @hr-blockbot/contracts build && pnpm --filter api build
     # Chạy từ repo root (blueprint không đặt rootDir cho service này) → đường dẫn đầy đủ.
     startCommand: node apps/api/dist/index.js
     envVars:
