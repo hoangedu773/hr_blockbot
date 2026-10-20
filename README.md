@@ -40,7 +40,7 @@ Hệ thống đã hoàn tất toàn bộ 5 phase nền tảng, bảo mật và k
 
 | Phase Bootstrap | Công việc đã hoàn tất trong mã nguồn | Kết quả kiểm thử | Nhánh phụ trách |
 |---|---|---|---|
-| **Phase 1: Contracts** | Zod schemas chuẩn cho Auth, phân quyền 2 vai (`Admin`/`Employee`), allowlist loại bỏ 100% PII nhạy cảm (bank, lương, cccd, phone); thêm schema F1/F2 + 8 schema mới của plan Full Delivery (LLM provider, conversation, policy, citation). | 29 / 29 tests pass | `feat/pm-agentkit` |
+| **Phase 1: Contracts** | Zod schemas chuẩn cho Auth, phân quyền 2 vai (`Admin`/`Employee`), allowlist loại bỏ 100% PII nhạy cảm (bank, lương, cccd, phone); thêm schema F1/F2 + 8 schema mới của plan Full Delivery (LLM provider, conversation, policy, citation). | 38 / 38 tests pass | `feat/pm-agentkit` |
 | **Phase 2: Backend API** | Express API cổng 3001, hash Argon2id, jose JWT, Refresh Token Rotation (RTR fail-closed), scope guard `assertInScope()`, khóa 503 legacy routes và Socket.IO. | 22 / 22 tests pass | `feat/api-backend` |
 | **Phase 3: Frontend Web** | Web React cổng 5173, token lưu trong memory (zero-storage), auto-refresh 401 single-flight, xóa sạch mock data `SEED_*` và fake toasts, UI preview gate 6 trạng thái. | Build & test pass | `feat/frontend-web` |
 | **Phase 4: AI Service** | FastAPI cổng 8000, xóa sạch credentials hardcode, endpoint `/health` ping DB Atlas thật (phân biệt liveness vs readiness), khóa mock chat (403). | 11 / 11 tests pass | `feat/ai-service` |
@@ -76,7 +76,7 @@ Dự án áp dụng quy trình phát triển song song 3 dịch vụ cốt lõi 
 | **`feat/api-backend`** | REST API & WebSocket Backend | Express, TypeScript, MongoDB Atlas (Cổng `3001`, prefix `/api`) | ✅ Hoàn thành Auth JWT + RTR, Scope Guard, API allowlist nhân viên. **22/22 tests pass**. |
 | **`feat/frontend-web`** | Web Command Center | React 18, Vite, Tailwind CSS (Cổng `5173`) | ✅ Hoàn thành in-memory auth, 401 single-flight refresh, UI preview 6 trạng thái. |
 | **`feat/ai-service`** | Lõi AI Sidecar | FastAPI, Python 3.10+ (Cổng `8000`) | ✅ Hoàn thành `/health` ping DB Atlas thật, khóa mock chat (403), probe RAG. **11/11 tests pass**. |
-| **`feat/pm-agentkit`** | Điều phối & Hợp đồng chung | Zod schemas, Docs, Kế hoạch kiểm định | ✅ `@hr-blockbot/contracts` build sạch; bộ test contract **29/29 pass** (gồm 9 schema mới của plan Full Delivery). |
+| **`feat/pm-agentkit`** | Điều phối & Hợp đồng chung | Zod schemas, Docs, Kế hoạch kiểm định | ✅ `@hr-blockbot/contracts` build sạch; bộ test contract **38/38 pass** (gồm 9 schema mới của plan Full Delivery và 10 schema WS event). |
 | **`main`** | Nhánh tích hợp tổng thể | Monorepo hoàn chỉnh | Nhánh ổn định để hội đồng nghiệm thu và triển khai staging. |
 
 ---
