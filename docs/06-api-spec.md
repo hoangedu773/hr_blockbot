@@ -257,22 +257,46 @@ Số request trong bộ Postman demo: `TBD` — `11 §1` ghi "chốt khi `06-api
 | Bền vững | durable notification **vẫn phải persist phía app** (`notifications`), WS chỉ là kênh đẩy; Socket.IO tự lo fallback + reconnect | `B7` |
 | Hạ tầng | service có thể ngủ sau 15 phút không traffic, wake-up có thể ~1 phút → UI phải hiển thị "đang kết nối lại", không giả định tức thì | `B1` `[CẦN NGUỒN]`, `02 §6` |
 
-**Bộ event đóng ở 9 tên** (`B7`). Gate "WS contract" ở `RP §11` làm build **đỏ** nếu code emit một event chưa
-khai báo trong file này.
+**Nguồn chuẩn payload: mục này (`06-api-spec.md §4.2`).** `21-chatbot-architecture.md §4` chỉ là **mô tả kiến
+trúc** (ánh xạ luồng), không định nghĩa lại field; nếu hai chỗ khác nhau thì bảng dưới thắng. Phase 2 (`apps/api`) và
+Phase 3 (`apps/web`) code theo đúng bảng này — gate "WS contract" ở `RP §11` làm build **đỏ** nếu emit event/payload
+lệch.
+
+**Bộ event đóng: 9 tên của `B7` + 1 bổ sung `chat:confirm`** (E-10 — bắt buộc bởi FR-020: tool ghi phải qua bước
+confirm; `chat:confirm` đã có trong `21 §3.3` nhưng chưa từng được khai báo ở file này). Tổng **10 tên**, không tự
+thêm tên khác.
 
 ### 4.2 Bảng event
 
 | # | Event | Chiều | Ai emit | Ai nhận | Ack? | Payload (`field : kiểu : ràng buộc`) |
 |---|---|---|---|---|---|---|
-| E-01 | `chat:send` | client → server | `Employee` \| `Admin` (browser) | gateway `realtime` | **có** — server trả ack `{ accepted: true, clientMessageId }` hoặc `{ error }` | `clientMessageId : string : required`<br>`text : string : required`<br>`tool? : string` — bắt buộc nằm trong 15 tên của `B6`<br>`args? : object` — luôn bị Zod validate<br>`confirm? : { clientMessageId của challenge, approved : boolean }` — nhánh trả lời confirm |
-| E-02 | `chat:accepted` | server → client | server | **đúng socket** đã gửi | không | `clientMessageId : string : required`<br>`acceptedAt : Date : required` |
-| E-03 | `chat:chunk` | server → client | server (stream LLM) | đúng socket đã gửi | không | `clientMessageId : string`<br>`seq : number : required, tăng dần từ 0`<br>`delta : string : required` |
-| E-04 | `chat:done` | server → client | server | đúng socket đã gửi | không | `clientMessageId : string : required`<br>`finishReason : 'ANSWER'\|'TOOL_RESULT'\|'ABSTAIN'\|'ERROR' : required`<br>`tool? : string`<br>`card? : object` — kết quả tra cứu render được (VD card match của `B14`)<br>`citations? : [{ document, version, source }]` — **bắt buộc** khi trả lời chính sách (BR-15)<br>`usage? : { inputTokens, outputTokens }` |
-| E-05 | `chat:error` | server → client | server | đúng socket đã gửi | không | `clientMessageId? : string`<br>`code : string : required` — lấy từ catalog §5<br>`message : string : required`<br>`retryable : boolean : required` |
+| E-01 | `chat:send` | client → server | `Employee` \| `Admin` (browser) | gateway `realtime` | **có** — server trả ack `{ accepted: true, clientMessageId, conversationId, messageId }` hoặc `{ accepted: false, error: { code, message, retryable } }` | `clientMessageId : string : required` — UUID client sinh, khoá idempotency (FR-021)<br>`text : string` — required cho lượt hỏi thường; được phép vắng khi message chỉ để trả lời confirm<br>`conversationId? : string` — bỏ trống ⇒ server tạo conversation mới (`design/conversations-storage.md §2`)<br>`tool? : string` — phải nằm trong catalog tool của `21 §5`<br>`args? : object` — luôn bị Zod validate (`B6`)<br>`confirm? : { actionId : string, approved : boolean }` — nhánh trả lời challenge (dùng `chat:confirm` E-10 nếu client chọn event riêng) |
+| E-02 | `chat:accepted` | server → client | server | **đúng socket** đã gửi | không | `clientMessageId : string : required`<br>`messageId : string : required` — id message assistant đã tạo, dùng join mọi chunk/done<br>`conversationId : string : required`<br>`acceptedAt : Date : required` |
+| E-03 | `chat:chunk` | server → client | server (stream LLM + data part) | đúng socket đã gửi | không | `clientMessageId : string : required` — correlation với E-01<br>`messageId : string : required` — khớp E-02<br>`seq : number : required, tăng dần từ 0` — đánh số **chung cho mọi `kind`** của một message (dùng để sắp thứ tự, phát hiện mất chunk)<br>`kind : 'text' \| 'citation' \| 'action_proposal' : required`<br>`delta : string : required khi kind = 'text'` — mẩu văn bản nối dần; vắng mặt với kind khác<br>`data : object : required khi kind ≠ 'text'` — `citation`: `{ document, version, article, score }` (= `CitationSchema`); `action_proposal`: `{ actionId, type, args, preview }` |
+| E-04 | `chat:done` | server → client | server | đúng socket đã gửi | không | `clientMessageId : string : required`<br>`messageId : string : required`<br>`finishReason : 'ANSWER'\|'TOOL_RESULT'\|'ABSTAIN'\|'ERROR' : required`<br>`tool? : string`<br>`card? : object` — kết quả tra cứu render được (VD card match của `B14`)<br>`citations? : Citation[]` — **bắt buộc** khi trả lời chính sách (BR-15), shape `{ document, version, article, score }`<br>`score? : number` — điểm retrieval cao nhất<br>`usage? : { inputTokens, outputTokens }` |
+| E-05 | `chat:error` | server → client | server | đúng socket đã gửi | không | `clientMessageId? : string`<br>`messageId? : string`<br>`code : string : required` — lấy từ catalog §5 (gồm `CONVERSATION_FULL`, `LLM_UNAVAILABLE`, `MAX_STEPS`, `TOOL_TIMEOUT`)<br>`message : string : required`<br>`retryable : boolean : required` |
 | E-06 | `notification:new` | server → client | `notificationService` (hoặc Agenda job sau khi **persist**) | room `user:<userId>` của người nhận | không (ack là REST `POST /notifications/:id/read`) | `notificationId : ObjectId : required`<br>`type : enum9 : required` (`05 §3.9`)<br>`title : string`<br>`body : string`<br>`channel : 'ws'\|'in_app'\|'digest'`<br>`payload? : { projectId?\|reportId?\|evaluationId? }`<br>`createdAt : Date` |
 | E-07 | `project:updated` | server → client | `projectService` **sau** atomic update thành công | room `user:<mỗi assignee>` + `department:<departmentId>` | không | `projectId : ObjectId : required`<br>`status : enum5 : required`<br>`version : number : required`<br>`updatedAt : Date : required`<br>`actorId? : ObjectId` `reason? : string` — có khi reject<br>`clientMessageId? : string` |
 | E-08 | `report:updated` | server → client | `reportService` | room `user:<submitterId>` (Employee) và `department:` của đề tài; Admin nhận bản của "Báo cáo đã nộp" | không | `reportId : ObjectId : required`<br>`projectId : ObjectId : required`<br>`status : 'SUBMITTED'\|'APPROVED'\|'REJECTED' : required`<br>`reviewReason? : string`<br>`createdAt : Date : required` |
 | E-09 | `kpi:updated` | server → client | `kpiService` khi publish/override/chốt | room `user:<employeeId>` + `department:<departmentId>` | không | `evaluationId : ObjectId : required`<br>`employeeId : ObjectId : required`<br>`period : string : required`<br>`machineScore? : number` `finalScore? : number`<br>`changedBy? : ObjectId` `changedAt? : Date`<br>`publishedAt? : Date` |
+| E-10 | `chat:confirm` | client → server | `Employee` \| `Admin` (browser) | gateway `realtime` | **có** — ack `{ accepted: true, clientMessageId, actionId }` hoặc `{ accepted: false, error: { code, message, retryable } }` | `clientMessageId : string : required` — id **mới** cho lần confirm, dùng idempotency (retry không execute hai lần)<br>`actionId : string : required` — lấy từ `chat:chunk{kind:'action_proposal'}`<br>`approve : boolean : required` — `false` ⇒ không mutation nào (FR-020) |
+
+#### 4.2.1 Quy ước canonical cho `chat:chunk`
+
+Một lượt trả lời = `chat:accepted` → N × `chat:chunk` → `chat:done`; khi lỗi guard/LLM/provider thì kết thúc bằng
+`chat:error` (không emit `chat:done`).
+
+- **`messageId` + `seq` là khoá join.** `messageId` lấy từ `chat:accepted`; `seq` tăng đơn điệu từ 0 trên **toàn bộ**
+  chunk của message, kể cả chunk `citation`/`action_proposal`, để client phát hiện thiếu/trùng chunk.
+- **`kind:'text'`** chỉ mang `delta` (nối chuỗi theo `seq`); **`kind:'citation'`/`'action_proposal'`** mang `data`
+  và **không** có `delta`. Không được bọc JSON vào `delta`.
+- **`citation`** dùng đúng `CitationSchema` của `@hr-blockbot/contracts` (`document, version, article, score`);
+  **`action_proposal`** mang `actionId` để client gửi lại qua E-10.
+- **Idempotency:** gửi lại `chat:send` cùng `clientMessageId` (FR-021) ⇒ server trả lại `accepted` + replay kết quả
+  cũ, **không** stream lại từ đầu, không gọi tool lần hai.
+- **Thứ tự ghi trước khi phát:** message được commit vào `conversations` **trước** khi emit `chat:done`
+  (`design/conversations-storage.md §2.5`).
+
 
 ### 4.3 Ba ràng buộc hành vi
 
@@ -329,6 +353,14 @@ Chỉ dùng mã mà nghiệp vụ trong nguồn **thật sự sinh ra**. Cột "
 | `QUOTA_EXCEEDED` | 429 | Provider LLM/embedding chạm hạn mức free tier (`B6`: Groq nhiều model 30 RPM; `gpt-oss-120b` ~1.000 RPD, 8K TPM) | `B6`; `RP §9` S9 | Hiển thị "vượt hạn mức", kích hoạt con đường **graceful degradation** (S9) nếu đã bật; **không** spam retry. Số lần thử lại và backoff: `TBD` (nguồn không đặt) |
 | `INTERNAL_ERROR` | 500 | Lỗi không phân loại; **bắt buộc** có `correlationId` để đối chiếu log | `02 §7.5` "fail có cấu trúc" | Hiển thị lỗi chung, không lộ stack; log `correlationId` vào phiếu UAT/defect |
 | `DUPLICATE_REQUEST` | 200 | `clientMessageId` đã được xử lý → trả chính kết quả cũ, **không** mutate lần hai | `B7`; BR-13; `05 §3.5` | Coi như thành công; không hiển thị "đã gửi" hai lần |
+| `CONVERSATION_FULL` | 409 | Conditional update `messageCount < 50` không khớp vì conversation đã chạm trần 50 (`design/conversations-storage.md §2.1/2.4`) | `design/conversations-storage.md`; ADR-018 | **Không** mất dữ liệu: mở conversation mới (`chat:send` không kèm `conversationId`) rồi gửi lại với `clientMessageId` **mới**; conversation cũ chuyển `closed`, message cũ không bị xoá |
+| `LLM_UNAVAILABLE` | 503 | Không còn provider `enabled` sau khi fallback theo `priority`, hoặc mọi provider test đều fail (ADR-017) | ADR-017 §Decision 5; `08 §6` | Chuyển UI sang chế độ `degraded-structured` (trả kết quả thô, không văn xuôi); **không** spam retry; Admin kiểm `GET /api/admin/llm-providers` |
+| `MAX_STEPS` | 422 | Agent loop vượt `maxSteps = 5` (FR-019) — loop **dừng**, không tự nối thêm bước | `21 §8.4`; `08 §6`; BR-19 | Hiển thị "câu hỏi quá phức tạp, vui lòng chia nhỏ"; **không** retry tự động, gợi ý người dùng hỏi lại cụ thể hơn |
+| `TOOL_TIMEOUT` | 504 | Một tool call vượt `toolTimeout`/`LLM timeout`/`max tool result size` của guard; loop dừng, không deadlock | `21 §8.4`; `B6` guard; BR-19 | `chat:error{retryable:true}`; cho phép thử lại **một** lần; không đổi trạng thái nghiệp vụ |
+
+Bốn mã ở trên (`CONVERSATION_FULL`, `LLM_UNAVAILABLE`, `MAX_STEPS`, `TOOL_TIMEOUT`) được thêm cùng phase
+Full Delivery; **`ErrorCodeSchema` trong `packages/contracts` là nguồn máy đọc của bảng này** — mọi mã ở cột "Code"
+phải tồn tại trong enum đó (Phase 2/3/4 không tự đặt mã mới ngoài bảng).
 
 **Những mã lỗi CỐ Ý KHÔNG tồn tại** (để không bịa hành vi):
 nghỉ phép/quota ngày phép (UF-02 `PARKED — chờ GVHD`), onboarding/offboarding (UF-03 `PARKED — chờ GVHD`),

@@ -1,0 +1,15 @@
+Task: Bạn đóng vai trò "Product & Creative Director" phản biện và đề xuất phương án thiết kế thứ 3, đồng thời tổng hợp dung hòa với Senior Architect.
+CWD: C:/work-space/hr-blockbot-pm
+Yêu cầu:
+1. Đọc:
+   - docs/10-ui-ux-spec.md
+   - plans/reports/research-261008-1005-anti-ai-design-system-rules.md
+   - plans/reports/orchestrate-261012-1407-f1-f2/debate-architect-prompt.txt
+2. Đề xuất Phương án 3: "Vercel / Swiss Enterprise Monochrome" (Đen / Trắng / Xám Charcoal tinh khiết, 1 accent màu Guta Amber tinh tế, nhấn mạnh vào typographic grid Thụy Sĩ, nhãn dán micro-badge, zero distraction).
+3. Tranh luận giữa 3 phương án (Linear vs Tremor vs Swiss Enterprise):
+   - Phương án nào hợp với cả Admin duyệt F1/F2 và nhân viên xem ca?
+   - Tại sao người dùng không thích thiết kế cũ? (Chỉ ra chính xác: màu vàng neon rực rỡ khiến nhức mắt, các biểu tượng emoji OS rẻ tiền, card bong bóng bo góc 16px làm mất chất công cụ enterprise).
+4. Đưa ra KẾT LUẬN THỐNG NHẤT (The Unified Design System):
+   - Kết hợp: Khung viền và tương tác kiểu Linear + Thẻ số liệu và bảng mật độ cao kiểu Tremor + Typography và màu đen xám than chì sâu kiểu Swiss/Vercel.
+   - Chốt danh sách 10 QUY TẮC BẤT BIẾN (Design Invariants) chống AI-slop để ghi vào docs/rules.
+Độ dài: khoảng 800-1000 từ tiếng Việt.

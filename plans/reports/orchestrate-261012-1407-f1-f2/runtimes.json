@@ -1,0 +1,21 @@
+{
+  "hostOS": "windows",
+  "shell": "Windows PowerShell 5.1",
+  "cliVersion": "2.1.283",
+  "akVersion": "2.19.0",
+  "requestedModel": "ag/gemini-3.8-flash-high",
+  "observedResponseModel": "gemini-3.8-flash-n",
+  "highModeVerified": false,
+  "authorization": "User accepted Claude CLI on Windows with requested alias and observed model limitation.",
+  "runtime": "claude-cli",
+  "akSupervisorSupported": false,
+  "supervision": "Harness background commands, bounded tool timeout; no Darwin supervisor claim.",
+  "tools": ["Skill", "Read", "Glob", "Grep"],
+  "mcp": "disabled for delegated jobs",
+  "effect": "observe",
+  "writeAccess": false,
+  "permissionBypass": false,
+  "familyDiversity": false,
+  "actualCost": null,
+  "nativeAgentsLaunched": 0
+}

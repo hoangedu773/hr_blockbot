@@ -98,16 +98,20 @@ Theo `08 §6` chế độ `degraded-structured`: intent bằng mẫu cố địn
 
 ---
 
-## 4. Hợp đồng WebSocket (chốt với `06-api-spec.md`)
+## 4. Hợp đồng WebSocket (nguồn chuẩn: `06-api-spec.md §4.2`)
 
-| Event | Chiều | Payload tối thiểu |
-|---|---|---|
-| `chat:send` | client → server | `{conversationId?, clientMessageId, text}` |
-| `chat:accepted` | server → client | `{messageId, conversationId, at}` |
-| `chat:chunk` | server → client | `{messageId, kind:"text"\|"citation"\|"action_proposal", data}` |
-| `chat:confirm` | client → server | `{actionId, approve:boolean}` |
-| `chat:done` | server → client | `{messageId, finishReason:"stop"\|"abstain"\|"error", score?}` |
-| `chat:error` | server → client | `{messageId, code, retryable}` |
+> **Payload canonical nằm ở [`06-api-spec.md §4.2`](06-api-spec.md).** Mục này chỉ là **mô tả kiến trúc** — ánh xạ
+> event vào các luồng ở §3 và cách đọc chúng; **không** định nghĩa lại field. Nếu mục này khác `06 §4.2` thì
+> `06 §4.2` thắng và mục này phải sửa. Tổng cộng **10 event đóng** (9 tên của `B7` + `chat:confirm`).
+
+| Event | Chiều | Vai trò trong luồng kiến trúc | Đọc payload ở |
+|---|---|---|---|
+| `chat:send` | client → server | vào gateway; ack trả `conversationId` + `messageId` để client join stream | `06 §4.2` E-01 |
+| `chat:accepted` | server → client | mở một lượt trả lời; `messageId` là khoá join cho mọi chunk | `06 §4.2` E-02 |
+| `chat:chunk` | server → client | stream: `kind:'text'` = delta LLM; `kind:'citation'` = bằng chứng RAG (§3.1); `kind:'action_proposal'` = đề xuất hành động ghi chờ confirm (§3.3) | `06 §4.2` E-03 + quy ước §4.2.1 |
+| `chat:confirm` | client → server | trả lời challenge confirm của `action_proposal` (`{actionId, approve}`); `approve=false` ⇒ không mutation (FR-020) | `06 §4.2` E-10 |
+| `chat:done` | server → client | kết thúc lượt: `finishReason` + `citations`/`card`; message đã commit vào `conversations` **trước** khi emit | `06 §4.2` E-04 |
+| `chat:error` | server → client | lỗi guard/provider/LLM; `code` lấy từ catalog `06 §5` (gồm `LLM_UNAVAILABLE`, `MAX_STEPS`, `TOOL_TIMEOUT`, `CONVERSATION_FULL`) | `06 §4.2` E-05 |
 
 Đối chiếu với phiên Chatbase quan sát được (`research/SPEC-chatbase-2026-10-20.md` §3): `start/start-step/text-delta/finish` ánh xạ 1–1 vào `accepted/chunk/done`; `data-showQnaMatched` là bằng chứng cho thấy **data-part nghiệp vụ** là hợp lệ — ta dùng đúng chỗ đó cho `citation` và `action_proposal`.
 

@@ -1,0 +1,12 @@
+﻿Employee profileChangeRequests sub-schema added. Project, Report models created. Atomic project transition logic and self-approval guard implemented. Models exported in `index.ts`.
+
+Files touched:
+- `C:/work-space/hr-blockbot-api/apps/api/src/models/Employee.ts`
+- `C:/work-space/hr-blockbot-api/apps/api/src/models/Project.ts`
+- `C:/work-space/hr-blockbot-api/apps/api/src/models/Report.ts`
+- `C:/work-space/hr-blockbot-api/apps/api/src/models/index.ts`
+
+Verification:
+- Schemas strictly typed.
+- ESM `.js` import specifiers aligned with NodeNext configuration.
+- Run `pnpm --filter api build` in shell to verify typecheck.

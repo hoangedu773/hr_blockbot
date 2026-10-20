@@ -8,6 +8,8 @@ Hệ thống quản trị nhân lực và trợ lý ảo thông minh dành cho c
 > - **Web Frontend:** Guta Workforce Command Center (React, Vite, Tailwind, Dark Theme).
 > - **Backend API:** Express, TypeScript, MongoDB Atlas, Socket.IO realtime.
 > - **AI Service:** FastAPI, Python, Policy RAG Engine & Tool-calling Agent.
+> - **Hiện trạng đo ngày 2026-10-20 (không tô hồng):** DB Atlas `hr_bot` có **2.439 hồ sơ nhân sự + 37 phòng ban** thật, nhưng `users`, `policies`, `projects`, `reports`, `evaluations` **rỗng** → chưa đăng nhập được và F2/F3 chưa chạy end-to-end; chatbot đang khoá **403**, các route dashboard legacy trả **503** (fail-closed). Các hạng mục dưới đây chỉ được đánh dấu "chạy thật" khi có lệnh verify + output thật.
+> - Kế hoạch đóng F1/F2/F3 + deploy: [`plans/261020-2200-full-delivery/plan.md`](plans/261020-2200-full-delivery/plan.md)
 > - Đề cương gốc: [`docs/KLCN133_TranVietHung.docx`](docs/KLCN133_TranVietHung.docx)
 
 ---
@@ -38,7 +40,7 @@ Hệ thống đã hoàn tất toàn bộ 5 phase nền tảng, bảo mật và k
 
 | Phase Bootstrap | Công việc đã hoàn tất trong mã nguồn | Kết quả kiểm thử | Nhánh phụ trách |
 |---|---|---|---|
-| **Phase 1: Contracts** | Zod schemas chuẩn cho Auth, phân quyền 2 vai (`Admin`/`Employee`), allowlist loại bỏ 100% PII nhạy cảm (bank, lương, cccd, phone). | 10 / 10 tests pass | `feat/pm-agentkit` |
+| **Phase 1: Contracts** | Zod schemas chuẩn cho Auth, phân quyền 2 vai (`Admin`/`Employee`), allowlist loại bỏ 100% PII nhạy cảm (bank, lương, cccd, phone); thêm schema F1/F2 + 8 schema mới của plan Full Delivery (LLM provider, conversation, policy, citation). | 29 / 29 tests pass | `feat/pm-agentkit` |
 | **Phase 2: Backend API** | Express API cổng 3001, hash Argon2id, jose JWT, Refresh Token Rotation (RTR fail-closed), scope guard `assertInScope()`, khóa 503 legacy routes và Socket.IO. | 22 / 22 tests pass | `feat/api-backend` |
 | **Phase 3: Frontend Web** | Web React cổng 5173, token lưu trong memory (zero-storage), auto-refresh 401 single-flight, xóa sạch mock data `SEED_*` và fake toasts, UI preview gate 6 trạng thái. | Build & test pass | `feat/frontend-web` |
 | **Phase 4: AI Service** | FastAPI cổng 8000, xóa sạch credentials hardcode, endpoint `/health` ping DB Atlas thật (phân biệt liveness vs readiness), khóa mock chat (403). | 11 / 11 tests pass | `feat/ai-service` |
@@ -46,18 +48,18 @@ Hệ thống đã hoàn tất toàn bộ 5 phase nền tảng, bảo mật và k
 
 ---
 
-### 2. Các Luồng Nghiệp Vụ ĐÃ CHẠY THẬT Ngay Hôm Nay:
-- 🔐 **Xác thực & Vòng đời Token:** Đăng nhập `POST /api/auth/login` -> cấp Access Token (memory) + Refresh Token (HttpOnly cookie). Tự động xoay vòng token `POST /api/auth/refresh` (phát hiện replay attack thu hồi ngay toàn bộ session family). Đăng xuất `POST /api/auth/logout`. Lấy danh tính `GET /api/auth/me`.
-- 👥 **Tra cứu nhân sự có kiểm soát (Data Minimization):**
-  - **Quản lý (Admin):** Gọi `GET /api/employees` chỉ nhận allowlist (họ tên, cấp bậc, kỹ năng, trạng thái), không lộ số tài khoản hay lương; chặn truy cập ngoài scope phòng ban/cửa hàng (403 `RBAC_DENIED`).
-  - **Nhân viên (Employee):** Chỉ được xem hồ sơ chính mình `GET /api/employees/:id`; xem người khác bị chặn 403.
-- 🖥️ **Giao diện Web Command Center:** Xử lý token bộ nhớ, tự động refresh ngầm khi token hết hạn; trang xem trước giao diện độc lập tại `apps/web/previews/index.html` với 6 trạng thái thực tế.
-- 🤖 **Giám sát AI:** `/health` phản ánh trung thực liveness và readiness của MongoDB Atlas.
+### 2. Trạng thái thực tế của từng luồng (đo ngày 2026-10-20) — không claim "đã chạy thật" khi chưa verify:
+- 🔐 **Xác thực & Vòng đời Token:** code login/refresh/logout + RTR có trong nhánh `feat/api-backend`, nhưng **chưa chạy end-to-end** vì collection `users` = 0 document (chưa có tài khoản nào để đăng nhập).
+- 👥 **Tra cứu nhân sự có kiểm soát (Data Minimization):** contract allowlist + scope guard đã có; chứng minh được ngay khi `users` có tài khoản:
+  - **Quản lý (Admin):** `GET /api/employees` chỉ trả allowlist (họ tên, cấp bậc, kỹ năng, trạng thái), không lộ số tài khoản hay lương; ngoài scope phòng ban/cửa hàng → 403 `RBAC_DENIED`.
+  - **Nhân viên (Employee):** chỉ xem hồ sơ chính mình; xem người khác → 403.
+- 🖥️ **Giao diện Web Command Center:** token lưu trong memory + auto-refresh ngầm hoạt động ở mức UI; trang preview tĩnh tại `apps/web/previews/index.html`. **Dashboard chưa gọi được dữ liệu thật** — các route legacy của API trả **503** (khoá có chủ đích, fail-closed).
+- 🤖 **AI Service:** `/health` phản ánh liveness/readiness của MongoDB Atlas thật; chat bị khoá **403** (mock bị vô hiệu) và **chưa có key LLM** → F3 chưa trả lời được câu hỏi chính sách.
 
 ---
 
 ### 3. Kế Hoạch Các Luồng Tiếp Theo Theo Lộ Trình (Tuần 8 – 12):
-- **Tuần 8:** Hoàn thiện F1 (Hồ sơ nhân viên chuyên sâu) & F2 (Vòng đời ca kíp & giải trình công với State Machine 5 bước `DRAFT` → `ASSIGNED` → `IN_PROGRESS` → `SUBMITTED` → `APPROVED`).
+- **Tuần 8:** Hoàn thiện F1 (Hồ sơ nhân viên chuyên sâu) & F2 (**Vòng đời đề tài** — không phải ca kíp — với State Machine 5 bước `DRAFT` → `ASSIGNED` → `IN_PROGRESS` → `PENDING_REVIEW` → `COMPLETED`, chống conflict bằng `version`).
 - **Tuần 9:** Hoàn thiện F3 (Chatbot tra cứu chính sách RAG) & F4 (Gợi ý phân công ca qua PhoBERT semantic matching).
 - **Tuần 10:** Hoàn thiện F5 (Lượng hóa điểm KPI qua phân tích cảm xúc) & F7 (Báo cáo nghiệm thu & nhắc hạn).
 - **Tuần 11:** Đóng băng tính năng (Feature Freeze 09/11/2026), kiểm thử UAT và triển khai Staging Cloud.
@@ -74,7 +76,7 @@ Dự án áp dụng quy trình phát triển song song 3 dịch vụ cốt lõi 
 | **`feat/api-backend`** | REST API & WebSocket Backend | Express, TypeScript, MongoDB Atlas (Cổng `3001`, prefix `/api`) | ✅ Hoàn thành Auth JWT + RTR, Scope Guard, API allowlist nhân viên. **22/22 tests pass**. |
 | **`feat/frontend-web`** | Web Command Center | React 18, Vite, Tailwind CSS (Cổng `5173`) | ✅ Hoàn thành in-memory auth, 401 single-flight refresh, UI preview 6 trạng thái. |
 | **`feat/ai-service`** | Lõi AI Sidecar | FastAPI, Python 3.10+ (Cổng `8000`) | ✅ Hoàn thành `/health` ping DB Atlas thật, khóa mock chat (403), probe RAG. **11/11 tests pass**. |
-| **`feat/pm-agentkit`** | Điều phối & Hợp đồng chung | Zod schemas, Docs, Kế hoạch kiểm định | ✅ Hoàn thành `@hr-blockbot/contracts`, bộ test contract **10/10 pass**. |
+| **`feat/pm-agentkit`** | Điều phối & Hợp đồng chung | Zod schemas, Docs, Kế hoạch kiểm định | ✅ `@hr-blockbot/contracts` build sạch; bộ test contract **29/29 pass** (gồm 9 schema mới của plan Full Delivery). |
 | **`main`** | Nhánh tích hợp tổng thể | Monorepo hoàn chỉnh | Nhánh ổn định để hội đồng nghiệm thu và triển khai staging. |
 
 ---

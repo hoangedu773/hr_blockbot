@@ -106,6 +106,8 @@ Chọn vai trò của bạn để đi theo luồng tài liệu tối ưu nhất:
 | **Trí tuệ nhân tạo (AI)** | [`08-algorithms.md`](08-algorithms.md) | Thuật toán PhoBERT semantic matching, Policy RAG, Agent Loop. |
 | | [`09-ai-evaluation.md`](09-ai-evaluation.md) | Bộ khung đánh giá độ chính xác RAG và regression gate. |
 | **Giao diện & Trải nghiệm** | [`10-ui-ux-spec.md`](10-ui-ux-spec.md) | Thiết kế Dark Command Center, responsive, tương tác chat. |
+| | [`DESIGN.md`](DESIGN.md) | Thư viện nguồn cảm hứng, layout & components gallery trực quan. |
+| | [`rules/project-design-rules.md`](rules/project-design-rules.md) | **10 Quy tắc thiết kế bất biến:** The Unified Enterprise Design System (chống AI slop). |
 | | [`17-innovation-playbook.md`](17-innovation-playbook.md) | Các tính năng sáng tạo bổ sung (S-items) ngoài đề cương. |
 | **Chất lượng & Vận hành** | [`11-quality-testing.md`](11-quality-testing.md) | Chiến lược test đa tầng, kiểm thử UAT, coverage gates. |
 | | [`12-performance.md`](12-performance.md) | Chỉ số SLA, Core Web Vitals, tối ưu hóa truy vấn MongoDB. |

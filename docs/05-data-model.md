@@ -16,7 +16,7 @@ chốt ở đó và **không** tự mở rộng thêm).
 
 ## 1. Tổng quan
 
-### 1.1 Vì sao MongoDB và vì sao 11 collection này
+### 1.1 Vì sao MongoDB và vì sao các collection này
 
 Nguồn chốt trực tiếp: `NOTES-01 B4` liệt kê đúng 11 collection baseline, và `B1` chọn MongoDB Atlas làm nơi
 chứa *business data + policies + 1 Vector Search index cho Policy RAG*.
@@ -26,8 +26,12 @@ users  employees  departments  projects  project_events  reports
 evaluations  policies  notifications  refresh_sessions  feedback_events (S4)
 ```
 
-Mọi thiết kế dưới đây **không được thêm collection thứ 12** mà chưa qua GVHD — đây là danh sách baseline,
-không phải danh sách "gợi ý".
+**11 collection trên là baseline, không còn là trần cứng.** Từ 2026-10-20, việc thêm collection theo
+`ADR-018`: chỉ được thêm khi (1) có ADR hoặc mục design nêu lý do + bất biến, (2) có tên trong ERD
+[`22-erd-overall.md`](22-erd-overall.md), (3) có test cho bất biến của nó (trần, idempotency, hoặc TTL).
+Hai collection được duyệt trong đợt này: `conversations` (`design/conversations-storage.md`) và `settings`
+(`ADR-017`); `data_provenance` là collection vận hành dữ liệu (xem `22-erd-overall.md §1`). Không thêm
+collection chỉ để "cho đủ" (`ADR-018 §Decision 3`).
 
 ### 1.2 Embed vs reference
 
@@ -56,7 +60,11 @@ Với quy mô đề tài của đồ án thì không chạm ngưỡng đó; nế
 
 ---
 
-## 2. ERD (11 collections)
+## 2. ERD
+
+> **ERD tổng thể mới là nguồn: [`22-erd-overall.md`](22-erd-overall.md).** Sơ đồ dưới đây giữ làm mốc của 11
+> collection baseline (`NOTES-01 B4`) và **chưa có** `conversations`, `settings`, `data_provenance` — ba collection
+> đã được duyệt theo `ADR-017`/`ADR-018`. Khi hai sơ đồ lệch nhau, `22-erd-overall.md` thắng.
 
 ```mermaid
 erDiagram
