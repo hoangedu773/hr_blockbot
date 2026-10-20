@@ -5,7 +5,15 @@ import type {
   RefreshResponse,
 } from '@hr-blockbot/contracts';
 
-export const API_BASE = 'http://localhost:3001/api';
+/**
+ * Public API origin. MUST stay overridable at build time: the Render deployment
+ * sets `VITE_API_BASE` to the public API origin. The localhost fallback is for
+ * local development only and would break every request in production if the
+ * hardcoded value came back.
+ */
+const FALLBACK_API_BASE = 'http://localhost:3001/api';
+
+export const API_BASE = import.meta.env.VITE_API_BASE ?? FALLBACK_API_BASE;
 
 /**
  * In-memory Access Token storage ONLY.

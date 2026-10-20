@@ -1,199 +1,429 @@
 import type {
-  Store,
-  ScheduleEntry,
   AttendanceCorrection,
   CashCount,
-  EmployeeSummary,
+  Conversation,
+  CreateProfileChangeRequest,
   EmployeeDetail,
-  PaginatedEmployeesResponse,
+  EmployeeLevel,
+  EmployeeSummary,
+  LLMProvider,
+  LLMProviderInput,
   MeResponse,
+  PaginatedEmployeesResponse,
+  PaginatedProjectsResponse,
+  Project,
+  ProjectAssign,
+  ProjectCreate,
+  ProjectProgress,
+  ProjectStatus,
+  ProjectTransition,
+  ProfileChangeRequest,
+  ProviderTestResult,
+  ReportReview,
+  ReportStatus,
+  ReviewProfileChangeRequest,
+  ScheduleEntry,
+  Store,
+  UpdateLLMProvidersRequest,
 } from '@hr-blockbot/contracts';
-import { apiFetch, API_BASE } from './auth';
+import { API_BASE, apiFetch } from './auth';
 
+// Legacy ca kíp DTOs stay re-exported only so the not-yet-removed legacy
+// components still compile; no client below calls their 503 endpoints anymore.
 export type {
-  Store,
-  ScheduleEntry,
   AttendanceCorrection,
   CashCount,
-  EmployeeSummary,
   EmployeeDetail,
-  PaginatedEmployeesResponse,
+  EmployeeSummary,
   MeResponse,
+  PaginatedEmployeesResponse,
+  ScheduleEntry,
+  Store,
 };
 
-export async function fetchStores(): Promise<Store[]> {
-  const res = await apiFetch(`${API_BASE}/stores`);
-  if (!res.ok) {
-    throw new Error(`Lỗi tải danh sách điểm bán (HTTP ${res.status})`);
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code: string;
+
+  constructor(message: string, status: number, code = 'UNKNOWN') {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
   }
-  const json = await res.json();
-  if (Array.isArray(json)) return json;
-  if (Array.isArray(json.data)) return json.data;
-  return [];
 }
 
-export async function fetchSchedules(store?: string): Promise<ScheduleEntry[]> {
-  const url = store
-    ? `${API_BASE}/schedules?store_name=${encodeURIComponent(store)}`
-    : `${API_BASE}/schedules`;
-  const res = await apiFetch(url);
-  if (!res.ok) {
-    throw new Error(`Lỗi tải lịch phân ca (HTTP ${res.status})`);
-  }
-  const json = await res.json();
-  if (Array.isArray(json)) return json;
-  if (Array.isArray(json.data)) return json.data;
-  return [];
+export function newClientMessageId(): string {
+  const uuid = globalThis.crypto?.randomUUID?.();
+  return uuid ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-export async function fetchCorrections(): Promise<AttendanceCorrection[]> {
-  const res = await apiFetch(`${API_BASE}/corrections`);
-  if (!res.ok) {
-    throw new Error(`Lỗi tải phiếu giải trình công (HTTP ${res.status})`);
+async function toApiError(res: Response, fallbackMessage: string): Promise<ApiError> {
+  let message = fallbackMessage;
+  let code = 'UNKNOWN';
+  try {
+    const body = (await res.json()) as { error?: { code?: unknown; message?: unknown } };
+    if (typeof body?.error?.message === 'string' && body.error.message.length > 0) {
+      message = body.error.message;
+    }
+    if (typeof body?.error?.code === 'string' && body.error.code.length > 0) {
+      code = body.error.code;
+    }
+  } catch {
+    // Non-JSON error body: keep the HTTP-status fallback message.
   }
-  const json = await res.json();
-  if (Array.isArray(json)) return json;
-  if (Array.isArray(json.data)) return json.data;
-  return [];
+  return new ApiError(message, res.status, code);
 }
 
-export async function approveCorrection(id: number | string): Promise<boolean> {
-  const res = await apiFetch(`${API_BASE}/corrections/${id}/status`, {
+async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await apiFetch(`${API_BASE}${path}`, init);
+  if (!res.ok) {
+    throw await toApiError(res, `Yêu cầu ${path} thất bại (HTTP ${res.status})`);
+  }
+  if (res.status === 204) {
+    return undefined as T;
+  }
+  return (await res.json()) as T;
+}
+
+function postJson(payload: unknown): RequestInit {
+  return {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  };
+}
+
+function patchJson(payload: unknown): RequestInit {
+  return {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status: 'APPROVED' }),
-  });
-  if (!res.ok) {
-    throw new Error(`Không thể duyệt phiếu giải trình #${id} (HTTP ${res.status})`);
-  }
-  return true;
+    body: JSON.stringify(payload),
+  };
 }
 
-export async function rejectCorrection(id: number | string): Promise<boolean> {
-  const res = await apiFetch(`${API_BASE}/corrections/${id}/status`, {
-    method: 'PATCH',
+function putJson(payload: unknown): RequestInit {
+  return {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status: 'REJECTED' }),
-  });
-  if (!res.ok) {
-    throw new Error(`Không thể từ chối phiếu giải trình #${id} (HTTP ${res.status})`);
-  }
-  return true;
+    body: JSON.stringify(payload),
+  };
 }
 
-export async function fetchCashCounts(): Promise<CashCount[]> {
-  const res = await apiFetch(`${API_BASE}/cash`);
-  if (!res.ok) {
-    throw new Error(`Lỗi tải bảng kê tiền két (HTTP ${res.status})`);
-  }
-  const json = await res.json();
-  if (json.counts && Array.isArray(json.counts)) return json.counts;
-  if (Array.isArray(json.data)) return json.data;
-  if (Array.isArray(json)) return json;
-  return [];
+// ---------------------------------------------------------------------------
+// Auth / identity
+// ---------------------------------------------------------------------------
+
+export async function fetchMe(): Promise<MeResponse> {
+  return requestJson<MeResponse>('/auth/me');
 }
 
-/**
- * Lấy danh sách nhân sự cho Admin theo EmployeeSummary allowlist.
- * CẤM trả về PII nhạy cảm (bank, lương, CCCD, leave_reason).
- */
-export async function fetchEmployees(params?: {
+export function isEmployeeDetail(value: EmployeeDetail | EmployeeSummary): value is EmployeeDetail {
+  return typeof (value as EmployeeDetail).employeeCode === 'string';
+}
+
+// ---------------------------------------------------------------------------
+// F1 - Employees & profile change approval (FR-003 / FR-004)
+// ---------------------------------------------------------------------------
+
+export interface EmployeeListParams {
   departmentId?: string;
-  level?: string;
-  skill?: string;
+  level?: EmployeeLevel;
+  /** Phase 2 adds this filter; older API builds ignore it. */
+  status?: 'active' | 'inactive';
   q?: string;
   page?: number;
   limit?: number;
-}): Promise<PaginatedEmployeesResponse> {
+}
+
+/**
+ * Admin employee list (allowlist DTO only). Department scope is enforced
+ * server-side from the verified JWT - the client cannot widen it.
+ */
+export async function fetchEmployees(params?: EmployeeListParams): Promise<PaginatedEmployeesResponse> {
   const query = new URLSearchParams();
   if (params?.departmentId) query.set('departmentId', params.departmentId);
   if (params?.level) query.set('level', params.level);
-  if (params?.skill) query.set('skill', params.skill);
+  if (params?.status) query.set('status', params.status);
   if (params?.q) query.set('q', params.q);
   if (params?.page) query.set('page', String(params.page));
   if (params?.limit) query.set('limit', String(params.limit));
 
   const qs = query.toString();
-  const url = qs ? `${API_BASE}/employees?${qs}` : `${API_BASE}/employees`;
-  const res = await apiFetch(url);
-  if (!res.ok) {
-    throw new Error(`Lỗi tải danh sách nhân sự (HTTP ${res.status})`);
+  const json = await requestJson<PaginatedEmployeesResponse>(`/employees${qs ? `?${qs}` : ''}`);
+  if (!Array.isArray(json.items) || !json.paging) {
+    throw new ApiError('Phản hồi danh sách nhân sự sai hợp đồng (thiếu items/paging)', 500, 'INVALID_RESPONSE');
   }
-  const json = await res.json();
+  return json;
+}
 
-  if (json.items && json.paging) {
-    return json as PaginatedEmployeesResponse;
+/** Own profile for Employee role; allowlist summary for Admin. */
+export async function fetchEmployeeById(
+  employeeId: string
+): Promise<EmployeeDetail | EmployeeSummary> {
+  return requestJson<EmployeeDetail | EmployeeSummary>(`/employees/${encodeURIComponent(employeeId)}`);
+}
+
+export async function fetchMyProfile(): Promise<EmployeeDetail> {
+  const me = await fetchMe();
+  if (!me.employeeId) {
+    throw new ApiError(
+      'Tài khoản chưa được liên kết với hồ sơ nhân sự (thiếu employeeId)',
+      409,
+      'EMPLOYEE_NOT_LINKED'
+    );
   }
+  const detail = await fetchEmployeeById(me.employeeId);
+  if (!isEmployeeDetail(detail)) {
+    throw new ApiError('Phản hồi hồ sơ không đúng allowlist EmployeeDetail', 500, 'INVALID_RESPONSE');
+  }
+  return detail;
+}
 
-  // Chuẩn hóa format từ raw backend nếu đang ở dạng { data, pagination }
-  const rawItems = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
-  const items: EmployeeSummary[] = rawItems.map((emp: Record<string, unknown>) => ({
-    employeeId: String(emp.employeeId || emp._id || emp.employee_code || ''),
-    fullName: String(emp.fullName || emp.full_name || 'Nhân Viên'),
-    level: (emp.level as EmployeeSummary['level']) || 'Junior',
-    department: String(emp.department || emp.store_raw || 'Chưa phân bổ'),
-    skills: Array.isArray(emp.skills) ? (emp.skills as string[]) : [],
-    activeLoad: typeof emp.activeLoad === 'number' ? emp.activeLoad : null,
-    status: (emp.status as EmployeeSummary['status']) || 'active',
-  }));
+/** Non-sensitive own fields only (phone, skills). Sensitive fields go through change requests. */
+export async function updateEmployeeFields(
+  employeeId: string,
+  payload: { phone?: string; skills?: string[] }
+): Promise<EmployeeDetail | EmployeeSummary> {
+  return requestJson<EmployeeDetail | EmployeeSummary>(
+    `/employees/${encodeURIComponent(employeeId)}`,
+    patchJson({ ...payload, clientMessageId: newClientMessageId() })
+  );
+}
 
-  const paging = json.paging || {
-    page: json.pagination?.page || 1,
-    limit: json.pagination?.limit || 20,
-    totalItems: json.pagination?.total || items.length,
-    totalPages: json.pagination?.totalPages || 1,
-    hasNext: false,
-    hasPrev: false,
-  };
-
-  return { items, paging };
+export async function createProfileChangeRequest(
+  employeeId: string,
+  payload: CreateProfileChangeRequest
+): Promise<ProfileChangeRequest> {
+  return requestJson<ProfileChangeRequest>(
+    `/employees/${encodeURIComponent(employeeId)}/change-requests`,
+    postJson({ ...payload, clientMessageId: newClientMessageId() })
+  );
 }
 
 /**
- * Lấy hồ sơ chính chủ EmployeeDetail cho tài khoản Employee đăng nhập.
- * Cho phép xem employeeCode, phone, hiredAt của chính mình.
- * TUYỆT ĐỐI KHÔNG chứa: bank_name, bank_account, salary, CCCD.
+ * Admin approval queue shape (Phase 2 contract, agreed after phase-01):
+ * `GET /api/change-requests?status=PENDING` →
+ * `{ items: [{ employeeId, employeeName, request: ProfileChangeRequest }] }`.
+ * Not exported by `@hr-blockbot/contracts` yet, so the envelope lives here.
  */
-export async function fetchMyProfile(): Promise<EmployeeDetail> {
-  const meRes = await apiFetch(`${API_BASE}/auth/me`);
-  if (!meRes.ok) {
-    throw new Error(`Không thể lấy danh tính phiên đăng nhập (HTTP ${meRes.status})`);
-  }
-  const me: MeResponse = await meRes.json();
-
-  const targetId = me.employeeId || me.userId;
-  if (targetId) {
-    const detailRes = await apiFetch(`${API_BASE}/employees/${targetId}`);
-    if (detailRes.ok) {
-      const detailJson = await detailRes.json();
-      const raw = (detailJson.data || detailJson) as Record<string, unknown>;
-      return {
-        employeeId: String(raw.employeeId || raw._id || targetId),
-        employeeCode: String(raw.employeeCode || raw.employee_code || ''),
-        fullName: String(raw.fullName || raw.full_name || 'Nhân Viên'),
-        level: (raw.level as EmployeeDetail['level']) || me.level || 'Junior',
-        department: String(raw.department || raw.store_raw || 'GUTA CAFE'),
-        departmentId: raw.departmentId ? String(raw.departmentId) : me.departmentId || undefined,
-        skills: Array.isArray(raw.skills) ? (raw.skills as string[]) : me.skills || [],
-        activeLoad: typeof raw.activeLoad === 'number' ? raw.activeLoad : null,
-        status: (raw.status as EmployeeDetail['status']) || 'active',
-        phone: raw.phone ? String(raw.phone) : null,
-        hiredAt: raw.hiredAt ? String(raw.hiredAt) : raw.hire_date ? String(raw.hire_date) : null,
-      };
-    }
-  }
-
-  return {
-    employeeId: me.employeeId || me.userId,
-    employeeCode: me.employeeId || 'OWN-ID',
-    fullName: 'Nhân Viên ' + (me.role || 'Guta'),
-    level: me.level || 'Junior',
-    department: me.departmentId || 'GUTA CAFE',
-    departmentId: me.departmentId || undefined,
-    skills: me.skills || [],
-    activeLoad: null,
-    status: 'active',
-    phone: null,
-    hiredAt: null,
-  };
+export interface PendingChangeRequestItem {
+  employeeId: string;
+  employeeName: string;
+  request: ProfileChangeRequest;
 }
+
+export async function fetchPendingProfileChangeRequests(): Promise<PendingChangeRequestItem[]> {
+  const json = await requestJson<PendingChangeRequestItem[] | { items?: PendingChangeRequestItem[] }>(
+    '/change-requests?status=PENDING'
+  );
+  const items = Array.isArray(json) ? json : json.items;
+  if (!Array.isArray(items)) {
+    throw new ApiError(
+      'Phản hồi hàng đợi duyệt sai hợp đồng (thiếu mảng items)',
+      500,
+      'INVALID_RESPONSE'
+    );
+  }
+  return items;
+}
+
+/** Own (or Admin-in-scope) change requests for one employee. */
+export async function fetchEmployeeChangeRequests(employeeId: string): Promise<ProfileChangeRequest[]> {
+  const json = await requestJson<ProfileChangeRequest[] | { items?: ProfileChangeRequest[] }>(
+    `/employees/${encodeURIComponent(employeeId)}/change-requests`
+  );
+  const items = Array.isArray(json) ? json : json.items;
+  if (!Array.isArray(items)) {
+    throw new ApiError('Phản hồi yêu cầu thay đổi sai hợp đồng (thiếu mảng items)', 500, 'INVALID_RESPONSE');
+  }
+  return items;
+}
+
+export async function reviewProfileChangeRequest(
+  employeeId: string,
+  requestId: string,
+  payload: ReviewProfileChangeRequest
+): Promise<ProfileChangeRequest> {
+  return requestJson<ProfileChangeRequest>(
+    `/employees/${encodeURIComponent(employeeId)}/change-requests/${encodeURIComponent(requestId)}/review`,
+    postJson({ ...payload, clientMessageId: newClientMessageId() })
+  );
+}
+
+// ---------------------------------------------------------------------------
+// F2 - Project lifecycle
+// ---------------------------------------------------------------------------
+
+export interface ProjectListParams {
+  status?: ProjectStatus;
+  overdue?: boolean;
+  page?: number;
+  limit?: number;
+}
+
+export async function fetchProjects(params?: ProjectListParams): Promise<PaginatedProjectsResponse> {
+  const query = new URLSearchParams();
+  if (params?.status) query.set('status', params.status);
+  if (params?.overdue) query.set('overdue', 'true');
+  if (params?.page) query.set('page', String(params.page));
+  if (params?.limit) query.set('limit', String(params.limit));
+
+  const qs = query.toString();
+  const json = await requestJson<PaginatedProjectsResponse>(`/projects${qs ? `?${qs}` : ''}`);
+  if (!Array.isArray(json.items) || !json.paging) {
+    throw new ApiError('Phản hồi danh sách đề tài sai hợp đồng (thiếu items/paging)', 500, 'INVALID_RESPONSE');
+  }
+  return json;
+}
+
+export async function fetchProjectById(projectId: string): Promise<Project> {
+  return requestJson<Project>(`/projects/${encodeURIComponent(projectId)}`);
+}
+
+export interface ProjectMutationResult {
+  id: string;
+  status: ProjectStatus;
+  version: number;
+}
+
+export async function createProject(
+  payload: ProjectCreate
+): Promise<{ id: string; status: ProjectStatus; version: number }> {
+  return requestJson<{ id: string; status: ProjectStatus; version: number }>(
+    '/projects',
+    postJson({ ...payload, clientMessageId: newClientMessageId() })
+  );
+}
+
+export async function assignProject(
+  projectId: string,
+  payload: ProjectAssign
+): Promise<ProjectMutationResult> {
+  return requestJson<ProjectMutationResult>(
+    `/projects/${encodeURIComponent(projectId)}/assign`,
+    postJson({ ...payload, clientMessageId: newClientMessageId() })
+  );
+}
+
+export async function transitionProject(
+  projectId: string,
+  payload: ProjectTransition
+): Promise<ProjectMutationResult> {
+  return requestJson<ProjectMutationResult>(
+    `/projects/${encodeURIComponent(projectId)}/transition`,
+    postJson({ ...payload, clientMessageId: newClientMessageId() })
+  );
+}
+
+export async function updateProjectProgress(
+  projectId: string,
+  payload: ProjectProgress
+): Promise<{ id: string; progress: number }> {
+  return requestJson<{ id: string; progress: number }>(
+    `/projects/${encodeURIComponent(projectId)}/progress`,
+    postJson({ ...payload, clientMessageId: payload.clientMessageId ?? newClientMessageId() })
+  );
+}
+
+export interface SubmitReportResult {
+  reportId: string;
+  projectId: string;
+  status: string;
+  version: number;
+}
+
+/**
+ * Canonical report submit path from the Phase 2 contract: reports are nested
+ * under their project (`POST /api/projects/:id/reports`).
+ */
+export async function submitReport(
+  projectId: string,
+  payload: { content: string; attachments?: string[]; expectedVersion: number }
+): Promise<SubmitReportResult> {
+  return requestJson<SubmitReportResult>(
+    `/projects/${encodeURIComponent(projectId)}/reports`,
+    postJson({ ...payload, attachments: payload.attachments ?? [] })
+  );
+}
+
+export interface ReviewReportResult {
+  reportId: string;
+  projectId: string;
+  projectStatus: ProjectStatus;
+  version: number;
+}
+
+export async function reviewReport(
+  reportId: string,
+  payload: ReportReview
+): Promise<ReviewReportResult> {
+  return requestJson<ReviewReportResult>(
+    `/reports/${encodeURIComponent(reportId)}/review`,
+    postJson(payload)
+  );
+}
+
+export type { ReportStatus };
+
+// ---------------------------------------------------------------------------
+// Conversations (design/conversations-storage.md)
+// ---------------------------------------------------------------------------
+
+/** Creates a `web` conversation owned by the current user; returns its `id`. */
+export async function createConversation(): Promise<Conversation> {
+  return requestJson<Conversation>('/conversations', postJson({ channel: 'web' }));
+}
+
+// ---------------------------------------------------------------------------
+// Admin settings - LLM providers (ADR-017)
+// ---------------------------------------------------------------------------
+
+export interface LLMProvidersResponse {
+  configVersion: number;
+  providers: LLMProvider[];
+}
+
+export async function fetchLLMProviders(): Promise<LLMProvidersResponse> {
+  const json = await requestJson<{ configVersion?: number; providers?: LLMProvider[] }>(
+    '/admin/llm-providers'
+  );
+  if (!Array.isArray(json.providers)) {
+    throw new ApiError('Phản hồi cấu hình provider thiếu mảng providers', 500, 'INVALID_RESPONSE');
+  }
+  return { configVersion: json.configVersion ?? 0, providers: json.providers };
+}
+
+/**
+ * Write-only API: `apiKey` is accepted when present and never echoed back.
+ * Responses only ever contain `keyHint`, never the key or its ciphertext.
+ */
+export async function saveLLMProviders(
+  payload: UpdateLLMProvidersRequest
+): Promise<LLMProvidersResponse> {
+  const res = await apiFetch(`${API_BASE}/admin/llm-providers`, putJson(payload));
+  if (!res.ok) {
+    throw await toApiError(res, `Lưu cấu hình provider thất bại (HTTP ${res.status})`);
+  }
+  if (res.status === 204) {
+    return fetchLLMProviders();
+  }
+  const json = (await res.json()) as { configVersion?: number; providers?: LLMProvider[] };
+  if (Array.isArray(json.providers)) {
+    return { configVersion: json.configVersion ?? 0, providers: json.providers };
+  }
+  return fetchLLMProviders();
+}
+
+export async function testLLMProvider(providerId: string): Promise<ProviderTestResult> {
+  return requestJson<ProviderTestResult>(
+    `/admin/llm-providers/${encodeURIComponent(providerId)}/test`,
+    postJson({})
+  );
+}
+
+export type {
+  LLMProvider,
+  LLMProviderInput,
+  UpdateLLMProvidersRequest,
+};

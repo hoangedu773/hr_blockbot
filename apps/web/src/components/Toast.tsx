@@ -7,6 +7,9 @@ export interface ToastMessage {
   message: string;
 }
 
+/** Shared callback signature for views that must surface real API errors. */
+export type NotifyFn = (message: string, type?: ToastMessage['type'], title?: string) => void;
+
 interface ToastProps {
   toasts: ToastMessage[];
   onDismiss: (id: string) => void;

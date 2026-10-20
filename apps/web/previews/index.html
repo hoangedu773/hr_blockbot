@@ -7,25 +7,29 @@
   <style>
     :root {
       color-scheme: dark;
-      --bg: #07090e;
-      --bg-elevated: #0e121a;
-      --surface: rgba(18, 23, 34, 0.75);
-      --surface-card: rgba(24, 30, 44, 0.65);
-      --surface-hover: rgba(35, 44, 64, 0.8);
+      /* Linear / Vercel Modern Obsidian Tokens */
+      --bg: #090a0f;
+      --bg-elevated: #0f1117;
+      --surface: #141721;
+      --surface-card: #141721;
+      --surface-hover: #1c202d;
       --border: rgba(255, 255, 255, 0.08);
-      --border-highlight: rgba(255, 209, 0, 0.35);
+      --border-highlight: rgba(234, 179, 8, 0.35);
 
       --text: #f8fafc;
       --text-muted: #94a3b8;
-      --text-faint: #475569;
+      --text-faint: #64748b;
 
-      --guta-yellow: #ffd100;
-      --guta-blue: #0047ba;
+      /* Elegant Accent & Semantics */
+      --guta-yellow: #eab308;
+      --guta-blue: #0284c7;
       --emerald: #10b981;
       --amber: #f59e0b;
       --rose: #f43f5e;
+      --cyan: #06b6d4;
+      --purple: #a855f7;
 
-      --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      --mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
       --ease: cubic-bezier(0.16, 1, 0.3, 1);
     }
 
@@ -339,23 +343,35 @@
     <!-- State Tabs Switcher -->
     <nav class="preview-tabs" aria-label="Preview States">
       <button class="tab-btn active" onclick="switchState('ideal')">
-        👑 1. Ideal Admin
+        1. Ideal Admin
       </button>
       <button class="tab-btn" onclick="switchState('employee')">
-        👤 2. Employee (Own)
+        2. Employee (Own)
       </button>
       <button class="tab-btn" onclick="switchState('empty')">
-        📭 3. Empty State
+        3. Empty State
       </button>
       <button class="tab-btn" onclick="switchState('loading')">
-        ⏳ 4. Loading / Skeleton
+        4. Loading / Skeleton
       </button>
       <button class="tab-btn" onclick="switchState('error')">
-        ⚠️ 5. Error State
+        5. Error State
       </button>
       <button class="tab-btn" onclick="switchState('auth')">
-        🛡️ 6. Auth Gate / Login
+        6. Auth Gate / Login
       </button>
+      <button class="tab-btn" onclick="switchState('f1f2')">
+        7. F1 & F2 Command Center
+      </button>
+      <button class="tab-btn" onclick="switchState('chat')">
+        8. Chat — 6 trạng thái
+      </button>
+      <button class="tab-btn" onclick="switchState('admin')">
+        9. Admin LLM Providers
+      </button>
+      <a href="styles.html" class="tab-btn" style="background: rgba(234, 179, 8, 0.15); border-color: var(--guta-yellow); color: var(--guta-yellow); text-decoration: none;">
+        🎨 20 Styles Live Switcher ➔
+      </a>
     </nav>
   </header>
 
@@ -390,22 +406,22 @@
       <!-- Metric Cards (No fake numbers) -->
       <div class="metric-grid">
         <div class="metric-card">
-          <div class="metric-title"><span>NHÂN SỰ ĐIỂM BÁN</span> <span>👥</span></div>
+          <div class="metric-title"><span>NHÂN SỰ ĐIỂM BÁN</span></div>
           <div class="metric-val">45 NV</div>
           <div class="metric-sub" style="color: var(--emerald);">Theo định biên điểm bán Atlas</div>
         </div>
         <div class="metric-card">
-          <div class="metric-title"><span>CA TRỰC HÔM NAY</span> <span>🕒</span></div>
+          <div class="metric-title"><span>CA TRỰC HÔM NAY</span></div>
           <div class="metric-val" style="color: var(--guta-yellow);">4 Ca</div>
           <div class="metric-sub">Dữ liệu phân ca thực tế</div>
         </div>
         <div class="metric-card">
-          <div class="metric-title"><span>PHIẾU GIẢI TRÌNH CHỜ DUYỆT</span> <span>📋</span></div>
+          <div class="metric-title"><span>PHIẾU GIẢI TRÌNH CHỜ DUYỆT</span></div>
           <div class="metric-val" style="color: #fbbf24;">2 Phiếu</div>
           <div class="metric-sub" style="color: #f59e0b;">Cần Cửa hàng trưởng xét duyệt</div>
         </div>
         <div class="metric-card">
-          <div class="metric-title"><span>QUỸ KÉT TIỀN GIAO CA</span> <span>💰</span></div>
+          <div class="metric-title"><span>QUỸ KÉT TIỀN GIAO CA</span></div>
           <div class="metric-val" style="color: #34d399;">1,745,000 ₫</div>
           <div class="metric-sub" style="color: var(--emerald);">Khớp bảng kiểm kê tiền két</div>
         </div>
@@ -501,8 +517,8 @@
       <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 20px;">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
           <div style="display: flex; align-items: center; gap: 14px;">
-            <div style="width: 52px; height: 52px; border-radius: 12px; background: rgba(56, 189, 248, 0.15); border: 1px solid #38bdf8; display: flex; align-items: center; justify-content: center; font-size: 24px;">
-              👤
+            <div style="width: 44px; height: 44px; border-radius: 8px; background: rgba(6, 182, 212, 0.12); border: 1px solid rgba(6, 182, 212, 0.3); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #38bdf8; font-family: var(--mono);">
+              TT
             </div>
             <div>
               <div style="display: flex; align-items: center; gap: 8px;">
@@ -586,7 +602,9 @@
       </div>
 
       <div class="timeline-card" style="text-align: center; padding: 48px 20px;">
-        <div style="font-size: 32px; margin-bottom: 10px;">📅</div>
+        <div style="width: 40px; height: 40px; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid var(--border);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-muted);"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+        </div>
         <h4 style="font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 6px;">Chưa Có Ca Trực Nào Trong Kỳ Này</h4>
         <p style="font-size: 12px; color: var(--text-muted); max-width: 400px; margin: 0 auto 16px;">
           Điểm bán chưa có phân bổ ca làm việc hoặc bộ lọc hiện tại không khớp với dữ liệu nào trên hệ thống.
@@ -708,6 +726,267 @@
       </div>
     </section>
 
+    <!-- ================================================================= -->
+    <!-- 7. F1 & F2 THESIS COMMAND CENTER STATE (NEW) -->
+    <!-- ================================================================= -->
+    <section id="panel-f1f2" class="state-panel">
+      <div style="background: rgba(255, 209, 0, 0.08); border: 1px solid rgba(255, 209, 0, 0.3); border-radius: 8px; padding: 12px 16px; font-size: 12px; color: #fef08a;">
+        🎯 <strong>Khóa luận F1 & F2 Command Center:</strong> Quản lý danh mục & vòng đời 5 trạng thái đề tài (DRAFT → ASSIGNED → IN_PROGRESS → PENDING_REVIEW → COMPLETED) và Hàng đợi phê duyệt thay đổi thông tin nhạy cảm FR-003/004.
+      </div>
+
+      <!-- F1 Approval Queue & F2 Projects layout -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 20px;">
+        <!-- Left: F1 Approval Queue -->
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 18px; display: flex; flex-direction: column; gap: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="font-size: 14px; font-weight: 700; color: #fff;">Hàng Đợi Duyệt Hồ Sơ (FR-003/004)</h3>
+            <span class="badge badge-yellow">1 YÊU CẦU CHỜ DUYỆT</span>
+          </div>
+          <p style="font-size: 11px; color: var(--text-muted);">Admin duyệt thay đổi cấp bậc/ngày vào làm. Cấm tự duyệt hồ sơ chính mình (SELF_APPROVAL).</p>
+
+          <div style="background: rgba(10, 13, 20, 0.85); border: 1px solid var(--border); border-radius: 6px; padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <strong style="color: #fff; font-size: 13px;">Nguyễn Thị Thanh Thúy (GT-CH18030009)</strong>
+              <span class="badge badge-yellow">PENDING</span>
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px;">
+              <div>Yêu cầu đổi Cấp bậc: <span style="text-decoration: line-through; color: var(--text-faint);">Junior</span> ➔ <strong style="color: var(--emerald);">Middle</strong></div>
+              <div>Chức danh: <strong>Barista Trưởng</strong></div>
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 6px;">
+              <button style="min-height: 38px; flex: 1; border-radius: 4px; background: var(--emerald); color: #fff; border: none; font-weight: 700; font-size: 12px; cursor: pointer;">
+                Phê Duyệt
+              </button>
+              <button style="min-height: 38px; flex: 1; border-radius: 4px; background: rgba(244, 63, 94, 0.15); border: 1px solid var(--rose); color: var(--rose); font-weight: 700; font-size: 12px; cursor: pointer;">
+                Từ Chối (Kèm Lý Do)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: F2 Project Lifecycle -->
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 18px; display: flex; flex-direction: column; gap: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="font-size: 14px; font-weight: 700; color: #fff;">Danh Mục & Vòng Đời Đề Tài (F2)</h3>
+            <button style="min-height: 36px; padding: 0 12px; border-radius: 4px; background: var(--guta-yellow); color: #07090e; border: none; font-weight: 700; font-size: 11px; cursor: pointer;">
+              + Tạo Đề Tài (DRAFT)
+            </button>
+          </div>
+          <p style="font-size: 11px; color: var(--text-muted);">Chuyển trạng thái nguyên tử với Optimistic Locking version. Lọc quá hạn dẫn xuất (derived).</p>
+
+          <!-- Project Card -->
+          <div style="background: rgba(10, 13, 20, 0.85); border: 1px solid var(--border); border-radius: 6px; padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <strong style="color: #fff; font-size: 13px;">Nâng cấp bảo mật Auth & Data Minimization</strong>
+              <span class="badge badge-blue">IN_PROGRESS (v2)</span>
+            </div>
+            <p style="font-size: 11px; color: var(--text-muted);">Phòng Công Nghệ • Người phụ trách: Lê Văn C (GT-CH18030012)</p>
+            <div>
+              <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
+                <span>Tiến độ thực hiện:</span>
+                <strong style="color: var(--guta-yellow); font-family: var(--mono);">65%</strong>
+              </div>
+              <div style="height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden;">
+                <div style="height: 100%; width: 65%; background: var(--guta-yellow); border-radius: 3px;"></div>
+              </div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-faint);">
+              <span>Hạn chót: <span style="font-family: var(--mono);">2026-10-25</span></span>
+              <button style="min-height: 32px; padding: 0 10px; border-radius: 4px; background: var(--surface-card); border: 1px solid var(--border); color: #fff; font-size: 11px; cursor: pointer;">
+                Nộp Báo Cáo Nghiệm Thu ➔
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- 8. CHAT PANEL — SIX REQUIRED STATES (idle/sending/streaming/abstain/error/degraded) -->
+    <!-- ================================================================= -->
+    <section id="panel-chat" class="state-panel">
+      <div style="background: rgba(2, 132, 199, 0.1); border: 1px solid rgba(2, 132, 199, 0.3); border-radius: 8px; padding: 12px 16px; font-size: 12px; color: #7dd3fc;">
+        💬 <strong>ChatPanel — 6 trạng thái bắt buộc:</strong> idle · sending · streaming · abstain · error · degraded.
+        Trạng thái abstain/degraded chỉ bật khi máy chủ trả về; không có nút giả, không có trích dẫn bịa.
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px; margin-top: 18px;">
+
+        <!-- idle -->
+        <div id="panel-chat-idle" style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;">
+          <div style="padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 8px; background: rgba(11,14,21,0.6);">
+            <strong style="font-size: 13px; color: #fff;">Trợ Lý Chính Sách</strong>
+            <span class="badge" style="border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.12); color: #6ee7b7;">● Đã kết nối · Sẵn sàng</span>
+          </div>
+          <div style="padding: 22px 16px; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;">
+            <strong style="font-size: 13px; color: #fff;">Chưa có câu hỏi nào</strong>
+            <p style="font-size: 11px; color: var(--text-muted); max-width: 280px;">Đặt câu hỏi về chính sách nhân sự. Câu ngoài phạm vi tài liệu sẽ bị từ chối thay vì suy đoán.</p>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px; justify-content: center;">
+              <span style="font-size: 11px; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border); color: var(--text-muted);">Chính sách nghỉ phép?</span>
+              <span style="font-size: 11px; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border); color: var(--text-muted);">Đi muộn bị xử lý thế nào?</span>
+            </div>
+            <div style="display: flex; gap: 8px; width: 100%; margin-top: 8px;">
+              <input readonly placeholder="Hỏi về chính sách nhân sự…" style="flex: 1; min-height: 36px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-elevated); color: var(--text-muted); padding: 0 10px; font-size: 12px;">
+              <button style="min-height: 36px; padding: 0 14px; border-radius: 6px; border: 1px solid rgba(234,179,8,0.45); background: rgba(234,179,8,0.14); color: var(--guta-yellow); font-weight: 700; font-size: 12px; cursor: pointer;">Gửi</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- sending -->
+        <div id="panel-chat-sending" style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;">
+          <div style="padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 8px; background: rgba(11,14,21,0.6);">
+            <strong style="font-size: 13px; color: #fff;">Trợ Lý Chính Sách</strong>
+            <span class="badge" style="border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.12); color: #fcd34d;">Đang gửi…</span>
+          </div>
+          <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+            <div style="align-self: flex-end; max-width: 88%; padding: 10px 14px; border-radius: 12px; background: rgba(2,132,199,0.18); border: 1px solid rgba(2,132,199,0.4); font-size: 13px; color: #fff;">Chính sách nghỉ phép năm nay quy định thế nào?</div>
+            <div style="align-self: flex-start; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-elevated);">
+              <span style="display: inline-flex; gap: 4px; align-items: center;">
+                <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); display: inline-block;"></span>
+                <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); display: inline-block;"></span>
+                <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); display: inline-block;"></span>
+              </span>
+            </div>
+            <div style="font-size: 11px; color: var(--text-faint); font-family: var(--mono);">Đã gửi chat:send {clientMessageId} · chờ chat:accepted</div>
+          </div>
+        </div>
+
+        <!-- streaming -->
+        <div id="panel-chat-streaming" style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;">
+          <div style="padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 8px; background: rgba(11,14,21,0.6);">
+            <strong style="font-size: 13px; color: #fff;">Trợ Lý Chính Sách</strong>
+            <span class="badge" style="border-color: rgba(2,132,199,0.4); background: rgba(2,132,199,0.12); color: #7dd3fc;">Đang nhận câu trả lời…</span>
+          </div>
+          <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+            <div style="align-self: flex-end; max-width: 88%; padding: 10px 14px; border-radius: 12px; background: rgba(2,132,199,0.18); border: 1px solid rgba(2,132,199,0.4); font-size: 13px; color: #fff;">Chính sách nghỉ phép năm nay quy định thế nào?</div>
+            <div style="align-self: flex-start; max-width: 88%; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-elevated); font-size: 13px; color: var(--text);">
+              Theo <strong>Điều 12 — Quy chế nghỉ phép</strong>, nhân sự chính thức được 12 ngày phép năm, cộng thêm 1 ngày cho mỗi 5 năm thâm niên<span style="color: var(--guta-yellow);">▍</span>
+            </div>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <span style="font-size: 11px; padding: 3px 9px; border-radius: 999px; border: 1px solid rgba(2,132,199,0.45); background: rgba(2,132,199,0.12); color: #7dd3fc;">📄 Quy chế nhân sự · v2 · Điều 12</span>
+            </div>
+            <div style="font-size: 11px; color: var(--text-faint); font-family: var(--mono);">chat:chunk kind=text · seq 0..n</div>
+          </div>
+        </div>
+
+        <!-- abstain -->
+        <div id="panel-chat-abstain" style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;">
+          <div style="padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 8px; background: rgba(11,14,21,0.6);">
+            <strong style="font-size: 13px; color: #fff;">Trợ Lý Chính Sách</strong>
+            <span class="badge badge-yellow">Không đủ bằng chứng</span>
+          </div>
+          <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+            <div style="align-self: flex-end; max-width: 88%; padding: 10px 14px; border-radius: 12px; background: rgba(2,132,199,0.18); border: 1px solid rgba(2,132,199,0.4); font-size: 13px; color: #fff;">Công ty có chính sách mua cổ phần cho nhân viên không?</div>
+            <div style="border: 1px solid rgba(245,158,11,0.35); background: rgba(245,158,11,0.1); border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #fcd34d;">
+              <strong>Chưa có trong tài liệu chính sách.</strong> Hệ thống không tìm thấy bằng chứng đủ mạnh để trả lời câu hỏi này.<br>
+              <span style="font-size: 11px;">Tài liệu đã nạp trong câu trả lời: Quy chế nhân sự (v2) · Nội quy lao động (v1)</span>
+            </div>
+            <div style="font-size: 11px; color: var(--text-faint);">Không hiển thị nút gợi ý hay nguồn bịa ở trạng thái này.</div>
+          </div>
+        </div>
+
+        <!-- error -->
+        <div id="panel-chat-error" style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;">
+          <div style="padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 8px; background: rgba(11,14,21,0.6);">
+            <strong style="font-size: 13px; color: #fff;">Trợ Lý Chính Sách</strong>
+            <span class="badge" style="border-color: rgba(244,63,94,0.4); background: rgba(244,63,94,0.12); color: #fda4af;">Lỗi</span>
+          </div>
+          <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+            <div style="align-self: flex-end; max-width: 88%; padding: 10px 14px; border-radius: 12px; background: rgba(2,132,199,0.18); border: 1px solid rgba(2,132,199,0.4); font-size: 13px; color: #fff;">Đi muộn bị xử lý theo điều khoản nào?</div>
+            <div style="border: 1px solid rgba(244,63,94,0.35); background: rgba(244,63,94,0.1); border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #fda4af;">
+              <strong>Không xử lý được câu hỏi.</strong> AI_SERVICE_TIMEOUT: máy chủ AI không phản hồi trong thời gian cho phép.
+              <div style="margin-top: 8px;"><span style="font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border); color: var(--text);">Thử lại câu hỏi trước</span></div>
+            </div>
+            <div style="font-size: 11px; color: var(--text-faint); font-family: var(--mono);">chat:error { code, message, retryable }</div>
+          </div>
+        </div>
+
+        <!-- degraded -->
+        <div id="panel-chat-degraded" style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;">
+          <div style="padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 8px; background: rgba(11,14,21,0.6);">
+            <strong style="font-size: 13px; color: #fff;">Trợ Lý Chính Sách</strong>
+            <span class="badge" style="border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.12); color: #fcd34d;">Không có LLM</span>
+          </div>
+          <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+            <div style="border: 1px solid rgba(245,158,11,0.35); background: rgba(245,158,11,0.1); border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #fcd34d;">
+              <strong>Đang ở chế độ không có LLM.</strong> Kết quả bên dưới là dữ liệu thô từ công cụ tra cứu, không được diễn giải. <span style="font-family: var(--mono);">(LLM_UNAVAILABLE)</span>
+            </div>
+            <div style="align-self: flex-start; max-width: 88%; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-elevated); font-family: var(--mono); font-size: 12px; color: var(--text-muted);">
+              get_my_projects → [{ title: "Nâng cấp bảo mật Auth", status: "IN_PROGRESS", progress: 65 }]
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- 9. ADMIN LLM PROVIDER SETTINGS -->
+    <!-- ================================================================= -->
+    <section id="panel-admin" class="state-panel">
+      <div style="background: rgba(255, 209, 0, 0.08); border: 1px solid rgba(255, 209, 0, 0.3); border-radius: 8px; padding: 12px 16px; font-size: 12px; color: #fef08a;">
+        🔐 <strong>Admin — Cấu hình LLM Provider (ADR-017):</strong> API key chỉ ghi một chiều (AES-256-GCM). Response chỉ trả
+        <code style="font-family: var(--mono);">keyHint</code> — giao diện không bao giờ hiển thị key thật, không render <code style="font-family: var(--mono);">keyCipher</code>.
+        Chỉ role <strong>Admin</strong> thấy màn hình này (Employee → 403 RBAC_DENIED).
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 18px;">
+        <div>
+          <h2 style="font-size: 16px; font-weight: 700; color: #fff;">Cấu Hình LLM Provider</h2>
+          <p style="font-size: 11px; color: var(--text-muted); font-family: var(--mono);">configVersion 3 · key mã hoá lưu server-side</p>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button style="min-height: 36px; padding: 0 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-card); color: var(--text); font-weight: 600; font-size: 12px; cursor: pointer;">Tải lại</button>
+          <button style="min-height: 36px; padding: 0 14px; border-radius: 6px; border: 1px solid rgba(234,179,8,0.45); background: rgba(234,179,8,0.14); color: var(--guta-yellow); font-weight: 700; font-size: 12px; cursor: pointer;">+ Thêm provider</button>
+        </div>
+      </div>
+
+      <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-top: 14px;">
+        <table class="preview-table">
+          <thead>
+            <tr>
+              <th>PROVIDER</th>
+              <th>LOẠI</th>
+              <th>MODEL</th>
+              <th>ƯU TIÊN</th>
+              <th>KEY</th>
+              <th>TEST GẦN NHẤT</th>
+              <th>TRẠNG THÁI</th>
+              <th>HÀNH ĐỘNG</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong style="color: #fff;">Primary</strong><div style="font-size: 10px; color: var(--text-muted); font-family: var(--mono);">https://api.example.com/v1</div></td>
+              <td><span class="badge badge-blue">openai_compatible</span></td>
+              <td style="font-family: var(--mono); color: var(--text-muted);">model-do-provider-cong-bo</td>
+              <td style="font-family: var(--mono);">1</td>
+              <td><span class="badge">••••a1b2</span></td>
+              <td><span class="badge" style="border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.12); color: #6ee7b7;">142ms</span></td>
+              <td><span class="badge" style="border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.12); color: #6ee7b7;">enabled</span></td>
+              <td style="font-size: 11px; white-space: nowrap;">Test connection · Sửa · Xoá</td>
+            </tr>
+            <tr>
+              <td><strong style="color: #fff;">Fallback</strong><div style="font-size: 10px; color: var(--text-muted); font-family: var(--mono);">https://api.example.net/v1</div></td>
+              <td><span class="badge">gemini</span></td>
+              <td style="font-family: var(--mono); color: var(--text-muted);">model-do-provider-cong-bo</td>
+              <td style="font-family: var(--mono);">2</td>
+              <td><span class="badge">••••9xQ7</span></td>
+              <td><span class="badge" style="border-color: rgba(244,63,94,0.4); background: rgba(244,63,94,0.12); color: #fda4af;">lỗi</span><div style="font-size: 10px; color: #fda4af;">401 invalid api key</div></td>
+              <td><span class="badge badge-yellow">disabled</span></td>
+              <td style="font-size: 11px; white-space: nowrap;">Test connection · Sửa · Xoá</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top: 14px; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border); background: rgba(255,255,255,0.03); font-size: 11px; color: var(--text-muted);">
+        Form thêm/sửa: <strong>type</strong> (select 3 giá trị contract), <strong>baseUrl</strong>, <strong>model</strong>,
+        <strong>apiKey</strong> (input type=password, chỉ ghi), <strong>priority</strong>, <strong>enabled</strong>.
+        Nút <strong>Test connection</strong> gọi endpoint test và hiển thị latency thật hoặc lỗi thật.
+      </div>
+    </section>
+
   </main>
 
   <script>
@@ -723,6 +1002,13 @@
       const targetPanel = document.getElementById('panel-' + stateName);
       if (targetPanel) targetPanel.classList.add('active');
     }
+
+    // Deep-link a state (e.g. index.html#chat) so the preview can be captured
+    // headlessly and reviewed without clicking.
+    (function restoreStateFromHash() {
+      const stateName = window.location.hash.replace('#', '').trim();
+      if (stateName && document.getElementById('panel-' + stateName)) switchState(stateName);
+    })();
   </script>
 </body>
 </html>
