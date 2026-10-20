@@ -1,389 +1,594 @@
-"""
-Tool catalog and agent execution loop for Guta Cafe HR Bot.
-Directly interfaces with MongoDB Atlas `hr_bot` collection data and the Policy RAG Engine.
-Enforces security sanitization, honest DB checks, and mock tool lockdown in bootstrap mode.
+"""Tool catalog (read-only runtime) + RBAC/scope/guards.
+
+Replaces the legacy shift-domain tools (`get_my_schedule`, `get_cash_reconciliation`,
+…) that phase-04 removes. Nothing here mutates MongoDB: `submit_report` returns a
+proposal that `apps/api` must execute after the user confirms (FR-020, D-21.2).
+
+Naming note: phase-04 §5 lists `get_my_projects` / `get_project_status`; the older
+`18-user-flows.md` catalog used `list_projects` / `get_project`. Both names resolve
+here (alias map) so a contract change does not break the chatbot; the canonical name
+returned to clients is the phase-04 one.
 """
 
-from typing import Dict, Any, List, Optional
-import os
+from __future__ import annotations
+
 import re
-from pymongo import MongoClient
-from app.rag.policy_engine import policy_engine
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeout
+from dataclasses import dataclass
+from typing import Any, Callable, Literal
+
+from bson import ObjectId
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, ValidationError, field_validator
+
+from app.config import settings
+from app.rag.policy_engine import PolicyEngine
+
+# --- context & results -----------------------------------------------------------
 
 
-def get_mongodb_uri() -> Optional[str]:
-    """Lấy URI kết nối MongoDB từ biến môi trường. Tuyệt đối không hardcode credentials."""
-    return os.getenv("MONGODB_URI") or os.getenv("ATLAS_URI") or None
+class UserContext(BaseModel):
+    """Scoped identity passed by `apps/api` after JWT verification (server-injected)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    user_id: str | None = Field(default=None, validation_alias=AliasChoices("userId", "user_id"))
+    employee_id: str | None = Field(default=None, validation_alias=AliasChoices("employeeId", "employee_id"))
+    employee_code: str | None = Field(
+        default=None, validation_alias=AliasChoices("employeeCode", "employee_code")
+    )
+    role: Literal["Admin", "Employee"] = Field(default="Employee")
+    department_id: str | None = Field(
+        default=None, validation_alias=AliasChoices("departmentId", "department_id")
+    )
+
+    @field_validator("role", mode="before")
+    @classmethod
+    def _normalise_role(cls, value: Any) -> str:
+        text = str(value or "Employee").strip().lower()
+        if text in ("admin", "administrator"):
+            return "Admin"
+        return "Employee"
+
+
+class NoArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class ProfileArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class MyProjectsArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["DRAFT", "ASSIGNED", "IN_PROGRESS", "PENDING_REVIEW", "COMPLETED"] | None = None
+    upcomingOnly: bool = False
+    limit: int | None = Field(default=None, ge=1, le=20)
+
+
+class ProjectStatusArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    projectRef: str = Field(min_length=1, max_length=120, description="project id or title fragment")
+
+
+class KpiArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    period: str | None = Field(default=None, max_length=20, description="evaluation period, e.g. 2026-10")
+
+
+class DepartmentKpiArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    period: str | None = Field(default=None, max_length=20)
+
+
+class SearchPolicyArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    query: str = Field(min_length=1, max_length=500)
+    topK: int | None = Field(default=None, ge=1, le=10)
+
+
+class SubmitReportArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    projectRef: str = Field(min_length=1, max_length=120)
+    content: str = Field(min_length=1, max_length=4000)
+
+
+@dataclass(frozen=True)
+class ToolSpec:
+    name: str
+    description: str
+    args_model: type[BaseModel]
+    kind: Literal["read", "write"]
+    allowed_roles: tuple[str, ...]
+    handler: Callable[["ToolRuntime", BaseModel, UserContext], dict[str, Any]]
+
+    def declaration(self) -> dict[str, Any]:
+        schema = self.args_model.model_json_schema()
+        schema.pop("title", None)
+        return {"name": self.name, "description": self.description, "parameters": schema}
+
+
+class ToolTimeoutError(Exception):
+    pass
+
+
+# --- db helpers ------------------------------------------------------------------
+
+
+def _db(runtime: "ToolRuntime") -> Any:
+    return runtime.db
+
+
+def _to_oid(value: str | None) -> ObjectId | None:
+    if not value:
+        return None
+    try:
+        return ObjectId(str(value))
+    except Exception:  # noqa: BLE001 - non-ObjectId identifiers stay as-is
+        return None
+
+
+def _resolve_employee(runtime: "ToolRuntime", ctx: UserContext) -> tuple[Any, dict[str, Any] | None]:
+    """Return `(employee _id, error)`; reads only the identifier column."""
+    oid = _to_oid(ctx.employee_id)
+    if oid is not None:
+        return oid, None
+    code = (ctx.employee_code or "").strip()
+    if not code:
+        return None, {
+            "status": "denied",
+            "code": "SCOPE_DENIED",
+            "message": "Thiếu định danh nhân viên (employeeId/employeeCode) trong ngữ cảnh xác thực.",
+        }
+    row = _db(runtime).employees.find_one({"employeeCode": code}, {"_id": 1})
+    if not row:
+        return None, {"status": "not_found", "code": "EMPLOYEE_NOT_FOUND", "message": "Không tìm thấy hồ sơ nhân viên."}
+    return row.get("_id"), None
+
+
+def _department_name(runtime: "ToolRuntime", department_id: Any) -> str | None:
+    if department_id is None:
+        return None
+    query: dict[str, Any] = {"_id": department_id}
+    oid = _to_oid(str(department_id))
+    if oid is not None:
+        query = {"$or": [{"_id": oid}, {"code": str(department_id)}]}
+    else:
+        query = {"code": str(department_id)}
+    row = _db(runtime).departments.find_one(query, {"_id": 0, "name": 1})
+    return (row or {}).get("name")
+
+
+# --- handlers: read tools --------------------------------------------------------
+
+
+def _get_my_profile(runtime: "ToolRuntime", args: BaseModel, ctx: UserContext) -> dict[str, Any]:
+    oid, error = _resolve_employee(runtime, ctx)
+    if error:
+        return error
+    query: dict[str, Any] = {"_id": oid} if oid else {"employeeCode": ctx.employee_code}
+    projection = {
+        "_id": 0,
+        "employeeCode": 1,
+        "fullName": 1,
+        "level": 1,
+        "departmentId": 1,
+        "skills": 1,
+        "status": 1,
+    }
+    row = _db(runtime).employees.find_one(query, projection)
+    if not row:
+        return {"status": "not_found", "code": "EMPLOYEE_NOT_FOUND", "message": "Không tìm thấy hồ sơ nhân viên."}
+    department = _department_name(runtime, row.get("departmentId"))
+    return {
+        "status": "success",
+        "tool": "get_my_profile",
+        "profile": {
+            "employeeCode": row.get("employeeCode"),
+            "fullName": row.get("fullName"),
+            "level": row.get("level"),
+            "department": department,
+            "skills": row.get("skills") or [],
+            "status": row.get("status"),
+        },
+        "summary": (
+            f"Hồ sơ của bạn: {row.get('fullName') or 'N/A'} "
+            f"(mã {row.get('employeeCode') or 'N/A'}), cấp bậc {row.get('level') or 'N/A'}, "
+            f"phòng ban {department or 'N/A'}."
+        ),
+    }
+
+
+def _project_projection() -> dict[str, int]:
+    return {
+        "_id": 0,
+        "title": 1,
+        "status": 1,
+        "dueDate": 1,
+        "progressPct": 1,
+        "version": 1,
+        "updatedAt": 1,
+        "requiredSkills": 1,
+        "departmentId": 1,
+    }
+
+
+def _get_my_projects(runtime: "ToolRuntime", args: MyProjectsArgs, ctx: UserContext) -> dict[str, Any]:
+    oid, error = _resolve_employee(runtime, ctx)
+    if error:
+        return error
+    query: dict[str, Any] = {"assigneeIds": oid}
+    if args.status:
+        query["status"] = args.status
+    if args.upcomingOnly:
+        from datetime import datetime, timedelta, timezone
+
+        query["dueDate"] = {"$lte": datetime.now(timezone.utc) + timedelta(days=7)}
+        query["status"] = {"$ne": "COMPLETED"}
+    limit = min(args.limit or settings.max_tool_result_items, settings.max_tool_result_items)
+    rows = list(_db(runtime).projects.find(query, _project_projection()).sort("dueDate", 1).limit(limit))
+    items = [
+        {
+            "title": row.get("title"),
+            "status": row.get("status"),
+            "dueDate": row.get("dueDate").isoformat() if hasattr(row.get("dueDate"), "isoformat") else row.get("dueDate"),
+            "progressPct": row.get("progressPct"),
+        }
+        for row in rows
+    ]
+    return {
+        "status": "success",
+        "tool": "get_my_projects",
+        "count": len(items),
+        "items": items,
+        "summary": (
+            f"Bạn có {len(items)} đề tài đang phụ trách"
+            + (" sắp đến hạn (7 ngày tới)" if args.upcomingOnly else "")
+            + "."
+        ),
+    }
+
+
+def _find_project(runtime: "ToolRuntime", project_ref: str) -> dict[str, Any] | None:
+    oid = _to_oid(project_ref)
+    query: dict[str, Any] = {"$or": [{"_id": oid}]} if oid is not None else {}
+    if oid is None:
+        query = {"title": {"$regex": re.escape(project_ref.strip()), "$options": "i"}}
+    else:
+        query["$or"].append({"title": {"$regex": re.escape(project_ref.strip()), "$options": "i"}})
+    projection = dict(_project_projection(), assigneeIds=1, statusHistory=1)
+    return _db(runtime).projects.find_one(query, projection)
+
+
+def _get_project_status(runtime: "ToolRuntime", args: ProjectStatusArgs, ctx: UserContext) -> dict[str, Any]:
+    project = _find_project(runtime, args.projectRef)
+    if not project:
+        return {"status": "not_found", "code": "PROJECT_NOT_FOUND", "message": "Không tìm thấy đề tài."}
+
+    employee_oid, error = _resolve_employee(runtime, ctx)
+    if error:
+        return error
+    assignees = project.get("assigneeIds") or []
+    if ctx.role != "Admin" and employee_oid is not None and employee_oid not in assignees:
+        # Fail-closed: do not reveal another employee's project.
+        return {"status": "denied", "code": "RBAC_DENIED", "message": "Bạn không được giao đề tài này."}
+    if ctx.role == "Admin":
+        department = project.get("departmentId")
+        if ctx.department_id and str(department) != str(ctx.department_id):
+            return {
+                "status": "denied",
+                "code": "RBAC_DENIED",
+                "message": "Đề tài nằm ngoài phạm vi phòng ban của bạn.",
+            }
+
+    history = list(project.get("statusHistory") or [])[-3:]
+    return {
+        "status": "success",
+        "tool": "get_project_status",
+        "project": {
+            "title": project.get("title"),
+            "status": project.get("status"),
+            "version": project.get("version"),
+            "dueDate": project.get("dueDate").isoformat()
+            if hasattr(project.get("dueDate"), "isoformat")
+            else project.get("dueDate"),
+            "progressPct": project.get("progressPct"),
+            "statusHistory": [
+                {
+                    "to": entry.get("to"),
+                    "reason": entry.get("reason"),
+                    "at": entry.get("at").isoformat() if hasattr(entry.get("at"), "isoformat") else entry.get("at"),
+                }
+                for entry in history
+            ],
+        },
+        "summary": (
+            f"Đề tài '{project.get('title')}' đang ở trạng thái {project.get('status')} "
+            f"(phiên bản {project.get('version')})."
+        ),
+    }
+
+
+def _evaluation_projection() -> dict[str, int]:
+    return {
+        "_id": 0,
+        "employeeId": 1,
+        "period": 1,
+        "machineScore": 1,
+        "finalScore": 1,
+        "status": 1,
+        "publishedAt": 1,
+        "explanation": 1,
+    }
+
+
+def _get_my_kpi(runtime: "ToolRuntime", args: KpiArgs, ctx: UserContext) -> dict[str, Any]:
+    oid, error = _resolve_employee(runtime, ctx)
+    if error:
+        return error
+    query: dict[str, Any] = {"employeeId": oid}
+    if args.period:
+        query["period"] = args.period
+    rows = list(_db(runtime).evaluations.find(query, _evaluation_projection()).sort("period", -1).limit(1))
+    if not rows:
+        return {"status": "not_found", "code": "KPI_NOT_FOUND", "message": "Chưa có bản đánh giá KPI cho kỳ này."}
+    row = rows[0]
+    return {
+        "status": "success",
+        "tool": "get_my_kpi",
+        "kpi": {
+            "period": row.get("period"),
+            "machineScore": row.get("machineScore"),
+            "finalScore": row.get("finalScore"),
+            "status": row.get("status"),
+            "explanation": row.get("explanation"),
+        },
+        "summary": f"KPI kỳ {row.get('period')}: điểm cuối {row.get('finalScore')} (trạng thái {row.get('status')}).",
+    }
+
+
+def _get_department_kpi(runtime: "ToolRuntime", args: DepartmentKpiArgs, ctx: UserContext) -> dict[str, Any]:
+    if not ctx.department_id:
+        return {"status": "denied", "code": "SCOPE_DENIED", "message": "Thiếu phạm vi phòng ban trong ngữ cảnh xác thực."}
+    department_oid = _to_oid(ctx.department_id)
+    employee_query = {"departmentId": department_oid if department_oid is not None else ctx.department_id}
+    employees = list(
+        _db(runtime).employees.find(employee_query, {"_id": 1, "employeeCode": 1, "fullName": 1}).limit(
+            settings.max_tool_result_items
+        )
+    )
+    if not employees:
+        return {"status": "not_found", "code": "DEPARTMENT_EMPTY", "message": "Phòng ban chưa có nhân sự trong hệ thống."}
+    employee_ids = [row["_id"] for row in employees if row.get("_id") is not None]
+    query: dict[str, Any] = {"employeeId": {"$in": employee_ids}}
+    if args.period:
+        query["period"] = args.period
+    evaluations = list(_db(runtime).evaluations.find(query, _evaluation_projection()))
+    name_by_id = {str(row["_id"]): row.get("fullName") for row in employees}
+    code_by_id = {str(row["_id"]): row.get("employeeCode") for row in employees}
+    items = [
+        {
+            "employeeCode": code_by_id.get(str(row.get("employeeId"))),
+            "fullName": name_by_id.get(str(row.get("employeeId"))),
+            "period": row.get("period"),
+            "finalScore": row.get("finalScore"),
+        }
+        for row in evaluations
+    ]
+    return {
+        "status": "success",
+        "tool": "get_department_kpi",
+        "count": len(items),
+        "items": items,
+        "summary": f"KPI phòng ban: {len(items)} bản đánh giá"
+        + (f" kỳ {args.period}" if args.period else "") + ".",
+    }
+
+
+def _search_policy(runtime: "ToolRuntime", args: SearchPolicyArgs, ctx: UserContext) -> dict[str, Any]:
+    retrieval = runtime.policy.retrieve(args.query, k=args.topK)
+    from app.rag.answer import answer_policy
+
+    result = answer_policy(args.query, retrieval, None)
+    payload = result.as_dict()
+    payload["status"] = "success"
+    payload["tool"] = "search_policy"
+    payload["summary"] = result.answer
+    return payload
+
+
+# --- handlers: write tools (proposals only) -------------------------------------
+
+
+def _submit_report(runtime: "ToolRuntime", args: SubmitReportArgs, ctx: UserContext) -> dict[str, Any]:
+    project = _find_project(runtime, args.projectRef)
+    if not project:
+        return {"status": "not_found", "code": "PROJECT_NOT_FOUND", "message": "Không tìm thấy đề tài."}
+    employee_oid, error = _resolve_employee(runtime, ctx)
+    if error:
+        return error
+    if employee_oid is None or employee_oid not in (project.get("assigneeIds") or []):
+        return {"status": "denied", "code": "RBAC_DENIED", "message": "Bạn không được giao đề tài này."}
+    project_title = project.get("title")
+    return {
+        "status": "proposed",
+        "tool": "submit_report",
+        "proposedAction": {
+            "type": "submit_report",
+            "requiresConfirmation": True,
+            "args": {
+                "projectId": str(project.get("_id")),
+                "projectTitle": project_title,
+                "submitterId": str(employee_oid),
+                "content": args.content,
+            },
+            "preview": f"Nộp báo cáo nghiệm thu cho đề tài '{project_title}' ({len(args.content)} ký tự).",
+        },
+        "summary": (
+            "Mình đã chuẩn bị đề xuất nộp báo cáo; cần bạn xác nhận trên giao diện trước khi ghi. "
+            "AI service không tự ghi dữ liệu."
+        ),
+    }
+
+
+# --- catalog ---------------------------------------------------------------------
+
+TOOL_SPECS: dict[str, ToolSpec] = {
+    "get_my_profile": ToolSpec(
+        name="get_my_profile",
+        description="Đọc hồ sơ của chính người dùng đang đăng nhập (allowlist field, không PII nhạy cảm).",
+        args_model=ProfileArgs,
+        kind="read",
+        allowed_roles=("Admin", "Employee"),
+        handler=_get_my_profile,
+    ),
+    "get_my_projects": ToolSpec(
+        name="get_my_projects",
+        description="Liệt kê đề tài được giao cho chính người dùng, lọc theo trạng thái hoặc sắp hết hạn.",
+        args_model=MyProjectsArgs,
+        kind="read",
+        allowed_roles=("Admin", "Employee"),
+        handler=_get_my_projects,
+    ),
+    "get_project_status": ToolSpec(
+        name="get_project_status",
+        description="Xem trạng thái, phiên bản, tiến độ và lịch sử gần nhất của một đề tài trong phạm vi được phép.",
+        args_model=ProjectStatusArgs,
+        kind="read",
+        allowed_roles=("Admin", "Employee"),
+        handler=_get_project_status,
+    ),
+    "get_my_kpi": ToolSpec(
+        name="get_my_kpi",
+        description="Đọc bản đánh giá KPI của chính người dùng theo kỳ.",
+        args_model=KpiArgs,
+        kind="read",
+        allowed_roles=("Admin", "Employee"),
+        handler=_get_my_kpi,
+    ),
+    "get_department_kpi": ToolSpec(
+        name="get_department_kpi",
+        description="Đọc KPI tổng hợp của phòng ban. Chỉ Admin.",
+        args_model=DepartmentKpiArgs,
+        kind="read",
+        allowed_roles=("Admin",),
+        handler=_get_department_kpi,
+    ),
+    "search_policy": ToolSpec(
+        name="search_policy",
+        description="Tra cứu chính sách/quy chế đang lưu bằng hybrid retrieval; trả citations hoặc abstain.",
+        args_model=SearchPolicyArgs,
+        kind="read",
+        allowed_roles=("Admin", "Employee"),
+        handler=_search_policy,
+    ),
+    "submit_report": ToolSpec(
+        name="submit_report",
+        description="Đề xuất nộp báo cáo nghiệm thu. Chỉ tạo proposed_action, không ghi DB; cần người dùng xác nhận.",
+        args_model=SubmitReportArgs,
+        kind="write",
+        allowed_roles=("Admin", "Employee"),
+        handler=_submit_report,
+    ),
+}
+
+# Backward-compatible names from the older `18-user-flows.md` tool catalog.
+TOOL_ALIASES = {
+    "list_projects": "get_my_projects",
+    "get_project": "get_project_status",
+    "get_employee": "get_my_profile",
+}
+
+
+def resolve_tool_name(name: str) -> str | None:
+    canonical = TOOL_ALIASES.get(name, name)
+    return canonical if canonical in TOOL_SPECS else None
+
+
+def tool_declarations() -> list[dict[str, Any]]:
+    return [spec.declaration() for spec in TOOL_SPECS.values()]
+
+
+# --- runtime ---------------------------------------------------------------------
+
+
+@dataclass
+class ToolRuntime:
+    """Executes catalog tools with validate → RBAC → timeout → result-cap ordering."""
+
+    db: Any
+    policy: PolicyEngine
+    ping: Callable[[], bool] | None = None
+
+    def db_available(self) -> bool:
+        if self.db is None:
+            return False
+        return self.ping() if self.ping is not None else True
+
+    def execute(self, name: str, raw_args: Any, user_ctx: UserContext) -> dict[str, Any]:
+        canonical = resolve_tool_name(name)
+        if canonical is None:
+            return {"status": "error", "code": "UNKNOWN_TOOL", "message": f"Tool '{name}' không có trong catalog."}
+        spec = TOOL_SPECS[canonical]
+        if not is_agent_enabled():
+            return {
+                "status": "locked",
+                "code": "AGENT_DISABLED",
+                "message": "Agent chat đang tắt (AI_AGENT_ENABLED=false).",
+            }
+        if not self.db_available():
+            return {"status": "error", "code": "DB_NOT_CONNECTED", "message": "Không kết nối được cơ sở dữ liệu."}
+        try:
+            args = spec.args_model.model_validate(raw_args or {})
+        except ValidationError as exc:
+            return {
+                "status": "error",
+                "code": "INVALID_ARGS",
+                "message": "Tham số không hợp lệ.",
+                "details": exc.errors(include_url=False),
+            }
+        if user_ctx.role not in spec.allowed_roles:
+            return {
+                "status": "denied",
+                "code": "RBAC_DENIED",
+                "message": f"Vai trò {user_ctx.role} không được gọi tool {spec.name}.",
+            }
+        try:
+            result = self._call_with_timeout(spec, args, user_ctx)
+        except ToolTimeoutError:
+            return {"status": "error", "code": "TOOL_TIMEOUT", "message": "Tool quá thời gian cho phép."}
+        return self._cap_result(result)
+
+    def _call_with_timeout(self, spec: ToolSpec, args: BaseModel, user_ctx: UserContext) -> dict[str, Any]:
+        timeout = max(settings.tool_timeout_ms, 1) / 1000.0
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(spec.handler, self, args, user_ctx)
+            try:
+                return future.result(timeout=timeout)
+            except FutureTimeout as exc:
+                raise ToolTimeoutError(spec.name) from exc
+
+    def _cap_result(self, result: dict[str, Any]) -> dict[str, Any]:
+        """Truncate oversized list payloads instead of overflowing the prompt/context."""
+        capped: dict[str, Any] = dict(result)
+        truncated = False
+        for key, value in list(capped.items()):
+            if isinstance(value, list) and len(value) > settings.max_tool_result_items:
+                capped[key] = value[: settings.max_tool_result_items]
+                truncated = True
+        if truncated:
+            capped["truncated"] = True
+        return capped
 
 
 def is_agent_enabled() -> bool:
-    """Kiểm tra cờ mở khóa Agent Chat & Mock Tools."""
+    """Safety switch kept from the bootstrap phase; integration must set it true."""
+    import os
+
     return os.getenv("AI_AGENT_ENABLED", "false").lower() in ("true", "1")
-
-
-AI_AGENT_ENABLED = is_agent_enabled()
-
-
-class DatabaseClient:
-    def __init__(self, uri: Optional[str] = None):
-        self._custom_uri = uri
-        self.client: Optional[MongoClient] = None
-        self.db = None
-        self._connect()
-
-    def get_uri(self) -> Optional[str]:
-        return self._custom_uri or get_mongodb_uri()
-
-    def _connect(self):
-        uri = self.get_uri()
-        if not uri:
-            self.client = None
-            self.db = None
-            return
-
-        try:
-            self.client = MongoClient(uri, serverSelectionTimeoutMS=2000, connectTimeoutMS=2000)
-            self.db = self.client["hr_bot"]
-        except Exception as e:
-            # An toàn: Không log connection string chứa credentials
-            print(f"[WARN] MongoDB client initialization failed: {type(e).__name__}")
-            self.client = None
-            self.db = None
-
-    def ping(self) -> bool:
-        """Kiểm tra kết nối thực tế tới MongoDB server bằng lệnh ping thật."""
-        uri = self.get_uri()
-        if not uri:
-            return False
-        try:
-            if self.client is None:
-                self._connect()
-            if self.client is None:
-                return False
-            self.client.admin.command("ping")
-            return True
-        except Exception:
-            # Thất bại trung thực, không log connection string
-            return False
-
-    def is_connected(self) -> bool:
-        return self.ping()
-
-
-db_client = DatabaseClient()
-
-
-# --- Tool Implementations (Khóa an toàn trong Bootstrap Phase) ---
-
-def _check_tool_access() -> Optional[Dict[str, Any]]:
-    """Kiểm tra điều kiện mở khóa mock tool và trạng thái DB."""
-    if not is_agent_enabled():
-        return {
-            "status": "locked",
-            "error": "Mock tool is locked down. Requires AI_AGENT_ENABLED=true and valid authenticated context."
-        }
-    if not db_client.ping() or db_client.db is None:
-        return {
-            "status": "error",
-            "error": "Database not connected. Mock fallback is strictly forbidden."
-        }
-    return None
-
-
-def tool_get_my_schedule(employee_code: str, date: Optional[str] = None) -> Dict[str, Any]:
-    """Tra cứu lịch ca làm việc của một nhân viên theo mã hoặc ngày."""
-    lock_err = _check_tool_access()
-    if lock_err:
-        return lock_err
-
-    if not employee_code or not employee_code.strip():
-        return {"status": "error", "error": "employee_code is required"}
-
-    query: Dict[str, Any] = {"employee_code": employee_code.strip()}
-    if date:
-        query["work_date"] = date.strip()
-
-    entries = list(db_client.db.schedule_entries.find(query, {"_id": 0}).limit(10))
-    if not entries:
-        return {
-            "status": "not_found",
-            "message": f"Không tìm thấy ca làm việc cho nhân viên {employee_code} ngày {date or 'gần nhất'}."
-        }
-    return {
-        "status": "success",
-        "employee_code": employee_code,
-        "count": len(entries),
-        "schedules": entries
-    }
-
-
-def tool_get_shift_coworkers(shift_code: str, date: str, store_name: Optional[str] = None) -> Dict[str, Any]:
-    """Tìm những nhân sự làm chung một ca vào một ngày."""
-    lock_err = _check_tool_access()
-    if lock_err:
-        return lock_err
-
-    if not shift_code or not date:
-        return {"status": "error", "error": "shift_code and date are required"}
-
-    query: Dict[str, Any] = {"work_date": date.strip(), "shift_code": shift_code.strip()}
-    entries = list(db_client.db.schedule_entries.find(query, {"_id": 0}).limit(15))
-    return {
-        "status": "success",
-        "date": date,
-        "shift_code": shift_code,
-        "coworkers": entries
-    }
-
-
-def tool_submit_attendance_correction(employee_code: str, store_name: str, work_date: str, shift_code: str, note: str) -> Dict[str, Any]:
-    """Nộp phiếu khiếu nại / giải trình điều chỉnh công (yêu cầu DB thật và người dùng xác thực)."""
-    lock_err = _check_tool_access()
-    if lock_err:
-        return lock_err
-
-    if not employee_code or not store_name or not work_date or not shift_code:
-        return {"status": "error", "error": "Missing required fields for attendance correction"}
-
-    emp = db_client.db.employees.find_one({"employee_code": employee_code.strip()})
-    emp_name = emp.get("full_name") if emp else None
-
-    last = db_client.db.attendance_corrections.find_one(sort=[("id", -1)])
-    next_id = (last.get("id", 0) + 1) if last else 1
-
-    doc = {
-        "id": next_id,
-        "employee_code": employee_code.strip(),
-        "employee_name": emp_name,
-        "store_name": store_name.strip(),
-        "work_date": work_date.strip(),
-        "shift_code": shift_code.strip(),
-        "period_banner": "CHẤM THEO KỲ LƯƠNG 6/5-5/6/2026",
-        "note": note.strip() if note else "",
-        "status": "PENDING"
-    }
-    db_client.db.attendance_corrections.insert_one(doc)
-    doc.pop("_id", None)
-    return {
-        "status": "success",
-        "message": f"Đã ghi nhận phiếu giải trình công #{next_id} cho nhân viên {employee_code}.",
-        "correction": doc
-    }
-
-
-def tool_get_cash_reconciliation(store_name: str) -> Dict[str, Any]:
-    """Tra cứu kiểm kê quỹ két tiền mặt và đối soát chênh lệch."""
-    lock_err = _check_tool_access()
-    if lock_err:
-        return lock_err
-
-    if not store_name or not store_name.strip():
-        return {"status": "error", "error": "store_name is required"}
-
-    count_item = db_client.db.cash_counts.find_one(
-        {"store_name": {"$regex": re.escape(store_name.strip()), "$options": "i"}},
-        {"_id": 0}
-    )
-    if not count_item:
-        return {"status": "not_found", "message": f"Chưa có số liệu kiểm két cho điểm bán {store_name}."}
-
-    return {
-        "status": "success",
-        "store_name": count_item.get("store_name"),
-        "cash_total_vnd": count_item.get("cash_total_vnd", 0),
-        "walkin_total_vnd": count_item.get("walkin_total_vnd", 0),
-        "grand_total_vnd": count_item.get("grand_total_vnd", 0)
-    }
-
-
-def tool_find_replacement_staff(job_title: str, date: str, shift_code: str) -> Dict[str, Any]:
-    """Tìm nhân sự cùng chức danh đang rảnh để thay ca đột xuất."""
-    lock_err = _check_tool_access()
-    if lock_err:
-        return lock_err
-
-    if not job_title or not date or not shift_code:
-        return {"status": "error", "error": "job_title, date, and shift_code are required"}
-
-    candidates = list(db_client.db.employees.find(
-        {"job_title": {"$regex": re.escape(job_title.strip()), "$options": "i"}},
-        {"_id": 0, "employee_code": 1, "full_name": 1, "job_title": 1, "store_raw": 1}
-    ).limit(10))
-
-    busy_codes = set(db_client.db.schedule_entries.distinct(
-        "employee_code",
-        {"work_date": date.strip(), "shift_code": shift_code.strip()}
-    ))
-    available = [c for c in candidates if c["employee_code"] not in busy_codes][:5]
-
-    return {
-        "status": "success",
-        "job_title": job_title,
-        "date": date,
-        "available_staff": available
-    }
-
-
-def tool_search_policy(query: str) -> Dict[str, Any]:
-    """Tra cứu văn bản quy chế chính sách bằng RAG Engine."""
-    return policy_engine.query(query)
-
-
-# --- Intent Router / Agent Loop ---
-
-def route_agent_message(message: str, user_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """
-    Phân loại intent và điều phối gọi tool tương ứng.
-    Bảo vệ: Nếu cờ AI_AGENT_ENABLED chưa bật, khóa toàn bộ mock intent.
-    Không dùng fallback user_context hardcode để bypass DB nhân sự.
-    """
-    if not is_agent_enabled():
-        return {
-            "intent": "locked",
-            "reply": "Tính năng Agent chat và Mock Tools đang bị khóa an toàn trong giai đoạn bootstrap để bảo vệ dữ liệu nhân sự.",
-            "tool_called": None,
-            "status": "locked"
-        }
-
-    msg_lower = message.lower().strip()
-    ctx = user_context or {}
-    emp_code = ctx.get("employee_code")
-    store = ctx.get("store_name")
-
-    # Intent 1: Tra cứu lịch ca của bản thân (yêu cầu employee_code từ authenticated context)
-    if any(k in msg_lower for k in ["lịch ca", "hôm nay làm ca mấy", "mai làm ca nào", "lịch làm"]):
-        if not emp_code:
-            return {
-                "intent": "get_my_schedule",
-                "reply": "Yêu cầu cung cấp mã nhân viên xác thực (employee_code) trong user_context để tra cứu lịch làm việc.",
-                "status": "unauthorized"
-            }
-        res = tool_get_my_schedule(emp_code, ctx.get("work_date"))
-        if res.get("status") == "success":
-            shifts = ", ".join([f"{s.get('shift_code', '')} ngày {s.get('work_date', '')}" for s in res["schedules"]])
-            return {
-                "intent": "get_my_schedule",
-                "tool_called": "tool_get_my_schedule",
-                "reply": f"Lịch ca của bạn ({emp_code}): {shifts}.",
-                "data": res
-            }
-        return {
-            "intent": "get_my_schedule",
-            "reply": res.get("message", res.get("error", f"Không thể tra cứu lịch ca cho {emp_code}.")),
-            "data": res
-        }
-
-    # Intent 2: Tìm bạn làm chung ca
-    if any(k in msg_lower for k in ["làm chung", "ai làm ca a", "ai làm ca b", "chung ca"]):
-        date = ctx.get("work_date")
-        if not date:
-            return {
-                "intent": "get_shift_coworkers",
-                "reply": "Vui lòng cung cấp ngày làm việc (work_date) để tìm đồng nghiệp làm chung ca.",
-                "status": "missing_context"
-            }
-        shift = "A" if "ca a" in msg_lower else ("B" if "ca b" in msg_lower else "A1.749")
-        res = tool_get_shift_coworkers(shift, date)
-        if res.get("status") == "success":
-            coworkers = res.get("coworkers", [])
-            names = ", ".join([f"**{c.get('employee_name', '')}** ({c.get('employee_code', '')})" for c in coworkers[:3]])
-            return {
-                "intent": "get_shift_coworkers",
-                "tool_called": "tool_get_shift_coworkers",
-                "reply": f"Các nhân sự làm chung **Ca {shift}** ngày {date}: {names or 'Không có dữ liệu'}.",
-                "data": res
-            }
-        return {
-            "intent": "get_shift_coworkers",
-            "reply": res.get("error", "Lỗi tra cứu đồng nghiệp chung ca."),
-            "data": res
-        }
-
-    # Intent 3: Nộp giải trình công
-    if any(k in msg_lower for k in ["quên bấm", "quên chấm công", "giải trình", "bổ sung công", "chưa thêm mã ca"]):
-        if not emp_code or not store:
-            return {
-                "intent": "submit_attendance_correction",
-                "reply": "Yêu cầu đầy đủ thông tin nhân viên và cửa hàng xác thực để nộp giải trình công.",
-                "status": "unauthorized"
-            }
-        work_date = ctx.get("work_date")
-        shift_code = ctx.get("shift_code", "A")
-        if not work_date:
-            return {
-                "intent": "submit_attendance_correction",
-                "reply": "Vui lòng cung cấp ngày làm việc cần giải trình công.",
-                "status": "missing_context"
-            }
-        res = tool_submit_attendance_correction(emp_code, store, work_date, shift_code, message)
-        if res.get("status") == "success":
-            return {
-                "intent": "submit_attendance_correction",
-                "tool_called": "tool_submit_attendance_correction",
-                "reply": f"Đã ghi nhận phiếu giải trình điều chỉnh công cho nhân viên {emp_code} vào ngày {work_date}.",
-                "data": res
-            }
-        return {
-            "intent": "submit_attendance_correction",
-            "reply": res.get("error", "Không thể ghi nhận phiếu giải trình."),
-            "data": res
-        }
-
-    # Intent 4: Kiểm két tiền
-    if any(k in msg_lower for k in ["két tiền", "tiền mặt", "kiểm két", "quỹ tiền"]):
-        target_store = store or ctx.get("target_store")
-        if not target_store:
-            return {
-                "intent": "get_cash_reconciliation",
-                "reply": "Vui lòng cung cấp tên cửa hàng cần kiểm két tiền.",
-                "status": "missing_context"
-            }
-        res = tool_get_cash_reconciliation(target_store)
-        if res.get("status") == "success":
-            return {
-                "intent": "get_cash_reconciliation",
-                "tool_called": "tool_get_cash_reconciliation",
-                "reply": f"Số liệu quỹ két tại {res.get('store_name')}: Tiền mặt thực tế: **{res.get('cash_total_vnd', 0):,} đ**, Doanh thu vãng lai: **{res.get('walkin_total_vnd', 0):,} đ**, Tổng bàn giao: **{res.get('grand_total_vnd', 0):,} đ**.",
-                "data": res
-            }
-        return {
-            "intent": "get_cash_reconciliation",
-            "reply": res.get("message", res.get("error", "Không thể tra cứu kiểm két.")),
-            "data": res
-        }
-
-    # Intent 5: Tìm người bù ca / đổi ca
-    if any(k in msg_lower for k in ["tìm người", "bù ca", "đổi ca", "thiếu người", "nghỉ đột xuất"]):
-        date = ctx.get("work_date")
-        if not date:
-            return {
-                "intent": "find_replacement_staff",
-                "reply": "Vui lòng cung cấp ngày cần tìm nhân sự thay ca.",
-                "status": "missing_context"
-            }
-        role = "BẾP" if "bếp" in msg_lower else "PHA CHẾ"
-        shift_code = ctx.get("shift_code", "A")
-        res = tool_find_replacement_staff(role, date, shift_code)
-        if res.get("status") == "success":
-            staff_list = ", ".join([f"**{s.get('full_name')}** ({s.get('employee_code')} - {s.get('store_raw','')})" for s in res.get("available_staff", [])[:3]])
-            return {
-                "intent": "find_replacement_staff",
-                "tool_called": "tool_find_replacement_staff",
-                "reply": f"Đã tìm thấy các nhân sự {role} đang rảnh ca {shift_code} ngày {date}: {staff_list or 'Không có nhân sự rảnh'}.",
-                "data": res
-            }
-        return {
-            "intent": "find_replacement_staff",
-            "reply": res.get("error", "Không thể tìm nhân sự thay ca."),
-            "data": res
-        }
-
-    # Default Intent: RAG Policy Query (Không qua mock tools, trích dẫn văn bản quy chuẩn)
-    rag_res = tool_search_policy(message)
-    return {
-        "intent": "search_policy",
-        "tool_called": "tool_search_policy",
-        "reply": rag_res["answer"],
-        "citations": rag_res.get("citations", []),
-        "abstain": rag_res.get("abstain", False)
-    }
