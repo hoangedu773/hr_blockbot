@@ -5,3 +5,6 @@ export * from "./Store.js";
 export * from "./ScheduleEntry.js";
 export * from "./AttendanceCorrection.js";
 export * from "./Cash.js";
+export * from "./Project.js";
+export * from "./Report.js";
+export * from "./Settings.js";

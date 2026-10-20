@@ -1,5 +1,46 @@
 import mongoose, { Schema, Document } from "mongoose";
 
+export interface IProfileChangeTargetFields {
+  level?: "Intern" | "Junior" | "Middle" | "Senior" | "Lead";
+  hiredAt?: Date;
+  jobTitle?: string;
+}
+
+export interface IProfileChangePreviousSnapshot {
+  level?: string;
+  hiredAt?: Date;
+  jobTitle?: string;
+}
+
+export interface IProfileChangeRequest {
+  id?: string;
+  _id?: mongoose.Types.ObjectId | string;
+  requestedBy: string;
+  requestedAt: Date;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  targetFields: IProfileChangeTargetFields;
+  previousSnapshot: IProfileChangePreviousSnapshot;
+  reviewedBy?: string;
+  reviewedAt?: Date;
+  rejectionReason?: string;
+  previousRequestId?: string;
+}
+
+export class SelfApprovalError extends Error {
+  code = "SELF_APPROVAL";
+  status = 403;
+  constructor(message = "Admin cannot review own profile change request") {
+    super(message);
+    this.name = "SelfApprovalError";
+  }
+}
+
+export function assertNoSelfApproval(reviewerId: string, requestedById: string): void {
+  if (reviewerId === requestedById) {
+    throw new SelfApprovalError();
+  }
+}
+
 export interface IEmployee extends Document {
   employee_code?: string;
   employeeCode?: string;
@@ -24,7 +65,42 @@ export interface IEmployee extends Document {
   leave_reason?: string | null;
   profile_status?: string;
   source_row?: number;
+  profileChangeRequests?: IProfileChangeRequest[];
 }
+
+const ProfileChangeRequestSchema = new Schema<IProfileChangeRequest>(
+  {
+    requestedBy: { type: String, required: true },
+    requestedAt: { type: Date, default: Date.now },
+    status: {
+      type: String,
+      enum: ["PENDING", "APPROVED", "REJECTED"],
+      default: "PENDING",
+      required: true,
+    },
+    targetFields: {
+      level: {
+        type: String,
+        enum: ["Intern", "Junior", "Middle", "Senior", "Lead"],
+      },
+      hiredAt: { type: Date },
+      jobTitle: { type: String },
+    },
+    previousSnapshot: {
+      level: { type: String },
+      hiredAt: { type: Date },
+      jobTitle: { type: String },
+    },
+    reviewedBy: { type: String },
+    reviewedAt: { type: Date },
+    rejectionReason: { type: String },
+    previousRequestId: { type: String },
+  },
+  {
+    _id: true,
+    timestamps: false,
+  }
+);
 
 const EmployeeSchema = new Schema<IEmployee>(
   {
@@ -55,6 +131,10 @@ const EmployeeSchema = new Schema<IEmployee>(
     leave_reason: { type: String, default: null },
     profile_status: { type: String, default: "ĐÃ HOÀN TẤT" },
     source_row: { type: Number },
+    profileChangeRequests: {
+      type: [ProfileChangeRequestSchema],
+      default: [],
+    },
   },
   {
     collection: "employees",

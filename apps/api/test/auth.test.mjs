@@ -1,11 +1,7 @@
+import "./require-isolated-db.mjs";
 import { test, describe, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import dotenv from "dotenv";
-
-// Load environment variables for DB access and JWT
-dotenv.config();
-dotenv.config({ path: "../../.env" });
 
 import { app } from "../dist/app.js";
 import { connectDB, disconnectDB } from "../dist/db.js";
@@ -48,9 +44,16 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
     await connectDB();
 
     // 3. Clean up any leftover test data
+    const leftoverUsers = await UserModel.find(
+      { email: /@test-phase2\.vn$/ },
+      { _id: 1 }
+    ).lean();
+    if (leftoverUsers.length > 0) {
+      const leftoverUserIds = leftoverUsers.map((u) => u._id);
+      await RefreshSessionModel.deleteMany({ userId: { $in: leftoverUserIds } });
+    }
     await UserModel.deleteMany({ email: /@test-phase2\.vn$/ });
     await EmployeeModel.deleteMany({ employeeCode: /^TEST-P2-/ });
-    await RefreshSessionModel.deleteMany({});
 
     // 4. Seed test employees
     testAdminEmployee = await EmployeeModel.create({
@@ -116,10 +119,13 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
   });
 
   after(async () => {
-    // Clean up test data
-    if (testAdminUser) await UserModel.deleteMany({ email: /@test-phase2\.vn$/ });
+    // Clean up test data scoped by user fixture IDs
+    const fixtureUserIds = [testAdminUser?._id, testEmpUser?._id].filter(Boolean);
+    if (fixtureUserIds.length > 0) {
+      await RefreshSessionModel.deleteMany({ userId: { $in: fixtureUserIds } });
+    }
+    await UserModel.deleteMany({ email: /@test-phase2\.vn$/ });
     await EmployeeModel.deleteMany({ employeeCode: /^TEST-P2-/ });
-    await RefreshSessionModel.deleteMany({});
 
     // Close connections
     await disconnectDB();
