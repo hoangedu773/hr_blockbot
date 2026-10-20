@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScheduleEntry } from '../services/api';
+import type { ScheduleEntry } from '../services/api';
 
 interface StaffDrawerProps {
   schedule: ScheduleEntry | null;
@@ -7,7 +7,7 @@ interface StaffDrawerProps {
   onActionMessage?: (msg: string) => void;
 }
 
-export const StaffDrawer: React.FC<StaffDrawerProps> = ({ schedule, onClose, onActionMessage }) => {
+export const StaffDrawer: React.FC<StaffDrawerProps> = ({ schedule, onClose }) => {
   if (!schedule) return null;
 
   return (
@@ -19,7 +19,7 @@ export const StaffDrawer: React.FC<StaffDrawerProps> = ({ schedule, onClose, onA
           inset: 0,
           background: 'rgba(0, 0, 0, 0.6)',
           backdropFilter: 'blur(4px)',
-          zIndex: 90
+          zIndex: 90,
         }}
       />
       <div
@@ -36,7 +36,7 @@ export const StaffDrawer: React.FC<StaffDrawerProps> = ({ schedule, onClose, onA
           display: 'flex',
           flexDirection: 'column',
           padding: '24px',
-          gap: '18px'
+          gap: '18px',
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '14px' }}>
@@ -58,16 +58,18 @@ export const StaffDrawer: React.FC<StaffDrawerProps> = ({ schedule, onClose, onA
           </div>
         </div>
 
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '10px',
-          fontSize: '12px',
-          background: 'rgba(0,0,0,0.3)',
-          padding: '14px',
-          borderRadius: '6px',
-          border: '1px solid var(--border)'
-        }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+            fontSize: '12px',
+            background: 'rgba(0,0,0,0.3)',
+            padding: '14px',
+            borderRadius: '6px',
+            border: '1px solid var(--border)',
+          }}
+        >
           <div>Khối Ca: <strong style={{ color: '#fff' }}>{schedule.block_code}</strong></div>
           <div>Ca Trực: <strong style={{ color: '#fde047' }}>{schedule.shift_code} ({schedule.work_date})</strong></div>
           <div>Loại Lịch: <strong style={{ color: '#fff' }}>{schedule.schedule_type}</strong></div>
@@ -76,43 +78,33 @@ export const StaffDrawer: React.FC<StaffDrawerProps> = ({ schedule, onClose, onA
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: 'auto' }}>
           <button
-            className="btn btn-gold"
-            onClick={() => {
-              if (onActionMessage) {
-                onActionMessage(`Yêu cầu đổi ca cho nhân sự ${schedule.employee_name} đã được gửi tới hệ thống!`);
-              }
-              onClose();
-            }}
+            className="btn"
+            disabled
             style={{
               padding: '10px',
-              fontWeight: 700,
-              background: 'var(--guta-yellow)',
-              color: '#07090e',
-              border: 'none',
+              fontWeight: 600,
+              background: 'rgba(255, 209, 0, 0.1)',
+              color: 'var(--text-muted)',
+              border: '1px dashed rgba(255, 209, 0, 0.3)',
               borderRadius: '6px',
-              cursor: 'pointer'
+              cursor: 'not-allowed',
             }}
           >
-            ⚡ Điều Chuyển Sang Chi Nhánh Khác
+            ⚡ Điều Chuyển Ca (Đang Cập Nhật)
           </button>
           <button
             className="btn"
-            onClick={() => {
-              if (onActionMessage) {
-                onActionMessage(`Đang tải bảng chấm công của ${schedule.employee_code} (${schedule.employee_name})...`);
-              }
-              onClose();
-            }}
+            onClick={onClose}
             style={{
               padding: '10px',
               background: 'var(--surface)',
               color: '#fff',
               border: '1px solid var(--border)',
               borderRadius: '6px',
-              cursor: 'pointer'
+              cursor: 'pointer',
             }}
           >
-            Xem Bảng Công Tháng Này
+            Đóng
           </button>
         </div>
       </div>

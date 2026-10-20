@@ -1,192 +1,141 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useAuth } from './context/AuthContext';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
-import { PromptChips } from './components/PromptChips';
-import { MetricCards } from './components/MetricCards';
-import { VisualTimeline } from './components/VisualTimeline';
-import { TwoColumnGrid } from './components/TwoColumnGrid';
-import { AiCopilotBar } from './components/AiCopilotBar';
-import { StaffDrawer } from './components/StaffDrawer';
 import { MobileBottomNav } from './components/MobileBottomNav';
-import { AiCopilotModal } from './components/AiCopilotModal';
-import { AddShiftModal } from './components/AddShiftModal';
-import { ToastContainer, ToastMessage } from './components/Toast';
-import {
-  fetchStores,
-  fetchSchedules,
-  fetchCorrections,
-  fetchCashCounts,
-  approveCorrection,
-  Store,
-  ScheduleEntry,
-  AttendanceCorrection,
-  CashCount
-} from './services/api';
+import { ToastContainer, type NotifyFn, type ToastMessage } from './components/Toast';
+import { LoginModal } from './components/LoginModal';
+import { RosterView } from './components/RosterView';
+import { ProjectListView } from './components/ProjectListView';
+import { AdminSettingsView } from './components/AdminSettingsView';
+import { ChatPanel } from './components/ChatPanel';
+import { EmployeeProfileView } from './components/EmployeeProfileView';
 
-export const App: React.FC = () => {
-  const [stores, setStores] = useState<Store[]>([]);
-  const [activeStore, setActiveStore] = useState<string>('GUTA CAFE - Quận 1 - 120 Hai Bà Trưng');
-  const [activeNav, setActiveNav] = useState<string>('schedule');
-  const [schedules, setSchedules] = useState<ScheduleEntry[]>([]);
-  const [corrections, setCorrections] = useState<AttendanceCorrection[]>([]);
-  const [cashCounts, setCashCounts] = useState<CashCount[]>([]);
-  const [selectedSchedule, setSelectedSchedule] = useState<ScheduleEntry | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+interface ViewMeta {
+  title: string;
+  subtitle: string;
+}
 
-  // In-app Modal States (No browser alert)
-  const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
-  const [aiModalQuery, setAiModalQuery] = useState<string>('');
-  const [isAddShiftOpen, setIsAddShiftOpen] = useState<boolean>(false);
+const VIEW_META: Record<string, ViewMeta> = {
+  employees: {
+    title: 'Hồ Sơ Nhân Sự',
+    subtitle: 'F1 · allowlist DTO, phạm vi phòng ban theo JWT, hàng đợi duyệt field nhạy cảm',
+  },
+  projects: {
+    title: 'Vòng Đời Đề Tài',
+    subtitle: 'F2 · DRAFT → ASSIGNED → IN_PROGRESS → PENDING_REVIEW → COMPLETED',
+  },
+  chat: {
+    title: 'Trợ Lý Chính Sách',
+    subtitle: 'F3 · RAG có trích dẫn, từ chối khi thiếu bằng chứng, confirm trước khi ghi',
+  },
+  settings: {
+    title: 'Cấu Hình LLM Provider',
+    subtitle: 'ADR-017 · key mã hoá một chiều, client chỉ nhận keyHint',
+  },
+  profile: {
+    title: 'Hồ Sơ Của Tôi',
+    subtitle: 'F1 · own scope, thông tin thường sửa trực tiếp, field nhạy cảm qua duyệt',
+  },
+};
 
-  // Toast Notification State
+export const AppContent: React.FC = () => {
+  const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth();
+  const [activeNav, setActiveNav] = useState<string>('employees');
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  const addToast = (message: string, type: 'success' | 'info' | 'warning' | 'error' = 'info', title?: string) => {
-    const id = Date.now().toString() + Math.random().toString();
-    setToasts(prev => [...prev, { id, message, type, title }]);
-  };
+  const addToast = useCallback<NotifyFn>((message, type = 'info', title) => {
+    const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    setToasts((prev) => [...prev, { id, message, type, title }]);
+  }, []);
 
-  const removeToast = (id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
-  };
+  const removeToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+  }, []);
 
-  const loadData = async (showNotification = false) => {
-    setIsLoading(true);
-    try {
-      const [st, sc, cr, cs] = await Promise.all([
-        fetchStores(),
-        fetchSchedules(activeStore),
-        fetchCorrections(),
-        fetchCashCounts()
-      ]);
-      setStores(st);
-      setSchedules(sc);
-      setCorrections(cr);
-      setCashCounts(cs);
-      if (showNotification) {
-        addToast(`Đã đồng bộ lại dữ liệu trực tiếp từ MongoDB Atlas (${sc.length} ca trực, ${cr.length} phiếu công)`, 'success', 'Đồng Bộ Thành Công');
-      }
-    } finally {
-      setIsLoading(false);
+  useEffect(() => {
+    setActiveNav(user?.role === 'Employee' ? 'profile' : 'employees');
+  }, [user?.role]);
+
+  if (authLoading) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          width: '100%',
+          height: '100dvh',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--bg)',
+          color: 'var(--text-muted)',
+        }}
+      >
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '18px', fontWeight: 700, color: '#f8fafc', marginBottom: '8px' }}>GUTA CAFE HR BLOCKBOT</div>
+          <p style={{ fontSize: '12px', fontFamily: 'var(--mono)' }}>Đang kiểm tra phiên làm việc…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || !user) {
+    return (
+      <div style={{ width: '100%', height: '100dvh', background: 'var(--bg)' }}>
+        <LoginModal isOpen={true} />
+        <ToastContainer toasts={toasts} onDismiss={removeToast} />
+      </div>
+    );
+  }
+
+  const isAdmin = user.role === 'Admin';
+  const availableNav = isAdmin
+    ? ['employees', 'projects', 'chat', 'settings']
+    : ['profile', 'projects', 'chat'];
+  const nav = availableNav.includes(activeNav) ? activeNav : availableNav[0];
+  const meta = VIEW_META[nav] ?? VIEW_META.employees;
+
+  const renderView = () => {
+    switch (nav) {
+      case 'employees':
+        return isAdmin ? <RosterView onNotify={addToast} /> : <EmployeeProfileView onLogout={logout} onNotify={addToast} />;
+      case 'profile':
+        return <EmployeeProfileView onLogout={logout} onNotify={addToast} />;
+      case 'projects':
+        return <ProjectListView onNotify={addToast} />;
+      case 'chat':
+        return <ChatPanel />;
+      case 'settings':
+        return isAdmin ? <AdminSettingsView onNotify={addToast} /> : <div className="empty">403 — RBAC_DENIED</div>;
+      default:
+        return null;
     }
   };
 
-  useEffect(() => {
-    loadData();
-  }, [activeStore]);
-
-  const handleApprove = async (id: number | string) => {
-    await approveCorrection(id);
-    setCorrections(prev =>
-      prev.map(c => ((c.id === id || c.employee_code === id) ? { ...c, status: 'APPROVED' } : c))
-    );
-    addToast(`Đã duyệt bù công thành công cho phiếu giải trình #${id}`, 'success', 'Duyệt Công Hoàn Tất');
-  };
-
-  const handleReject = (id: number | string) => {
-    setCorrections(prev =>
-      prev.map(c => ((c.id === id || c.employee_code === id) ? { ...c, status: 'REJECTED' } : c))
-    );
-    addToast(`Đã từ chối và yêu cầu nhân sự bổ sung minh chứng cho phiếu #${id}`, 'warning', 'Đã Từ Chối Phiếu');
-  };
-
-  // Open custom dark Copilot Modal instead of alert()
-  const handleAiMessage = (query: string) => {
-    setAiModalQuery(query);
-    setIsAiModalOpen(true);
-  };
-
-  const handleNewShift = (newShift: ScheduleEntry) => {
-    setSchedules(prev => [newShift, ...prev]);
-    addToast(`Đã tạo và phân ca ${newShift.shift_code} ngày ${newShift.work_date} cho ${newShift.employee_name}!`, 'success', 'Xếp Ca Thành Công');
-  };
-
-  const pendingCorrections = corrections.filter(c => c.status === 'PENDING');
-  const currentStoreObj = stores.find(s => s.store_name === activeStore);
-  const employeeCount = currentStoreObj ? currentStoreObj.employee_count : 45;
-  const cashFund = cashCounts.length > 0 ? cashCounts[0].cash_total_vnd : 1745000;
-
   return (
     <div style={{ display: 'flex', width: '100%', height: '100dvh', overflow: 'hidden' }}>
-      {/* Desktop Sidebar */}
-      <Sidebar
-        stores={stores}
-        activeStore={activeStore}
-        onSelectStore={(st) => {
-          setActiveStore(st);
-          addToast(`Đã chuyển sang điểm bán: ${st}`, 'info');
-        }}
-        activeNav={activeNav}
-        onSelectNav={setActiveNav}
-        pendingCorrectionCount={pendingCorrections.length}
-      />
+      <Sidebar role={user.role} activeNav={nav} onSelectNav={setActiveNav} />
 
-      {/* Main Content Area */}
       <main>
         <Header
-          storeName={activeStore}
-          onSync={() => loadData(true)}
-          onAddShift={() => setIsAddShiftOpen(true)}
+          title={meta.title}
+          subtitle={meta.subtitle}
+          user={user}
+          onLogout={() => {
+            void logout();
+            addToast('Đã đăng xuất và xoá access token khỏi bộ nhớ.', 'info');
+          }}
         />
 
-        <div className="content-body">
-          <PromptChips onSelectPrompt={handleAiMessage} />
-
-          <MetricCards
-            employeeCount={employeeCount}
-            shiftsTodayCount={schedules.length > 0 ? schedules.length : 12}
-            pendingCorrectionCount={pendingCorrections.length}
-            cashFund={cashFund}
-          />
-
-          <VisualTimeline
-            schedules={schedules}
-            onSelectEmployee={setSelectedSchedule}
-          />
-
-          <TwoColumnGrid
-            cashCounts={cashCounts}
-            corrections={corrections}
-            onApproveCorrection={handleApprove}
-            onRejectCorrection={handleReject}
-          />
-
-          <AiCopilotBar onSendMessage={handleAiMessage} isLoading={isLoading} />
-        </div>
+        <div className="content-body">{renderView()}</div>
       </main>
 
-      {/* Slide-over Drawer for employee details */}
-      <StaffDrawer
-        schedule={selectedSchedule}
-        onClose={() => setSelectedSchedule(null)}
-        onActionMessage={(msg) => addToast(msg, 'success', 'Vận Hành Nhân Sự')}
-      />
+      <MobileBottomNav role={user.role} activeTab={nav} onSelectTab={setActiveNav} />
 
-      {/* Custom Dark AI Copilot Modal Window (Replaces native browser alert) */}
-      <AiCopilotModal
-        isOpen={isAiModalOpen}
-        onClose={() => setIsAiModalOpen(false)}
-        query={aiModalQuery}
-        onActionComplete={(msg) => addToast(msg, 'success', 'GUTA AI Copilot')}
-      />
-
-      {/* Custom Dark Add Shift Modal Window */}
-      <AddShiftModal
-        isOpen={isAddShiftOpen}
-        onClose={() => setIsAddShiftOpen(false)}
-        storeName={activeStore}
-        onAddShift={handleNewShift}
-      />
-
-      {/* Mobile Bottom Navigation */}
-      <MobileBottomNav
-        activeTab={activeNav}
-        onSelectTab={setActiveNav}
-        onOpenAi={() => handleAiMessage('Tra cứu nhanh qua AI Copilot')}
-      />
-
-      {/* Modern In-App Toast System */}
       <ToastContainer toasts={toasts} onDismiss={removeToast} />
     </div>
   );
+};
+
+export const App: React.FC = () => {
+  return <AppContent />;
 };

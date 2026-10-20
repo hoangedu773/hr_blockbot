@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HR BlockBot — 20 Interactive Visual Styles Live Showcase</title>
+  <style>
+    /* Reset & Base */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    body {
+      font-family: var(--font-heading, -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif);
+      background: var(--bg-canvas, #0B0C0E);
+      color: var(--text-primary, #F0F0F2);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      line-height: 1.45;
+      font-size: 13px;
+      transition: background 160ms var(--ease, ease), color 160ms var(--ease, ease);
+    }
+
+    /* Top Selector Bar */
+    .top-bar {
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      background: var(--bg-surface, #111214);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border, #2A2B30);
+      padding: 10px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .brand-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-logo-badge {
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius-sm, 4px);
+      background: var(--accent, #8B7CFF);
+      color: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-family: var(--font-data, monospace);
+      font-size: 13px;
+    }
+    .brand-title h1 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary, #fff);
+    }
+    .brand-badge {
+      font-size: 11px;
+      color: var(--text-muted, #92949B);
+      background: rgba(255,255,255,0.06);
+      padding: 2px 8px;
+      border-radius: var(--radius-sm, 4px);
+      font-family: var(--font-data, monospace);
+    }
+
+    .style-select-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .style-select-wrap label {
+      font-size: 12px;
+      color: var(--text-muted, #94a3b8);
+      font-weight: 600;
+    }
+    .custom-select-box {
+      position: relative;
+    }
+    .custom-select-trigger {
+      background: var(--bg-card, #17181B);
+      color: var(--text-primary, #fff);
+      border: 1px solid var(--border, #2A2B30);
+      padding: 8px 14px;
+      border-radius: var(--radius-sm, 4px);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 38px;
+      outline: none;
+      transition: all 120ms ease;
+    }
+    .custom-select-trigger:hover {
+      border-color: rgba(255,255,255,0.25);
+      background: var(--bg-card-hover, #202126);
+    }
+    .custom-select-trigger:focus-visible {
+      border-color: var(--accent, #8B7CFF);
+    }
+    .custom-select-dropdown {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      width: 330px;
+      max-height: 380px;
+      overflow-y: auto;
+      background: var(--bg-surface, #111214);
+      border: 1px solid var(--border, #2A2B30);
+      border-radius: var(--radius-md, 6px);
+      padding: 6px;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.75);
+      display: none;
+      flex-direction: column;
+      gap: 2px;
+      z-index: 2000;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.2) transparent;
+    }
+    .custom-select-dropdown.show {
+      display: flex;
+      animation: dropdownFade 140ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes dropdownFade {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .custom-select-dropdown::-webkit-scrollbar { width: 5px; }
+    .custom-select-dropdown::-webkit-scrollbar-track { background: transparent; }
+    .custom-select-dropdown::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.2);
+      border-radius: 999px;
+    }
+    .custom-select-dropdown::-webkit-scrollbar-thumb:hover {
+      background: rgba(255,255,255,0.35);
+    }
+    .select-optgroup {
+      font-size: 10px;
+      font-weight: 800;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 8px 10px 4px;
+    }
+    .select-opt {
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      border-radius: var(--radius-sm, 4px);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 90ms ease;
+    }
+    .select-opt:hover {
+      background: var(--bg-card-hover, #202126);
+      color: var(--text-primary);
+    }
+    .select-opt.active {
+      background: var(--bg-card, #17181B);
+      color: var(--accent, #8B7CFF);
+    }
+
+    /* Main Container */
+    .container {
+      max-width: 1380px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 20px 24px 80px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Style Spec Header Card */
+    .spec-card {
+      background: var(--bg-surface, #111214);
+      border: 1px solid var(--border, #2A2B30);
+      border-radius: var(--radius-lg, 8px);
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .spec-info h2 {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--text-primary);
+      margin-bottom: 2px;
+    }
+    .spec-info p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .color-swatches {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .swatch {
+      width: 22px;
+      height: 22px;
+      border-radius: var(--radius-sm, 4px);
+      border: 1px solid rgba(255,255,255,0.15);
+      cursor: pointer;
+    }
+
+    /* Interactive Component Toolbar (Buttons, Dropdown, Tabs, Chips) */
+    .component-showcase-bar {
+      background: var(--bg-surface, #111214);
+      border: 1px solid var(--border, #2A2B30);
+      border-radius: var(--radius-lg, 8px);
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .interactive-tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--bg-canvas, #0B0C0E);
+      padding: 4px;
+      border-radius: var(--radius-sm, 4px);
+      border: 1px solid var(--border, #2A2B30);
+    }
+    .itab-btn {
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      border-radius: var(--radius-sm, 4px);
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      transition: all 120ms ease;
+    }
+    .itab-btn:hover {
+      color: var(--text-primary);
+    }
+    .itab-btn.active {
+      background: var(--bg-card, #17181B);
+      color: var(--accent, #8B7CFF);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    }
+
+    .button-group-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    /* Modern Buttons */
+    .btn {
+      min-height: 36px;
+      padding: 0 14px;
+      border-radius: var(--radius-sm, 4px);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border: 1px solid transparent;
+      transition: transform 90ms ease, filter 120ms ease, background 120ms ease;
+    }
+    .btn:active {
+      transform: scale(0.97);
+    }
+    .btn-primary {
+      background: var(--accent, #8B7CFF);
+      color: #000;
+      font-weight: 700;
+    }
+    .btn-primary:hover {
+      filter: brightness(1.1);
+    }
+    .btn-outline {
+      background: var(--bg-card, #17181B);
+      border-color: var(--border, #2A2B30);
+      color: var(--text-primary);
+    }
+    .btn-outline:hover {
+      background: var(--bg-card-hover, #202126);
+      border-color: rgba(255,255,255,0.2);
+    }
+    .btn-danger {
+      background: rgba(229, 107, 117, 0.15);
+      border-color: var(--status-danger, #E56B75);
+      color: var(--status-danger, #E56B75);
+    }
+    .btn-danger:hover {
+      background: rgba(229, 107, 117, 0.25);
+    }
+
+    /* Dropdown Component */
+    .custom-dropdown-wrap {
+      position: relative;
+    }
+    .dropdown-btn {
+      min-height: 36px;
+      padding: 0 12px;
+      border-radius: var(--radius-sm, 4px);
+      background: var(--bg-card, #17181B);
+      border: 1px solid var(--border, #2A2B30);
+      color: var(--text-primary);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .dropdown-btn:hover {
+      background: var(--bg-card-hover, #202126);
+    }
+    .dropdown-menu {
+      position: absolute;
+      top: calc(100% + 4px);
+      right: 0;
+      width: 180px;
+      background: var(--bg-surface, #111214);
+      border: 1px solid var(--border, #2A2B30);
+      border-radius: var(--radius-md, 6px);
+      padding: 4px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+      display: none;
+      flex-direction: column;
+      gap: 2px;
+      z-index: 50;
+    }
+    .dropdown-menu.show {
+      display: flex;
+    }
+    .dropdown-item {
+      padding: 7px 10px;
+      font-size: 12px;
+      color: var(--text-muted);
+      border-radius: var(--radius-sm, 4px);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 90ms ease;
+    }
+    .dropdown-item:hover {
+      background: var(--bg-card-hover, #202126);
+      color: var(--text-primary);
+    }
+
+    /* Metric Grid (Tremor style) */
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+    @media (max-width: 1024px) { .metric-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 600px) { .metric-grid { grid-template-columns: 1fr; } }
+
+    .metric-card {
+      background: var(--bg-card, #17181B);
+      border: 1px solid var(--border, #2A2B30);
+      border-radius: var(--radius-md, 6px);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: all 120ms ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .metric-card:hover {
+      background: var(--bg-card-hover, #202126);
+      border-color: rgba(255,255,255,0.18);
+    }
+    .metric-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .metric-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .metric-sparkline {
+      display: flex;
+      align-items: flex-end;
+      gap: 2px;
+      height: 16px;
+    }
+    .spark-bar {
+      width: 3px;
+      background: var(--accent, #8B7CFF);
+      opacity: 0.6;
+      border-radius: 1px;
+    }
+    .metric-value {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--text-primary);
+      font-variant-numeric: tabular-nums;
+      font-family: var(--font-data, ui-monospace, monospace);
+      letter-spacing: -0.02em;
+    }
+    .metric-footer {
+      font-size: 11px;
+      color: var(--status-success, #4CC38A);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* 3 Columns Layout: Interactive Navigation List, F1 Queue, F2 Projects */
+    .dashboard-layout {
+      display: grid;
+      grid-template-columns: 240px 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 1100px) {
+      .dashboard-layout { grid-template-columns: 1fr; }
+    }
+
+    /* Nav List Sidebar */
+    .nav-list-card {
+      background: var(--bg-surface, #111214);
+      border: 1px solid var(--border, #2A2B30);
+      border-radius: var(--radius-lg, 8px);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .nav-group-title {
+      font-size: 10px;
+      font-weight: 800;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 6px 10px;
+    }
+    .nav-link {
+      padding: 8px 12px;
+      border-radius: var(--radius-sm, 4px);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: all 120ms ease;
+    }
+    .nav-link:hover {
+      background: var(--bg-card-hover, #202126);
+      color: var(--text-primary);
+    }
+    .nav-link.active {
+      background: var(--bg-card, #17181B);
+      color: var(--accent, #8B7CFF);
+      border: 1px solid var(--border, #2A2B30);
+    }
+    .nav-pill {
+      font-size: 10px;
+      font-family: var(--font-data, monospace);
+      background: rgba(255,255,255,0.06);
+      padding: 1px 6px;
+      border-radius: 999px;
+      color: var(--text-muted);
+    }
+
+    /* Content Panels */
+    .panel-box {
+      background: var(--bg-surface, #111214);
+      border: 1px solid var(--border, #2A2B30);
+      border-radius: var(--radius-lg, 8px);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .panel-header h3 {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .badge {
+      font-size: 10px;
+      font-weight: 700;
+      font-family: var(--font-data, monospace);
+      padding: 3px 8px;
+      border-radius: var(--radius-sm, 4px);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .badge-accent {
+      background: var(--accent-subtle, rgba(139, 124, 255, 0.15));
+      color: var(--accent, #8B7CFF);
+      border: 1px solid var(--accent, #8B7CFF);
+    }
+    .badge-success {
+      background: rgba(76, 195, 138, 0.12);
+      color: var(--status-success, #4CC38A);
+      border: 1px solid var(--status-success, #4CC38A);
+    }
+
+    /* List Card items */
+    .item-card {
+      background: var(--bg-card, #17181B);
+      border: 1px solid var(--border, #2A2B30);
+      border-radius: var(--radius-md, 6px);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: background 120ms ease, border-color 120ms ease;
+    }
+    .item-card:hover {
+      background: var(--bg-card-hover, #202126);
+      border-color: rgba(255,255,255,0.18);
+    }
+    .item-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-primary);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .item-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+
+    /* Progress Bar */
+    .progress-bar-wrap {
+      height: 6px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 999px;
+      overflow: hidden;
+      margin: 4px 0;
+    }
+    .progress-fill {
+      height: 100%;
+      background: var(--accent, #8B7CFF);
+      border-radius: 999px;
+      transition: width 200ms ease;
+    }
+
+    /* Toast Notification Mockup */
+    .toast-preview-bar {
+      background: var(--bg-card, #17181B);
+      border: 1px solid var(--border, #2A2B30);
+      border-left: 3px solid var(--status-success, #4CC38A);
+      border-radius: var(--radius-sm, 4px);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Selector Bar -->
+  <header class="top-bar">
+    <div class="brand-title">
+      <div class="brand-logo-badge" id="brandLogo">01</div>
+      <h1>HR BlockBot — 20 Interactive Styles</h1>
+      <span class="brand-badge">Live System Switcher</span>
+    </div>
+
+    <div class="style-select-wrap">
+      <label>Chọn Phong Cách (1 / 20):</label>
+      <div class="custom-select-box" id="styleSelectBox">
+        <button type="button" class="custom-select-trigger" onclick="toggleStyleSelect(event)">
+          <span id="styleSelectLabel">01. Linear Minimal (Obsidian & Indigo)</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div class="custom-select-dropdown" id="styleSelectMenu">
+          <div class="select-optgroup">Nhóm 1: High-Tech & Dev Tools</div>
+          <div class="select-opt active" onclick="chooseStyle('01', '01. Linear Minimal (Obsidian & Indigo)')">01. Linear Minimal (Obsidian & Indigo)</div>
+          <div class="select-opt" onclick="chooseStyle('02', '02. Raycast Command (Keyboard First & Coral)')">02. Raycast Command (Keyboard First & Coral)</div>
+          <div class="select-opt" onclick="chooseStyle('03', '03. Vercel Geist (Pure Monochrome & Grid)')">03. Vercel Geist (Pure Monochrome & Grid)</div>
+          <div class="select-opt" onclick="chooseStyle('04', '04. Supabase Studio (Database & Emerald)')">04. Supabase Studio (Database & Emerald)</div>
+          <div class="select-opt" onclick="chooseStyle('05', '05. GitHub Dark (Activity & Electric Blue)')">05. GitHub Dark (Activity & Electric Blue)</div>
+
+          <div class="select-optgroup">Nhóm 2: Data-Dense & Enterprise FinOps</div>
+          <div class="select-opt" onclick="chooseStyle('06', '06. Tremor Analytics (KPI & Royal Blue)')">06. Tremor Analytics (KPI & Royal Blue)</div>
+          <div class="select-opt" onclick="chooseStyle('07', '07. Stripe FinOps (Calm & Blurple)')">07. Stripe FinOps (Calm & Blurple)</div>
+          <div class="select-opt" onclick="chooseStyle('08', '08. Bloomberg Terminal (Grid Density & Gold)')">08. Bloomberg Terminal (Grid Density & Gold)</div>
+          <div class="select-opt" onclick="chooseStyle('09', '09. Retool / Palantir (Operations & Steel)')">09. Retool / Palantir (Operations & Steel)</div>
+          <div class="select-opt" onclick="chooseStyle('10', '10. AWS CloudWatch (Telemetry & Ice Blue)')">10. AWS CloudWatch (Telemetry & Ice Blue)</div>
+
+          <div class="select-optgroup">Nhóm 3: Premium Luxury & Modern Dark</div>
+          <div class="select-opt" onclick="chooseStyle('11', '11. Apple Pro Dark (Subtle & macOS Depth)')">11. Apple Pro Dark (Subtle & macOS Depth)</div>
+          <div class="select-opt" onclick="chooseStyle('12', '12. Braun / Teenage Engineering (Mechanical)')">12. Braun / Teenage Engineering (Mechanical)</div>
+          <div class="select-opt" onclick="chooseStyle('13', '13. Porsche Precision (Champagne & Performance)')">13. Porsche Precision (Champagne & Performance)</div>
+          <div class="select-opt" onclick="chooseStyle('14', '14. Arc Cyberpunk Clean (Electric Violet)')">14. Arc Cyberpunk Clean (Electric Violet)</div>
+          <div class="select-opt" onclick="chooseStyle('15', '15. Obsidian Note Craft (Soft Charcoal)')">15. Obsidian Note Craft (Soft Charcoal)</div>
+
+          <div class="select-optgroup">Nhóm 4: Warm & Industry Specific</div>
+          <div class="select-opt" onclick="chooseStyle('16', '16. Guta Amber Heritage (F&B Warm Amber)')">16. Guta Amber Heritage (F&B Warm Amber)</div>
+          <div class="select-opt" onclick="chooseStyle('17', '17. Monocle Editorial (Warm Paper & Ochre)')">17. Monocle Editorial (Warm Paper & Ochre)</div>
+          <div class="select-opt" onclick="chooseStyle('18', '18. Swiss Grid Light (12-Col Precision)')">18. Swiss Grid Light (12-Col Precision)</div>
+          <div class="select-opt" onclick="chooseStyle('19', '19. Nordic Slate Light (Minimalist Calm)')">19. Nordic Slate Light (Minimalist Calm)</div>
+          <div class="select-opt" onclick="chooseStyle('20', '20. Industrial Toast POS (High Touch Target)')">20. Industrial Toast POS (High Touch Target)</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="container">
+
+    <!-- Style Spec Banner -->
+    <section class="spec-card">
+      <div class="spec-info">
+        <h2 id="styleName">01. Linear Minimal</h2>
+        <p id="styleDesc">Lấy cảm hứng từ Linear.app: Nền đen sâu Obsidian, viền siêu mỏng, phím tắt trung tâm, accent Tím Chàm tinh tế.</p>
+      </div>
+      <div class="color-swatches" id="swatchesContainer">
+        <!-- Rendered by JS -->
+      </div>
+    </section>
+
+    <!-- Component Showcase Bar (Interactive Buttons & Dropdowns) -->
+    <section class="component-showcase-bar">
+      <!-- Tabs Pill -->
+      <div class="interactive-tabs">
+        <button class="itab-btn active" onclick="setTab(this)">Đang Thực Hiện (4)</button>
+        <button class="itab-btn" onclick="setTab(this)">Chờ Phê Duyệt (2)</button>
+        <button class="itab-btn" onclick="setTab(this)">Đã Hoàn Thành (12)</button>
+      </div>
+
+      <!-- Action Buttons & Dropdown -->
+      <div class="button-group-row">
+        <button class="btn btn-outline" onclick="triggerToast('Đã làm mới dữ liệu hệ thống!')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+          Đồng Bộ
+        </button>
+
+        <div class="custom-dropdown-wrap">
+          <button class="dropdown-btn" onclick="toggleDropdown()">
+            Bộ Lọc Trạng Thái
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="dropdown-menu" id="dropdownMenu">
+            <div class="dropdown-item" onclick="selectFilter('Tất cả đề tài')">Tất cả đề tài</div>
+            <div class="dropdown-item" onclick="selectFilter('Đang thực hiện')">Đang thực hiện</div>
+            <div class="dropdown-item" onclick="selectFilter('Chờ nghiệm thu')">Chờ nghiệm thu</div>
+            <div class="dropdown-item" onclick="selectFilter('Quá hạn (Overdue)')">Quá hạn (Overdue)</div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" onclick="triggerToast('Mở modal tạo đề tài mới!')">
+          + Tạo Đề Tài (DRAFT)
+        </button>
+      </div>
+    </section>
+
+    <!-- Headline KPI Cards (Tremor style) -->
+    <section class="metric-grid">
+      <div class="metric-card">
+        <div class="metric-header">
+          <div class="metric-label">Tổng Nhân Sự Cửa Hàng</div>
+          <div class="metric-sparkline">
+            <div class="spark-bar" style="height: 60%;"></div>
+            <div class="spark-bar" style="height: 80%;"></div>
+            <div class="spark-bar" style="height: 50%;"></div>
+            <div class="spark-bar" style="height: 100%;"></div>
+          </div>
+        </div>
+        <div class="metric-value">45</div>
+        <div class="metric-footer">● Đầy đủ định biên vận hành</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-header">
+          <div class="metric-label">Hồ Sơ Chờ Duyệt (F1)</div>
+          <div class="metric-sparkline">
+            <div class="spark-bar" style="height: 40%; background: var(--accent);"></div>
+            <div class="spark-bar" style="height: 90%; background: var(--accent);"></div>
+            <div class="spark-bar" style="height: 60%; background: var(--accent);"></div>
+          </div>
+        </div>
+        <div class="metric-value" style="color: var(--accent);">02</div>
+        <div class="metric-footer" style="color: var(--accent);">Cần Cửa hàng trưởng ký</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-header">
+          <div class="metric-label">Đề Tài Đang Chạy (F2)</div>
+          <div class="metric-sparkline">
+            <div class="spark-bar" style="height: 50%;"></div>
+            <div class="spark-bar" style="height: 70%;"></div>
+            <div class="spark-bar" style="height: 85%;"></div>
+          </div>
+        </div>
+        <div class="metric-value">04</div>
+        <div class="metric-footer">● Tiến độ đúng chu kỳ sprint</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-header">
+          <div class="metric-label">Tỷ Lệ Hoàn Thành Khóa Luận</div>
+          <div class="metric-sparkline">
+            <div class="spark-bar" style="height: 30%;"></div>
+            <div class="spark-bar" style="height: 60%;"></div>
+            <div class="spark-bar" style="height: 100%;"></div>
+          </div>
+        </div>
+        <div class="metric-value" style="color: var(--status-success);">38.2%</div>
+        <div class="metric-footer">● 18/47 Tasks đạt nghiệm thu</div>
+      </div>
+    </section>
+
+    <!-- 3 Columns Dashboard Layout: Sidebar Nav + F1 Queue + F2 Projects -->
+    <section class="dashboard-layout">
+
+      <!-- Column 1: Interactive Menu List -->
+      <nav class="nav-list-card" aria-label="Menu Phân Hệ">
+        <div class="nav-group-title">Phân Hệ Quản Trị</div>
+        <div class="nav-link active">
+          <span>Khóa Luận F1 & F2</span>
+          <span class="nav-pill" style="color: var(--accent);">Active</span>
+        </div>
+        <div class="nav-link">
+          <span>Hồ Sơ Nhân Sự (F1)</span>
+          <span class="nav-pill">45</span>
+        </div>
+        <div class="nav-link">
+          <span>Vòng Đời Đề Tài (F2)</span>
+          <span class="nav-pill">04</span>
+        </div>
+        <div class="nav-link">
+          <span>Chatbot Policy (F3)</span>
+          <span class="nav-pill">W9</span>
+        </div>
+
+        <div class="nav-group-title" style="margin-top: 10px;">Hệ Thống Cửa Hàng</div>
+        <div class="nav-link">
+          <span>34 Điểm Bán GUTA</span>
+          <span class="nav-pill">34</span>
+        </div>
+        <div class="nav-link">
+          <span>Lịch Ca & Phân Bổ</span>
+          <span class="nav-pill">Live</span>
+        </div>
+        <div class="nav-link">
+          <span>Kiểm Kê Tiền Két</span>
+          <span class="nav-pill">Lock</span>
+        </div>
+      </nav>
+
+      <!-- Column 2: F1 Approval Queue -->
+      <div class="panel-box">
+        <div class="panel-header">
+          <h3>Hàng Đợi Duyệt Hồ Sơ (FR-003/004)</h3>
+          <span class="badge badge-accent">1 CHỜ DUYỆT</span>
+        </div>
+        <p style="font-size: 12px; color: var(--text-muted);">
+          Admin duyệt thay đổi Cấp bậc / Ngày vào làm. Cấm tự duyệt hồ sơ chính mình.
+        </p>
+
+        <!-- Change Request Item -->
+        <div class="item-card">
+          <div class="item-title">
+            <span>Nguyễn Thị Thanh Thúy</span>
+            <span class="badge badge-accent">GT-CH18030009</span>
+          </div>
+          <div class="item-desc">
+            <div>Yêu cầu đổi Cấp bậc: <span style="text-decoration: line-through; opacity: 0.6;">Junior</span> ➔ <strong style="color: var(--status-success);">Middle</strong></div>
+            <div>Chức danh đề xuất: <strong>Barista Trưởng Ca</strong></div>
+            <div style="font-size: 11px; margin-top: 4px; font-family: var(--font-data, monospace);">Gửi lúc: 2026-10-12 14:30</div>
+          </div>
+          <div style="display: flex; gap: 8px; margin-top: 4px;">
+            <button class="btn btn-primary" style="flex: 1;" onclick="triggerToast('Đã phê duyệt yêu cầu Middle!')">Phê Duyệt</button>
+            <button class="btn btn-danger" style="flex: 1;" onclick="triggerToast('Đã từ chối yêu cầu!')">Từ Chối</button>
+          </div>
+        </div>
+
+        <div class="item-card" style="opacity: 0.7;">
+          <div class="item-title">
+            <span>Trần Văn Hoàng</span>
+            <span class="badge badge-success">ĐÃ DUYỆT</span>
+          </div>
+          <div class="item-desc">
+            <div>Cập nhật ngày vào làm: <strong>2024-03-01</strong></div>
+            <div style="font-size: 11px; color: var(--text-muted);">Người duyệt: Admin Kỹ Thuật (2026-10-11)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Column 3: F2 Project Lifecycle -->
+      <div class="panel-box">
+        <div class="panel-header">
+          <h3>Vòng Đời Đề Tài & Nhiệm Vụ (F2)</h3>
+          <span class="badge badge-accent">5 STATES ATOMIC</span>
+        </div>
+        <p style="font-size: 12px; color: var(--text-muted);">
+          Chuyển đổi trạng thái nguyên tử với Concurrency Guard chống xung đột.
+        </p>
+
+        <!-- Project 1 -->
+        <div class="item-card">
+          <div class="item-title">
+            <span>Nâng Cấp Bảo Mật Auth & Minimization</span>
+            <span class="badge badge-accent">IN_PROGRESS (v2)</span>
+          </div>
+          <div class="item-desc">
+            Phòng Công Nghệ • Phụ trách: <strong>Lê Văn C</strong>
+          </div>
+          <div>
+            <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
+              <span>Tiến độ thực hiện:</span>
+              <strong style="color: var(--accent); font-family: var(--font-data, monospace);">65%</strong>
+            </div>
+            <div class="progress-bar-wrap">
+              <div class="progress-fill" style="width: 65%;"></div>
+            </div>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-muted);">
+            <span>Hạn nộp: <span style="font-family: var(--font-data, monospace);">2026-10-25</span></span>
+            <button class="btn btn-outline" style="min-height: 30px; font-size: 11px;" onclick="triggerToast('Mở form nộp báo cáo nghiệm thu!')">Nộp Báo Cáo ➔</button>
+          </div>
+        </div>
+
+        <!-- Project 2 -->
+        <div class="item-card">
+          <div class="item-title">
+            <span>Chuẩn Hóa Dữ Liệu Nhân Sự 34 Điểm Bán</span>
+            <span class="badge badge-success">COMPLETED (v4)</span>
+          </div>
+          <div class="item-desc">
+            Phòng Nhân Sự • Đã nghiệm thu báo cáo kết quả.
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Feedback Toast Preview Container -->
+    <div id="toastBox" style="position: fixed; bottom: 20px; right: 24px; z-index: 2000; display: none;">
+      <div class="toast-preview-bar">
+        <span id="toastMsg">Đã cập nhật hệ thống thành công!</span>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Live Switcher Script -->
+  <script>
+    const STYLES = {
+      "01": {
+        name: "01. Linear Minimal",
+        desc: "Lấy cảm hứng từ Linear.app: Nền đen sâu Obsidian, viền siêu mỏng, phím tắt trung tâm, accent Tím Chàm tinh tế.",
+        canvas: "#0B0C0E", surface: "#111214", card: "#17181B", cardHover: "#202126",
+        border: "#2A2B30", textPrimary: "#F0F0F2", textMuted: "#92949B",
+        accent: "#8B7CFF", accentSubtle: "rgba(139, 124, 255, 0.15)",
+        success: "#4CC38A", danger: "#E56B75", radius: "4px"
+      },
+      "02": {
+        name: "02. Raycast Command",
+        desc: "Lấy cảm hứng từ Raycast: Tương phản mạnh, tập trung phím tắt, viền nổi bật, điểm nhấn Đỏ San Hô (Coral).",
+        canvas: "#101114", surface: "#17181C", card: "#1E2025", cardHover: "#272930",
+        border: "#34363D", textPrimary: "#F5F5F6", textMuted: "#A1A2A8",
+        accent: "#FF6363", accentSubtle: "rgba(255, 99, 99, 0.15)",
+        success: "#55C99A", danger: "#FF6363", radius: "6px"
+      },
+      "03": {
+        name: "03. Vercel Geist",
+        desc: "Chuẩn mực Vercel / Geist: Trắng - Đen - Xám tuyệt đối, không màu mè, lưới Thụy Sĩ mẫu mực.",
+        canvas: "#09090B", surface: "#111113", card: "#18181B", cardHover: "#222226",
+        border: "#2E2E32", textPrimary: "#FAFAFA", textMuted: "#A1A1AA",
+        accent: "#EDEDED", accentSubtle: "rgba(255, 255, 255, 0.12)",
+        success: "#4CC38A", danger: "#E5484D", radius: "4px"
+      },
+      "04": {
+        name: "04. Supabase Studio",
+        desc: "Lấy cảm hứng từ Supabase: Màu đen xanh rừng đậm, điểm nhấn Xanh Ngọc (Emerald) chuẩn kỹ thuật.",
+        canvas: "#0C0F0D", surface: "#111713", card: "#18211B", cardHover: "#202c24",
+        border: "#2B3930", textPrimary: "#E8F0EA", textMuted: "#93A49A",
+        accent: "#3ECF8E", accentSubtle: "rgba(62, 207, 142, 0.15)",
+        success: "#3ECF8E", danger: "#F16D6D", radius: "4px"
+      },
+      "05": {
+        name: "05. GitHub Dark",
+        desc: "Quen thuộc và minh bạch: Màu than chì GitHub, accent Xanh Dương Điện Tử (Electric Blue).",
+        canvas: "#0D1117", surface: "#010409", card: "#161B22", cardHover: "#1f242c",
+        border: "#30363D", textPrimary: "#E6EDF3", textMuted: "#8B949E",
+        accent: "#2F81F7", accentSubtle: "rgba(47, 129, 247, 0.15)",
+        success: "#3FB950", danger: "#F85149", radius: "4px"
+      },
+      "06": {
+        name: "06. Tremor Analytics",
+        desc: "Chuyên gia hiển thị số liệu & KPI: Tối giản, thanh thoát, màu Xanh Hoàng Gia (Royal Blue) dịu mắt.",
+        canvas: "#0B0F14", surface: "#111820", card: "#17212B", cardHover: "#1e2b38",
+        border: "#2B3742", textPrimary: "#E6EDF3", textMuted: "#9AA8B5",
+        accent: "#4C8DFF", accentSubtle: "rgba(76, 141, 255, 0.15)",
+        success: "#3ECF8E", danger: "#F2555A", radius: "6px"
+      },
+      "07": {
+        name: "07. Stripe FinOps",
+        desc: "Phong cách Stripe Dashboard: Đầm chắc, chuẩn mực doanh nghiệp, accent Blurple thương hiệu.",
+        canvas: "#0A1020", surface: "#101A2C", card: "#17243A", cardHover: "#21324e",
+        border: "#2A3A55", textPrimary: "#F6F8FC", textMuted: "#A5B3C8",
+        accent: "#7C5CFC", accentSubtle: "rgba(124, 92, 252, 0.15)",
+        success: "#35B779", danger: "#E25950", radius: "6px"
+      },
+      "08": {
+        name: "08. Bloomberg Terminal",
+        desc: "Mật độ thông tin tối đa, góc vuông 0px, khung lưới sắt bén, màu Vàng Kim Hổ Phách chuyên nghiệp.",
+        canvas: "#080A0C", surface: "#101316", card: "#17181F", cardHover: "#20252a",
+        border: "#343A40", textPrimary: "#E8ECEF", textMuted: "#9BA4AA",
+        accent: "#F0A51B", accentSubtle: "rgba(240, 165, 27, 0.15)",
+        success: "#49C16D", danger: "#F05A47", radius: "0px"
+      },
+      "09": {
+        name: "09. Retool / Palantir",
+        desc: "Hệ thống điều hành tác chiến & kiểm toán: Màu Steel Cyan trầm, độ tin cậy và phân quyền rõ ràng.",
+        canvas: "#0B0E11", surface: "#12171C", card: "#192127", cardHover: "#232e36",
+        border: "#303B43", textPrimary: "#E7ECEF", textMuted: "#98A6AE",
+        accent: "#58A6C8", accentSubtle: "rgba(88, 166, 200, 0.15)",
+        success: "#4FB286", danger: "#D86666", radius: "4px"
+      },
+      "10": {
+        name: "10. AWS CloudWatch",
+        desc: "Giám sát điện toán đám mây: Xanh Băng (Ice Blue), bảng chuỗi số liệu căn dọc.",
+        canvas: "#0F141A", surface: "#151C23", card: "#1C252E", cardHover: "#25313d",
+        border: "#34414D", textPrimary: "#F1F5F9", textMuted: "#A1ADB8",
+        accent: "#5AA7FF", accentSubtle: "rgba(90, 167, 255, 0.15)",
+        success: "#42B883", danger: "#F06464", radius: "4px"
+      },
+      "11": {
+        name: "11. Apple Pro Dark",
+        desc: "Thanh lịch macOS Pro: Bo góc mềm mại 8-12px, chiều sâu tinh tế, icon System Blue.",
+        canvas: "#101012", surface: "#18181A", card: "#202023", cardHover: "#2b2b30",
+        border: "#38383D", textPrimary: "#F5F5F7", textMuted: "#A1A1A6",
+        accent: "#0A84FF", accentSubtle: "rgba(10, 132, 255, 0.15)",
+        success: "#30D158", danger: "#FF453A", radius: "10px"
+      },
+      "12": {
+        name: "12. Braun / Teenage Engineering",
+        desc: "Triết lý Dieter Rams: Tối giản công nghiệp, hình khối chắc nịch, accent Cam Công Nghiệp.",
+        canvas: "#121311", surface: "#1A1B18", card: "#22231F", cardHover: "#2f312b",
+        border: "#42443D", textPrimary: "#F0F0E8", textMuted: "#A5A69A",
+        accent: "#E4A62B", accentSubtle: "rgba(228, 166, 43, 0.15)",
+        success: "#76B779", danger: "#D95D4F", radius: "2px"
+      },
+      "13": {
+        name: "13. Porsche Precision",
+        desc: "Cơ khí chuẩn xác & thể thao cao cấp: Tương phản gắt, đường nét mảnh, Vàng Champagne sang trọng.",
+        canvas: "#0D0F10", surface: "#151819", card: "#1D2224", cardHover: "#282f32",
+        border: "#353C3E", textPrimary: "#F4F5F5", textMuted: "#9CA5A7",
+        accent: "#D6A85F", accentSubtle: "rgba(214, 168, 95, 0.15)",
+        success: "#59B58A", danger: "#DF625D", radius: "2px"
+      },
+      "14": {
+        name: "14. Arc Cyberpunk Clean",
+        desc: "Sắc thái trình duyệt Arc: Hiện đại, năng động, Tím Lạnh Neon có kiểm soát (không glow).",
+        canvas: "#0E1014", surface: "#151820", card: "#1D212B", cardHover: "#282d3b",
+        border: "#34363D", textPrimary: "#F2F4F8", textMuted: "#A3AABC",
+        accent: "#A78BFA", accentSubtle: "rgba(167, 139, 250, 0.15)",
+        success: "#4CC38A", danger: "#F16F78", radius: "8px"
+      },
+      "15": {
+        name: "15. Obsidian Note Craft",
+        desc: "Tập trung sâu: Nền xám than củi dịu mắt, thích hợp đọc hồ sơ và tài liệu lâu dài.",
+        canvas: "#171717", surface: "#1E1E1E", card: "#262626", cardHover: "#333333",
+        border: "#3B3B3B", textPrimary: "#E8E6E3", textMuted: "#A7A29C",
+        accent: "#A88BFA", accentSubtle: "rgba(168, 139, 250, 0.15)",
+        success: "#69B578", danger: "#D96A6A", radius: "6px"
+      },
+      "16": {
+        name: "16. Guta Amber Heritage",
+        desc: "Bản sắc ấm áp ngành cà phê chuỗi GUTA: Nền than củi tự nhiên, điểm nhấn Hổ Phách Caramel dịu mắt.",
+        canvas: "#11100E", surface: "#191714", card: "#211E19", cardHover: "#2e2a23",
+        border: "#3D372D", textPrimary: "#F4EFE7", textMuted: "#A9A093",
+        accent: "#D97706", accentSubtle: "rgba(217, 119, 6, 0.15)",
+        success: "#4CAF78", danger: "#D85C52", radius: "6px"
+      },
+      "17": {
+        name: "17. Monocle Editorial (Sáng)",
+        desc: "Phong cách tạp chí Monocle: Nền giấy kem cổ điển, chữ đen sắc sảo, accent Đất Nung (Terra Cotta).",
+        canvas: "#F4F1EA", surface: "#E9E5DC", card: "#FFFFFF", cardHover: "#f0ece3",
+        border: "#D4D0C7", textPrimary: "#20201E", textMuted: "#77746D",
+        accent: "#B45532", accentSubtle: "rgba(180, 85, 50, 0.15)",
+        success: "#3E805A", danger: "#B9433E", radius: "2px"
+      },
+      "18": {
+        name: "18. Swiss Grid Light (Sáng)",
+        desc: "Trật tự Thụy Sĩ: Nền trắng xám sạch, lưới căn chuẩn mực, accent Đỏ Swiss Red cổ điển.",
+        canvas: "#F5F5F2", surface: "#ECECE8", card: "#FFFFFF", cardHover: "#f3f3f0",
+        border: "#D1D1CC", textPrimary: "#161616", textMuted: "#6D6D68",
+        accent: "#D33A32", accentSubtle: "rgba(211, 58, 50, 0.15)",
+        success: "#31835A", danger: "#C83F3A", radius: "0px"
+      },
+      "19": {
+        name: "19. Nordic Slate Light (Sáng)",
+        desc: "Bắc Âu tối giản: Tone màu phiến đá xám xanh, nhẹ nhàng, không gây chói mắt ban ngày.",
+        canvas: "#F2F4F3", surface: "#E8ECEA", card: "#FFFFFF", cardHover: "#eff2f0",
+        border: "#D2D9D5", textPrimary: "#202725", textMuted: "#737E79",
+        accent: "#537F75", accentSubtle: "rgba(83, 127, 117, 0.15)",
+        success: "#3F8A62", danger: "#C75550", radius: "8px"
+      },
+      "20": {
+        name: "20. Industrial Toast POS",
+        desc: "Công cụ vận hành nhà hàng Toast POS: Nút bấm lớn, thao tác cảm ứng nhanh, màu Cam Cháy F&B.",
+        canvas: "#111412", surface: "#191D1A", card: "#222823", cardHover: "#2e3630",
+        border: "#39433C", textPrimary: "#F0F3F0", textMuted: "#A2ADA4",
+        accent: "#F28C28", accentSubtle: "rgba(242, 140, 40, 0.15)",
+        success: "#54B77A", danger: "#E45F55", radius: "6px"
+      }
+    };
+
+    function applyStyle(id) {
+      const s = STYLES[id] || STYLES["01"];
+      const r = document.documentElement;
+
+      r.style.setProperty('--bg-canvas', s.canvas);
+      r.style.setProperty('--bg-surface', s.surface);
+      r.style.setProperty('--bg-card', s.card);
+      r.style.setProperty('--bg-card-hover', s.cardHover);
+      r.style.setProperty('--border', s.border);
+      r.style.setProperty('--text-primary', s.textPrimary);
+      r.style.setProperty('--text-muted', s.textMuted);
+      r.style.setProperty('--accent', s.accent);
+      r.style.setProperty('--accent-subtle', s.accentSubtle);
+      r.style.setProperty('--status-success', s.success);
+      r.style.setProperty('--status-danger', s.danger);
+      r.style.setProperty('--radius-sm', s.radius);
+      r.style.setProperty('--radius-md', s.radius);
+      r.style.setProperty('--radius-lg', s.radius);
+
+      document.getElementById('brandLogo').innerText = id;
+      document.getElementById('styleName').innerText = s.name;
+      document.getElementById('styleDesc').innerText = s.desc;
+
+      // Swatches
+      const swatches = [s.canvas, s.surface, s.card, s.border, s.accent, s.success, s.danger];
+      const container = document.getElementById('swatchesContainer');
+      container.innerHTML = swatches.map(c => `<div class="swatch" style="background:${c};" title="${c}"></div>`).join('');
+    }
+
+    // Tab interaction
+    function setTab(btn) {
+      document.querySelectorAll('.itab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+
+    // Custom Style Select Interaction
+    function toggleStyleSelect(e) {
+      if (e) e.stopPropagation();
+      document.getElementById('styleSelectMenu').classList.toggle('show');
+    }
+
+    function chooseStyle(id, label) {
+      applyStyle(id);
+      document.getElementById('styleSelectLabel').innerText = label;
+      document.querySelectorAll('#styleSelectMenu .select-opt').forEach(opt => {
+        opt.classList.remove('active');
+        if (opt.textContent.trim().startsWith(id)) {
+          opt.classList.add('active');
+        }
+      });
+      document.getElementById('styleSelectMenu').classList.remove('show');
+      triggerToast('Đã áp dụng: ' + label);
+    }
+
+    // Dropdown interaction
+    function toggleDropdown() {
+      document.getElementById('dropdownMenu').classList.toggle('show');
+    }
+    function selectFilter(name) {
+      triggerToast('Đã lọc theo: ' + name);
+      document.getElementById('dropdownMenu').classList.remove('show');
+    }
+    window.onclick = function(e) {
+      if (!e.target.matches('.dropdown-btn') && !e.target.closest('.dropdown-btn')) {
+        const d = document.getElementById('dropdownMenu');
+        if (d && d.classList.contains('show')) d.classList.remove('show');
+      }
+      if (!e.target.matches('.custom-select-trigger') && !e.target.closest('.custom-select-trigger')) {
+        const sm = document.getElementById('styleSelectMenu');
+        if (sm && sm.classList.contains('show')) sm.classList.remove('show');
+      }
+    }
+
+    // Toast Interaction
+    let toastTimeout;
+    function triggerToast(msg) {
+      const box = document.getElementById('toastBox');
+      document.getElementById('toastMsg').innerText = msg;
+      box.style.display = 'block';
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => { box.style.display = 'none'; }, 2400);
+    }
+
+    // Init default Style 01 (Linear Minimal)
+    applyStyle("01");
+  </script>
+</body>
+</html>

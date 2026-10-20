@@ -1,18 +1,17 @@
 import React, { useState } from 'react';
-import { ScheduleEntry } from '../services/api';
+import type { ScheduleEntry } from '../services/api';
 
 interface AddShiftModalProps {
   isOpen: boolean;
   onClose: () => void;
   storeName: string;
-  onAddShift: (shift: ScheduleEntry) => void;
+  onAddShift?: (shift: ScheduleEntry) => void;
 }
 
 export const AddShiftModal: React.FC<AddShiftModalProps> = ({
   isOpen,
   onClose,
   storeName,
-  onAddShift
 }) => {
   const [empName, setEmpName] = useState('BÙI VIỆT HÙNG');
   const [empCode, setEmpCode] = useState('GT-CH25036607');
@@ -24,16 +23,7 @@ export const AddShiftModal: React.FC<AddShiftModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const newEntry: ScheduleEntry = {
-      id: Date.now(),
-      employee_code: empCode,
-      employee_name: empName,
-      block_code: blockCode,
-      work_date: workDate,
-      shift_code: shiftCode,
-      schedule_type: 'actual'
-    };
-    onAddShift(newEntry);
+    // Ngoài phạm vi bootstrap: không tạo fake action
     onClose();
   };
 
@@ -55,37 +45,43 @@ export const AddShiftModal: React.FC<AddShiftModalProps> = ({
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      background: 'rgba(0, 0, 0, 0.75)',
-      backdropFilter: 'blur(8px)',
-      zIndex: 150,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '16px'
-    }}>
-      <div style={{
-        background: '#0d111a',
-        border: '1px solid rgba(255, 209, 0, 0.35)',
-        borderRadius: '12px',
-        width: '100%',
-        maxWidth: '480px',
-        boxShadow: '0 25px 60px rgba(0,0,0,0.85), 0 0 25px rgba(255, 209, 0, 0.08)',
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0, 0, 0, 0.75)',
+        backdropFilter: 'blur(8px)',
+        zIndex: 150,
         display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden'
-      }}>
-        {/* Header */}
-        <div style={{
-          padding: '16px 20px',
-          borderBottom: '1px solid var(--border)',
-          background: 'rgba(14, 20, 32, 0.9)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px',
+      }}
+    >
+      <div
+        style={{
+          background: '#0d111a',
+          border: '1px solid rgba(255, 209, 0, 0.35)',
+          borderRadius: '12px',
+          width: '100%',
+          maxWidth: '480px',
+          boxShadow: '0 25px 60px rgba(0,0,0,0.85), 0 0 25px rgba(255, 209, 0, 0.08)',
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: '16px 20px',
+            borderBottom: '1px solid var(--border)',
+            background: 'rgba(14, 20, 32, 0.9)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
           <div>
             <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#fff' }}>
               Xếp Ca Làm Việc Mới
@@ -101,11 +97,27 @@ export const AddShiftModal: React.FC<AddShiftModalProps> = ({
               border: 'none',
               color: 'var(--text-muted)',
               fontSize: '18px',
-              cursor: 'pointer'
+              cursor: 'pointer',
             }}
           >
             ✕
           </button>
+        </div>
+
+        {/* Feature Notice */}
+        <div
+          style={{
+            margin: '16px 20px 0',
+            padding: '10px 12px',
+            borderRadius: '6px',
+            background: 'rgba(245, 158, 11, 0.1)',
+            border: '1px solid rgba(245, 158, 11, 0.3)',
+            fontSize: '11px',
+            color: '#fbbf24',
+            lineHeight: 1.5,
+          }}
+        >
+          ℹ️ <strong>Tính năng đang cập nhật:</strong> Cơ chế xếp ca động và lưu trữ biểu mẫu trực tiếp vào MongoDB Atlas nằm ngoài phạm vi bootstrap foundation. Không tạo hành động ghi giả tại frontend.
         </div>
 
         {/* Form Body */}
@@ -117,21 +129,20 @@ export const AddShiftModal: React.FC<AddShiftModalProps> = ({
             <select
               value={empName}
               onChange={handleEmpChange}
+              disabled
               style={{
                 width: '100%',
                 background: '#161d2b',
-                color: '#fff',
+                color: 'var(--text-muted)',
                 border: '1px solid var(--border)',
                 padding: '8px 10px',
                 borderRadius: '6px',
                 fontSize: '12px',
-                outline: 'none'
+                outline: 'none',
+                cursor: 'not-allowed',
               }}
             >
-              <option value="BÙI VIỆT HÙNG">BÙI VIỆT HÙNG (GT-CH25036607 - Bếp)</option>
-              <option value="NGUYỄN THỊ THANH THÚY">NGUYỄN THỊ THANH THÚY (GT-CH18030009 - Bếp)</option>
-              <option value="VŨ ANH TÚ">VŨ ANH TÚ (GT-CH26047865 - Barista)</option>
-              <option value="NGUYỄN MINH HẢI">NGUYỄN MINH HẢI (GT-CH26047890 - Thu ngân)</option>
+              <option value="BÙI VIỆT HÙNG">BÙI VIỆT HÙNG ({empCode})</option>
             </select>
           </div>
 
@@ -144,15 +155,17 @@ export const AddShiftModal: React.FC<AddShiftModalProps> = ({
                 type="date"
                 value={workDate}
                 onChange={(e) => setWorkDate(e.target.value)}
+                disabled
                 style={{
                   width: '100%',
                   background: '#161d2b',
-                  color: '#fff',
+                  color: 'var(--text-muted)',
                   border: '1px solid var(--border)',
                   padding: '8px 10px',
                   borderRadius: '6px',
                   fontSize: '12px',
-                  outline: 'none'
+                  outline: 'none',
+                  cursor: 'not-allowed',
                 }}
               />
             </div>
@@ -165,16 +178,18 @@ export const AddShiftModal: React.FC<AddShiftModalProps> = ({
                 type="text"
                 value={blockCode}
                 onChange={(e) => setBlockCode(e.target.value)}
+                disabled
                 style={{
                   width: '100%',
                   background: '#161d2b',
-                  color: '#fff',
+                  color: 'var(--text-muted)',
                   border: '1px solid var(--border)',
                   padding: '8px 10px',
                   borderRadius: '6px',
                   fontSize: '12px',
                   outline: 'none',
-                  fontFamily: 'var(--mono)'
+                  fontFamily: 'var(--mono)',
+                  cursor: 'not-allowed',
                 }}
               />
             </div>
@@ -187,22 +202,20 @@ export const AddShiftModal: React.FC<AddShiftModalProps> = ({
             <select
               value={shiftCode}
               onChange={(e) => setShiftCode(e.target.value)}
+              disabled
               style={{
                 width: '100%',
                 background: '#161d2b',
-                color: '#fff',
+                color: 'var(--text-muted)',
                 border: '1px solid var(--border)',
                 padding: '8px 10px',
                 borderRadius: '6px',
                 fontSize: '12px',
-                outline: 'none'
+                outline: 'none',
+                cursor: 'not-allowed',
               }}
             >
               <option value="A">Ca A (06:00 - 14:00 • Ca sáng chuẩn)</option>
-              <option value="A1.749">Ca A1.749 (06:00 - 14:00 • Ca gãy tăng cường)</option>
-              <option value="A1B1">Ca A1B1 (06:00 - 14:00 • Ca xuyên trưa)</option>
-              <option value="B">Ca B (14:00 - 22:00 • Ca chiều chuẩn)</option>
-              <option value="B2">Ca B2 (14:00 - 22:00 • Ca tối kết ca)</option>
             </select>
           </div>
 
@@ -217,25 +230,26 @@ export const AddShiftModal: React.FC<AddShiftModalProps> = ({
                 background: 'var(--surface)',
                 color: 'var(--text-muted)',
                 border: '1px solid var(--border)',
-                cursor: 'pointer'
+                cursor: 'pointer',
               }}
             >
-              Hủy
+              Đóng
             </button>
             <button
               type="submit"
-              className="btn btn-gold"
+              disabled
+              className="btn"
               style={{
                 padding: '8px 18px',
                 borderRadius: '6px',
-                background: 'var(--guta-yellow)',
-                color: '#07090e',
-                border: '1px solid var(--guta-yellow)',
-                cursor: 'pointer',
-                fontWeight: 700
+                background: 'rgba(255, 209, 0, 0.2)',
+                color: 'var(--text-muted)',
+                border: '1px solid rgba(255, 209, 0, 0.2)',
+                cursor: 'not-allowed',
+                fontWeight: 700,
               }}
             >
-              + Tạo & Phân Ca
+              Tính Năng Đang Cập Nhật
             </button>
           </div>
         </form>

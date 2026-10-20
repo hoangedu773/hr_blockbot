@@ -6,29 +6,33 @@ interface PromptChipsProps {
 
 export const PromptChips: React.FC<PromptChipsProps> = ({ onSelectPrompt }) => {
   const chips = [
-    { label: '⚡ Tìm 2 bạn Pha chế rảnh ca sáng mai', text: 'Tìm 2 bạn Pha chế rảnh ca sáng mai tại các quán lân cận' },
-    { label: '📋 Duyệt nhanh 7 phiếu công tồn', text: 'Duyệt nhanh toàn bộ phiếu giải trình công hợp lệ kỳ 6/5 - 5/6' },
-    { label: '💰 Đối soát két ca 1B Nguyễn Kiệm', text: 'Đối soát quỹ két tiền mặt ca gần nhất tại chi nhánh 1B Nguyễn Kiệm' },
-    { label: '📖 Tra quy chế quên vân tay', text: 'Quy định quên quẹt vân tay phạt thế nào và hạn chót nộp giải trình là ngày mấy?' }
+    { label: '⚡ Tìm Barista rảnh ca sáng mai', text: 'Tìm 2 bạn Pha chế rảnh ca sáng mai tại các quán lân cận' },
+    { label: '📋 Duyệt phiếu công tồn kỳ 6/5', text: 'Duyệt nhanh toàn bộ phiếu giải trình công hợp lệ kỳ 6/5 - 5/6' },
+    { label: '💰 Đối soát két ca điểm bán', text: 'Đối soát quỹ két tiền mặt ca gần nhất tại chi nhánh' },
+    { label: '📖 Tra cứu quy chế quên vân tay', text: 'Quy định quên quẹt vân tay phạt thế nào và hạn chót nộp giải trình là ngày mấy?' },
   ];
 
   return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px',
-      overflowX: 'auto',
-      paddingBottom: '2px',
-      scrollbarWidth: 'none'
-    }}>
-      <span style={{
-        fontSize: '11px',
-        fontWeight: 700,
-        color: 'var(--text-faint)',
-        textTransform: 'uppercase',
-        fontFamily: 'var(--mono)',
-        flexShrink: 0
-      }}>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        overflowX: 'auto',
+        paddingBottom: '2px',
+        scrollbarWidth: 'none',
+      }}
+    >
+      <span
+        style={{
+          fontSize: '11px',
+          fontWeight: 700,
+          color: 'var(--text-faint)',
+          textTransform: 'uppercase',
+          fontFamily: 'var(--mono)',
+          flexShrink: 0,
+        }}
+      >
         AI Gợi Ý:
       </span>
 
@@ -48,7 +52,7 @@ export const PromptChips: React.FC<PromptChipsProps> = ({ onSelectPrompt }) => {
             alignItems: 'center',
             gap: '6px',
             transition: 'all 120ms ease',
-            flexShrink: 0
+            flexShrink: 0,
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = 'rgba(255, 209, 0, 0.08)';
