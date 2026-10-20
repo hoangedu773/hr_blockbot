@@ -1,0 +1,129 @@
+# render.yaml — Render Blueprint cho HR BlockBot (Phase 5 của plan "full-delivery").
+#
+# Phạm vi: 3 service — `web` (static, Free) + `api` (Starter) + `ai` (Starter).
+# Không có giá trị secret nào trong file này: biến bí mật / biến phụ thuộc môi trường
+# đều dùng `sync: false` (Render hỏi giá trị đúng MỘT lần lúc tạo Blueprint).
+# Bảng env + lệnh sinh giá trị: docs/24-deploy-runbook.md §1.
+#
+# Trạng thái kiểm chứng (đọc trước khi sync):
+# - Cấu trúc field đối chiếu Render Blueprint YAML Reference (xem runbook §7).
+# - CHƯA chạy `render blueprints validate`, CHƯA deploy thử: phiên này không có tài khoản Render.
+# - File giả định code đã merge phase 2/3/4 (auth /api/auth/*, admin provider
+#   /api/admin/llm-providers, VITE_API_BASE trong apps/web, provider layer trong ai-service).
+#   HEAD nhánh `integration/full-delivery` hiện là baseline `main` (a03ae0a) → các đường
+#   dẫn này CHƯA tồn tại; build + smoke test sẽ fail cho tới khi merge xong.
+#
+# Ngân sách: plan.md phần Overview ghi $7, nhưng phase-05 §Ngân sách ghi 2 × Starter = $14/tháng.
+# File này giữ 2 service Starter = $14. Phương án $7 + rủi ro OOM: runbook §6.
+
+services:
+  # ---------------------------------------------------------------------------
+  # 1) WEB — static site (Free, không có compute plan; serve qua CDN Render)
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: hr-blockbot-web
+    runtime: static
+    # Static site là nơi duy nhất Render tự cài dependency; tắt bằng SKIP_INSTALL_DEPS
+    # (env ở dưới) để chỉ pnpm quản lý workspace `pnpm-lock.yaml` (lockfileVersion 9.0).
+    # Build contracts trước web: apps/web import @hr-blockbot/contracts và package đó
+    # trỏ `types` vào dist/ (dist bị .gitignore → bắt buộc build trong CI/Render).
+    # `npm install -g pnpm@11`: Render Node image chưa chắc có pnpm sẵn — CHƯA kiểm chứng.
+    buildCommand: npm install -g pnpm@11 && pnpm install --frozen-lockfile && pnpm --filter @hr-blockbot/contracts build && pnpm --filter web build
+    staticPublishPath: apps/web/dist
+    # SPA: mọi path không phải file tĩnh đều trả index.html (React Router phía client).
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: SKIP_INSTALL_DEPS
+        value: "true"
+      # Build-time var (Vite nhúng vào bundle). Dạng đúng: https://hr-blockbot-api.onrender.com/api
+      # CÓ hậu tố /api — apps/web/src/services/auth.ts (nhánh feat/frontend-web) fallback
+      # 'http://localhost:3001/api' và chatSocket.ts bỏ hậu tố /api để suy WS origin.
+      # Đổi biến này phải redeploy web.
+      - key: VITE_API_BASE
+        sync: false
+
+  # ---------------------------------------------------------------------------
+  # 2) API — Node web service (Express + Socket.IO), Starter 0.5 CPU / 512 MB
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: hr-blockbot-api
+    runtime: node
+    plan: starter # legacy alias của 0.5c-512mb = 0.5 CPU / 512 MB (≈ $7/tháng)
+    region: singapore # gần VN; KHÔNG đổi được sau khi tạo. Phải TRÙNG region với `ai`
+    # để 2 service nói chuyện qua private network.
+    healthCheckPath: /api/health # trả 503 khi Mongo không ping được (bản feat/api-backend)
+    # Build cả contracts (dist/ đang gitignore) rồi mới build api. `pnpm --filter api build`
+    # = `tsc` với outDir apps/api/dist (apps/api/tsconfig.json).
+    buildCommand: npm install -g pnpm@11 && pnpm install --frozen-lockfile && pnpm --filter @hr-blockbot/contracts build && pnpm --filter api build
+    # Chạy từ repo root (blueprint không đặt rootDir cho service này) → đường dẫn đầy đủ.
+    startCommand: node apps/api/dist/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production # fail-closed cho auth; không phải secret
+      # Atlas connection string. KHÔNG ghi giá trị vào file. Rotate user DB trước khi dùng
+      # (credential cũ đã lộ — xem runbook §3).
+      - key: MONGODB_URI
+        sync: false
+      # Khoá ký access token (jose, HS256). Sinh: openssl rand -hex 32
+      - key: JWT_SECRET
+        sync: false
+      # Khoá AES-256-GCM mã hoá API key provider trong collection `settings`.
+      # Phải là 32 byte base64. Sinh: openssl rand -base64 32
+      # Mất/đổi giá trị này = không giải mã được key LLM đã lưu → phải nhập lại provider.
+      - key: SETTINGS_ENCRYPTION_KEY
+        sync: false
+      # Origin của web, dùng cho CORS whitelist (code KHÔNG dùng origin "*").
+      # Dạng: https://hr-blockbot-web.onrender.com (không có dấu / cuối).
+      - key: FRONTEND_URL
+        sync: false
+      # URL của service `ai`. Ưu tiên private network: http://<host>:<port>
+      # (Render Dashboard → service ai → Connect). Fallback: https://hr-blockbot-ai.onrender.com
+      - key: AI_SERVICE_URL
+        sync: false
+      # Shared secret api ↔ ai. Sinh: openssl rand -hex 32
+      # Service `ai` lấy CÙNG giá trị qua fromService (không phải nhập 2 lần).
+      - key: AI_SERVICE_API_KEY
+        sync: false
+
+  # ---------------------------------------------------------------------------
+  # 3) AI — Python/FastAPI web service, Starter 0.5 CPU / 512 MB
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: hr-blockbot-ai
+    runtime: python
+    plan: starter # = 0.5c-512mb ≈ $7/tháng
+    region: singapore # phải trùng `api` để dùng private network
+    # rootDir để build/start chạy trong apps/ai-service (requirements.txt + package `app`
+    # nằm ở đó). Nếu Render không nhận rootDir cho runtime python (CHƯA kiểm chứng):
+    #   buildCommand: pip install -r apps/ai-service/requirements.txt
+    #   startCommand: uvicorn app.main:app --app-dir apps/ai-service --host 0.0.0.0 --port $PORT
+    rootDir: apps/ai-service
+    healthCheckPath: /health
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      # ai-service được phép ĐỌC Mongo (embedding/index do script riêng ghi), không ghi DB.
+      - key: MONGODB_URI
+        sync: false
+      # Lấy đúng giá trị đã nhập cho service api, tránh lệch key giữa 2 bên.
+      # Nếu Render báo lỗi sync (CHƯA kiểm chứng) → bỏ block này, thêm `sync: false`
+      # và dán tay CÙNG giá trị với api.
+      - key: AI_SERVICE_API_KEY
+        fromService:
+          type: web
+          name: hr-blockbot-api
+          envVarKey: AI_SERVICE_API_KEY
+      # Code AI mặc định KHOÁ agent (403). phase-05 §5 yêu cầu bật cho demo.
+      - key: AI_AGENT_ENABLED
+        value: "true"
+
+# Ghi chú thiết kế (không phải field của Render):
+# - API key LLM (Gemini / DeepSeek / OpenRouter…) KHÔNG nằm trong env: theo ADR-017 key được
+#   nhập ở Admin UI, mã hoá AES-256-GCM bằng SETTINGS_ENCRYPTION_KEY, api truyền config sang
+#   ai-service theo từng request. Nếu phase 4 chưa merge xong phần này thì chưa có đường cấu
+#   hình provider — xem runbook §6 "cần user quyết".
+# - `autoDeployTrigger` cố ý không khai → Render mặc định deploy mỗi commit lên branch.
+#   Trong tuần freeze demo nên đổi sang 'off' + deploy tay để tránh merge dở dang tự deploy.
