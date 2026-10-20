@@ -64,7 +64,7 @@ runSuite(
   2,
   "Web Frontend (apps/web)",
   "pnpm --filter web test",
-  { note: "13 assertions (zero dead routes, 6 chat states, zero keyCipher)" }
+  { note: "19 assertions (13 zero-mock/dead-routes + 6 Playwright E2E & visual states)" }
 );
 
 // 3. API Backend
@@ -107,6 +107,6 @@ for (const r of results) {
 }
 
 const allPassed = results.every((r) => r.status === "PASS");
-console.log("\n" + (allPassed ? "🎉 TẤT CẢ 167 TEST / KIỂM ĐỊNH ĐÃ ĐẠT 100%!" : "⚠️ CÓ KIỂM THỬ THẤT BẠI."));
+console.log("\n" + (allPassed ? "🎉 TẤT CẢ 177 TEST / KIỂM ĐỊNH ĐÃ ĐẠT 100%!" : "⚠️ CÓ KIỂM THỬ THẤT BẠI."));
 
 process.exit(allPassed ? 0 : 1);
