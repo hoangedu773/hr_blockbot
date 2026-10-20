@@ -9,6 +9,7 @@
     "dev:ai": "cd apps/ai-service && python start.py",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "demo:verify": "node scripts/demo-verify.mjs"
   }
 }
