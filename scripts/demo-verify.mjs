@@ -91,7 +91,7 @@ runSuite(
   "python -m pytest -q",
   {
     cwd: resolve(ROOT_DIR, "apps/ai-service"),
-    note: "91 assertions (hybrid RAG, loop, fakes, router, tools)",
+    note: "95 assertions (hybrid RAG, matching LOO, loop, fakes, router, tools)",
   }
 );
 
