@@ -23,6 +23,7 @@ depends_on: phase-01
 
 ### 1. Gỡ nợ hiện tại
 
+- [ ] `apps/web/src/services/auth.ts`: `API_BASE` đang **hardcode** `http://localhost:3001/api` → đổi sang `import.meta.env.VITE_API_BASE ?? 'http://localhost:3001/api'`. Không sửa thì deploy Render sẽ trỏ về máy dev và toàn bộ app chết.
 - [ ] `apps/web/src/services/api.ts`: xoá `fetchStores/fetchSchedules/fetchCorrections/fetchCashCounts` (endpoint đã 503) và các chỗ `.catch(() => [])` đang che lỗi.
 - [ ] `App.tsx`: bỏ `loadData` gọi 4 API chết; thay bằng dữ liệu F1 (`/api/employees`) + F2 (`/api/projects`).
 - [ ] Xoá `AddShiftModal`, `VisualTimeline` khỏi luồng chính nếu gắn với ca kíp (giữ file nếu còn dùng).

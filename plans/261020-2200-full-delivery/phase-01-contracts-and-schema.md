@@ -34,6 +34,8 @@ created: 2026-10-20
 
 ### 2. Docs đồng bộ (không để mâu thuẫn)
 
+- [ ] `docs/06-api-spec.md`: chốt hợp đồng WS `chat:send/accepted/chunk/confirm/done/error` (hiện chỉ nằm trong `docs/21`), kèm payload tối thiểu — Phase 2 và 3 phải cùng đọc một nguồn.
+- [ ] `docs/06-api-spec.md`: bảng **error code** dùng chung (`VALIDATION_FAILED`, `RBAC_DENIED`, `SELF_APPROVAL`, `CONVERSATION_FULL`, `PROJECT_VERSION_CONFLICT`, `LLM_UNAVAILABLE`, `MAX_STEPS`, `TOOL_TIMEOUT`) — tránh mỗi app tự bịa mã.
 - [ ] `docs/05-data-model.md` §1.1: bỏ câu "không được thêm collection thứ 12", trỏ `ADR-018`.
 - [ ] `docs/05-data-model.md` §2: thêm dòng trỏ `docs/22-erd-overall.md` (ERD mới là nguồn).
 - [ ] `docs/01-requirements.md` §8 #13, #14: đổi "chờ GVHD" → "giải quyết: ADR-017/018".
