@@ -305,7 +305,7 @@ Harness: bộ câu hỏi tất định + `temperature=0` + snapshot, chạy `pyt
 
 | # | Rủi ro | Gate / cách chặn |
 |---|---|---|
-| R-21.1 | `$vectorSearch` không chạy trên Atlas M0 | **Probe 30 phút trước khi code RAG.** Fail → dense bị loại, chỉ còn lexical + LLM đọc chunk thô |
+| R-21.1 | `$vectorSearch` không chạy trên Atlas M0 | **ĐÃ PROBE 2026-10-20 — PASS.** DB tạm `rea_vector_probe`: `createSearchIndexes` accepted, index `READY` sau ~30s, query trả `doc0` score 1.0 / `doc1` 0.5, DB đã drop. Hybrid khả thi về hạ tầng |
 | R-21.2 | Collection thứ 12 bị GVHD từ chối | Có sẵn phương án C (không lưu), chỉ mất dữ liệu eval |
 | R-21.3 | Hybrid làm trễ tiến độ | Cắt về `dense` bằng config; interface đã tách |
 | R-21.4 | Gửi PII ra LLM bên thứ ba | Allowlist ở §7 + câu hỏi GVHD #5 (`01` §câu hỏi mở) |
