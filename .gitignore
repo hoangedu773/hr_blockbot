@@ -61,6 +61,7 @@ pnpm-debug.log*
 .lighthouseci/
 playwright-report/
 test-results/
+screenshots/
 
 # Local agent prompt drafts — working notes, not a thesis deliverable
 prompt/
