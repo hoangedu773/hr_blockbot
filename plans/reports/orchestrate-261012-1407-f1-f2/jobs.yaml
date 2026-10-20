@@ -1,0 +1,34 @@
+version: 1
+concurrency: 2
+workspace_roots:
+  - C:/work-space/hr-blockbot-pm
+  - C:/work-space/hr-blockbot-api
+defaults:
+  timeout: 10m
+  effect: observe
+  approval: inherit
+  capture: true
+jobs:
+  - id: approval-design
+    runtime: claude-cli
+    model: cx/gpt-6-luna
+    task: architecture
+    importance: high
+    cwd: C:/work-space/hr-blockbot-pm
+    prompt: "Read approval-design-prompt.txt; load AgentKit; propose FR003/004 design without edits."
+    expected_output: "Source-grounded proposed design; no approval claim or application edits."
+    owned_paths: []
+    checks: ["AgentKit skill invoked", "No secrets or writes", "Single-document atomic design", "Human design gate retained"]
+  - id: db-safety
+    runtime: claude-cli
+    model: cx/gpt-6-luna
+    task: security
+    importance: high
+    cwd: C:/work-space/hr-blockbot-pm
+    prompt: "Read db-safety-prompt.txt; load AgentKit; propose minimal DB guard and scoped cleanup."
+    expected_output: "Exact source-grounded safety patch recommendation; no database access."
+    owned_paths: []
+    checks: ["AgentKit skill invoked", "No database connection", "Fail-closed before imports", "Scoped cleanup"]
+# Windows fallback authorized by user: Claude CLI via harness background commands.
+# Not prepared by ak orchestrate; Darwin process supervision unavailable.
+# Coordinator captures outputs and independently verifies before accepting.

@@ -1,0 +1,19 @@
+Task: Triển khai Backend API F1 Profile Approval & F2 Project Lifecycle models and atomic logic.
+CWD: C:/work-space/hr-blockbot-api
+File sở hữu: apps/api/src/models/Project.ts, apps/api/src/models/Report.ts, apps/api/src/models/Employee.ts, apps/api/src/routes/projects.ts, apps/api/src/routes/employees.ts.
+Model: ag/gemini-3.8-flash-high
+
+Yêu cầu chi tiết:
+1. Đọc docs/design/fr003-004-approval-storage.md, plans/261011-1515-next-delivery/phase-02-contracts-and-delivery.md.
+2. Cập nhật apps/api/src/models/Employee.ts:
+   - Thêm sub-schema profileChangeRequests[]: requestedBy, requestedAt, status (PENDING/APPROVED/REJECTED), targetFields, previousSnapshot, reviewedBy, reviewedAt, rejectionReason, previousRequestId.
+3. Tạo apps/api/src/models/Project.ts:
+   - Schema: title, description, departmentId, createdBy, assigneeId, status (DRAFT/ASSIGNED/IN_PROGRESS/PENDING_REVIEW/COMPLETED), progress (0-100), dueDate, version (number, default 1), statusHistory: [{ from, to, changedBy, changedAt, reason }].
+4. Tạo apps/api/src/models/Report.ts:
+   - Schema: projectId, submittedBy, submittedAt, content, attachments, status (PENDING/APPROVED/REJECTED), reviewedBy, reviewedAt, reason.
+5. Triển khai logic atomic update cho Project transition:
+   - findOneAndUpdate({ _id, status: expectedStatus, version: expectedVersion }, { $set: { status: newStatus, ... }, $inc: { version: 1 }, $push: { statusHistory: ... } }, { new: true }).
+   - Nếu null: kiểm tra bản ghi có tồn tại không -> ném 409 PROJECT_VERSION_CONFLICT hoặc 404 RESOURCE_NOT_FOUND.
+6. Chặn tự duyệt cho Profile Change Approval:
+   - Nếu req.user.id === request.requestedBy -> trả 403 SELF_APPROVAL.
+7. Đảm bảo file ts không có lỗi typecheck: chạy 'pnpm --filter api build'. Không chạy tests chạm DB.

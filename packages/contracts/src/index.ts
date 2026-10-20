@@ -53,7 +53,28 @@ export const MeResponseSchema = z.object({
 export type MeResponse = z.infer<typeof MeResponseSchema>;
 
 // ============================================================================
-// 2. Employee Public DTOs (Data Minimization / Allowlist Only)
+// 2. Department Schemas (F1)
+// ============================================================================
+
+export const DepartmentSchema = z.object({
+  id: z.string(),
+  name: z.string().min(1),
+  code: z.string().min(1),
+  managerId: z.string().nullable().optional(),
+  description: z.string().optional(),
+});
+export type Department = z.infer<typeof DepartmentSchema>;
+
+export const DepartmentCreateSchema = z.object({
+  name: z.string().min(1),
+  code: z.string().min(1),
+  managerId: z.string().optional(),
+  description: z.string().optional(),
+});
+export type DepartmentCreate = z.infer<typeof DepartmentCreateSchema>;
+
+// ============================================================================
+// 3. Employee Public DTOs & Profile Change Approval (FR-003 / FR-004)
 // ============================================================================
 
 export const EmployeeStatusSchema = z.enum(["active", "inactive"]);
@@ -87,8 +108,183 @@ export const EmployeeDetailSchema = EmployeeSummarySchema.extend({
 });
 export type EmployeeDetail = z.infer<typeof EmployeeDetailSchema>;
 
+export const EmployeeCreateSchema = z.object({
+  employeeCode: z.string().min(1),
+  fullName: z.string().min(1),
+  level: EmployeeLevelSchema,
+  departmentId: z.string().min(1),
+  skills: z.array(z.string()).default([]),
+  phone: z.string().optional(),
+  hiredAt: z.string().optional(),
+});
+export type EmployeeCreate = z.infer<typeof EmployeeCreateSchema>;
+
+export const EmployeeUpdateSchema = z.object({
+  fullName: z.string().min(1).optional(),
+  skills: z.array(z.string()).optional(),
+  phone: z.string().optional(),
+});
+export type EmployeeUpdate = z.infer<typeof EmployeeUpdateSchema>;
+
+/**
+ * FR-003 / FR-004: Hàng đợi phê duyệt thay đổi thông tin nhạy cảm.
+ * Bounded Embedded array trong Employee document.
+ */
+export const ProfileChangeRequestStatusSchema = z.enum(["PENDING", "APPROVED", "REJECTED"]);
+export type ProfileChangeRequestStatus = z.infer<typeof ProfileChangeRequestStatusSchema>;
+
+export const ProfileTargetFieldsSchema = z.object({
+  level: EmployeeLevelSchema.optional(),
+  hiredAt: z.string().optional(),
+  jobTitle: z.string().optional(),
+}).refine(
+  (data) => Object.keys(data).length > 0,
+  { message: "Phải cung cấp ít nhất một trường cần thay đổi" }
+);
+export type ProfileTargetFields = z.infer<typeof ProfileTargetFieldsSchema>;
+
+export const CreateProfileChangeRequestSchema = z.object({
+  targetFields: ProfileTargetFieldsSchema,
+  previousRequestId: z.string().optional(),
+});
+export type CreateProfileChangeRequest = z.infer<typeof CreateProfileChangeRequestSchema>;
+
+export const ReviewProfileChangeRequestSchema = z.object({
+  action: z.enum(["APPROVE", "REJECT"]),
+  reason: z.string().optional(),
+}).refine(
+  (data) => data.action !== "REJECT" || (data.reason && data.reason.trim().length > 0),
+  { message: "Lý do từ chối (reason) là bắt buộc khi REJECT", path: ["reason"] }
+);
+export type ReviewProfileChangeRequest = z.infer<typeof ReviewProfileChangeRequestSchema>;
+
+export const ProfileChangeRequestSchema = z.object({
+  id: z.string(),
+  requestedBy: z.string(),
+  requestedAt: z.string(),
+  status: ProfileChangeRequestStatusSchema,
+  targetFields: ProfileTargetFieldsSchema,
+  previousSnapshot: z.record(z.unknown()),
+  reviewedBy: z.string().nullable().optional(),
+  reviewedAt: z.string().nullable().optional(),
+  rejectionReason: z.string().nullable().optional(),
+  previousRequestId: z.string().nullable().optional(),
+});
+export type ProfileChangeRequest = z.infer<typeof ProfileChangeRequestSchema>;
+
 // ============================================================================
-// 3. Pagination & Envelope Schemas
+// 4. Project & Lifecycle Schemas (F2)
+// ============================================================================
+
+export const ProjectStatusSchema = z.enum([
+  "DRAFT",
+  "ASSIGNED",
+  "IN_PROGRESS",
+  "PENDING_REVIEW",
+  "COMPLETED",
+]);
+export type ProjectStatus = z.infer<typeof ProjectStatusSchema>;
+
+export const ProjectStatusHistoryEntrySchema = z.object({
+  from: ProjectStatusSchema.nullable().optional(),
+  to: ProjectStatusSchema,
+  changedBy: z.string(),
+  changedAt: z.string(),
+  reason: z.string().optional(),
+});
+export type ProjectStatusHistoryEntry = z.infer<typeof ProjectStatusHistoryEntrySchema>;
+
+export const ProjectSchema = z.object({
+  id: z.string(),
+  title: z.string().min(1),
+  description: z.string().optional(),
+  departmentId: z.string(),
+  createdBy: z.string(),
+  assigneeId: z.string().nullable().optional(),
+  status: ProjectStatusSchema,
+  progress: z.number().int().min(0).max(100).default(0),
+  dueDate: z.string().nullable().optional(),
+  version: z.number().int().positive().default(1),
+  statusHistory: z.array(ProjectStatusHistoryEntrySchema).default([]),
+});
+export type Project = z.infer<typeof ProjectSchema>;
+
+export const ProjectCreateSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().optional(),
+  departmentId: z.string().min(1),
+  assigneeId: z.string().optional(),
+  dueDate: z.string().optional(),
+});
+export type ProjectCreate = z.infer<typeof ProjectCreateSchema>;
+
+export const ProjectUpdateSchema = z.object({
+  title: z.string().min(1).optional(),
+  description: z.string().optional(),
+  dueDate: z.string().optional(),
+});
+export type ProjectUpdate = z.infer<typeof ProjectUpdateSchema>;
+
+export const ProjectAssignSchema = z.object({
+  assigneeId: z.string().min(1),
+  expectedVersion: z.number().int().positive(),
+});
+export type ProjectAssign = z.infer<typeof ProjectAssignSchema>;
+
+export const ProjectTransitionSchema = z.object({
+  targetStatus: ProjectStatusSchema,
+  expectedVersion: z.number().int().positive(),
+  reason: z.string().optional(),
+});
+export type ProjectTransition = z.infer<typeof ProjectTransitionSchema>;
+
+export const ProjectProgressSchema = z.object({
+  progress: z.number().int().min(0).max(100),
+  clientMessageId: z.string().optional(),
+});
+export type ProjectProgress = z.infer<typeof ProjectProgressSchema>;
+
+// ============================================================================
+// 5. Report & Review Schemas (F2)
+// ============================================================================
+
+export const ReportStatusSchema = z.enum(["PENDING", "APPROVED", "REJECTED"]);
+export type ReportStatus = z.infer<typeof ReportStatusSchema>;
+
+export const ReportSchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  submittedBy: z.string(),
+  submittedAt: z.string(),
+  content: z.string().min(1),
+  attachments: z.array(z.string()).default([]),
+  status: ReportStatusSchema,
+  reviewedBy: z.string().nullable().optional(),
+  reviewedAt: z.string().nullable().optional(),
+  reason: z.string().nullable().optional(),
+});
+export type Report = z.infer<typeof ReportSchema>;
+
+export const ReportSubmitSchema = z.object({
+  projectId: z.string().min(1),
+  content: z.string().min(1),
+  attachments: z.array(z.string()).default([]),
+  expectedVersion: z.number().int().positive(),
+});
+export type ReportSubmit = z.infer<typeof ReportSubmitSchema>;
+
+export const ReportReviewSchema = z.object({
+  action: z.enum(["APPROVE", "REJECT"]),
+  reason: z.string().optional(),
+  expectedVersion: z.number().int().positive(),
+}).refine(
+  (data) => data.action !== "REJECT" || (data.reason && data.reason.trim().length > 0),
+  { message: "Lý do xem xét (reason) là bắt buộc khi REJECT", path: ["reason"] }
+);
+export type ReportReview = z.infer<typeof ReportReviewSchema>;
+
+// ============================================================================
+// 6. Pagination & Envelope Schemas
 // ============================================================================
 
 export const PaginationQuerySchema = z.object({
@@ -113,8 +309,14 @@ export const PaginatedEmployeesResponseSchema = z.object({
 });
 export type PaginatedEmployeesResponse = z.infer<typeof PaginatedEmployeesResponseSchema>;
 
+export const PaginatedProjectsResponseSchema = z.object({
+  items: z.array(ProjectSchema),
+  paging: PaginationMetaSchema,
+});
+export type PaginatedProjectsResponse = z.infer<typeof PaginatedProjectsResponseSchema>;
+
 // ============================================================================
-// 4. Standard Error Catalog & Envelope
+// 7. Standard Error Catalog & Envelope
 // ============================================================================
 
 export const ErrorCodeSchema = z.enum([
@@ -132,9 +334,15 @@ export const ErrorCodeSchema = z.enum([
   "LOW_CONFIDENCE_ABSTENTION",
   "AI_SERVICE_UNAVAILABLE",
   "AI_SERVICE_TIMEOUT",
+  "LLM_UNAVAILABLE",
+  "MAX_STEPS",
+  "TOOL_TIMEOUT",
+  "CONVERSATION_FULL",
   "QUOTA_EXCEEDED",
   "INTERNAL_ERROR",
   "DUPLICATE_REQUEST",
+  "MAX_CHANGE_REQUESTS_REACHED",
+  "PROFILE_CHANGE_CONFLICT",
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
 
@@ -152,7 +360,148 @@ export const ApiErrorResponseSchema = z.object({
 export type ApiErrorResponse = z.infer<typeof ApiErrorResponseSchema>;
 
 // ============================================================================
-// 5. Internal Raw Schemas (MongoDB / Extraction ETL Only - CẤM dùng làm public API response)
+// 8. LLM Provider Settings (ADR-017)
+// ============================================================================
+
+export const LLMProviderTypeSchema = z.enum(["openai_compatible", "gemini", "anthropic"]);
+export type LLMProviderType = z.infer<typeof LLMProviderTypeSchema>;
+
+/**
+ * Provider đã mask - DTO dùng cho mọi response.
+ * TUYỆT ĐỐI KHÔNG chứa keyCipher hoặc key thật; chỉ keyHint (4 ký tự cuối).
+ */
+export const LLMProviderSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  type: LLMProviderTypeSchema,
+  baseUrl: z.string().min(1),
+  model: z.string().min(1),
+  maxTokens: z.number().int().positive(),
+  timeoutMs: z.number().int().positive(),
+  priority: z.number().int().positive(),
+  enabled: z.boolean(),
+  keyHint: z.string().optional(),
+  lastTestAt: z.string().nullable().optional(),
+  lastTestOk: z.boolean().nullable().optional(),
+  lastTestError: z.string().nullable().optional(),
+});
+export type LLMProvider = z.infer<typeof LLMProviderSchema>;
+
+/** Payload ghi provider: apiKey là field chỉ-ghi (server mã hoá AES-256-GCM, không đọc lại). */
+export const LLMProviderInputSchema = LLMProviderSchema.extend({
+  apiKey: z.string().min(1).optional(),
+});
+export type LLMProviderInput = z.infer<typeof LLMProviderInputSchema>;
+
+export const UpdateLLMProvidersRequestSchema = z.object({
+  providers: z.array(LLMProviderInputSchema),
+});
+export type UpdateLLMProvidersRequest = z.infer<typeof UpdateLLMProvidersRequestSchema>;
+
+export const ProviderTestResultSchema = z.object({
+  ok: z.boolean(),
+  latencyMs: z.number().int().nonnegative(),
+  model: z.string().min(1),
+  error: z.string().optional(),
+});
+export type ProviderTestResult = z.infer<typeof ProviderTestResultSchema>;
+
+// ============================================================================
+// 9. Conversation & Citation Schemas (design/conversations-storage.md)
+// ============================================================================
+
+/** Trần lưu trữ message/conversation - bất biến §2 của design doc. */
+export const CONVERSATION_MAX_MESSAGES = 50;
+
+export const ConversationChannelSchema = z.enum(["web"]);
+export type ConversationChannel = z.infer<typeof ConversationChannelSchema>;
+
+export const ConversationStatusSchema = z.enum(["active", "closed", "handoff"]);
+export type ConversationStatus = z.infer<typeof ConversationStatusSchema>;
+
+export const ConversationMessageRoleSchema = z.enum(["user", "assistant", "system"]);
+export type ConversationMessageRole = z.infer<typeof ConversationMessageRoleSchema>;
+
+/** Citation dùng chung cho RagAnswerResponse và từng message của conversation. */
+export const CitationSchema = z.object({
+  document: z.string().min(1),
+  version: z.string().min(1),
+  article: z.string().min(1),
+  score: z.number(),
+});
+export type Citation = z.infer<typeof CitationSchema>;
+
+export const ConversationMessageSchema = z.object({
+  id: z.string().min(1),
+  role: ConversationMessageRoleSchema,
+  content: z.string(),
+  intent: z.string().optional(),
+  toolCalled: z.string().optional(),
+  citations: z.array(CitationSchema).default([]),
+  score: z.number().optional(),
+  abstain: z.boolean().default(false),
+  clientMessageId: z.string().optional(),
+  createdAt: z.string(),
+});
+export type ConversationMessage = z.infer<typeof ConversationMessageSchema>;
+
+export const ConversationContextSummarySchema = z.object({
+  text: z.string(),
+  coversUpToMessageId: z.string(),
+  createdAt: z.string(),
+});
+export type ConversationContextSummary = z.infer<typeof ConversationContextSummarySchema>;
+
+export const ConversationSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  channel: ConversationChannelSchema.default("web"),
+  status: ConversationStatusSchema,
+  messages: z.array(ConversationMessageSchema).max(CONVERSATION_MAX_MESSAGES),
+  messageCount: z.number().int().nonnegative(),
+  startedAt: z.string(),
+  lastMessageAt: z.string(),
+  closedAt: z.string().nullable().optional(),
+  contextSummary: ConversationContextSummarySchema.nullable().optional(),
+});
+export type Conversation = z.infer<typeof ConversationSchema>;
+
+// ============================================================================
+// 10. Policy Schemas (F3)
+// ============================================================================
+
+export const PolicyChunkMetaSchema = z.object({
+  document: z.string().min(1),
+  version: z.string().min(1),
+  article: z.string().optional(),
+  source: z.string().min(1),
+  effectiveFrom: z.string().optional(),
+});
+export type PolicyChunkMeta = z.infer<typeof PolicyChunkMetaSchema>;
+
+/** Chunk chưa bắt buộc embedding: ingest ở Phase 4 mới sinh vector. */
+export const PolicyChunkSchema = PolicyChunkMetaSchema.extend({
+  text: z.string().min(1),
+  order: z.number().int().nonnegative(),
+  embedding: z.array(z.number()).optional(),
+  model: z.string().optional(),
+});
+export type PolicyChunk = z.infer<typeof PolicyChunkSchema>;
+
+export const PolicySchema = z.object({
+  id: z.string(),
+  title: z.string().min(1),
+  version: z.string().min(1),
+  source: z.string().min(1),
+  category: z.string().optional(),
+  effectiveFrom: z.string().optional(),
+  updatedAt: z.string().optional(),
+  chunks: z.array(PolicyChunkSchema).default([]),
+});
+export type Policy = z.infer<typeof PolicySchema>;
+
+// ============================================================================
+// 11. Internal Raw Schemas (MongoDB / Extraction ETL Only)
 // ============================================================================
 
 export const EmployeeSchema = z.object({
@@ -186,8 +535,8 @@ export const ScheduleEntrySchema = z.object({
   employee_name: z.string(),
   block_code: z.string(),
   block_index: z.number().default(0),
-  work_date: z.string(), // YYYY-MM-DD
-  shift_code: z.string(), // A, A1.749, B, B2, etc.
+  work_date: z.string(),
+  shift_code: z.string(),
   schedule_type: z.string().default("actual"),
   sheet_name: z.string().optional(),
   source_row: z.number().optional(),
@@ -267,18 +616,223 @@ export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export const RagQueryRequestSchema = z.object({
   question: z.string(),
   store_name: z.string().optional(),
-  user_role: z.enum(["employee", "store_manager", "admin"]).default("employee"),
+  // ADR-009: role hệ thống chỉ có 2 giá trị, level là trục riêng
+  user_role: UserRoleSchema.default("Employee"),
 });
 export type RagQueryRequest = z.infer<typeof RagQueryRequestSchema>;
 
 export const RagAnswerResponseSchema = z.object({
   answer: z.string(),
-  citations: z.array(z.object({
-    document: z.string(),
-    version: z.string(),
-    article: z.string(),
-    score: z.number(),
-  })),
+  citations: z.array(CitationSchema),
   abstain: z.boolean().default(false),
 });
 export type RagAnswerResponse = z.infer<typeof RagAnswerResponseSchema>;
+
+// ============================================================================
+// WEBSOCKET EVENTS (docs/06 §4.2 canonical)
+// ============================================================================
+
+export const WsEventNameSchema = z.enum([
+  "chat:send",
+  "chat:accepted",
+  "chat:chunk",
+  "chat:confirm",
+  "chat:done",
+  "chat:error",
+  "notification:new",
+  "project:updated",
+  "report:updated",
+  "kpi:updated",
+]);
+export type WsEventName = z.infer<typeof WsEventNameSchema>;
+
+export const WS_CLIENT_EVENTS = {
+  "chat:send": "chat:send",
+  "chat:confirm": "chat:confirm",
+} as const;
+
+export const WS_SERVER_EVENTS = {
+  "chat:accepted": "chat:accepted",
+  "chat:chunk": "chat:chunk",
+  "chat:done": "chat:done",
+  "chat:error": "chat:error",
+  "notification:new": "notification:new",
+  "project:updated": "project:updated",
+  "report:updated": "report:updated",
+  "kpi:updated": "kpi:updated",
+} as const;
+
+export const ChatSendPayloadSchema = z
+  .object({
+    clientMessageId: z.string().min(1),
+    text: z.string().trim().min(1).optional(),
+    conversationId: z.string().optional(),
+    tool: z.string().optional(),
+    args: z.record(z.unknown()).optional(),
+    confirm: z
+      .object({
+        actionId: z.string().min(1),
+        approved: z.boolean(),
+      })
+      .optional(),
+  })
+  .refine(
+    (data) => (Boolean(data.text) !== Boolean(data.confirm)),
+    { message: "chat:send requires either text or confirm, but not both or neither" }
+  );
+export type ChatSendPayload = z.infer<typeof ChatSendPayloadSchema>;
+
+export const ChatAckSchema = z.discriminatedUnion("accepted", [
+  z.object({
+    accepted: z.literal(true),
+    clientMessageId: z.string().min(1),
+    conversationId: z.string().min(1),
+    messageId: z.string().min(1),
+  }),
+  z.object({
+    accepted: z.literal(false),
+    error: z.object({
+      code: ErrorCodeSchema,
+      message: z.string(),
+      retryable: z.boolean(),
+    }),
+  }),
+]);
+export type ChatAck = z.infer<typeof ChatAckSchema>;
+
+export const ChatAcceptedPayloadSchema = z.object({
+  clientMessageId: z.string().min(1),
+  messageId: z.string().min(1),
+  conversationId: z.string().min(1),
+  acceptedAt: z.string().datetime().or(z.string()),
+});
+export type ChatAcceptedPayload = z.infer<typeof ChatAcceptedPayloadSchema>;
+
+export const ActionProposalDataSchema = z.object({
+  actionId: z.string().min(1),
+  type: z.string().min(1),
+  args: z.record(z.unknown()).default({}),
+  preview: z.string().min(1),
+});
+export type ActionProposalData = z.infer<typeof ActionProposalDataSchema>;
+
+export const ChatChunkTextPayloadSchema = z.object({
+  clientMessageId: z.string().min(1),
+  messageId: z.string().min(1),
+  seq: z.number().int().nonnegative(),
+  kind: z.literal("text"),
+  delta: z.string().min(1),
+});
+
+export const ChatChunkCitationPayloadSchema = z.object({
+  clientMessageId: z.string().min(1),
+  messageId: z.string().min(1),
+  seq: z.number().int().nonnegative(),
+  kind: z.literal("citation"),
+  data: CitationSchema,
+});
+
+export const ChatChunkActionProposalPayloadSchema = z.object({
+  clientMessageId: z.string().min(1),
+  messageId: z.string().min(1),
+  seq: z.number().int().nonnegative(),
+  kind: z.literal("action_proposal"),
+  data: ActionProposalDataSchema,
+});
+
+export const ChatChunkPayloadSchema = z.discriminatedUnion("kind", [
+  ChatChunkTextPayloadSchema,
+  ChatChunkCitationPayloadSchema,
+  ChatChunkActionProposalPayloadSchema,
+]);
+export type ChatChunkPayload = z.infer<typeof ChatChunkPayloadSchema>;
+
+export const ChatConfirmPayloadSchema = z.object({
+  clientMessageId: z.string().min(1),
+  actionId: z.string().min(1),
+  approve: z.boolean(),
+});
+export type ChatConfirmPayload = z.infer<typeof ChatConfirmPayloadSchema>;
+
+export const ChatConfirmAckSchema = z.object({
+  accepted: z.boolean(),
+  clientMessageId: z.string().min(1),
+  actionId: z.string().min(1),
+});
+export type ChatConfirmAck = z.infer<typeof ChatConfirmAckSchema>;
+
+export const ChatFinishReasonSchema = z.enum(["ANSWER", "TOOL_RESULT", "ABSTAIN", "ERROR"]);
+export type ChatFinishReason = z.infer<typeof ChatFinishReasonSchema>;
+
+export const ChatDonePayloadSchema = z.object({
+  clientMessageId: z.string().min(1),
+  messageId: z.string().min(1),
+  finishReason: ChatFinishReasonSchema,
+  citations: z.array(CitationSchema).optional(),
+  card: z.record(z.unknown()).optional(),
+  score: z.number().optional(),
+  usage: z
+    .object({
+      inputTokens: z.number().optional(),
+      outputTokens: z.number().optional(),
+    })
+    .or(z.record(z.unknown()))
+    .optional(),
+});
+export type ChatDonePayload = z.infer<typeof ChatDonePayloadSchema>;
+
+export const ChatErrorPayloadSchema = z.object({
+  clientMessageId: z.string().optional(),
+  messageId: z.string().optional(),
+  code: ErrorCodeSchema,
+  message: z.string(),
+  retryable: z.boolean(),
+});
+export type ChatErrorPayload = z.infer<typeof ChatErrorPayloadSchema>;
+
+export const NotificationNewPayloadSchema = z.object({
+  notificationId: z.string().min(1),
+  type: z.enum([
+    "deadline_3d",
+    "deadline_1d",
+    "report_submitted",
+    "report_approved",
+    "report_rejected",
+    "kpi_published",
+    "system",
+  ]),
+  title: z.string().min(1),
+  body: z.string().min(1),
+  channel: z.enum(["ws", "email", "in_app"]).default("ws"),
+  createdAt: z.string().datetime().or(z.string()),
+});
+export type NotificationNewPayload = z.infer<typeof NotificationNewPayloadSchema>;
+
+export const ProjectUpdatedPayloadSchema = z.object({
+  projectId: z.string().min(1),
+  status: z.enum(["DRAFT", "ASSIGNED", "IN_PROGRESS", "PENDING_REVIEW", "COMPLETED"]),
+  version: z.number().int().positive(),
+  updatedAt: z.string().datetime().or(z.string()),
+  actorId: z.string().min(1),
+});
+export type ProjectUpdatedPayload = z.infer<typeof ProjectUpdatedPayloadSchema>;
+
+export const ReportUpdatedPayloadSchema = z.object({
+  reportId: z.string().min(1),
+  projectId: z.string().min(1),
+  status: z.enum(["APPROVED", "REJECTED"]),
+  reviewReason: z.string().optional(),
+  createdAt: z.string().datetime().or(z.string()),
+});
+export type ReportUpdatedPayload = z.infer<typeof ReportUpdatedPayloadSchema>;
+
+export const KpiUpdatedPayloadSchema = z.object({
+  evaluationId: z.string().min(1),
+  employeeId: z.string().min(1),
+  period: z.string().min(1),
+  machineScore: z.number(),
+  finalScore: z.number(),
+  publishedAt: z.string().datetime().or(z.string()),
+});
+export type KpiUpdatedPayload = z.infer<typeof KpiUpdatedPayloadSchema>;
+

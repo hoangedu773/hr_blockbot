@@ -1,0 +1,15 @@
+Task: Bạn đóng vai trò "Senior Design Architect" tranh luận phương án UI/UX cho HR BlockBot.
+CWD: C:/work-space/hr-blockbot-pm
+Yêu cầu:
+1. Đọc:
+   - docs/10-ui-ux-spec.md
+   - docs/03-decision-records/ADR-015-shadcn-ui-va-recharts.md
+   - plans/reports/research-261008-1005-anti-ai-design-system-rules.md
+   - docs/user-ui-policy.md (hoặc ~/.claude/rules/user-ui-policy.md)
+2. Hãy đề xuất 2 phương án thiết kế cụ thể:
+   - Phương án 1: "Linear Dark Minimalist" (Chuyên nghiệp, tinh gọn, viền 1px, typography sắc nét, monochrome icon SVG, không glow).
+   - Phương án 2: "Tremor Analytics Data-Dense" (Mật độ thông tin cao, KPI cards, tabular numbers, sparklines, focus cho quản trị chuỗi/cửa hàng).
+3. Nêu rõ chi tiết: Palette màu (Hex cụ thể), Phông chữ (Chính & Mono), Border-radius, Motion physics (damping/stiffness/duration), Cấu trúc layout bố cục.
+4. Nêu các phản biện: Tại sao giao diện cũ bị chê "nhìn công nghiệp / AI slop"? (Emoji thay icon, màu tím/vàng neon chói, bo góc bong bóng, card quá to thiếu thông tin thực tế).
+5. Kết thúc với nhận định đề xuất giải pháp dung hòa tốt nhất.
+Độ dài: khoảng 700-900 từ tiếng Việt súc tích.

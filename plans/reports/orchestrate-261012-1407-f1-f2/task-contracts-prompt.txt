@@ -1,0 +1,24 @@
+Task: Mở rộng Zod schemas & DTOs cho F1 (Hồ sơ, Department, Phê duyệt nhạy cảm FR-003/004) và F2 (Vòng đời đề tài 5 trạng thái, Projects, Reports).
+CWD: C:/work-space/hr-blockbot-pm
+File sở hữu: packages/contracts/src/index.ts và packages/contracts/test/contracts.test.mjs.
+Model: cx/gpt-6-luna
+
+Yêu cầu chi tiết:
+1. Đọc packages/contracts/src/index.ts, docs/design/fr003-004-approval-storage.md, plans/261011-1515-next-delivery/phase-02-contracts-and-delivery.md.
+2. Thêm Department schemas: DepartmentSchema, DepartmentCreateSchema.
+3. Thêm ProfileChangeRequest schemas theo thiết kế đã duyệt (FR-003/004):
+   - ProfileChangeRequestStatusSchema: enum ["PENDING", "APPROVED", "REJECTED"]
+   - ProfileChangeRequestSchema, CreateProfileChangeRequestSchema, ReviewProfileChangeRequestSchema (bắt buộc reason khi REJECTED).
+4. Thêm Project (F2) schemas:
+   - ProjectStatusSchema: enum ["DRAFT", "ASSIGNED", "IN_PROGRESS", "PENDING_REVIEW", "COMPLETED"] (CẤM enum overdue, overdue là derived filter).
+   - ProjectCreateSchema, ProjectUpdateSchema, ProjectTransitionSchema, ProjectAssignSchema, ProjectProgressSchema.
+   - ProjectSchema, PaginatedProjectsResponseSchema.
+5. Thêm Report (F2) schemas:
+   - ReportSubmitSchema, ReportReviewSchema (action: "APPROVE" | "REJECT", reason bắt buộc khi REJECT).
+6. Thêm Error codes mới vào ErrorCodeSchema: "MAX_CHANGE_REQUESTS_REACHED", "PROFILE_CHANGE_CONFLICT".
+7. Viết thêm unit tests vào packages/contracts/test/contracts.test.mjs kiểm chứng:
+   - 5 trạng thái Project hợp lệ, từ chối trạng thái lạ.
+   - Reject ProfileChangeRequest hoặc Report bắt buộc có reason.
+   - Chặn trường ngoài allowlist cho profile change request.
+8. Chạy 'pnpm --filter @hr-blockbot/contracts typecheck', 'build', và 'test' xác nhận pass 100%.
+Không sửa file ngoài packages/contracts/.

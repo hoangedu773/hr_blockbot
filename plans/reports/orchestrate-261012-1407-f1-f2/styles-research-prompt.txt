@@ -1,0 +1,18 @@
+Task: Phân tích, tuyển chọn và đặc tả chi tiết 20 phong cách thiết kế UI/UX độc bản (20 Visual Styles) cho Dashboard & Command Center để người dùng lựa chọn trực quan.
+Mỗi style phải có:
+1. ID, Tên style, Nguồn cảm hứng thực tế (Real-world reference/benchmark).
+2. Tinh thần cốt lõi & Cảm xúc thị giác.
+3. Bảng mã màu Tokens chuẩn (Hex cụ thể cho: bg-canvas, bg-surface, bg-card, border, text-primary, text-muted, accent, status-success, status-warning, status-danger).
+4. Typography (Font heading, font data/mono, line-height, tracking).
+5. Border Radius & Shapes (bo góc 0px, 4px, 6px, 8px, 12px...).
+6. Motion & Physics (duration, easing, hover transform).
+7. Thư viện component đề xuất kết hợp (Shadcn, Tremor, Aceternity, MagicUI, Radix, Tailwind...).
+8. Quy tắc bất biến (Anti-slop invariant) riêng của style đó.
+
+Phân nhóm 20 styles:
+- Nhóm 1 (1-5): High-Tech & Developer Tools (Linear, Raycast, Vercel Geist, Supabase, GitHub Dark).
+- Nhóm 2 (6-10): Data-Dense & Enterprise FinOps (Tremor Analytics, Stripe Dashboard, Bloomberg/Terminal, Retool/Palantir, AWS CloudWatch Minimal).
+- Nhóm 3 (11-15): Premium Luxury & Modern Dark (Apple Pro Dark, Teenage Engineering/Braun, Porsche Design, Cyberpunk Clean/Arc, Obsidian Note Craft).
+- Nhóm 4 (16-20): Editorial, Warm & Industry Specific (Guta Amber Heritage, Monocle Editorial, Swiss International Grid, Nordic Minimalist Slate, Industrial POS/Toast).
+
+Hãy viết báo cáo phân tích toàn diện, chuẩn bị cấu trúc dữ liệu JSON/Markdown hoàn chỉnh để sau đó controller biên dịch thành trang showcase 20 previews interactive.

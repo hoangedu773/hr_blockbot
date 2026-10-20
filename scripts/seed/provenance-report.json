@@ -1,0 +1,159 @@
+{
+  "codeHashes": {
+    "01-departments.py": "cd8de54135b9a5105388ee0caf8d765c18de6f1690d16a5d4f01fdd412dc207d",
+    "02-derive-hr.py": "ee98bc44dd9eaa31c0cb5ef2e5ddf8fd66e699037f385074dc836ef0c61ea683"
+  },
+  "outputs": [
+    {
+      "collection": "employees",
+      "distribution": {
+        "Intern": 247,
+        "Junior": 1759,
+        "Lead": 2,
+        "Middle": 322,
+        "Senior": 109
+      },
+      "field": "level"
+    },
+    {
+      "collection": "employees",
+      "distribution": {
+        "active": 740,
+        "inactive": 1699
+      },
+      "field": "status"
+    },
+    {
+      "collection": "employees",
+      "distribution": {
+        "0 skill": 106,
+        "1 skill": 5,
+        "2 skill": 2328
+      },
+      "field": "skills"
+    },
+    {
+      "collection": "employees",
+      "distribution": {
+        "0": 2439
+      },
+      "field": "activeLoad"
+    },
+    {
+      "collection": "departments",
+      "distribution": {
+        "orphan": 0,
+        "resolved": 2439
+      },
+      "field": "_id"
+    }
+  ],
+  "rules": [
+    {
+      "branchCount": 2439,
+      "codeHash": "ee98bc44dd9eaa31c0cb5ef2e5ddf8fd66e699037f385074dc836ef0c61ea683",
+      "description": "status=inactive nếu leave_date khác null, ngược lại active",
+      "inputs": [
+        "leave_date"
+      ],
+      "ruleId": "R1-status-leave-v1",
+      "sourceSeed": "02-derive-hr.py",
+      "version": 1
+    },
+    {
+      "branchCount": 2439,
+      "codeHash": "cd8de54135b9a5105388ee0caf8d765c18de6f1690d16a5d4f01fdd412dc207d",
+      "description": "departmentId <- tách store_raw thành 37 đơn vị (26 region + 8 group + 3 unmapped)",
+      "inputs": [
+        "store_raw"
+      ],
+      "ruleId": "R2-region-from-store-v1",
+      "sourceSeed": "01-departments.py",
+      "version": 1
+    },
+    {
+      "branchCount": 205,
+      "codeHash": "ee98bc44dd9eaa31c0cb5ef2e5ddf8fd66e699037f385074dc836ef0c61ea683",
+      "description": "level tầng quản lý theo job_title (OD/OM->Lead; AOM/AM/SM->Senior; Phụ trách/Bếp chính->Middle)",
+      "inputs": [
+        "job_title"
+      ],
+      "ruleId": "R3a-title-v1",
+      "sourceSeed": "02-derive-hr.py",
+      "version": 1
+    },
+    {
+      "branchCount": 247,
+      "codeHash": "ee98bc44dd9eaa31c0cb5ef2e5ddf8fd66e699037f385074dc836ef0c61ea683",
+      "description": "nhân viên <3 tháng thâm niên -> Intern",
+      "inputs": [
+        "hire_date"
+      ],
+      "ruleId": "R3b-tenure-lt3-v1",
+      "sourceSeed": "02-derive-hr.py",
+      "version": 1
+    },
+    {
+      "branchCount": 1759,
+      "codeHash": "ee98bc44dd9eaa31c0cb5ef2e5ddf8fd66e699037f385074dc836ef0c61ea683",
+      "description": "nhân viên 3-24 tháng thâm niên -> Junior",
+      "inputs": [
+        "hire_date"
+      ],
+      "ruleId": "R3b-tenure-3to24-v1",
+      "sourceSeed": "02-derive-hr.py",
+      "version": 1
+    },
+    {
+      "branchCount": 228,
+      "codeHash": "ee98bc44dd9eaa31c0cb5ef2e5ddf8fd66e699037f385074dc836ef0c61ea683",
+      "description": "nhân viên >=24 tháng thâm niên -> Middle",
+      "inputs": [
+        "hire_date"
+      ],
+      "ruleId": "R3b-tenure-ge24-v1",
+      "sourceSeed": "02-derive-hr.py",
+      "version": 1
+    },
+    {
+      "branchCount": 0,
+      "codeHash": "ee98bc44dd9eaa31c0cb5ef2e5ddf8fd66e699037f385074dc836ef0c61ea683",
+      "description": "thiếu hire_date hợp lệ -> Intern (fallback tất định)",
+      "inputs": [
+        "hire_date"
+      ],
+      "ruleId": "R3c-nohire-v1",
+      "sourceSeed": "02-derive-hr.py",
+      "version": 1
+    },
+    {
+      "branchCount": 2439,
+      "codeHash": "ee98bc44dd9eaa31c0cb5ef2e5ddf8fd66e699037f385074dc836ef0c61ea683",
+      "description": "skills <- bảng ánh xạ title -> skill set cố định",
+      "inputs": [
+        "job_title"
+      ],
+      "ruleId": "R4-title-skill-map-v1",
+      "sourceSeed": "02-derive-hr.py",
+      "version": 1
+    },
+    {
+      "branchCount": 2439,
+      "codeHash": "ee98bc44dd9eaa31c0cb5ef2e5ddf8fd66e699037f385074dc836ef0c61ea683",
+      "description": "activeLoad <- số projects đang mở; 0 lúc seed (F2 chưa có dữ liệu)",
+      "inputs": [
+        "projects"
+      ],
+      "ruleId": "R5-projects-count-v1",
+      "sourceSeed": "02-derive-hr.py",
+      "version": 1
+    }
+  ],
+  "runId": "seed-20261020-v1",
+  "totals": {
+    "derivedDocuments": 2439,
+    "derivedFields": 5,
+    "employees": 2439,
+    "rawFieldsUntouched": 12
+  }
+}
