@@ -28,6 +28,7 @@ from app.config import settings
 from app.db import db_client
 from app.llm.base import LLMUnavailable
 from app.llm.chain import ProviderChain, provider_cache
+from app.llm.fake import hashing_embed
 from app.rag.answer import answer_policy
 from app.rag.corpus import load_db_chunks
 from app.rag.policy_engine import PolicyEngine, policy_engine
@@ -126,7 +127,14 @@ def _build_policy_engine(kind: str, chain: ProviderChain | None) -> PolicyEngine
             effective_kind = "lexical"
     embedder = None
     if chain is not None and chain and effective_kind in ("dense", "hybrid"):
-        embedder = lambda texts: chain.embed(texts).vectors  # noqa: E731 - request-scoped closure
+        def safe_embed(texts: list[str]) -> list[list[float]]:
+            try:
+                return chain.embed(texts).vectors
+            except Exception as exc:
+                logger.warning("Embedding provider call failed (%s); falling back to hashing embedder", exc)
+                return [hashing_embed(t, settings.embedding_dim) for t in texts]
+
+        embedder = safe_embed
     engine = PolicyEngine(chunks=chunks or None, retriever_kind=effective_kind, embedder=embedder)
     if db is not None and settings.vector_index_name and effective_kind in ("dense", "hybrid"):
         engine.configure_retrieval(collection=db.policies, index_name=settings.vector_index_name)
