@@ -7,6 +7,7 @@ the adapter appends `/chat/completions` and `/embeddings`.
 
 from __future__ import annotations
 
+import json
 import logging
 
 import httpx
@@ -61,6 +62,24 @@ class OpenAICompatibleProvider(LLMProvider):
         try:
             return response.json()
         except ValueError as exc:
+            text = response.text.strip()
+            if text.startswith("data:"):
+                accumulated_text: list[str] = []
+                for line in text.splitlines():
+                    stripped = line.strip()
+                    if stripped.startswith("data: ") and stripped != "data: [DONE]":
+                        try:
+                            chunk = json.loads(stripped[6:])
+                            delta = (chunk.get("choices") or [{}])[0].get("delta") or {}
+                            if delta.get("content"):
+                                accumulated_text.append(delta["content"])
+                        except Exception:
+                            continue
+                if accumulated_text:
+                    return {
+                        "choices": [{"message": {"role": "assistant", "content": "".join(accumulated_text)}}],
+                        "usage": {},
+                    }
             raise ProviderError("provider returned invalid JSON", provider_id=self.config.id) from exc
 
     def complete(
@@ -74,6 +93,7 @@ class OpenAICompatibleProvider(LLMProvider):
             "messages": [{"role": m.role, "content": m.content} for m in messages],
             "temperature": opts.temperature,
             "max_tokens": opts.max_tokens or self.config.max_tokens,
+            "stream": False,
         }
         if opts.tools:
             payload["tools"] = [
