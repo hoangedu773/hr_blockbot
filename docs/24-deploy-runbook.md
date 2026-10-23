@@ -363,3 +363,46 @@ Có 2 cách, cả hai đều **chưa kiểm chứng**:
 | 9 | Dải outbound IP cụ thể của region | Phải lấy trên Dashboard **sau khi** tạo service; giá trị thay đổi theo region |
 | 10 | Thời gian build lần đầu, latency p50/p95 trên Render | Chưa đo (chưa deploy) |
 | 11 | `docs/22-erd-overall.md` được plan nhắc tới | **Không tồn tại** trong worktree tích hợp hiện tại (docs chỉ 00–20 + phụ lục) — không chặn deploy nhưng chặn mục "đồng bộ ERD" của phase-05 §5 |
+
+---
+
+## 8. Hướng Dẫn Vận Hành CD Render & Đồng Bộ Tự Động (Dành Cho Agent/Dev)
+
+> **CẬP NHẬT KIỂM CHỨNG THỰC TẾ (10/2026):** Blueprint `hr-blockbot` đã được triển khai live thành công trên Render Cloud!  
+> Tài khoản quản trị: `Hoang Pham` (Workspace ID: `tea-d08nvgqdbo4c73e4orig`).  
+> Render CLI v2.31.0 đã cài đặt tại: `C:\Users\hoang\bin\render.exe`.
+
+### 8.1. Ranh Giới Nhánh Kích Hoạt Auto-Deploy
+- Render Blueprint theo dõi nhánh: **`integration/full-delivery`**.
+- Khi có commit mới được push lên `origin/integration/full-delivery`, Render sẽ tự động kích hoạt deploy mới cho các services bị ảnh hưởng.
+- **Lưu ý sống còn:** Nếu chỉ push lên `main`, Render **SẼ KHÔNG** deploy.
+
+### 8.2. Quy Trình 4 Bước Chuẩn (Standard Agent Workflow):
+```powershell
+# Bước 1: Kiểm thử local trước khi commit (chỉ commit khi pass 100%)
+pnpm --filter web build
+node apps/web/test/e2e-revamp-flow.test.mjs
+
+# Bước 2: Commit trên working directory chính (nhánh main)
+git add <các_file_thay_đổi>
+git commit -m "feat(dashboard): align web app with folio layout and 21st crm preview standards"
+
+# Bước 3: Fast-forward merge vào worktree integration/full-delivery (C:\work-space\hr-blockbot-int)
+git -C "C:/work-space/hr-blockbot-int" merge main --ff-only
+
+# Bước 4: Push đồng thời lên remote
+git push origin main
+git -C "C:/work-space/hr-blockbot-int" push origin integration/full-delivery
+```
+
+### 8.3. Kiểm Tra Trạng Thái Bằng Render CLI:
+```powershell
+# Xem danh sách dịch vụ và trạng thái hiện tại
+render services
+
+# Xem tiến độ deploy dịch vụ Web (srv-dbbvs6o473hc73ahqu00)
+render deploys list srv-dbbvs6o473hc73ahqu00 --output json
+
+# Xem log runtime/build trực tiếp
+render logs srv-dbbvs6o473hc73ahqu00
+```
