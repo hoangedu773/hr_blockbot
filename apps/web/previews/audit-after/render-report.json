@@ -1,0 +1,92 @@
+[
+  {
+    "viewport": "375x812",
+    "screenshot": "C:\\work-space\\hr-blockbot\\apps\\web\\previews\\audit-after\\375x812.png",
+    "outline": [
+      "div.relative.flex \"G GUTA WORKSPACE HR & SMART SHIFT AI HR \" @ x0 y0 365x7550",
+      "  header \"G GUTA WORKSPACE HR & SMART SHIFT AI\" @ x0 y0 365x65",
+      "    nav.fixed.z-20 \"G GUTA WORKSPACE HR & SMART SHIFT AI\" @ x0 y0 365x65",
+      "      div.mx-auto.mt-2 \"G GUTA WORKSPACE HR & SMART SHIFT AI\" @ x8 y0 349x64",
+      "  main.flex.min-h-screen \"HR BlockBot · Không gian nhân sự Gut @ x0 y65 365x7241",
+      "    div.min-h-screen \"HR BlockBot · Không gian nhân sự Guta Rõ\" @ x0 y65 365x7241",
+      "      main.relative.z-10 \"HR BlockBot · Không gian nhân sự Guta Rõ @ x0 y65 365x1496",
+      "      section.py-14.sm:py-20 \"PHẠM VI NGHIỆP VỤ Hồ sơ nhân sự Vòng @ x0 y1560 365x303",
+      "      section#features.py-16.sm:py-20 \"TỪ DỮ LIỆU ĐẾN QUYẾT ĐỊNH B @ x0 y1863 365x1440",
+      "      section#solution.py-20.md:py-28 \"MỘT VÒNG VIỆC, HAI CỬA VÀO  @ x0 y3303 365x1355",
+      "      section#product.py-20.md:py-28 \"AI CÓ VAI TRÒ CỤ THỂ Gợi ý c @ x0 y4659 365x1091",
+      "      section#about.py-20.md:py-28 \"THIẾT KẾ ĐỂ KIỂM TRA ĐƯỢC Khôn @ x0 y5749 365x896",
+      "      section#questions.bg-background.py-16 \"TRƯỚC KHI TRẢI NGHIỆM @ x0 y6645 365x661",
+      "  footer.relative.mt-12 \"GUTA WORKSPACE · HR BlockBot Dự án KL @ x0 y7354 365x196",
+      "    div.guta-container.guta-footer \"GUTA WORKSPACE · HR BlockBot @ x0 y7354 365x196",
+      "      p \"Dự án KLCN133 · Chatbot chuyển đổi số qu\" @ x16 y7431 333x42"
+    ],
+    "findings": [
+      {
+        "severity": "error",
+        "type": "runtime-error",
+        "target": "",
+        "message": "Failed to load resource: the server responded with a status of 404 (Not Found) (http://127.0.0.1:5173/favicon.ico)"
+      },
+      {
+        "severity": "warn",
+        "type": "small-touch-target",
+        "target": "",
+        "message": "3 controls smaller than 44px; e.g. a.flex.items-center \"G GUTA WORKSPACE HR & SMART SHIFT AI\"; a.block \"HR BlockBot · Không gian nhân sự Guta\"; a \"Phạm vi & câu hỏi\""
+      }
+    ],
+    "height": 7550
+  },
+  {
+    "viewport": "768x1024",
+    "screenshot": "C:\\work-space\\hr-blockbot\\apps\\web\\previews\\audit-after\\768x1024.png",
+    "outline": [
+      "div.relative.flex \"G GUTA WORKSPACE HR & SMART SHIFT AI HR \" @ x0 y0 758x5966",
+      "  header \"G GUTA WORKSPACE HR & SMART SHIFT AI\" @ x0 y0 758x65",
+      "    nav.fixed.z-20 \"G GUTA WORKSPACE HR & SMART SHIFT AI\" @ x0 y0 758x65",
+      "      div.mx-auto.mt-2 \"G GUTA WORKSPACE HR & SMART SHIFT AI\" @ x8 y0 742x64",
+      "  main.flex.min-h-screen \"HR BlockBot · Không gian nhân sự Gut @ x0 y65 758x5679",
+      "    div.min-h-screen \"HR BlockBot · Không gian nhân sự Guta Rõ\" @ x0 y65 758x5679",
+      "      main.relative.z-10 \"HR BlockBot · Không gian nhân sự Guta Rõ @ x0 y65 758x1389",
+      "      section.py-14.sm:py-20 \"PHẠM VI NGHIỆP VỤ Hồ sơ nhân sự Vòng @ x0 y1453 758x278",
+      "      section#features.py-16.sm:py-20 \"TỪ DỮ LIỆU ĐẾN QUYẾT ĐỊNH B @ x0 y1731 758x1026",
+      "      section#solution.py-20.md:py-28 \"MỘT VÒNG VIỆC, HAI CỬA VÀO  @ x0 y2756 758x809",
+      "      section#product.py-20.md:py-28 \"AI CÓ VAI TRÒ CỤ THỂ Gợi ý c @ x0 y3565 758x777",
+      "      section#about.py-20.md:py-28 \"THIẾT KẾ ĐỂ KIỂM TRA ĐƯỢC Khôn @ x0 y4342 758x707",
+      "      section#questions.bg-background.py-16 \"TRƯỚC KHI TRẢI NGHIỆM @ x0 y5049 758x695",
+      "  footer.relative.mt-12 \"GUTA WORKSPACE · HR BlockBot Dự án KL @ x0 y5791 758x175",
+      "    div.guta-container.guta-footer \"GUTA WORKSPACE · HR BlockBot @ x0 y5791 758x175"
+    ],
+    "findings": [],
+    "height": 5966
+  },
+  {
+    "viewport": "1440x900",
+    "screenshot": "C:\\work-space\\hr-blockbot\\apps\\web\\previews\\audit-after\\1440x900.png",
+    "outline": [
+      "div.relative.flex \"G GUTA WORKSPACE HR & SMART SHIFT AI Ngh\" @ x0 y0 1430x5206",
+      "  header \"G GUTA WORKSPACE HR & SMART SHIFT AI Ngh\" @ x0 y0 1430x85",
+      "    nav.fixed.z-20 \"G GUTA WORKSPACE HR & SMART SHIFT AI Ngh\" @ x0 y0 1430x85",
+      "      div.mx-auto.mt-2 \"G GUTA WORKSPACE HR & SMART SHIFT AI Ngh\" @ x80 y0 1270x84",
+      "  main.flex.min-h-screen \"HR BlockBot · Không gian nhân sự Gut @ x0 y85 1430x4898",
+      "    div.min-h-screen \"HR BlockBot · Không gian nhân sự Guta Rõ\" @ x0 y85 1430x4898",
+      "      main.relative.z-10 \"HR BlockBot · Không gian nhân sự Guta Rõ @ x0 y85 1430x1450",
+      "      section.py-14.sm:py-20 \"PHẠM VI NGHIỆP VỤ Hồ sơ nhân sự Vòng @ x0 y1535 1430x220",
+      "      section#features.py-16.sm:py-20 \"TỪ DỮ LIỆU ĐẾN QUYẾT ĐỊNH B @ x0 y1755 1430x641",
+      "      section#solution.py-20.md:py-28 \"MỘT VÒNG VIỆC, HAI CỬA VÀO  @ x0 y2396 1430x784",
+      "      section#product.py-20.md:py-28 \"AI CÓ VAI TRÒ CỤ THỂ Gợi ý c @ x0 y3180 1430x642",
+      "      section#about.py-20.md:py-28 \"THIẾT KẾ ĐỂ KIỂM TRA ĐƯỢC Khôn @ x0 y3822 1430x466",
+      "      section#questions.bg-background.py-16 \"TRƯỚC KHI TRẢI NGHIỆM @ x0 y4288 1430x695",
+      "  footer.relative.mt-12 \"GUTA WORKSPACE · HR BlockBot Dự án KL @ x0 y5031 1430x175",
+      "    div.guta-container.guta-footer \"GUTA WORKSPACE · HR BlockBot @ x80 y5031 1270x175"
+    ],
+    "findings": [
+      {
+        "severity": "warn",
+        "type": "low-contrast",
+        "target": "div.crm-rec-label \"GỢI Ý PHÂN CÔNG PHOBERT\"",
+        "message": "text contrast 4.13:1"
+      }
+    ],
+    "height": 5206
+  }
+]

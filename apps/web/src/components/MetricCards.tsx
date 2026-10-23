@@ -65,7 +65,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
             <polyline points="12 6 12 12 16 14" />
           </svg>
         </div>
-        <div style={{ fontSize: '22px', fontWeight: 800, fontFamily: 'var(--mono)', color: 'var(--guta-yellow)' }}>
+        <div style={{ fontSize: '22px', fontWeight: 800, fontFamily: 'var(--mono)', color: 'var(--accent-primary)' }}>
           {shiftsTodayCount} Ca
         </div>
         <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
@@ -95,10 +95,10 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
             <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
         </div>
-        <div style={{ fontSize: '22px', fontWeight: 800, fontFamily: 'var(--mono)', color: '#fbbf24' }}>
+        <div style={{ fontSize: '22px', fontWeight: 800, fontFamily: 'var(--mono)', color: 'var(--accent-primary)' }}>
           {pendingCorrectionCount} Phiếu
         </div>
-        <div style={{ fontSize: '11px', color: pendingCorrectionCount > 0 ? '#f59e0b' : 'var(--text-faint)' }}>
+        <div style={{ fontSize: '11px', color: pendingCorrectionCount > 0 ? 'var(--accent-primary)' : 'var(--text-faint)' }}>
           {pendingCorrectionCount > 0 ? 'Cần Cửa hàng trưởng phê duyệt' : 'Không có tồn đọng'}
         </div>
       </div>

@@ -53,7 +53,7 @@ export const StaffDrawer: React.FC<StaffDrawerProps> = ({ schedule, onClose }) =
           <div style={{ fontSize: '18px', fontWeight: 800, color: '#fff' }}>
             {schedule.employee_name}
           </div>
-          <div style={{ fontFamily: 'var(--mono)', color: 'var(--guta-yellow)', fontSize: '12px' }}>
+          <div style={{ fontFamily: 'var(--mono)', color: 'var(--accent-primary)', fontSize: '12px' }}>
             {schedule.employee_code}
           </div>
         </div>

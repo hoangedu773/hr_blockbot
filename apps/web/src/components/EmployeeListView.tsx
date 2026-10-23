@@ -116,7 +116,7 @@ export const EmployeeListView: React.FC = () => {
                     <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{emp.employeeId}</div>
                   </td>
                   <td style={{ padding: '12px 14px' }}>
-                    <span style={{ color: 'var(--guta-yellow)', fontWeight: 600 }}>{emp.level}</span>
+                    <span style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>{emp.level}</span>
                   </td>
                   <td style={{ padding: '12px 14px', color: 'var(--text-muted)' }}>
                     {emp.department}

@@ -24,7 +24,7 @@ export const VisualTimeline: React.FC<VisualTimelineProps> = ({
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <svg style={{ width: 16, height: 16, stroke: 'var(--guta-yellow)', fill: 'none', strokeWidth: 1.75 }} viewBox="0 0 24 24">
+          <svg style={{ width: 16, height: 16, stroke: 'var(--accent-primary)', fill: 'none', strokeWidth: 1.75 }} viewBox="0 0 24 24">
             <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
             <line x1="16" y1="2" x2="16" y2="6" />
             <line x1="8" y1="2" x2="8" y2="6" />
@@ -88,8 +88,8 @@ export const VisualTimeline: React.FC<VisualTimelineProps> = ({
                       height: '28px',
                       borderRadius: '50%',
                       background: '#1e293b',
-                      border: `1px solid ${isMorning ? 'var(--guta-yellow)' : '#38bdf8'}`,
-                      color: isMorning ? 'var(--guta-yellow)' : '#38bdf8',
+                      border: `1px solid ${isMorning ? 'var(--accent-primary)' : '#38bdf8'}`,
+                      color: isMorning ? 'var(--accent-primary)' : '#38bdf8',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',

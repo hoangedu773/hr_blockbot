@@ -1,0 +1,521 @@
+[
+  {
+    "viewport": "1440x900",
+    "files": [
+      "apps/web/previews/folio-before/1440x900.png",
+      "apps/web/previews/folio-before/1440x900-full.png"
+    ],
+    "problems": [
+      "Failed to load: http://localhost:3001/api/auth/refresh",
+      "console.error: Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "Text under 12px: <span.text-[9px].font-medium> \"HR & SMART SHIFT AI\" 9px; <span.ml-1.inline-flex> \"AI\" 10px; <span.ml-1.inline-flex> \"AI\" 10px; <p.font-mono.text-[11px]> \"HOW IT WORKS\" 11px; <p.truncate.text-[11px]> \"Wei Chen joined to Final Presentation\" 11px; <span.font-semibold> \"Wei Chen\" 11px (+58 more)",
+      "Low contrast: <span.whitespace-nowrap.font-medium> \"Normal range\" 3.18:1 (needs 4.5); <span.inline-flex.shrink-0> \"Webhook\" 3.11:1 (needs 4.5); <p.overflow-hidden.text-ellipsis> \"Records the run for monthly reporting.\" 3.11:1 (needs 4.5); <span.overflow-hidden.text-ellipsis> \"Forecast Q2 revenue\" 2.10:1 (needs 4.5); <span.overflow-hidden.text-ellipsis> \"Audit data quality issues\" 2.10:1 (needs 4.5); <p.mt-1.text-muted-foreground> \"Built-in dashboards and revenue metrics\" 3.18:1 (needs 4.5) (+4 more)",
+      "Buttons/links with no accessible name: <button.text-muted-foreground.hover:text-foreground>; <button.flex.items-center>; <button.text-muted-foreground/70.transition-colors>; <button.text-muted-foreground/70.transition-colors>; <button.text-muted-foreground/70.transition-colors> (+1 more)",
+      "Form fields without a label: <input#login-email.w-full.rounded-lg>; <input.w-full.rounded-lg>",
+      "Overlapping text: <span.shrink-0.truncate> \"Margin Pressure\" × <span.inline-flex.items-center> \"Bearish\"; <p.mt-1.5.font-semibold> \"Loom\" × <p.mt-0.5.text-[10px]> \"For team communication and real-time col\"; <p.mt-0.5.text-[9.5px]> \"For conducting virtual meetings and inte\" × <p.mt-0.5.text-[10px]> \"For team communication and real-time col\"; <div.mt-2.flex> \"Manage\" × <div.mt-auto.flex> \"Manage\"; <p.mt-1.5.font-semibold> \"Notion\" × <p.mt-0.5.text-[10px]> \"For team communication and real-time col\"",
+      "17 different font sizes (6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 36, 48, 60, 72). Use a tighter type scale."
+    ],
+    "warnings": [],
+    "issues": [
+      {
+        "rule": "runtime",
+        "message": "Failed to load: http://localhost:3001/api/auth/refresh",
+        "count": 1,
+        "samples": []
+      },
+      {
+        "rule": "runtime",
+        "message": "console.error: Failed to load resource: net::ERR_CONNECTION_REFUSED",
+        "count": 1,
+        "samples": []
+      },
+      {
+        "rule": "tiny-text",
+        "message": "Text under 12px: <span.text-[9px].font-medium> \"HR & SMART SHIFT AI\" 9px; <span.ml-1.inline-flex> \"AI\" 10px; <span.ml-1.inline-flex> \"AI\" 10px; <p.font-mono.text-[11px]> \"HOW IT WORKS\" 11px; <p.truncate.text-[11px]> \"Wei Chen joined to Final Presentation\" 11px; <span.font-semibold> \"Wei Chen\" 11px (+58 more)",
+        "count": 64,
+        "samples": [
+          "<span.text-[9px].font-medium> \"HR & SMART SHIFT AI\" 9px",
+          "<span.ml-1.inline-flex> \"AI\" 10px",
+          "<span.ml-1.inline-flex> \"AI\" 10px",
+          "<p.font-mono.text-[11px]> \"HOW IT WORKS\" 11px",
+          "<p.truncate.text-[11px]> \"Wei Chen joined to Final Presentation\" 11px",
+          "<span.font-semibold> \"Wei Chen\" 11px",
+          "<span.font-semibold> \"Final Presentation\" 11px",
+          "<p.mt-0.5.truncate> \"8 min ago · Orixcreative Dribbble\" 9px",
+          "<p.font-semibold.text-[11px]> \"Matthew Johnson\" 11px",
+          "<p.mt-0.5.truncate> \"Content Writer · @orixcreat...\" 9px",
+          "<p.font-semibold.text-[11px]> \"Terry Lipshutz\" 11px",
+          "<p.mt-0.5.truncate> \"Approved the design of the iOS app...\" 9px",
+          "<p.mt-1.5.font-semibold> \"Loom\" 11px",
+          "<p.mt-0.5.text-[9.5px]> \"For conducting virtual meetings and inte\" 9.5px",
+          "<div.mt-2.flex> \"Manage\" 10px",
+          "<p.mt-1.5.font-semibold> \"Notion\" 11px",
+          "<p.mt-0.5.text-[9.5px]> \"For docs, wikis, and shared team knowled\" 9.5px",
+          "<div.mt-2.flex> \"Manage\" 10px",
+          "<p.mt-0.5.text-[10px]> \"For team communication and real-time col\" 10px",
+          "<div.mt-auto.flex> \"Manage\" 10.5px"
+        ],
+        "severity": "fail"
+      },
+      {
+        "rule": "low-contrast",
+        "message": "Low contrast: <span.whitespace-nowrap.font-medium> \"Normal range\" 3.18:1 (needs 4.5); <span.inline-flex.shrink-0> \"Webhook\" 3.11:1 (needs 4.5); <p.overflow-hidden.text-ellipsis> \"Records the run for monthly reporting.\" 3.11:1 (needs 4.5); <span.overflow-hidden.text-ellipsis> \"Forecast Q2 revenue\" 2.10:1 (needs 4.5); <span.overflow-hidden.text-ellipsis> \"Audit data quality issues\" 2.10:1 (needs 4.5); <p.mt-1.text-muted-foreground> \"Built-in dashboards and revenue metrics\" 3.18:1 (needs 4.5) (+4 more)",
+        "count": 10,
+        "samples": [
+          "<span.whitespace-nowrap.font-medium> \"Normal range\" 3.18:1 (needs 4.5)",
+          "<span.inline-flex.shrink-0> \"Webhook\" 3.11:1 (needs 4.5)",
+          "<p.overflow-hidden.text-ellipsis> \"Records the run for monthly reporting.\" 3.11:1 (needs 4.5)",
+          "<span.overflow-hidden.text-ellipsis> \"Forecast Q2 revenue\" 2.10:1 (needs 4.5)",
+          "<span.overflow-hidden.text-ellipsis> \"Audit data quality issues\" 2.10:1 (needs 4.5)",
+          "<p.mt-1.text-muted-foreground> \"Built-in dashboards and revenue metrics\" 3.18:1 (needs 4.5)",
+          "<p.mt-1.text-muted-foreground> \"Track every scheduled query end-to-end\" 3.18:1 (needs 4.5)",
+          "<p.mt-1.text-muted-foreground> \"Map schemas and define relationships\" 3.18:1 (needs 4.5)",
+          "<span.font-medium.text-[#242629]> \"Basepoint x Stripe\" 2.47:1 (needs 4.5)",
+          "<span.font-medium.text-[#242629]> \"Ashley & Martin\" 2.47:1 (needs 4.5)"
+        ],
+        "severity": "fail"
+      },
+      {
+        "rule": "unlabeled-control",
+        "message": "Buttons/links with no accessible name: <button.text-muted-foreground.hover:text-foreground>; <button.flex.items-center>; <button.text-muted-foreground/70.transition-colors>; <button.text-muted-foreground/70.transition-colors>; <button.text-muted-foreground/70.transition-colors> (+1 more)",
+        "count": 6,
+        "samples": [
+          "<button.text-muted-foreground.hover:text-foreground>",
+          "<button.flex.items-center>",
+          "<button.text-muted-foreground/70.transition-colors>",
+          "<button.text-muted-foreground/70.transition-colors>",
+          "<button.text-muted-foreground/70.transition-colors>",
+          "<button.text-muted-foreground/70.transition-colors>"
+        ],
+        "severity": "fail",
+        "sels": [
+          "button.text-muted-foreground.hover\\:text-foreground",
+          "button.flex.items-center",
+          "button.text-muted-foreground\\/70.transition-colors",
+          "button.text-muted-foreground\\/70.transition-colors",
+          "button.text-muted-foreground\\/70.transition-colors",
+          "button.text-muted-foreground\\/70.transition-colors"
+        ]
+      },
+      {
+        "rule": "field-label",
+        "message": "Form fields without a label: <input#login-email.w-full.rounded-lg>; <input.w-full.rounded-lg>",
+        "count": 2,
+        "samples": [
+          "<input#login-email.w-full.rounded-lg>",
+          "<input.w-full.rounded-lg>"
+        ],
+        "severity": "fail",
+        "sels": [
+          "#login-email",
+          "input.w-full.rounded-lg"
+        ]
+      },
+      {
+        "rule": "overlap",
+        "message": "Overlapping text: <span.shrink-0.truncate> \"Margin Pressure\" × <span.inline-flex.items-center> \"Bearish\"; <p.mt-1.5.font-semibold> \"Loom\" × <p.mt-0.5.text-[10px]> \"For team communication and real-time col\"; <p.mt-0.5.text-[9.5px]> \"For conducting virtual meetings and inte\" × <p.mt-0.5.text-[10px]> \"For team communication and real-time col\"; <div.mt-2.flex> \"Manage\" × <div.mt-auto.flex> \"Manage\"; <p.mt-1.5.font-semibold> \"Notion\" × <p.mt-0.5.text-[10px]> \"For team communication and real-time col\"",
+        "count": 5,
+        "samples": [
+          "<span.shrink-0.truncate> \"Margin Pressure\" × <span.inline-flex.items-center> \"Bearish\"",
+          "<p.mt-1.5.font-semibold> \"Loom\" × <p.mt-0.5.text-[10px]> \"For team communication and real-time col\"",
+          "<p.mt-0.5.text-[9.5px]> \"For conducting virtual meetings and inte\" × <p.mt-0.5.text-[10px]> \"For team communication and real-time col\"",
+          "<div.mt-2.flex> \"Manage\" × <div.mt-auto.flex> \"Manage\"",
+          "<p.mt-1.5.font-semibold> \"Notion\" × <p.mt-0.5.text-[10px]> \"For team communication and real-time col\""
+        ],
+        "severity": "fail"
+      },
+      {
+        "rule": "type-scale",
+        "message": "17 different font sizes (6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 36, 48, 60, 72). Use a tighter type scale.",
+        "count": 17,
+        "samples": [],
+        "severity": "fail"
+      }
+    ]
+  },
+  {
+    "viewport": "768x1024",
+    "files": [
+      "apps/web/previews/folio-before/768x1024.png",
+      "apps/web/previews/folio-before/768x1024-full.png"
+    ],
+    "problems": [
+      "Failed to load: http://localhost:3001/api/auth/refresh",
+      "console.error: Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "Text under 12px: <span.text-[9px].font-medium> \"HR & SMART SHIFT AI\" 9px; <button.flex.items-center> \"Query builder\" 11px; <button.flex.items-center> \"Export CSV\" 11px; <span.flex.items-center> \"Sorted by Market cap\" 11px; <span.flex.items-center> \"Sector filter 5\" 11px; <span.ml-1> \"Ticker\" 11px (+261 more)",
+      "Low contrast: <span.whitespace-nowrap.font-medium> \"Normal range\" 3.18:1 (needs 4.5); <span.inline-flex.shrink-0> \"Webhook\" 3.11:1 (needs 4.5); <p.overflow-hidden.text-ellipsis> \"Records the run for monthly reporting.\" 3.11:1 (needs 4.5); <span.overflow-hidden.text-ellipsis> \"Forecast Q2 revenue\" 2.10:1 (needs 4.5); <span.overflow-hidden.text-ellipsis> \"Audit data quality issues\" 2.10:1 (needs 4.5); <p.mt-1.text-muted-foreground> \"Built-in dashboards and revenue metrics\" 3.18:1 (needs 4.5) (+4 more)",
+      "Buttons/links with no accessible name: <button.text-muted-foreground.hover:text-foreground>; <button.flex.items-center>; <button.text-muted-foreground/70.transition-colors>; <button.text-muted-foreground/70.transition-colors>; <button.text-muted-foreground/70.transition-colors> (+1 more)",
+      "Form fields without a label: <input#login-email.w-full.rounded-lg>; <input.w-full.rounded-lg>",
+      "Overlapping text: <p.mt-1.5.font-semibold> \"Loom\" × <p.mt-1.5.font-semibold> \"Notion\"; <p.mt-0.5.text-[9.5px]> \"For conducting virtual meetings and inte\" × <p.mt-0.5.text-[9.5px]> \"For docs, wikis, and shared team knowled\"; <div.mt-2.flex> \"Manage\" × <div.mt-2.flex> \"Manage\"; <p.mt-1.5.font-semibold> \"Notion\" × <p.mt-1.5.font-semibold> \"Slack\"; <p.mt-0.5.text-[9.5px]> \"For docs, wikis, and shared team knowled\" × <p.mt-0.5.text-[10px]> \"For team communication and real-time col\"",
+      "17 different font sizes (3, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 18, 20, 36, 48, 60). Use a tighter type scale.",
+      "Nav toggle #root > div:nth-of-type(1) > header:nth-of-type(1) > nav:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1) \"Open Menu\" changes no navigation links. Wire it to a working disclosure.",
+      "5 nav link(s) reachable at 1440px are gone at 768px: #features, #solution, #pricing, #about, #login. Add a working disclosure or keep the links in the bar."
+    ],
+    "warnings": [
+      "Body text outside 25–85ch per line: <p.mt-3.text-balance> \"A live activity feed of every query, cha\" ≈18ch/line; <p.mt-3.text-balance> \"Slack, Loom, Notion, and more — toggle t\" ≈21ch/line; <p.mt-3.text-balance> \"Ask Folio to write summaries, emails, an\" ≈25ch/line. Aim for 45–75ch."
+    ],
+    "issues": [
+      {
+        "rule": "runtime",
+        "message": "Failed to load: http://localhost:3001/api/auth/refresh",
+        "count": 1,
+        "samples": []
+      },
+      {
+        "rule": "runtime",
+        "message": "console.error: Failed to load resource: net::ERR_CONNECTION_REFUSED",
+        "count": 1,
+        "samples": []
+      },
+      {
+        "rule": "tiny-text",
+        "message": "Text under 12px: <span.text-[9px].font-medium> \"HR & SMART SHIFT AI\" 9px; <button.flex.items-center> \"Query builder\" 11px; <button.flex.items-center> \"Export CSV\" 11px; <span.flex.items-center> \"Sorted by Market cap\" 11px; <span.flex.items-center> \"Sector filter 5\" 11px; <span.ml-1> \"Ticker\" 11px (+261 more)",
+        "count": 267,
+        "samples": [
+          "<span.text-[9px].font-medium> \"HR & SMART SHIFT AI\" 9px",
+          "<button.flex.items-center> \"Query builder\" 11px",
+          "<button.flex.items-center> \"Export CSV\" 11px",
+          "<span.flex.items-center> \"Sorted by Market cap\" 11px",
+          "<span.flex.items-center> \"Sector filter 5\" 11px",
+          "<span.ml-1> \"Ticker\" 11px",
+          "<div.flex.items-center> \"Sector\" 11px",
+          "<div.flex.items-center> \"Recent queries\" 11px",
+          "<div.flex.items-center> \"Sentiment AI\" 11px",
+          "<span.ml-1.inline-flex> \"AI\" 10px",
+          "<div.flex.items-center> \"Market Cap AI\" 11px",
+          "<span.ml-1.inline-flex> \"AI\" 10px",
+          "<div.flex.items-center> \"Signal\" 11px",
+          "<span.truncate.font-medium> \"AAPL\" 11px",
+          "<span.truncate> \"Technology\" 11px",
+          "<span.shrink-0.truncate> \"Revenue Trend\" 11px",
+          "<span.shrink-0.truncate> \"EPS Forecast\" 11px",
+          "<span.inline-flex.items-center> \"Bullish\" 11px",
+          "<span.inline-flex.items-center> \"$3.07T\" 11px",
+          "<span.inline-flex.items-center> \"Strong Buy\" 11px"
+        ],
+        "severity": "fail"
+      },
+      {
+        "rule": "low-contrast",
+        "message": "Low contrast: <span.whitespace-nowrap.font-medium> \"Normal range\" 3.18:1 (needs 4.5); <span.inline-flex.shrink-0> \"Webhook\" 3.11:1 (needs 4.5); <p.overflow-hidden.text-ellipsis> \"Records the run for monthly reporting.\" 3.11:1 (needs 4.5); <span.overflow-hidden.text-ellipsis> \"Forecast Q2 revenue\" 2.10:1 (needs 4.5); <span.overflow-hidden.text-ellipsis> \"Audit data quality issues\" 2.10:1 (needs 4.5); <p.mt-1.text-muted-foreground> \"Built-in dashboards and revenue metrics\" 3.18:1 (needs 4.5) (+4 more)",
+        "count": 10,
+        "samples": [
+          "<span.whitespace-nowrap.font-medium> \"Normal range\" 3.18:1 (needs 4.5)",
+          "<span.inline-flex.shrink-0> \"Webhook\" 3.11:1 (needs 4.5)",
+          "<p.overflow-hidden.text-ellipsis> \"Records the run for monthly reporting.\" 3.11:1 (needs 4.5)",
+          "<span.overflow-hidden.text-ellipsis> \"Forecast Q2 revenue\" 2.10:1 (needs 4.5)",
+          "<span.overflow-hidden.text-ellipsis> \"Audit data quality issues\" 2.10:1 (needs 4.5)",
+          "<p.mt-1.text-muted-foreground> \"Built-in dashboards and revenue metrics\" 3.18:1 (needs 4.5)",
+          "<p.mt-1.text-muted-foreground> \"Track every scheduled query end-to-end\" 3.18:1 (needs 4.5)",
+          "<p.mt-1.text-muted-foreground> \"Map schemas and define relationships\" 3.18:1 (needs 4.5)",
+          "<span.font-medium.text-[#242629]> \"Basepoint x Stripe\" 2.47:1 (needs 4.5)",
+          "<span.font-medium.text-[#242629]> \"Ashley & Martin\" 2.47:1 (needs 4.5)"
+        ],
+        "severity": "fail"
+      },
+      {
+        "rule": "unlabeled-control",
+        "message": "Buttons/links with no accessible name: <button.text-muted-foreground.hover:text-foreground>; <button.flex.items-center>; <button.text-muted-foreground/70.transition-colors>; <button.text-muted-foreground/70.transition-colors>; <button.text-muted-foreground/70.transition-colors> (+1 more)",
+        "count": 6,
+        "samples": [
+          "<button.text-muted-foreground.hover:text-foreground>",
+          "<button.flex.items-center>",
+          "<button.text-muted-foreground/70.transition-colors>",
+          "<button.text-muted-foreground/70.transition-colors>",
+          "<button.text-muted-foreground/70.transition-colors>",
+          "<button.text-muted-foreground/70.transition-colors>"
+        ],
+        "severity": "fail",
+        "sels": [
+          "button.text-muted-foreground.hover\\:text-foreground",
+          "button.flex.items-center",
+          "button.text-muted-foreground\\/70.transition-colors",
+          "button.text-muted-foreground\\/70.transition-colors",
+          "button.text-muted-foreground\\/70.transition-colors",
+          "button.text-muted-foreground\\/70.transition-colors"
+        ]
+      },
+      {
+        "rule": "field-label",
+        "message": "Form fields without a label: <input#login-email.w-full.rounded-lg>; <input.w-full.rounded-lg>",
+        "count": 2,
+        "samples": [
+          "<input#login-email.w-full.rounded-lg>",
+          "<input.w-full.rounded-lg>"
+        ],
+        "severity": "fail",
+        "sels": [
+          "#login-email",
+          "input.w-full.rounded-lg"
+        ]
+      },
+      {
+        "rule": "overlap",
+        "message": "Overlapping text: <p.mt-1.5.font-semibold> \"Loom\" × <p.mt-1.5.font-semibold> \"Notion\"; <p.mt-0.5.text-[9.5px]> \"For conducting virtual meetings and inte\" × <p.mt-0.5.text-[9.5px]> \"For docs, wikis, and shared team knowled\"; <div.mt-2.flex> \"Manage\" × <div.mt-2.flex> \"Manage\"; <p.mt-1.5.font-semibold> \"Notion\" × <p.mt-1.5.font-semibold> \"Slack\"; <p.mt-0.5.text-[9.5px]> \"For docs, wikis, and shared team knowled\" × <p.mt-0.5.text-[10px]> \"For team communication and real-time col\"",
+        "count": 5,
+        "samples": [
+          "<p.mt-1.5.font-semibold> \"Loom\" × <p.mt-1.5.font-semibold> \"Notion\"",
+          "<p.mt-0.5.text-[9.5px]> \"For conducting virtual meetings and inte\" × <p.mt-0.5.text-[9.5px]> \"For docs, wikis, and shared team knowled\"",
+          "<div.mt-2.flex> \"Manage\" × <div.mt-2.flex> \"Manage\"",
+          "<p.mt-1.5.font-semibold> \"Notion\" × <p.mt-1.5.font-semibold> \"Slack\"",
+          "<p.mt-0.5.text-[9.5px]> \"For docs, wikis, and shared team knowled\" × <p.mt-0.5.text-[10px]> \"For team communication and real-time col\""
+        ],
+        "severity": "fail"
+      },
+      {
+        "rule": "measure",
+        "message": "Body text outside 25–85ch per line: <p.mt-3.text-balance> \"A live activity feed of every query, cha\" ≈18ch/line; <p.mt-3.text-balance> \"Slack, Loom, Notion, and more — toggle t\" ≈21ch/line; <p.mt-3.text-balance> \"Ask Folio to write summaries, emails, an\" ≈25ch/line. Aim for 45–75ch.",
+        "count": 3,
+        "samples": [
+          "<p.mt-3.text-balance> \"A live activity feed of every query, cha\" ≈18ch/line",
+          "<p.mt-3.text-balance> \"Slack, Loom, Notion, and more — toggle t\" ≈21ch/line",
+          "<p.mt-3.text-balance> \"Ask Folio to write summaries, emails, an\" ≈25ch/line"
+        ],
+        "severity": "warn"
+      },
+      {
+        "rule": "type-scale",
+        "message": "17 different font sizes (3, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 18, 20, 36, 48, 60). Use a tighter type scale.",
+        "count": 17,
+        "samples": [],
+        "severity": "fail"
+      },
+      {
+        "rule": "nav.dead-toggle",
+        "severity": "fail",
+        "count": 1,
+        "samples": [
+          "#root > div:nth-of-type(1) > header:nth-of-type(1) > nav:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)"
+        ],
+        "sels": [
+          "#root > div:nth-of-type(1) > header:nth-of-type(1) > nav:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)"
+        ],
+        "message": "Nav toggle #root > div:nth-of-type(1) > header:nth-of-type(1) > nav:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1) \"Open Menu\" changes no navigation links. Wire it to a working disclosure."
+      },
+      {
+        "rule": "nav.unreachable",
+        "message": "5 nav link(s) reachable at 1440px are gone at 768px: #features, #solution, #pricing, #about, #login. Add a working disclosure or keep the links in the bar.",
+        "count": 5,
+        "samples": [
+          "#features",
+          "#solution",
+          "#pricing",
+          "#about",
+          "#login"
+        ],
+        "severity": "fail"
+      }
+    ]
+  },
+  {
+    "viewport": "390x844",
+    "files": [
+      "apps/web/previews/folio-before/390x844.png",
+      "apps/web/previews/folio-before/390x844-full.png"
+    ],
+    "problems": [
+      "Failed to load: http://localhost:3001/api/auth/refresh",
+      "console.error: Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "Text under 12px: <span.text-[9px].font-medium> \"HR & SMART SHIFT AI\" 9px; <span.truncate.font-medium> \"Q3 revenue review\" 11px; <button.flex.items-center> \"Stock Analysis\" 11px; <button.flex.items-center> \"Query builder\" 11px; <button.flex.items-center> \"Export CSV\" 11px; <span.ml-1> \"Ticker\" 11px (+279 more)",
+      "Low contrast: <span.whitespace-nowrap.font-medium> \"Normal range\" 3.18:1 (needs 4.5); <span.inline-flex.shrink-0> \"Webhook\" 3.11:1 (needs 4.5); <p.overflow-hidden.text-ellipsis> \"Records the run for monthly reporting.\" 3.11:1 (needs 4.5); <span.overflow-hidden.text-ellipsis> \"Forecast Q2 revenue\" 2.10:1 (needs 4.5); <span.overflow-hidden.text-ellipsis> \"Audit data quality issues\" 2.10:1 (needs 4.5); <p.mt-1.text-muted-foreground> \"Built-in dashboards and revenue metrics\" 3.18:1 (needs 4.5) (+4 more)",
+      "Tap targets smaller than 44px in at least one dimension (effective region, not icon bounds): <a.flex.items-center> \"G GUTA WORKSPACE HR & SMART SHIFT AI\"; <a.inline-flex.shrink-0> \"Get Started\"; <a.inline-flex.shrink-0> \"Xem Phân Ca Tuần\"; <button.flex.items-center> \"Stock Analysis\"; <button.flex.items-center> \"Query builder\"; <button.flex.items-center> \"Export CSV\"",
+      "Buttons/links with no accessible name: <button.text-muted-foreground/70.transition-colors>; <button.text-muted-foreground/70.transition-colors>; <button.text-muted-foreground/70.transition-colors>; <button.text-muted-foreground/70.transition-colors>",
+      "Form fields without a label: <input#login-email.w-full.rounded-lg>; <input.w-full.rounded-lg>",
+      "Overlapping text: <span.ml-1.inline-flex> \"AI\" × <div.flex.items-center> \"Market Cap AI\"; <span.truncate.font-medium> \"DIS\" × <p.mb-8.text-center> \"MẠNG LƯỚI ĐỐI TÁC CHUỖI F&B ĐỒNG HÀNH VẬ\"; <span.truncate> \"Entertainment\" × <p.mb-8.text-center> \"MẠNG LƯỚI ĐỐI TÁC CHUỖI F&B ĐỒNG HÀNH VẬ\"; <span.shrink-0.truncate> \"Streaming Subs\" × <p.mb-8.text-center> \"MẠNG LƯỚI ĐỐI TÁC CHUỖI F&B ĐỒNG HÀNH VẬ\"; <span.shrink-0.truncate> \"Parks Revenue\" × <span.inline-flex.items-center> \"Bearish\"",
+      "17 different font sizes (3, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 18, 20, 30, 36, 48). Use a tighter type scale.",
+      "Nav toggle #root > div:nth-of-type(1) > header:nth-of-type(1) > nav:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1) \"Open Menu\" changes no navigation links. Wire it to a working disclosure.",
+      "5 nav link(s) reachable at 1440px are gone at 390px: #features, #solution, #pricing, #about, #login. Add a working disclosure or keep the links in the bar."
+    ],
+    "warnings": [
+      "Ragged CTA group — <a.inline-flex.shrink-0> \"Get Started\" + <a.inline-flex.shrink-0> \"Xem Phân Ca Tuần\" render at 108px / 160px, neither stacked equal-width nor full-width + text link. Make both width:100% or keep one button.",
+      "Images far larger than their rendered box with no srcset: dashboard-bg.jpg 2000→540px; dashboard-bg.jpg 2000→380px. Add srcset/sizes or a smaller asset."
+    ],
+    "issues": [
+      {
+        "rule": "runtime",
+        "message": "Failed to load: http://localhost:3001/api/auth/refresh",
+        "count": 1,
+        "samples": []
+      },
+      {
+        "rule": "runtime",
+        "message": "console.error: Failed to load resource: net::ERR_CONNECTION_REFUSED",
+        "count": 1,
+        "samples": []
+      },
+      {
+        "rule": "tiny-text",
+        "message": "Text under 12px: <span.text-[9px].font-medium> \"HR & SMART SHIFT AI\" 9px; <span.truncate.font-medium> \"Q3 revenue review\" 11px; <button.flex.items-center> \"Stock Analysis\" 11px; <button.flex.items-center> \"Query builder\" 11px; <button.flex.items-center> \"Export CSV\" 11px; <span.ml-1> \"Ticker\" 11px (+279 more)",
+        "count": 285,
+        "samples": [
+          "<span.text-[9px].font-medium> \"HR & SMART SHIFT AI\" 9px",
+          "<span.truncate.font-medium> \"Q3 revenue review\" 11px",
+          "<button.flex.items-center> \"Stock Analysis\" 11px",
+          "<button.flex.items-center> \"Query builder\" 11px",
+          "<button.flex.items-center> \"Export CSV\" 11px",
+          "<span.ml-1> \"Ticker\" 11px",
+          "<div.flex.items-center> \"Sector\" 11px",
+          "<div.flex.items-center> \"Recent queries\" 11px",
+          "<div.flex.items-center> \"Sentiment AI\" 11px",
+          "<span.ml-1.inline-flex> \"AI\" 10px",
+          "<div.flex.items-center> \"Market Cap AI\" 11px",
+          "<span.ml-1.inline-flex> \"AI\" 10px",
+          "<div.flex.items-center> \"Signal\" 11px",
+          "<span.truncate.font-medium> \"AAPL\" 11px",
+          "<span.truncate> \"Technology\" 11px",
+          "<span.shrink-0.truncate> \"Revenue Trend\" 11px",
+          "<span.inline-flex.items-center> \"Bullish\" 11px",
+          "<span.inline-flex.items-center> \"$3.07T\" 11px",
+          "<span.inline-flex.items-center> \"Strong Buy\" 11px",
+          "<span.truncate.font-medium> \"MSFT\" 11px"
+        ],
+        "severity": "fail"
+      },
+      {
+        "rule": "low-contrast",
+        "message": "Low contrast: <span.whitespace-nowrap.font-medium> \"Normal range\" 3.18:1 (needs 4.5); <span.inline-flex.shrink-0> \"Webhook\" 3.11:1 (needs 4.5); <p.overflow-hidden.text-ellipsis> \"Records the run for monthly reporting.\" 3.11:1 (needs 4.5); <span.overflow-hidden.text-ellipsis> \"Forecast Q2 revenue\" 2.10:1 (needs 4.5); <span.overflow-hidden.text-ellipsis> \"Audit data quality issues\" 2.10:1 (needs 4.5); <p.mt-1.text-muted-foreground> \"Built-in dashboards and revenue metrics\" 3.18:1 (needs 4.5) (+4 more)",
+        "count": 10,
+        "samples": [
+          "<span.whitespace-nowrap.font-medium> \"Normal range\" 3.18:1 (needs 4.5)",
+          "<span.inline-flex.shrink-0> \"Webhook\" 3.11:1 (needs 4.5)",
+          "<p.overflow-hidden.text-ellipsis> \"Records the run for monthly reporting.\" 3.11:1 (needs 4.5)",
+          "<span.overflow-hidden.text-ellipsis> \"Forecast Q2 revenue\" 2.10:1 (needs 4.5)",
+          "<span.overflow-hidden.text-ellipsis> \"Audit data quality issues\" 2.10:1 (needs 4.5)",
+          "<p.mt-1.text-muted-foreground> \"Built-in dashboards and revenue metrics\" 3.18:1 (needs 4.5)",
+          "<p.mt-1.text-muted-foreground> \"Track every scheduled query end-to-end\" 3.18:1 (needs 4.5)",
+          "<p.mt-1.text-muted-foreground> \"Map schemas and define relationships\" 3.18:1 (needs 4.5)",
+          "<span.font-medium.text-[#242629]> \"Basepoint x Stripe\" 2.47:1 (needs 4.5)",
+          "<span.font-medium.text-[#242629]> \"Ashley & Martin\" 2.47:1 (needs 4.5)"
+        ],
+        "severity": "fail"
+      },
+      {
+        "rule": "tap-target",
+        "message": "Tap targets smaller than 44px in at least one dimension (effective region, not icon bounds): <a.flex.items-center> \"G GUTA WORKSPACE HR & SMART SHIFT AI\"; <a.inline-flex.shrink-0> \"Get Started\"; <a.inline-flex.shrink-0> \"Xem Phân Ca Tuần\"; <button.flex.items-center> \"Stock Analysis\"; <button.flex.items-center> \"Query builder\"; <button.flex.items-center> \"Export CSV\"",
+        "count": 6,
+        "samples": [
+          "<a.flex.items-center> \"G GUTA WORKSPACE HR & SMART SHIFT AI\"",
+          "<a.inline-flex.shrink-0> \"Get Started\"",
+          "<a.inline-flex.shrink-0> \"Xem Phân Ca Tuần\"",
+          "<button.flex.items-center> \"Stock Analysis\"",
+          "<button.flex.items-center> \"Query builder\"",
+          "<button.flex.items-center> \"Export CSV\""
+        ],
+        "severity": "fail",
+        "sels": [
+          "a.flex.items-center",
+          "a.inline-flex.shrink-0",
+          "a.inline-flex.shrink-0",
+          "button.flex.items-center",
+          "button.flex.items-center",
+          "button.flex.items-center"
+        ]
+      },
+      {
+        "rule": "unlabeled-control",
+        "message": "Buttons/links with no accessible name: <button.text-muted-foreground/70.transition-colors>; <button.text-muted-foreground/70.transition-colors>; <button.text-muted-foreground/70.transition-colors>; <button.text-muted-foreground/70.transition-colors>",
+        "count": 4,
+        "samples": [
+          "<button.text-muted-foreground/70.transition-colors>",
+          "<button.text-muted-foreground/70.transition-colors>",
+          "<button.text-muted-foreground/70.transition-colors>",
+          "<button.text-muted-foreground/70.transition-colors>"
+        ],
+        "severity": "fail",
+        "sels": [
+          "button.text-muted-foreground\\/70.transition-colors",
+          "button.text-muted-foreground\\/70.transition-colors",
+          "button.text-muted-foreground\\/70.transition-colors",
+          "button.text-muted-foreground\\/70.transition-colors"
+        ]
+      },
+      {
+        "rule": "field-label",
+        "message": "Form fields without a label: <input#login-email.w-full.rounded-lg>; <input.w-full.rounded-lg>",
+        "count": 2,
+        "samples": [
+          "<input#login-email.w-full.rounded-lg>",
+          "<input.w-full.rounded-lg>"
+        ],
+        "severity": "fail",
+        "sels": [
+          "#login-email",
+          "input.w-full.rounded-lg"
+        ]
+      },
+      {
+        "rule": "overlap",
+        "message": "Overlapping text: <span.ml-1.inline-flex> \"AI\" × <div.flex.items-center> \"Market Cap AI\"; <span.truncate.font-medium> \"DIS\" × <p.mb-8.text-center> \"MẠNG LƯỚI ĐỐI TÁC CHUỖI F&B ĐỒNG HÀNH VẬ\"; <span.truncate> \"Entertainment\" × <p.mb-8.text-center> \"MẠNG LƯỚI ĐỐI TÁC CHUỖI F&B ĐỒNG HÀNH VẬ\"; <span.shrink-0.truncate> \"Streaming Subs\" × <p.mb-8.text-center> \"MẠNG LƯỚI ĐỐI TÁC CHUỖI F&B ĐỒNG HÀNH VẬ\"; <span.shrink-0.truncate> \"Parks Revenue\" × <span.inline-flex.items-center> \"Bearish\"",
+        "count": 5,
+        "samples": [
+          "<span.ml-1.inline-flex> \"AI\" × <div.flex.items-center> \"Market Cap AI\"",
+          "<span.truncate.font-medium> \"DIS\" × <p.mb-8.text-center> \"MẠNG LƯỚI ĐỐI TÁC CHUỖI F&B ĐỒNG HÀNH VẬ\"",
+          "<span.truncate> \"Entertainment\" × <p.mb-8.text-center> \"MẠNG LƯỚI ĐỐI TÁC CHUỖI F&B ĐỒNG HÀNH VẬ\"",
+          "<span.shrink-0.truncate> \"Streaming Subs\" × <p.mb-8.text-center> \"MẠNG LƯỚI ĐỐI TÁC CHUỖI F&B ĐỒNG HÀNH VẬ\"",
+          "<span.shrink-0.truncate> \"Parks Revenue\" × <span.inline-flex.items-center> \"Bearish\""
+        ],
+        "severity": "fail"
+      },
+      {
+        "rule": "cta.ragged",
+        "message": "Ragged CTA group — <a.inline-flex.shrink-0> \"Get Started\" + <a.inline-flex.shrink-0> \"Xem Phân Ca Tuần\" render at 108px / 160px, neither stacked equal-width nor full-width + text link. Make both width:100% or keep one button.",
+        "count": 1,
+        "samples": [
+          "<a.inline-flex.shrink-0> \"Get Started\"",
+          "<a.inline-flex.shrink-0> \"Xem Phân Ca Tuần\""
+        ],
+        "severity": "warn",
+        "sels": [
+          "a.inline-flex.shrink-0",
+          "a.inline-flex.shrink-0"
+        ]
+      },
+      {
+        "rule": "image.oversize",
+        "message": "Images far larger than their rendered box with no srcset: dashboard-bg.jpg 2000→540px; dashboard-bg.jpg 2000→380px. Add srcset/sizes or a smaller asset.",
+        "count": 2,
+        "samples": [
+          "dashboard-bg.jpg",
+          "dashboard-bg.jpg"
+        ],
+        "severity": "warn",
+        "sels": [
+          "img.size-full.object-cover",
+          "img.object-cover"
+        ]
+      },
+      {
+        "rule": "type-scale",
+        "message": "17 different font sizes (3, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 18, 20, 30, 36, 48). Use a tighter type scale.",
+        "count": 17,
+        "samples": [],
+        "severity": "fail"
+      },
+      {
+        "rule": "nav.dead-toggle",
+        "severity": "fail",
+        "count": 1,
+        "samples": [
+          "#root > div:nth-of-type(1) > header:nth-of-type(1) > nav:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)"
+        ],
+        "sels": [
+          "#root > div:nth-of-type(1) > header:nth-of-type(1) > nav:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)"
+        ],
+        "message": "Nav toggle #root > div:nth-of-type(1) > header:nth-of-type(1) > nav:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1) \"Open Menu\" changes no navigation links. Wire it to a working disclosure."
+      },
+      {
+        "rule": "nav.unreachable",
+        "message": "5 nav link(s) reachable at 1440px are gone at 390px: #features, #solution, #pricing, #about, #login. Add a working disclosure or keep the links in the bar.",
+        "count": 5,
+        "samples": [
+          "#features",
+          "#solution",
+          "#pricing",
+          "#about",
+          "#login"
+        ],
+        "severity": "fail"
+      }
+    ]
+  }
+]

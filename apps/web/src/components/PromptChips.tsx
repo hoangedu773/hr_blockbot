@@ -55,9 +55,9 @@ export const PromptChips: React.FC<PromptChipsProps> = ({ onSelectPrompt }) => {
             flexShrink: 0,
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(255, 209, 0, 0.08)';
-            e.currentTarget.style.color = 'var(--guta-yellow)';
-            e.currentTarget.style.borderColor = 'rgba(255, 209, 0, 0.3)';
+            e.currentTarget.style.background = 'rgba(37, 99, 235, 0.08)';
+            e.currentTarget.style.color = 'var(--accent-primary)';
+            e.currentTarget.style.borderColor = 'rgba(37, 99, 235, 0.3)';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';

@@ -1,0 +1,81 @@
+[
+  {
+    "viewport": "375x812",
+    "screenshot": "C:\\work-space\\hr-blockbot\\apps\\web\\previews\\audit-h1\\375x812.png",
+    "outline": [
+      "div.relative.flex \"G GUTA WORKSPACE HR & SMART SHIFT AI F&B\" @ x0 y0 365x7580",
+      "  header \"G GUTA WORKSPACE HR & SMART SHIFT AI\" @ x0 y0 365x69",
+      "    nav.fixed.z-20 \"G GUTA WORKSPACE HR & SMART SHIFT AI\" @ x0 y0 365x69",
+      "      div.mx-auto.mt-2 \"G GUTA WORKSPACE HR & SMART SHIFT AI\" @ x8 y0 349x68",
+      "  main.flex.min-h-screen \"F&B Workforce Intelligence — Next-Ge @ x0 y69 365x7244",
+      "    div.min-h-screen \"F&B Workforce Intelligence — Next-Gen HR\" @ x0 y69 365x7244",
+      "      main.relative.z-10 \"F&B Workforce Intelligence — Next-Gen HR @ x0 y69 365x1475",
+      "      section.py-14.sm:py-20 \"PHẠM VI NGHIỆP VỤ Hồ sơ nhân sự Vòng @ x0 y1544 365x303",
+      "      section#features.py-16.sm:py-20 \"TỪ DỮ LIỆU ĐẾN QUYẾT ĐỊNH B @ x0 y1847 365x1423",
+      "      section#solution.py-20.md:py-28 \"MỘT VÒNG VIỆC, HAI CỬA VÀO  @ x0 y3270 365x1338",
+      "      section#product.py-20.md:py-28 \"AI CÓ VAI TRÒ CỤ THỂ Gợi ý c @ x0 y4608 365x1123",
+      "      section#about.py-20.md:py-28 \"THIẾT KẾ ĐỂ KIỂM TRA ĐƯỢC Khôn @ x0 y5731 365x904",
+      "      section#questions.bg-background.py-16 \"TRƯỚC KHI TRẢI NGHIỆM @ x0 y6635 365x678",
+      "  footer.relative.mt-12 \"GUTA WORKSPACE · HR BlockBot Dự án KL @ x0 y7361 365x219",
+      "    div.guta-container.guta-footer \"GUTA WORKSPACE · HR BlockBot @ x0 y7361 365x219",
+      "      p \"Dự án KLCN133 · Chatbot chuyển đổi số qu\" @ x16 y7438 333x42",
+      "      a \"Phạm vi & câu hỏi\" @ x16 y7496 333x44"
+    ],
+    "findings": [
+      {
+        "severity": "error",
+        "type": "runtime-error",
+        "target": "",
+        "message": "Failed to load resource: the server responded with a status of 404 (Not Found) (http://127.0.0.1:5173/favicon.ico)"
+      }
+    ],
+    "height": 7580
+  },
+  {
+    "viewport": "768x1024",
+    "screenshot": "C:\\work-space\\hr-blockbot\\apps\\web\\previews\\audit-h1\\768x1024.png",
+    "outline": [
+      "div.relative.flex \"G GUTA WORKSPACE HR & SMART SHIFT AI F&B\" @ x0 y0 758x5895",
+      "  header \"G GUTA WORKSPACE HR & SMART SHIFT AI\" @ x0 y0 758x69",
+      "    nav.fixed.z-20 \"G GUTA WORKSPACE HR & SMART SHIFT AI\" @ x0 y0 758x69",
+      "      div.mx-auto.mt-2 \"G GUTA WORKSPACE HR & SMART SHIFT AI\" @ x8 y0 742x68",
+      "  main.flex.min-h-screen \"F&B Workforce Intelligence — Next-Ge @ x0 y69 758x5580",
+      "    div.min-h-screen \"F&B Workforce Intelligence — Next-Gen HR\" @ x0 y69 758x5580",
+      "      main.relative.z-10 \"F&B Workforce Intelligence — Next-Gen HR @ x0 y69 758x1345",
+      "      section.py-14.sm:py-20 \"PHẠM VI NGHIỆP VỤ Hồ sơ nhân sự Vòng @ x0 y1414 758x278",
+      "      section#features.py-16.sm:py-20 \"TỪ DỮ LIỆU ĐẾN QUYẾT ĐỊNH B @ x0 y1692 758x1047",
+      "      section#solution.py-20.md:py-28 \"MỘT VÒNG VIỆC, HAI CỬA VÀO  @ x0 y2739 758x824",
+      "      section#product.py-20.md:py-28 \"AI CÓ VAI TRÒ CỤ THỂ Gợi ý c @ x0 y3563 758x709",
+      "      section#about.py-20.md:py-28 \"THIẾT KẾ ĐỂ KIỂM TRA ĐƯỢC Khôn @ x0 y4272 758x690",
+      "      section#questions.bg-background.py-16 \"TRƯỚC KHI TRẢI NGHIỆM @ x0 y4962 758x687",
+      "  footer.relative.mt-12 \"GUTA WORKSPACE · HR BlockBot Dự án KL @ x0 y5697 758x198",
+      "    div.guta-container.guta-footer \"GUTA WORKSPACE · HR BlockBot @ x0 y5697 758x198"
+    ],
+    "findings": [],
+    "height": 5895
+  },
+  {
+    "viewport": "1440x900",
+    "screenshot": "C:\\work-space\\hr-blockbot\\apps\\web\\previews\\audit-h1\\1440x900.png",
+    "outline": [
+      "div.relative.flex \"G GUTA WORKSPACE HR & SMART SHIFT AI Ngh\" @ x0 y0 1430x5205",
+      "  header \"G GUTA WORKSPACE HR & SMART SHIFT AI Ngh\" @ x0 y0 1430x77",
+      "    nav.fixed.z-20 \"G GUTA WORKSPACE HR & SMART SHIFT AI Ngh\" @ x0 y0 1430x77",
+      "      div.mx-auto.mt-2 \"G GUTA WORKSPACE HR & SMART SHIFT AI Ngh\" @ x80 y0 1270x76",
+      "  main.flex.min-h-screen \"F&B Workforce Intelligence — Next-Ge @ x0 y77 1430x4882",
+      "    div.min-h-screen \"F&B Workforce Intelligence — Next-Gen HR\" @ x0 y77 1430x4882",
+      "      main.relative.z-10 \"F&B Workforce Intelligence — Next-Gen HR @ x0 y77 1430x1446",
+      "      section.py-14.sm:py-20 \"PHẠM VI NGHIỆP VỤ Hồ sơ nhân sự Vòng @ x0 y1523 1430x220",
+      "      section#features.py-16.sm:py-20 \"TỪ DỮ LIỆU ĐẾN QUYẾT ĐỊNH B @ x0 y1743 1430x634",
+      "      section#solution.py-20.md:py-28 \"MỘT VÒNG VIỆC, HAI CỬA VÀO  @ x0 y2376 1430x777",
+      "      section#product.py-20.md:py-28 \"AI CÓ VAI TRÒ CỤ THỂ Gợi ý c @ x0 y3153 1430x634",
+      "      section#about.py-20.md:py-28 \"THIẾT KẾ ĐỂ KIỂM TRA ĐƯỢC Khôn @ x0 y3788 1430x484",
+      "      section#questions.bg-background.py-16 \"TRƯỚC KHI TRẢI NGHIỆM @ x0 y4272 1430x687",
+      "  footer.relative.mt-12 \"GUTA WORKSPACE · HR BlockBot Dự án KL @ x0 y5007 1430x198",
+      "    div.guta-container.guta-footer \"GUTA WORKSPACE · HR BlockBot @ x80 y5007 1270x198",
+      "      a \"Phạm vi & câu hỏi\" @ x104 y5121 1222x44"
+    ],
+    "findings": [],
+    "height": 5205
+  }
+]

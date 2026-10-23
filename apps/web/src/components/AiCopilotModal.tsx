@@ -75,9 +75,9 @@ export const AiCopilotModal: React.FC<AiCopilotModalProps> = ({
                   style={{
                     fontSize: '10px',
                     fontFamily: 'var(--mono)',
-                    color: 'var(--guta-yellow)',
-                    background: 'rgba(255, 209, 0, 0.12)',
-                    border: '1px solid rgba(255, 209, 0, 0.3)',
+                    color: 'var(--accent-primary)',
+                    background: 'rgba(37, 99, 235, 0.12)',
+                    border: '1px solid rgba(37, 99, 235, 0.3)',
                     padding: '1px 6px',
                     borderRadius: '4px',
                   }}

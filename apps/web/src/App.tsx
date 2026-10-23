@@ -1,47 +1,51 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './context/AuthContext';
-import { Sidebar } from './components/Sidebar';
-import { Header } from './components/Header';
-import { MobileBottomNav } from './components/MobileBottomNav';
-import { ToastContainer, type NotifyFn, type ToastMessage } from './components/Toast';
-import { LoginModal } from './components/LoginModal';
-import { RosterView } from './components/RosterView';
-import { ProjectListView } from './components/ProjectListView';
-import { AdminSettingsView } from './components/AdminSettingsView';
-import { ChatPanel } from './components/ChatPanel';
-import { EmployeeProfileView } from './components/EmployeeProfileView';
+import { ToastContainer, type ToastMessage, type NotifyFn } from './components/Toast';
+import { FolioLandingView } from './components/FolioLandingView';
+import { CrmDashboardView } from './components/CrmDashboardView';
+import { ChatDrawer } from './components/chat/ChatDrawer';
 
-interface ViewMeta {
-  title: string;
-  subtitle: string;
+interface LocalUser {
+  role: 'SM' | 'AOM' | 'Admin';
+  name: string;
+  scope: string;
 }
 
-const VIEW_META: Record<string, ViewMeta> = {
-  employees: {
-    title: 'Hồ Sơ Nhân Sự',
-    subtitle: 'F1 · allowlist DTO, phạm vi phòng ban theo JWT, hàng đợi duyệt field nhạy cảm',
+const ROLE_PROFILES: Record<'SM' | 'AOM' | 'Admin', LocalUser> = {
+  SM: {
+    role: 'SM',
+    name: 'Nguyễn Thị Phương Anh',
+    scope: 'Tân Bình - 02 Đặng Văn Sâm',
   },
-  projects: {
-    title: 'Vòng Đời Đề Tài',
-    subtitle: 'F2 · DRAFT → ASSIGNED → IN_PROGRESS → PENDING_REVIEW → COMPLETED',
+  AOM: {
+    role: 'AOM',
+    name: 'Nguyễn Cao Thanh Trầm',
+    scope: 'Khu vực Q1/Q3/Q10 (18 Chi nhánh)',
   },
-  chat: {
-    title: 'Trợ Lý Chính Sách',
-    subtitle: 'F3 · RAG có trích dẫn, từ chối khi thiếu bằng chứng, confirm trước khi ghi',
-  },
-  settings: {
-    title: 'Cấu Hình LLM Provider',
-    subtitle: 'ADR-017 · key mã hoá một chiều, client chỉ nhận keyHint',
-  },
-  profile: {
-    title: 'Hồ Sơ Của Tôi',
-    subtitle: 'F1 · own scope, thông tin thường sửa trực tiếp, field nhạy cảm qua duyệt',
+  Admin: {
+    role: 'Admin',
+    name: 'Ban Điều Hành Guta',
+    scope: 'Toàn bộ 45 Chi nhánh TP.HCM',
   },
 };
 
 export const AppContent: React.FC = () => {
-  const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth();
-  const [activeNav, setActiveNav] = useState<string>('employees');
+  const { user: authUser, logout: authLogout } = useAuth();
+  const [localUser, setLocalUser] = useState<LocalUser | null>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('guta_user');
+      if (saved) {
+        try {
+          return JSON.parse(saved) as LocalUser;
+        } catch {
+          return null;
+        }
+      }
+    }
+    return null;
+  });
+
+  const [isChatDrawerOpen, setIsChatDrawerOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   const addToast = useCallback<NotifyFn>((message, type = 'info', title) => {
@@ -53,86 +57,85 @@ export const AppContent: React.FC = () => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
   }, []);
 
+  // Dynamic stylesheet switching according to route / localUser view
   useEffect(() => {
-    setActiveNav(user?.role === 'Employee' ? 'profile' : 'employees');
-  }, [user?.role]);
-
-  if (authLoading) {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          width: '100%',
-          height: '100dvh',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'var(--bg)',
-          color: 'var(--text-muted)',
-        }}
-      >
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '18px', fontWeight: 700, color: '#f8fafc', marginBottom: '8px' }}>GUTA CAFE HR BLOCKBOT</div>
-          <p style={{ fontSize: '12px', fontFamily: 'var(--mono)' }}>Đang kiểm tra phiên làm việc…</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated || !user) {
-    return (
-      <div style={{ width: '100%', height: '100dvh', background: 'var(--bg)' }}>
-        <LoginModal isOpen={true} />
-        <ToastContainer toasts={toasts} onDismiss={removeToast} />
-      </div>
-    );
-  }
-
-  const isAdmin = user.role === 'Admin';
-  const availableNav = isAdmin
-    ? ['employees', 'projects', 'chat', 'settings']
-    : ['profile', 'projects', 'chat'];
-  const nav = availableNav.includes(activeNav) ? activeNav : availableNav[0];
-  const meta = VIEW_META[nav] ?? VIEW_META.employees;
-
-  const renderView = () => {
-    switch (nav) {
-      case 'employees':
-        return isAdmin ? <RosterView onNotify={addToast} /> : <EmployeeProfileView onLogout={logout} onNotify={addToast} />;
-      case 'profile':
-        return <EmployeeProfileView onLogout={logout} onNotify={addToast} />;
-      case 'projects':
-        return <ProjectListView onNotify={addToast} />;
-      case 'chat':
-        return <ChatPanel />;
-      case 'settings':
-        return isAdmin ? <AdminSettingsView onNotify={addToast} /> : <div className="empty">403 — RBAC_DENIED</div>;
-      default:
-        return null;
+    let link = document.getElementById('theme-css') as HTMLLinkElement | null;
+    if (!link) {
+      link = document.createElement('link');
+      link.id = 'theme-css';
+      link.rel = 'stylesheet';
+      document.head.appendChild(link);
     }
+    const targetHref = localUser ? '/assets/crm/2voh1gse7971r.css' : '/assets/folio/folio.css';
+    if (link.getAttribute('href') !== targetHref) {
+      link.setAttribute('href', targetHref);
+    }
+  }, [localUser]);
+
+  // Sync if context authUser changes
+  useEffect(() => {
+    if (authUser && !localUser) {
+      const role = authUser.role === 'Admin' ? 'Admin' : 'SM';
+      const profile = ROLE_PROFILES[role];
+      setLocalUser(profile);
+      localStorage.setItem('guta_user', JSON.stringify(profile));
+    }
+  }, [authUser, localUser]);
+
+  const handleSelectRole = (role: 'SM' | 'AOM' | 'Admin') => {
+    const profile = ROLE_PROFILES[role];
+    setLocalUser(profile);
+    localStorage.setItem('guta_user', JSON.stringify(profile));
+    addToast(`Đăng nhập thành công với vai trò ${profile.name} (${role})`, 'success', 'Xác thực thành công');
   };
 
+  const handleLogout = async () => {
+    setLocalUser(null);
+    localStorage.removeItem('guta_user');
+    setIsChatDrawerOpen(false);
+    try {
+      await authLogout();
+    } catch {
+      // Ignore if offline
+    }
+    addToast('Đã đăng xuất phiên làm việc an toàn.', 'info');
+  };
+
+  const handleSendTelegramAlert = (storeId: string) => {
+    addToast(
+      `Đã gửi cảnh báo khẩn cấp tới Telegram Bot của Cửa hàng trưởng chi nhánh [${storeId}]!`,
+      'success',
+      'Telegram Bot Dispatch'
+    );
+  };
+
+  // 1. Unauthenticated: Render Folio Landing Page (Exact Ruixen UI Design)
+  if (!localUser) {
+    return (
+      <>
+        <FolioLandingView onLogin={handleSelectRole} />
+        <ToastContainer toasts={toasts} onDismiss={removeToast} />
+      </>
+    );
+  }
+
+  // 2. Authenticated: Render 21st CRM Dashboard (Exact 21st Design)
   return (
-    <div style={{ display: 'flex', width: '100%', height: '100dvh', overflow: 'hidden' }}>
-      <Sidebar role={user.role} activeNav={nav} onSelectNav={setActiveNav} />
-
-      <main>
-        <Header
-          title={meta.title}
-          subtitle={meta.subtitle}
-          user={user}
-          onLogout={() => {
-            void logout();
-            addToast('Đã đăng xuất và xoá access token khỏi bộ nhớ.', 'info');
-          }}
-        />
-
-        <div className="content-body">{renderView()}</div>
-      </main>
-
-      <MobileBottomNav role={user.role} activeTab={nav} onSelectTab={setActiveNav} />
-
+    <>
+      <CrmDashboardView
+        userName={localUser.name}
+        userRole={localUser.role}
+        userScope={localUser.scope}
+        onLogout={handleLogout}
+        onTelegramAlert={handleSendTelegramAlert}
+        onOpenAiCopilot={() => setIsChatDrawerOpen(true)}
+      />
+      <ChatDrawer
+        isOpen={isChatDrawerOpen}
+        onClose={() => setIsChatDrawerOpen(false)}
+      />
       <ToastContainer toasts={toasts} onDismiss={removeToast} />
-    </div>
+    </>
   );
 };
 

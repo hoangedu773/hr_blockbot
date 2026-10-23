@@ -46,9 +46,9 @@ const ToastItem: React.FC<{ toast: ToastMessage; onDismiss: (id: string) => void
 
   const borderColor =
     toast.type === 'success' ? '#10b981' :
-    toast.type === 'warning' ? '#f59e0b' :
+    toast.type === 'warning' ? '#3b82f6' :
     toast.type === 'error' ? '#ef4444' :
-    '#ffd100';
+    '#2563eb';
 
   return (
     <div style={{

@@ -64,8 +64,8 @@ export const AiCopilotBar: React.FC<AiCopilotBarProps> = ({ onSendMessage, isLoa
         onClick={handleSend}
         disabled={isLoading}
         style={{
-          background: 'var(--guta-yellow)',
-          color: '#07090e',
+          background: 'var(--accent-primary)',
+          color: '#ffffff',
           border: 'none',
           padding: '6px 14px',
           borderRadius: '5px',

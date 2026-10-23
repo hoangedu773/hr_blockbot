@@ -74,7 +74,7 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle, user, onLogout 
               style={{
                 fontFamily: 'var(--mono)',
                 fontWeight: 700,
-                color: user.role === 'Admin' ? 'var(--guta-yellow)' : '#7dd3fc',
+                color: user.role === 'Admin' ? 'var(--accent-primary)' : '#7dd3fc',
               }}
             >
               {user.role}

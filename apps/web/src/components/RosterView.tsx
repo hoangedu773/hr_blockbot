@@ -307,7 +307,7 @@ export const RosterView: React.FC<RosterViewProps> = ({ onNotify }) => {
                           <div style={{ fontWeight: 600, color: '#f8fafc' }}>{employee.fullName}</div>
                           <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{employee.employeeId}</div>
                         </td>
-                        <td style={{ color: 'var(--guta-yellow)', fontWeight: 600 }}>{employee.level}</td>
+                        <td style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>{employee.level}</td>
                         <td style={{ color: 'var(--text-muted)' }}>{employee.department}</td>
                         <td>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>

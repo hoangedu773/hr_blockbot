@@ -165,7 +165,7 @@ export const TwoColumnGrid: React.FC<TwoColumnGridProps> = ({
                     background: 'rgba(10, 13, 20, 0.8)',
                     padding: '8px 12px',
                     borderRadius: '5px',
-                    borderLeft: '3px solid var(--guta-yellow)',
+                    borderLeft: '3px solid var(--accent-primary)',
                   }}
                 >
                   "{item.note}"
@@ -178,8 +178,8 @@ export const TwoColumnGrid: React.FC<TwoColumnGridProps> = ({
                     style={{
                       minHeight: '28px',
                       padding: '3px 12px',
-                      background: item.status === 'APPROVED' ? '#065f46' : 'var(--guta-yellow)',
-                      color: item.status === 'APPROVED' ? '#a7f3d0' : '#07090e',
+                      background: item.status === 'APPROVED' ? '#065f46' : 'var(--accent-primary)',
+                      color: item.status === 'APPROVED' ? '#a7f3d0' : '#ffffff',
                       border: 'none',
                       borderRadius: '4px',
                       cursor: item.status === 'APPROVED' ? 'default' : 'pointer',

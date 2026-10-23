@@ -182,7 +182,7 @@ export const EmployeeProfileView: React.FC<EmployeeProfileViewProps> = ({ onLogo
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
         <div className="card card--pad" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ fontSize: '12px', fontWeight: 700, color: 'var(--guta-yellow)', textTransform: 'uppercase' }}>Thông tin cơ bản</h3>
+            <h3 style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-primary)', textTransform: 'uppercase' }}>Thông tin cơ bản</h3>
             {!isEditingRegular && (
               <button type="button" className="btn btn--sm" onClick={() => setIsEditingRegular(true)}>
                 Sửa
@@ -238,7 +238,7 @@ export const EmployeeProfileView: React.FC<EmployeeProfileViewProps> = ({ onLogo
         </div>
 
         <div className="card card--pad" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <h3 style={{ fontSize: '12px', fontWeight: 700, color: 'var(--guta-yellow)', textTransform: 'uppercase' }}>
+          <h3 style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-primary)', textTransform: 'uppercase' }}>
             Yêu cầu đổi thông tin nhạy cảm
           </h3>
           <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>

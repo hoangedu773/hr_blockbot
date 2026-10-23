@@ -1,0 +1,1111 @@
+:root {
+  --font-geist-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-geist-mono: "Geist Mono", "Courier New", monospace;
+}
+/* Folio DESIGN.md & 21st-CRM dashboard-DESIGN.md */
+
+/* 1. Theme Tokens: Light (default) & Dark */
+:root {
+  --folio-canvas: #fafafa;
+  --folio-surface: #ffffff;
+  --folio-surface-raised: #f0f2f5;
+  --folio-ink: #12161c;
+  --folio-muted: #667085;
+  --folio-border: #e4e7ec;
+  --folio-accent: #2563eb;
+  --folio-card-bg: #ffffff;
+  --folio-space: 8px;
+  --folio-section: 64px;
+  --folio-width: 1270px;
+  --folio-display: "Tiempos Headline", "Newsreader", Georgia, "Times New Roman", serif;
+  --folio-body: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --folio-mono: "Geist Mono", "Courier New", monospace;
+  --folio-pill: 9999px;
+  --folio-heading: 36px;
+
+  /* 21st-CRM Light Theme Tokens (from dashboard-DESIGN.md) */
+  --crm-bg: #ffffff;
+  --crm-surface: #f7f7f7;
+  --crm-raised: #eeeeee;
+  --crm-border: #e2e2e2;
+  --crm-text: #111111;
+  --crm-muted: #646464;
+  --crm-accent: #111111;
+  --crm-accent-fg: #ffffff;
+  --crm-shadow: rgba(0, 0, 0, 0.05) 0px 1px 2px 0px;
+  --crm-pill-gray-bg: #eaeaea;
+  --crm-pill-gray-text: #444444;
+  --crm-pill-blue-bg: #e8f0fe;
+  --crm-pill-blue-text: #1a73e8;
+  --crm-pill-green-bg: #e6f4ea;
+  --crm-pill-green-text: #137333;
+  --crm-pill-amber-bg: #fef7e0;
+  --crm-pill-amber-text: #b06000;
+  --crm-pill-purple-bg: #f3e8fd;
+  --crm-pill-purple-text: #7627bb;
+}
+
+html.dark {
+  --folio-canvas: #121212;
+  --folio-surface: #181818;
+  --folio-surface-raised: #242424;
+  --folio-ink: #fafafa;
+  --folio-muted: #9b9b9b;
+  --folio-border: #2e2e2e;
+  --folio-accent: #266df0;
+  --folio-card-bg: #181818;
+
+  /* 21st-CRM Dark Theme Tokens (from dashboard-DESIGN.md) */
+  --crm-bg: #0f0f10;
+  --crm-surface: #1d1d1e;
+  --crm-raised: #29292a;
+  --crm-border: #353536;
+  --crm-text: #f5f5f5;
+  --crm-muted: #9e9e9e;
+  --crm-accent: #818181;
+  --crm-accent-fg: #0b0b0c;
+  --crm-shadow: rgba(0, 0, 0, 0.3) 0px 1px 2px 0px;
+  --crm-pill-gray-bg: #262628;
+  --crm-pill-gray-text: #cccccc;
+  --crm-pill-blue-bg: #1a2840;
+  --crm-pill-blue-text: #8ab4f8;
+  --crm-pill-green-bg: #153321;
+  --crm-pill-green-text: #81c995;
+  --crm-pill-amber-bg: #382b14;
+  --crm-pill-amber-text: #fdd663;
+  --crm-pill-purple-bg: #2e1b44;
+  --crm-pill-purple-text: #d7aefb;
+}
+
+/* 2. Base Container & Typography Rules (Fixes Vietnamese "vỡ chữ") */
+.folio-preview,
+.folio-preview.bg-background,
+.folio-preview section.bg-background {
+  color: var(--folio-ink) !important;
+  background-color: var(--folio-canvas) !important;
+  font-family: var(--folio-body);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.folio-preview :is(h1, h2) {
+  font-family: var(--folio-display);
+  font-style: normal;
+  line-height: 1.25; /* Fixed line height for Vietnamese diacritics */
+  letter-spacing: -0.015em; /* Avoid letter collision in Vietnamese */
+  overflow: visible;
+  text-wrap: balance;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.folio-preview h1 {
+  font-size: var(--folio-heading);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+@media (min-width: 768px) {
+  .folio-preview { --folio-heading: 48px; }
+}
+
+@media (min-width: 1024px) {
+  .folio-preview { --folio-heading: 60px; }
+  .folio-preview h1 { letter-spacing: -0.02em; }
+}
+
+.folio-preview h2 {
+  font-family: var(--folio-display);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  font-size: 28px;
+}
+
+@media (min-width: 768px) {
+  .folio-preview h2 { font-size: 32px; }
+}
+
+@media (min-width: 1024px) {
+  .folio-preview h2 { font-size: 36px; }
+}
+
+/* 3. Header & Navigation */
+.folio-preview > header nav {
+  position: relative;
+  background: var(--folio-canvas);
+  border-bottom: 1px solid var(--folio-border);
+  transition: background-color 0.2s ease;
+}
+
+.folio-preview > header nav > div {
+  max-width: var(--folio-width);
+  margin-top: 0;
+  padding-inline: calc(3 * var(--folio-space));
+}
+
+/* Theme Toggle Button */
+.folio-preview [data-theme-toggle] {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 32px !important;
+  width: 60px !important;
+  min-width: 60px !important;
+  max-width: 60px !important;
+  padding: 2px !important;
+  gap: 2px !important;
+  background: var(--folio-surface-raised) !important;
+  border: 1px solid var(--folio-border) !important;
+  border-radius: 9999px !important;
+  box-shadow: none !important;
+  box-sizing: border-box !important;
+  flex-shrink: 0;
+  vertical-align: middle;
+  align-self: center !important;
+}
+
+.folio-preview [data-theme-toggle] button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 26px !important;
+  height: 26px !important;
+  min-width: 26px !important;
+  min-height: 26px !important;
+  max-width: 26px !important;
+  max-height: 26px !important;
+  padding: 0 !important;
+  border-radius: 9999px !important;
+  color: var(--folio-muted) !important;
+  opacity: 0.55 !important;
+  cursor: pointer !important;
+  background: transparent !important;
+  border: none !important;
+  box-sizing: border-box !important;
+  transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease, box-shadow 0.15s ease;
+}
+
+.folio-preview [data-theme-toggle] button:hover {
+  opacity: 0.9 !important;
+  color: var(--folio-ink) !important;
+}
+
+.folio-preview [data-theme-toggle] button svg {
+  width: 14px !important;
+  height: 14px !important;
+  display: block !important;
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-width: 2 !important;
+  margin: auto !important;
+}
+
+html.dark .folio-preview [data-theme-toggle] button[aria-label="Dark theme"],
+html:not(.dark) .folio-preview [data-theme-toggle] button[aria-label="Light theme"] {
+  background: var(--folio-surface) !important;
+  color: var(--folio-ink) !important;
+  opacity: 1 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Center Navigation Links & Flow (Fixes text collision and ensures balanced spacing) */
+.folio-preview header nav div.relative.flex.flex-wrap {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+.folio-preview header nav div.absolute.inset-0 {
+  position: static !important;
+  inset: auto !important;
+  margin: 0 auto !important;
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .folio-preview header nav div.absolute.inset-0 {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex: 1 1 auto !important;
+  }
+
+  .folio-preview header nav div.absolute.inset-0 ul {
+    display: flex !important;
+    align-items: center !important;
+    gap: 1rem !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  .folio-preview header nav div.absolute.inset-0 ul {
+    gap: 2rem !important;
+  }
+}
+
+.folio-preview header nav div.flex.w-full.flex-col.gap-3.sm:flex-row.sm:items-center.lg:w-auto {
+  align-items: center !important;
+  gap: 8px !important;
+  flex-shrink: 0 !important;
+}
+
+.folio-preview header nav a[data-slot="button"] {
+  min-height: 32px !important;
+  height: 32px !important;
+  line-height: 32px !important;
+  padding-block: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.folio-preview :is(a[data-slot="button"], button[aria-label="Open Menu"]) {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.folio-preview :is(a, button, input):focus-visible {
+  outline: 2px solid var(--folio-accent);
+  outline-offset: 2px;
+}
+
+.folio-preview :is(a, button):active {
+  opacity: .85;
+}
+
+/* 4. Main Layout & Hero */
+.folio-preview > main .container {
+  max-width: var(--folio-width);
+  width: 100%;
+}
+
+.folio-preview > main > div > main > section > .container > div > div:first-child {
+  padding-top: var(--folio-section);
+  padding-bottom: var(--folio-section);
+}
+
+.folio-preview > main > div > main > section h1 {
+  max-width: 960px;
+  margin-inline: auto;
+}
+
+.folio-preview > main > div > main > section h1 + div > p:first-child {
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--folio-muted);
+  max-width: 672px;
+  margin-inline: auto;
+  text-wrap: balance;
+}
+
+@media (min-width: 1024px) {
+  .folio-preview > main > div > main > section h1 + div > p:first-child {
+    font-size: 20px;
+  }
+}
+
+.folio-preview > main > div > main > section h1 + div > div {
+  gap: calc(2 * var(--folio-space));
+}
+
+.folio-preview > main > div > main > section h1 + div > div > a:first-child {
+  border-radius: var(--folio-pill);
+  background: var(--folio-ink);
+  color: var(--folio-canvas);
+}
+
+.folio-preview > main section:not(:first-child) {
+  padding-block: var(--folio-section);
+}
+
+/* 5. Scrollable Demo Container */
+.folio-preview .guta-demo-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  border: 1px solid var(--crm-border);
+  border-radius: 12px;
+  background: var(--crm-bg);
+  box-shadow: var(--crm-shadow);
+}
+
+.folio-preview .guta-demo-scroll + p {
+  padding: var(--folio-space) calc(2 * var(--folio-space));
+  font-size: 12px;
+  color: var(--folio-muted);
+}
+
+/* ========================================================
+   6. 21st-CRM Dashboard Styling (from dashboard-DESIGN.md)
+   ======================================================== */
+.crm-app {
+  min-width: 1160px;
+  background: var(--crm-bg);
+  color: var(--crm-text);
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.43;
+  text-align: left;
+}
+
+/* Topbar */
+.crm-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 52px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--crm-border);
+  background: var(--crm-surface);
+}
+
+.crm-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.crm-brand-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  background: var(--crm-accent);
+  color: var(--crm-accent-fg);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.crm-brand-meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.crm-brand-title {
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--crm-text);
+}
+
+.crm-brand-sub {
+  font-size: 11px;
+  color: var(--crm-muted);
+}
+
+.crm-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 12px;
+  width: 320px;
+  background: var(--crm-bg);
+  border: 1px solid var(--crm-border);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--crm-muted);
+}
+
+.crm-search-bar kbd {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  border: 1px solid var(--crm-border);
+  background: var(--crm-surface);
+}
+
+.crm-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.crm-role-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--crm-raised);
+  color: var(--crm-text);
+  border: 1px solid var(--crm-border);
+}
+
+.crm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.crm-btn-outline {
+  border-color: var(--crm-border);
+  background: var(--crm-bg);
+  color: var(--crm-text);
+}
+
+.crm-btn-primary {
+  background: var(--crm-accent);
+  color: var(--crm-accent-fg);
+  border-color: var(--crm-accent);
+}
+
+/* Metric Ribbon */
+.crm-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid var(--crm-border);
+}
+
+.crm-metric-box {
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--crm-border);
+  background: var(--crm-surface);
+  box-shadow: var(--crm-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.crm-metric-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--crm-muted);
+}
+
+.crm-metric-value {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--crm-text);
+}
+
+.crm-metric-value small {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--crm-muted);
+}
+
+.crm-metric-foot {
+  font-size: 11px;
+  color: var(--crm-muted);
+  margin-top: 2px;
+}
+
+/* Status Tags */
+.crm-tag-neutral, .crm-tag-info, .crm-tag-warning, .crm-tag-success {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.crm-tag-neutral { background: var(--crm-pill-gray-bg); color: var(--crm-pill-gray-text); }
+.crm-tag-info { background: var(--crm-pill-blue-bg); color: var(--crm-pill-blue-text); }
+.crm-tag-warning { background: var(--crm-pill-amber-bg); color: var(--crm-pill-amber-text); }
+.crm-tag-success { background: var(--crm-pill-green-bg); color: var(--crm-pill-green-text); }
+
+/* Workspace Split */
+.crm-workspace-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 290px;
+  gap: 16px;
+  padding: 16px;
+  min-height: 480px;
+}
+
+/* 5-Stage Pipeline */
+.crm-pipeline-container {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.crm-stage-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--crm-surface);
+  border: 1px solid var(--crm-border);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.crm-stage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--crm-text);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--crm-border);
+}
+
+.crm-stage-count {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  background: var(--crm-raised);
+  color: var(--crm-muted);
+}
+
+.crm-count-alert {
+  background: var(--crm-pill-amber-bg);
+  color: var(--crm-pill-amber-text);
+}
+
+.crm-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Kanban Cards (rounded.sm: 10px) */
+.crm-card {
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--crm-border);
+  background: var(--crm-bg);
+  box-shadow: var(--crm-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.crm-card-highlight {
+  border-color: var(--folio-accent);
+}
+
+.crm-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.crm-pill {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.crm-pill-gray { background: var(--crm-pill-gray-bg); color: var(--crm-pill-gray-text); }
+.crm-pill-blue { background: var(--crm-pill-blue-bg); color: var(--crm-pill-blue-text); }
+.crm-pill-green { background: var(--crm-pill-green-bg); color: var(--crm-pill-green-text); }
+.crm-pill-amber { background: var(--crm-pill-amber-bg); color: var(--crm-pill-amber-text); }
+.crm-pill-purple { background: var(--crm-pill-purple-bg); color: var(--crm-pill-purple-text); }
+
+.crm-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--crm-text);
+  margin: 0;
+}
+
+.crm-card-desc {
+  font-size: 11px;
+  color: var(--crm-muted);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.crm-progress-bar {
+  width: 100%;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--crm-raised);
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+.crm-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--folio-accent);
+}
+
+.crm-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--crm-muted);
+  margin-top: 4px;
+}
+
+.crm-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  background: var(--crm-raised);
+  border: 1px solid var(--crm-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--crm-text);
+}
+
+.crm-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--crm-muted);
+  border-top: 1px solid var(--crm-border);
+  padding-top: 6px;
+  margin-top: 2px;
+}
+
+.crm-card-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.crm-mini-btn {
+  height: 24px;
+  font-size: 10px;
+  font-weight: 500;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid var(--crm-border);
+}
+
+.crm-btn-confirm {
+  background: var(--crm-accent);
+  color: var(--crm-accent-fg);
+  border-color: var(--crm-accent);
+}
+
+.crm-btn-secondary {
+  background: var(--crm-surface);
+  color: var(--crm-text);
+}
+
+/* Side AI Panel */
+.crm-assistant-panel {
+  border: 1px solid var(--crm-border);
+  border-radius: 10px;
+  background: var(--crm-surface);
+  box-shadow: var(--crm-shadow);
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  gap: 12px;
+}
+
+.crm-assistant-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--crm-border);
+}
+
+.crm-bot-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--crm-text);
+}
+
+.crm-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: #22c55e;
+}
+
+.crm-tag-xs {
+  font-size: 10px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: var(--crm-raised);
+  color: var(--crm-muted);
+}
+
+.crm-assistant-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.crm-chat-msg {
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.crm-chat-msg small {
+  display: block;
+  font-size: 10px;
+  color: var(--crm-muted);
+  margin-bottom: 4px;
+}
+
+.crm-chat-msg p {
+  margin: 0;
+  color: var(--crm-text);
+}
+
+.crm-msg-user {
+  background: var(--crm-raised);
+}
+
+.crm-msg-bot {
+  background: var(--crm-bg);
+  border: 1px solid var(--crm-border);
+}
+
+.crm-msg-cite {
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--crm-muted);
+}
+
+.crm-recommendation-box {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px dashed var(--crm-border);
+  background: var(--crm-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.crm-rec-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #1d4ed8;
+}
+
+html.dark .crm-rec-label {
+  color: #60a5fa;
+}
+
+.folio-preview a.flex.items-center,
+.folio-preview .guta-footer a,
+.folio-preview a.block {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.crm-recommendation-box h5 {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--crm-text);
+}
+
+.crm-rec-candidate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.crm-avatar-sm {
+  width: 24px;
+  height: 24px;
+  border-radius: 9999px;
+  background: var(--folio-accent);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.crm-rec-candidate small {
+  display: block;
+  color: var(--crm-muted);
+  font-size: 10px;
+}
+
+.crm-btn-block {
+  width: 100%;
+}
+
+.crm-rec-note {
+  font-size: 10px;
+  color: var(--crm-muted);
+  text-align: center;
+}
+
+.crm-assistant-foot {
+  margin-top: auto;
+  font-size: 10px;
+  color: var(--crm-muted);
+  padding-top: 8px;
+  border-top: 1px solid var(--crm-border);
+  text-align: center;
+}
+
+/* ========================================================
+   7. Remaining Landing Page Sections (Folio system)
+   ======================================================== */
+.guta-container {
+  width: min(100%, var(--folio-width));
+  margin-inline: auto;
+  padding-inline: calc(3 * var(--folio-space));
+}
+
+.guta-label {
+  display: inline-block;
+  font: 500 12px/1.5 var(--folio-body);
+  letter-spacing: .08em;
+  color: var(--folio-muted);
+}
+
+.guta-capabilities {
+  text-align: center;
+}
+
+.guta-capabilities > div {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: calc(3 * var(--folio-space));
+  margin-top: calc(3 * var(--folio-space));
+}
+
+.guta-capabilities span {
+  padding: 6px 14px;
+  border-radius: 9999px;
+  border: 1px solid var(--folio-border);
+  background: var(--folio-surface-raised);
+  font-size: 13px;
+  color: var(--folio-ink);
+}
+
+.guta-section-head {
+  text-align: center;
+  max-width: 800px;
+  margin: 0 auto calc(5 * var(--folio-space));
+}
+
+.folio-preview .guta-section-head h2 {
+  font-family: var(--folio-display);
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  margin-block: calc(2 * var(--folio-space));
+  color: var(--folio-ink);
+  overflow: visible;
+  text-wrap: balance;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.guta-section-head > p {
+  color: var(--folio-muted);
+  line-height: 1.6;
+  max-width: 640px;
+  margin-inline: auto;
+  font-size: 16px;
+}
+
+.guta-grid-three, .guta-grid-two {
+  display: grid;
+  gap: calc(3 * var(--folio-space));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.guta-grid-two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.guta-card {
+  padding: calc(3 * var(--folio-space));
+  border: 1px solid var(--folio-border);
+  border-radius: 12px;
+  background: var(--folio-card-bg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.guta-card h3 {
+  font-size: 18px;
+  line-height: 1.4;
+  margin-block: calc(3 * var(--folio-space)) var(--folio-space);
+  color: var(--folio-ink);
+}
+
+.guta-card > p {
+  font-size: 15px;
+  color: var(--folio-muted);
+  line-height: 1.65;
+}
+
+.guta-mini {
+  min-height: 150px;
+  padding: calc(3 * var(--folio-space));
+  border-bottom: 1px solid var(--folio-border);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: calc(1.5 * var(--folio-space));
+}
+
+.guta-mini span, .guta-mini p {
+  font-size: 12px;
+  color: var(--folio-muted);
+}
+
+.guta-mini strong {
+  font-size: 18px;
+  line-height: 1.45;
+  color: var(--folio-ink);
+}
+
+.guta-flow {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border-block: 1px solid var(--folio-border);
+  margin-bottom: calc(5 * var(--folio-space));
+}
+
+.guta-flow > div {
+  padding: calc(3 * var(--folio-space)) calc(2 * var(--folio-space));
+  display: grid;
+  gap: calc(1.5 * var(--folio-space));
+}
+
+.guta-flow span {
+  color: var(--folio-muted);
+  font-size: 12px;
+}
+
+.guta-flow strong {
+  font-size: 15px;
+  color: var(--folio-ink);
+}
+
+.guta-faq {
+  max-width: 800px;
+  margin-inline: auto;
+}
+
+.guta-faq details {
+  border-bottom: 1px solid var(--folio-border);
+  padding-block: calc(2 * var(--folio-space));
+}
+
+.guta-faq summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: list-item;
+  align-content: center;
+  line-height: 1.5;
+  font-weight: 500;
+  color: var(--folio-ink);
+}
+
+.guta-faq summary:focus-visible, .guta-demo-scroll:focus-visible {
+  outline: 2px solid var(--folio-accent);
+  outline-offset: 2px;
+}
+
+.guta-faq p {
+  color: var(--folio-muted);
+  line-height: 1.7;
+  padding-block: var(--folio-space);
+  font-size: 15px;
+}
+
+.guta-cta-copy {
+  margin: calc(3 * var(--folio-space)) auto;
+  max-width: 560px;
+  color: var(--folio-muted);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.guta-cta {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  border-radius: var(--folio-pill);
+  padding: var(--folio-space) calc(3 * var(--folio-space));
+  background: var(--folio-ink);
+  color: var(--folio-canvas);
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.guta-footer {
+  padding-block: calc(5 * var(--folio-space));
+  display: grid;
+  gap: calc(2 * var(--folio-space));
+  font-size: 14px;
+}
+
+.guta-footer p, .guta-footer span {
+  color: var(--folio-muted);
+}
+
+/* 8. Responsive Adaptations */
+@media (max-width: 1023px) {
+  .folio-preview nav[data-state="active"] > div > div > div:last-child {
+    display: block;
+    margin: 0;
+    border-color: var(--folio-border);
+    border-radius: calc(2 * var(--folio-space));
+    box-shadow: none;
+    background: var(--folio-surface);
+  }
+  .guta-grid-three {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 639px) {
+  .folio-preview { --folio-section: 48px; }
+  .folio-preview > header nav > div { padding-inline: calc(2 * var(--folio-space)); }
+  .folio-preview > main > div > main > section h1 + div > div { flex-direction: column; align-items: stretch; }
+  .folio-preview > main > div > main > section h1 + div > div > a { width: 100%; }
+  .folio-preview > main > div > main > section h1 + div > p:first-child { font-size: 16px; }
+  .guta-grid-three, .guta-grid-two { grid-template-columns: minmax(0, 1fr); }
+  .folio-preview .guta-section-head h2 { font-size: 26px; line-height: 1.3; }
+  .guta-container { padding-inline: calc(2 * var(--folio-space)); }
+  .guta-flow { grid-template-columns: 1fr; }
+  .guta-flow > div { grid-template-columns: 32px 1fr; gap: var(--folio-space); padding-block: calc(2 * var(--folio-space)); }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .folio-preview :is(a, button):hover { opacity: .85; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .folio-preview *, .folio-preview *::before, .folio-preview *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

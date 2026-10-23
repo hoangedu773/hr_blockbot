@@ -54,3 +54,72 @@ Dưới đây là các kho giao diện Dark Mode xịn xò nhất dành cho Reac
 3. Tôi sẽ điều phối:
    - Thay thế toàn bộ CSS tokens / Palette màu theo đúng phong cách đó.
    - Viết lại các View (`ProjectListView`, `DetailView`, `ApprovalQueue`) và dựng trang Preview chuẩn chỉ cho bạn nghiệm thu!
+
+---
+
+## 4. 🏆 Quyết Định Kiến Trúc Giao Diện Mới (Official Design Decision - 2026)
+
+Đã chốt phương án phối hợp 2 giao diện cao cấp:
+
+### 4.1. Cấu Trúc Trải Nghiệm (User Experience Flow)
+```text
+[Landing Page (Folio)] ---> Nút "Get Started" / "Login" ---> [Auth Modal] ---> [Dashboard Quản Trị (21st CRM)]
+(Giới thiệu Guta AI,                                                           (Sidebar thu gọn ⌘K,
+ Bento grid, Marquee)                                                          Bảng cửa hàng Guta, Slide-over sheet)
+```
+
+1. **Trang Giới Thiệu (Landing Page):** Bóc tách từ template **Folio (Ruixen UI)**.
+   - Vị trí: `previews/preview-folio-intelligence.html`
+   - Tính năng: Hero với dashboard mockup, Bento Grid tính năng xếp tầng 3D, Logo marquee 13 đối tác, 4 Tab tính năng tự động chạy vòng lặp 6s có thanh progress bar.
+2. **Cổng Đăng Nhập (Auth Modal):** 
+   - Modal bật lên từ nút "Get Started" / "Đăng nhập" trên Landing Page.
+   - Hỗ trợ đăng nhập nhanh 1-Click theo vai trò thực tế: Cửa hàng trưởng (SM - Nguyễn Thị Phương Anh) hoặc Quản lý khu vực (AOM - Nguyễn Cao Thanh Trầm).
+3. **Bảng Điều Khiển Quản Trị (Dashboard):** Bóc tách từ template **21st CRM Data Grid**.
+   - Vị trí: `previews/preview-21st-crm.html`
+   - Bảng dữ liệu thực tế 45 chi nhánh Guta Coffee (Sư Vạn Hạnh, Nguyễn Cửu Vân, Đặng Văn Sâm, Nguyễn Thị Minh Khai,...).
+   - **Slide-Over Sheet:** Bấm vào bất kỳ dòng cửa hàng nào -> Drawer trượt từ bên phải ra hiển thị danh sách Barista trong ca, doanh thu két tiền mặt, và nút gửi cảnh báo qua Bot Telegram.
+
+### 4.2. Hệ Màu Nhận Diện & Tokens Chuẩn (Zero-Yellow Token System)
+- **Màu sắc & Logo Guta:** Triệt tiêu hoàn toàn màu vàng chói cũ (`#ffd100`, `#eab308`), thay bằng **Titanium Slate + Electric Sapphire** (`#2563eb` / `oklch(0.55 0.22 260)`):
+  - Chữ `GUTA`: `font-black text-foreground tracking-wider` (Trắng sáng trong Dark Mode, Đen Slate trong Light Mode)
+  - Chữ `WORKSPACE`: `font-semibold text-muted-foreground tracking-tight`
+  - Accent chính: Electric Sapphire (`#2563eb` / `#3b82f6`) dùng cho nút bấm chính, viền focus, icon khối đa giác.
+  - Trạng thái ca: Xanh ngọc lục bảo Emerald (`#10b981`) cho trạng thái mở ca / đúng giờ, Tuyệt đối không dùng màu vàng.
+  - Nền: Dark Mode (`#090d16` / `#0f172a`), Light Mode (`#ffffff` / `#f8fafc`).
+- **Thư viện Preview Tổng Hợp:** Xem trực tiếp tại `previews/index.html` (Tab *Mẫu D: Guta AI Landing* và *Mẫu E: Guta Workspace Dashboard*).
+
+### 4.3. Quyết Định Logo Vector Chuẩn (Official Vector Logo Mark — Chốt 10/2026)
+- **Asset vector chính thức:** [`docs/assets/guta-mark-pure.svg`](assets/guta-mark-pure.svg) (bản sao phục vụ web runtime đặt tại `apps/web/public/assets/logos/guta-mark-pure.svg`).
+- **Nguồn gốc & Tinh giản:**
+  - Vector hóa từ biểu tượng gốc `design-check/logo.webp` (64×64) và master artwork (1024×1024).
+  - Khử toàn bộ răng cưa bitmap bằng thuật toán đường cong B-spline / Cubic Bézier tuần hoàn khép kín (`trace_smooth.py`).
+- **Thông số kỹ thuật:**
+  - **Định dạng:** Single-path SVG (thuần một thẻ `<path>`), fill-rule `evenodd`.
+  - **Màu sắc:** `fill="currentColor"` — **không** cố định màu nội bộ, **không** mang khung nền cố định. Biểu tượng tự động thừa hưởng màu chữ, màu thẻ hoặc màu accent của phần tử bao bọc cha.
+  - **Khung tọa độ:** `viewBox="0 0 1024 1024"`. Co giãn mượt mà không vỡ từ kích thước siêu nhỏ (16px favicon, 24px navbar, 32px sidebar) tới kích thước lớn (64px, 128px+ auth banner).
+- **Mẫu nhúng chuẩn (Code Snippet):**
+  ```tsx
+  // Nhúng trực tiếp SVG currentColor linh hoạt màu sắc và kích thước
+  export function GutaLogoMark({ size = 24, className = "" }: { size?: number; className?: string }) {
+    return (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 1024 1024"
+        width={size}
+        height={size}
+        fill="currentColor"
+        className={className}
+        aria-label="Guta Logo"
+      >
+        <path
+          fillRule="evenodd"
+          d="M510.07 61.76c14.82-.26 31.26 12.85 44.93 21.98...Z"
+        />
+      </svg>
+    );
+  }
+  ```
+- **Thư viện 10 biến thể màu để tham khảo:**
+  - File preview tương tác: [`apps/web/previews/logo-previews.html`](../apps/web/previews/logo-previews.html) (cho phép đổi theme nền Obsidian/Navy/Black/Light, kiểm tra kích thước 16–48px và copy mã SVG 1-click).
+
+
