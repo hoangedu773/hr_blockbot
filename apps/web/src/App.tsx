@@ -70,6 +70,12 @@ export const AppContent: React.FC = () => {
     if (link.getAttribute('href') !== targetHref) {
       link.setAttribute('href', targetHref);
     }
+
+    const folioCss = document.getElementById('folio-layout-css') as HTMLLinkElement | null;
+    if (folioCss) folioCss.disabled = Boolean(localUser);
+
+    const crmCss = document.getElementById('crm-layout-css') as HTMLLinkElement | null;
+    if (crmCss) crmCss.disabled = !Boolean(localUser);
   }, [localUser]);
 
   // Sync if context authUser changes

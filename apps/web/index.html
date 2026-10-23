@@ -4,17 +4,23 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Guta Workspace — Workforce Command Center</title>
-    <link rel="icon" type="image/png" href="/assets/guta-logo.png" />
+    <link rel="icon" type="image/svg+xml" href="/assets/logos/guta-mark-pure.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&family=Inter:wght@400;500;600;700&display=swap" />
     <link id="theme-css" rel="stylesheet" href="/assets/folio/folio.css" />
+    <link id="folio-layout-css" rel="stylesheet" href="/assets/folio/folio-layout.css" />
+    <link id="crm-layout-css" rel="stylesheet" href="/assets/crm/2e445toz63gzv.css" disabled />
     <script>
       (function() {
         try {
           if (localStorage.getItem('guta_user')) {
             var themeLink = document.getElementById('theme-css');
             if (themeLink) themeLink.setAttribute('href', '/assets/crm/2voh1gse7971r.css');
+            var folioCss = document.getElementById('folio-layout-css');
+            if (folioCss) folioCss.disabled = true;
+            var crmCss = document.getElementById('crm-layout-css');
+            if (crmCss) crmCss.disabled = false;
           }
         } catch (e) {}
       })();

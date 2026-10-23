@@ -63,19 +63,29 @@ Dưới đây là các kho giao diện Dark Mode xịn xò nhất dành cho Reac
 
 ### 4.1. Cấu Trúc Trải Nghiệm (User Experience Flow)
 ```text
-[Landing Page (Folio)] ---> Nút "Get Started" / "Login" ---> [Auth Modal] ---> [Dashboard Quản Trị (21st CRM)]
-(Giới thiệu Guta AI,                                                           (Sidebar thu gọn ⌘K,
- Bento grid, Marquee)                                                          Bảng cửa hàng Guta, Slide-over sheet)
+[Landing Page (Folio)] ---> Nút "Get Started" / "Đăng nhập" ---> [Auth Modal] ---> [Dashboard Quản Trị (21st CRM)]
+(Editorial serif Newsreader,                                                       (Sidebar 45 chi nhánh, Data grid,
+ Kanban demo, 0 pixel màu vàng)                                                    Slide-over drawer Barista & Telegram)
 ```
 
-1. **Trang Giới Thiệu (Landing Page):** Bóc tách từ template **Folio (Ruixen UI)**.
-   - Vị trí: `previews/preview-folio-intelligence.html`
-   - Tính năng: Hero với dashboard mockup, Bento Grid tính năng xếp tầng 3D, Logo marquee 13 đối tác, 4 Tab tính năng tự động chạy vòng lặp 6s có thanh progress bar.
+1. **Trang Giới Thiệu (Landing Page):** Bóc tách chính xác từ bản chuẩn **[`apps/web/previews/folio-layout.html`](../apps/web/previews/folio-layout.html)**:
+   - URL Local Preview: `http://127.0.0.1:5173/previews/folio-layout.html`.
+   - Component sản phẩm: `apps/web/src/components/FolioLandingView.tsx`.
+   - Stylesheets: `/assets/folio/folio.css` + `/assets/folio/folio-layout.css`.
+   - Typography: Font Editorial Serif **Newsreader** (Google Fonts) kết hợp Geist Sans, bảo đảm 100% hiển thị mượt mà dấu thanh tiếng Việt không bị nhảy font (Georgia fallback bug).
+   - Nội dung: Hero với Headline chuẩn "Quản Trị Nhân Sự & Phân Ca Tự Động Chuỗi F&B", mockup 5 cột Kanban theo vòng đời đề tài (Khởi tạo, Đã giao, Đang thực hiện, Chờ duyệt, Hoàn thành), thẻ gợi ý phân công AI PhoBERT, khối tính năng đối chiếu và dải đối tác cung ứng F&B (Vinamilk, La Marzocco, Dalatmilk, Monin,...).
+
 2. **Cổng Đăng Nhập (Auth Modal):** 
-   - Modal bật lên từ nút "Get Started" / "Đăng nhập" trên Landing Page.
-   - Hỗ trợ đăng nhập nhanh 1-Click theo vai trò thực tế: Cửa hàng trưởng (SM - Nguyễn Thị Phương Anh) hoặc Quản lý khu vực (AOM - Nguyễn Cao Thanh Trầm).
-3. **Bảng Điều Khiển Quản Trị (Dashboard):** Bóc tách từ template **21st CRM Data Grid**.
-   - Vị trí: `previews/preview-21st-crm.html`
+   - Modal bật lên từ nút "Get Started" / "Đăng nhập" / "Xem dashboard".
+   - Hỗ trợ đăng nhập nhanh 1-Click theo 3 vai trò thực tế:
+     * Cửa hàng trưởng (SM): Nguyễn Thị Phương Anh (Chi nhánh Tân Bình).
+     * Quản lý khu vực (AOM): Nguyễn Cao Thanh Trầm (Khu vực Q1/Q3/Q10).
+     * Quản trị viên (Admin): Ban Điều Hành Guta (Toàn quyền chuỗi).
+
+3. **Bảng Điều Khiển Quản Trị (CRM Dashboard):** Bóc tách chính xác từ bản chuẩn **[`previews/preview-21st-crm.html`](../previews/preview-21st-crm.html)**:
+   - File tham chiếu: `C:\work-space\hr-blockbot\previews\preview-21st-crm.html`.
+   - Component sản phẩm: `apps/web/src/components/CrmDashboardView.tsx`.
+   - Stylesheets: `/assets/crm/2voh1gse7971r.css` + `/assets/crm/2e445toz63gzv.css`.
    - Bảng dữ liệu thực tế 45 chi nhánh Guta Coffee (Sư Vạn Hạnh, Nguyễn Cửu Vân, Đặng Văn Sâm, Nguyễn Thị Minh Khai,...).
    - **Slide-Over Sheet:** Bấm vào bất kỳ dòng cửa hàng nào -> Drawer trượt từ bên phải ra hiển thị danh sách Barista trong ca, doanh thu két tiền mặt, và nút gửi cảnh báo qua Bot Telegram.
 
