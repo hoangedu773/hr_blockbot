@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 export interface ChatDrawerProps {
   isOpen: boolean;
@@ -31,6 +31,12 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const replyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const messageId = useRef(0);
+
+  useEffect(() => () => {
+    if (replyTimer.current !== null) clearTimeout(replyTimer.current);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -44,10 +50,10 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
 
   const handleSend = (textToSend?: string) => {
     const text = (textToSend ?? inputText).trim();
-    if (!text) return;
+    if (!text || replyTimer.current !== null) return;
 
     const userMsg: ChatMessage = {
-      id: `msg-${Date.now()}`,
+      id: `msg-${++messageId.current}`,
       sender: 'user',
       text,
       timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
@@ -57,7 +63,8 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
     setInputText('');
     setIsTyping(true);
 
-    setTimeout(() => {
+    replyTimer.current = setTimeout(() => {
+      replyTimer.current = null;
       let botResponse = '';
       if (text.includes('thiếu người')) {
         botResponse = '🔍 Kiểm tra 45 chi nhánh: Hiện tại chi nhánh GUTA CAFE - Quận 10 - 581 Sư Vạn Hạnh đang dự báo tăng 35% order giờ trưa (11:30 - 13:00). Khuyến nghị điều chuyển thêm 1 Barista Part-time từ CH Tô Hiến Thành gần đó hỗ trợ đứng máy.';
@@ -70,7 +77,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
       }
 
       const botMsg: ChatMessage = {
-        id: `msg-${Date.now() + 1}`,
+        id: `msg-${++messageId.current}`,
         sender: 'assistant',
         text: botResponse,
         timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
@@ -262,6 +269,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
             <button
               key={i}
               type="button"
+              disabled={isTyping}
               onClick={() => handleSend(chip)}
               style={{
                 whiteSpace: 'nowrap',
@@ -271,12 +279,15 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                 border: '1px solid rgba(37, 99, 235, 0.25)',
                 color: '#93c5fd',
                 fontSize: '11px',
-                cursor: 'pointer',
+                cursor: isTyping ? 'not-allowed' : 'pointer',
+                opacity: isTyping ? 0.5 : 1,
                 transition: 'all 140ms ease',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(37, 99, 235, 0.22)';
-                e.currentTarget.style.borderColor = 'rgba(37, 99, 235, 0.5)';
+                if (!isTyping) {
+                  e.currentTarget.style.backgroundColor = 'rgba(37, 99, 235, 0.22)';
+                  e.currentTarget.style.borderColor = 'rgba(37, 99, 235, 0.5)';
+                }
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.backgroundColor = 'rgba(37, 99, 235, 0.12)';
@@ -315,23 +326,51 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
               color: '#f8fafc',
               fontSize: '12px',
               outline: 'none',
+              transition: 'border-color 150ms ease',
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.borderColor = '#3b82f6';
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
             }}
           />
           <button
             type="button"
+            disabled={isTyping || !inputText.trim()}
             onClick={() => handleSend()}
             style={{
               padding: '8px 16px',
               borderRadius: '8px',
-              backgroundColor: '#2563eb',
+              backgroundColor: isTyping || !inputText.trim() ? '#1e3a8a' : '#2563eb',
               border: 'none',
               color: '#ffffff',
               fontSize: '12px',
               fontWeight: 700,
-              cursor: 'pointer',
+              cursor: isTyping || !inputText.trim() ? 'not-allowed' : 'pointer',
+              opacity: isTyping || !inputText.trim() ? 0.6 : 1,
+              transition: 'all 150ms ease',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+            onMouseDown={(e) => {
+              if (!isTyping && inputText.trim()) {
+                e.currentTarget.style.transform = 'scale(0.96)';
+              }
+            }}
+            onMouseUp={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
             }}
           >
-            Gửi
+            {isTyping ? (
+              <>
+                <span className="animate-spin inline-block">↻</span>
+                <span>Đang gửi...</span>
+              </>
+            ) : (
+              'Gửi'
+            )}
           </button>
         </div>
       </aside>

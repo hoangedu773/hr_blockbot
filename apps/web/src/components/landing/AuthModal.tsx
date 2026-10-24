@@ -131,7 +131,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSelectR
           {PRESETS.map((preset) => (
             <div
               key={preset.role}
+              role="button"
+              tabIndex={0}
               onClick={() => onSelectRole(preset.role)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onSelectRole(preset.role);
+                }
+              }}
               style={{
                 display: 'flex',
                 alignItems: 'flex-start',
@@ -142,6 +150,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSelectR
                 border: '1px solid rgba(255, 255, 255, 0.08)',
                 cursor: 'pointer',
                 transition: 'all 160ms cubic-bezier(0.16, 1, 0.3, 1)',
+                outline: 'none',
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.8)';
+                e.currentTarget.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.3)';
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+              onMouseDown={(e) => {
+                e.currentTarget.style.transform = 'scale(0.98)';
+              }}
+              onMouseUp={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = 'rgba(37, 99, 235, 0.1)';

@@ -51,11 +51,12 @@ Chọn vai trò của bạn để đi theo luồng tài liệu tối ưu nhất:
 
 ### 3. 🎨 Dành cho Frontend Developer
 *Nắm giao diện chỉ huy, hệ màu dark theme, luồng người dùng và tích hợp API:*
-1. [`10-ui-ux-spec.md`](10-ui-ux-spec.md) — Design system nền tối (Dark Command Center), visual timeline, typography.
-2. [`18-user-flows.md`](18-user-flows.md) — 10 luồng người dùng chi tiết (UF-01 đến UF-10) và 28 intents chatbot.
-3. [`06-api-spec.md`](06-api-spec.md) — Danh sách endpoint và format dữ liệu trả về kết nối qua client service.
-4. [`ADR-015`](03-decision-records/ADR-015-shadcn-ui-va-recharts.md) — Lựa chọn component UI và thư viện biểu đồ.
-5. Mã nguồn thực tế: xem `apps/web/src/` (Command Center, Timeline, AI Copilot Bar).
+1. [`DESIGN.md`](DESIGN.md) — Kiến trúc giao diện mới: Folio Landing Page (Newsreader editorial, Zero-Yellow) + Auth Modal 3 vai trò + CRM Command Center (45 chi nhánh Guta).
+2. [`10-ui-ux-spec.md`](10-ui-ux-spec.md) — Design system nền tối (Dark Command Center), visual timeline, token semantic.
+3. [`18-user-flows.md`](18-user-flows.md) — 10 luồng người dùng chi tiết (UF-01 đến UF-10) và 28 intents chatbot.
+4. [`06-api-spec.md`](06-api-spec.md) — Danh sách endpoint và format dữ liệu trả về kết nối qua client service.
+5. [`ADR-015`](03-decision-records/ADR-015-shadcn-ui-va-recharts.md) — Lựa chọn component UI và thư viện biểu đồ.
+6. Mã nguồn thực tế: `apps/web/src/components/FolioLandingView.tsx`, `apps/web/src/components/CrmDashboardView.tsx`, `apps/web/src/components/chat/ChatDrawer.tsx`.
 
 ---
 

@@ -19,32 +19,32 @@ Mọi Agent hoạt động trong repository này **phải tuân thủ nghiêm ng
 
 ---
 
-## 2. Ranh Giới Nhánh & Quyền Sở Hữu File (Worktree & Branch Boundary)
+## 2. Quy Chuẩn Làm Việc Tập Trung Trên Nhánh Main (Single Workspace Standard)
 
-Dự án chia 4 luồng phát triển song song qua **Git Worktrees**. Khi Agent được giao việc, chỉ thao tác đúng phạm vi nhánh được phân công:
+Toàn bộ các nhánh feature (`feat/*`) và worktree cũ đã được **merge 100% vào nhánh `main`**. Mọi Agent hoạt động trực tiếp tại thư mục gốc repository:
 
 ```text
-hr_blockbot/
+C:/work-space/hr-blockbot/ (Nhánh: main)
 ├── apps/
-│   ├── web/          ──> Thuộc nhánh feat/frontend-web (Worktree: ../hr-blockbot-web)
-│   ├── api/          ──> Thuộc nhánh feat/api-backend   (Worktree: ../hr-blockbot-api)
-│   └── ai-service/   ──> Thuộc nhánh feat/ai-service    (Worktree: ../hr-blockbot-ai)
+│   ├── web/          ──> Frontend React 18 + Vite (Folio Landing & 21st CRM Command Center)
+│   ├── api/          ──> Backend Express.js + TypeScript
+│   └── ai-service/   ──> AI Sidecar FastAPI + Python
 ├── packages/
-│   └── contracts/    ──> Thuộc nhánh feat/pm-agentkit   (Worktree: ../hr-blockbot-pm)
-├── docs/             ──> Thuộc nhánh feat/pm-agentkit
-└── plans/            ──> Thuộc nhánh feat/pm-agentkit
+│   └── contracts/    ──> Zod Schemas & TypeScript Types dùng chung
+├── docs/             ──> Tài liệu kiến trúc & hướng dẫn vận hành
+├── plans/            ──> Kế hoạch phát triển & báo cáo kiểm thử
+└── previews/         ──> Visual previews & mockups
 ```
 
 ### Quy tắc bất biến cho Agent (Invariants):
-1. **Phân quyền đọc/ghi minh bạch (Read/Write Boundaries):**
-   - **Quyền đọc chung (Read-only):** Mọi Agent trên các nhánh dev (`feat/frontend-web`, `feat/api-backend`, `feat/ai-service`) được phép đọc **READ-ONLY** các thư mục dùng chung: `packages/contracts/**`, `docs/**`, và `plans/**` để đối chiếu hợp đồng, spec và kế hoạch kỹ thuật.
-   - **Quyền ghi cô lập (Write isolation):** Quyền ghi bị cô lập nghiêm ngặt theo từng ứng dụng được giao:
-     - Agent trên nhánh `feat/frontend-web` chỉ được ghi/sửa file trong `apps/web/`.
-     - Agent trên nhánh `feat/api-backend` chỉ được ghi/sửa file trong `apps/api/`.
-     - Agent trên nhánh `feat/ai-service` chỉ được ghi/sửa file trong `apps/ai-service/`.
-     - Tuyệt đối không can thiệp ghi chéo app hoặc tự ý sửa `packages/**`, `docs/**`, `plans/**` trên nhánh dev.
-2. **Sửa đổi schema dùng chung:** Nếu cần thêm trường hoặc đổi type dữ liệu, phải tạo đề xuất/PR vào `packages/contracts` trên nhánh `feat/pm-agentkit`. Không tự ý định nghĩa kiểu cục bộ sai lệch contract chung.
-3. **Surgical Changes (Sửa đổi vi phẫu):** Chỉ chạm đúng những dòng cần sửa; không tự ý format lại toàn bộ file, không sửa comment hoặc refactor code xung quanh ngoài phạm vi task.
+1. **Làm việc trực tiếp trên `main`:** Không tự ý tạo thêm worktree hoặc checkout sang các nhánh cũ đã xóa.
+2. **Surgical Changes (Sửa đổi vi phẫu):** Chỉ chạm đúng những file và dòng liên quan trực tiếp đến task được giao.
+3. **Kiểm thử trước khi bàn giao:** Bắt buộc chạy kiểm thử (Web build, Playwright E2E, API build, Contracts test) và đọc output thật trước khi báo cáo hoàn thành.
+4. **Quy trình deploy Render Cloud:** Render tracking nhánh `integration/full-delivery`. Khi push thay đổi từ `main`, đồng bộ trực tiếp bằng lệnh:
+   ```powershell
+   git push origin main
+   git push origin main:integration/full-delivery
+   ```
 
 ---
 

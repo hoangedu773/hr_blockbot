@@ -4,6 +4,7 @@ import { ToastContainer, type ToastMessage, type NotifyFn } from './components/T
 import { FolioLandingView } from './components/FolioLandingView';
 import { CrmDashboardView } from './components/CrmDashboardView';
 import { ChatDrawer } from './components/chat/ChatDrawer';
+import { DemoErrorBoundary } from './components/DemoErrorBoundary';
 
 interface LocalUser {
   role: 'SM' | 'AOM' | 'Admin';
@@ -95,7 +96,7 @@ export const AppContent: React.FC = () => {
     addToast(`Đăng nhập thành công với vai trò ${profile.name} (${role})`, 'success', 'Xác thực thành công');
   };
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     setLocalUser(null);
     localStorage.removeItem('guta_user');
     setIsChatDrawerOpen(false);
@@ -105,21 +106,29 @@ export const AppContent: React.FC = () => {
       // Ignore if offline
     }
     addToast('Đã đăng xuất phiên làm việc an toàn.', 'info');
-  };
+  }, [authLogout, addToast]);
 
-  const handleSendTelegramAlert = (storeId: string) => {
+  const handleSendTelegramAlert = useCallback((storeId: string) => {
     addToast(
       `Đã gửi cảnh báo khẩn cấp tới Telegram Bot của Cửa hàng trưởng chi nhánh [${storeId}]!`,
       'success',
       'Telegram Bot Dispatch'
     );
-  };
+  }, [addToast]);
+
+  const handleOpenAiCopilot = useCallback(() => {
+    setIsChatDrawerOpen(true);
+  }, []);
+
+  const handleCloseChatDrawer = useCallback(() => {
+    setIsChatDrawerOpen(false);
+  }, []);
 
   // 1. Unauthenticated: Render Folio Landing Page (Exact Ruixen UI Design)
   if (!localUser) {
     return (
       <>
-        <FolioLandingView onLogin={handleSelectRole} />
+        <FolioLandingView onLogin={handleSelectRole} onNotify={addToast} />
         <ToastContainer toasts={toasts} onDismiss={removeToast} />
       </>
     );
@@ -128,18 +137,23 @@ export const AppContent: React.FC = () => {
   // 2. Authenticated: Render 21st CRM Dashboard (Exact 21st Design)
   return (
     <>
+      <DemoErrorBoundary>
       <CrmDashboardView
         userName={localUser.name}
         userRole={localUser.role}
         userScope={localUser.scope}
         onLogout={handleLogout}
         onTelegramAlert={handleSendTelegramAlert}
-        onOpenAiCopilot={() => setIsChatDrawerOpen(true)}
+        onOpenAiCopilot={handleOpenAiCopilot}
+        onNotify={addToast}
       />
+      </DemoErrorBoundary>
+      <DemoErrorBoundary>
       <ChatDrawer
         isOpen={isChatDrawerOpen}
-        onClose={() => setIsChatDrawerOpen(false)}
+        onClose={handleCloseChatDrawer}
       />
+      </DemoErrorBoundary>
       <ToastContainer toasts={toasts} onDismiss={removeToast} />
     </>
   );

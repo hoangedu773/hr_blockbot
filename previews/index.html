@@ -215,6 +215,14 @@
           <span class="dot dot-carbon"></span>
           Mẫu C: Carbon Minimal (Đen Raycast)
         </button>
+        <button class="tab-btn" onclick="setTheme('folio')" id="btn-folio">
+          <span class="dot" style="background:#3b82f6"></span>
+          ✨ Mẫu D: Guta AI Landing (Folio + Auth)
+        </button>
+        <button class="tab-btn" onclick="setTheme('crm')" id="btn-crm">
+          <span class="dot" style="background:#10b981"></span>
+          ⚡ Mẫu E: Guta Workspace Dashboard (CRM Table & Slide-Over)
+        </button>
       </div>
 
       <!-- Viewport Device Switcher -->
@@ -255,7 +263,9 @@
     const themes = {
       'flagship': { url: 'preview-wow-flagship.html', label: 'Mẫu WOW Flagship (Visual Timeline & Copilot)' },
       'espresso': { url: 'preview-espresso-warm.html', label: 'Mẫu B (Warm Espresso: Nâu Hạt Cà Phê)' },
-      'carbon': { url: 'preview-carbon-mono.html', label: 'Mẫu C (Carbon Minimal: Đen Raycast)' }
+      'carbon': { url: 'preview-carbon-mono.html', label: 'Mẫu C (Carbon Minimal: Đen Raycast)' },
+      'folio': { url: 'preview-folio-intelligence.html', label: 'Mẫu D: Folio AI Intelligence (Ruixen UI Flagship)' },
+      'crm': { url: 'preview-21st-crm.html', label: 'Mẫu E: 21st CRM Dashboard (Data Grid & Slide-Over)' }
     };
 
     function setTheme(key) {

@@ -21,9 +21,13 @@ Nguồn (không có nội dung nào ngoài các nguồn này):
 | Index nào phục vụ query nào cho bảng có phân trang | `05-data-model.md` §4 |
 | Rubric "Thiết kế giao diện" 0.5đ | `RESEARCH-PLAN.md` §1 |
 
-> **Trạng thái repo:** chưa có mã nguồn (`README.md`), chưa có `apps/web`. Mọi "lệnh" trong file này là cam
-> kết dựng cùng vòng scaffold. File này ghi **quy tắc thiết kế và cách đo**, **không ghi kết quả đo nào**.
-> Số liệu trong các bảng `TBD` nghĩa là **chưa đo**, không phải "đã đạt".
+> **Trạng thái repo & Kiến trúc thực tế (Cập nhật 2026):**
+> Mã nguồn frontend đã hoàn thiện tại `apps/web` trên nhánh `main`. Hệ thống vận hành theo kiến trúc kết hợp:
+> 1. **Folio Landing Page** (`apps/web/src/components/FolioLandingView.tsx`): Editorial serif Newsreader, demo 5 cột Kanban, triệt tiêu 100% màu vàng chói (Zero-Yellow).
+> 2. **Auth Modal** (`apps/web/src/components/landing/AuthModal.tsx`): 1-Click login theo 3 vai trò thực tế (SM - Cửa hàng trưởng, AOM - Quản lý khu vực, Admin - Ban điều hành).
+> 3. **CRM Command Center** (`apps/web/src/components/CrmDashboardView.tsx`): Quản trị mạng lưới 45 chi nhánh Guta Coffee, Slide-over Drawer thông tin Barista trong ca & nút cảnh báo qua Telegram.
+> 4. **Chat Drawer** (`apps/web/src/components/chat/ChatDrawer.tsx`): Tích hợp trực tiếp trong CRM hỗ trợ tra cứu chính sách, KPI, hỏi đáp RAG.
+> Chi tiết thiết kế và token tham chiếu tại `docs/DESIGN.md` §4.
 
 ---
 

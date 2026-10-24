@@ -84,11 +84,16 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       viewport: { width: 1440, height: 900 },
     });
 
+    page.on('pageerror', (error) => consoleErrors.push(error.message));
     page.on('console', (msg) => {
       if (msg.type() === 'error') {
         consoleErrors.push(msg.text());
       }
     });
+
+    // UI demo contract: no live auth backend required.
+    await page.route('**/api/auth/refresh', (route) => route.fulfill({ status: 200, json: { accessToken: null } }));
+    await page.route('**/api/auth/logout', (route) => route.fulfill({ status: 204 }));
 
     // Clear any previous state
     await page.goto(serverUrl, { waitUntil: 'networkidle' });
@@ -166,6 +171,12 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
 
     // Gõ tìm kiếm
     const searchInput = page.getByPlaceholder(/Lọc theo tên, quận, mã.../i);
+    await page.keyboard.press('Control+KeyK');
+    assert.equal(await searchInput.evaluate((input) => document.activeElement === input), true);
+    await searchInput.fill('KhongTonTai123');
+    await page.getByText('Không tìm thấy chi nhánh nào phù hợp với từ khóa tìm kiếm.').waitFor({ state: 'visible' });
+    assert.equal(await page.getByText(/581 Sư Vạn Hạnh/i).isVisible(), false);
+
     await searchInput.fill('Sư Vạn Hạnh');
 
     // Chờ kết quả lọc
@@ -205,6 +216,131 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     const closeBtn = page.getByRole('button', { name: 'Đóng', exact: true });
     await closeBtn.click();
     await page.waitForTimeout(300);
+
+    await page.getByRole('table').getByText(/581 Sư Vạn Hạnh/i).click();
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('#detail-drawer')?.classList.contains('drawer-open'));
+  });
+
+  it('Regression: đóng liên tục, double click, Escape sớm và filter ký tự đặc biệt', async () => {
+    assert.deepEqual(await page.evaluate(() => [typeof window.openDrawer, typeof window.closeDrawer]), ['function', 'function']);
+    assert.equal(await page.locator('[onclick]').count(), 0);
+    await page.evaluate(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      const row = document.querySelector('tbody tr');
+      row.click();
+      row.click();
+    });
+    assert.equal(await page.locator('#detail-drawer').evaluate((drawer) => drawer.classList.contains('drawer-open')), true);
+    assert.equal(await page.locator('#d-id').textContent(), 'GT-CH-01');
+    await page.evaluate(() => {
+      const close = document.querySelector('[aria-label="Đóng chi tiết"]');
+      for (let i = 0; i < 10; i++) close.click();
+      window.closeDrawer();
+    });
+    assert.equal(await page.locator('#detail-drawer').evaluate((drawer) => drawer.classList.contains('drawer-open')), false);
+    const search = page.getByPlaceholder(/Lọc theo tên, quận, mã.../i);
+    for (const keyword of ['[]()*', '\'"\\', '<script>alert(1)</script>', '☕ tiếng Việt']) {
+      await search.fill(keyword);
+      assert.equal(await page.getByText('Không tìm thấy chi nhánh nào phù hợp với từ khóa tìm kiếm.').isVisible(), true);
+    }
+    await search.fill('');
+    await page.locator('nav a').filter({ hasText: 'Copilot' }).click();
+    await page.keyboard.press('Escape');
+    assert.equal(await page.getByRole('dialog', { name: 'Guta AI Copilot Drawer' }).count(), 0);
+    assert.deepEqual(consoleErrors, []);
+  });
+
+  it('Regression: unmount ChatDrawer khi bot đang typing', async () => {
+    await page.evaluate(() => {
+      window.__replyCallbacks = 0;
+      window.__cancelledReplies = 0;
+      const originalSetTimeout = window.setTimeout.bind(window);
+      const originalClearTimeout = window.clearTimeout.bind(window);
+      const replies = new Set();
+      window.setTimeout = (callback, delay, ...args) => {
+        const id = originalSetTimeout(() => {
+          if (delay === 600) window.__replyCallbacks++;
+          callback(...args);
+        }, delay);
+        if (delay === 600) replies.add(id);
+        return id;
+      };
+      window.clearTimeout = (id) => {
+        if (replies.delete(id)) window.__cancelledReplies++;
+        originalClearTimeout(id);
+      };
+      window.__restoreTimers = () => {
+        window.setTimeout = originalSetTimeout;
+        window.clearTimeout = originalClearTimeout;
+      };
+    });
+    try {
+      await page.locator('nav a').filter({ hasText: 'Copilot' }).click();
+      await page.getByPlaceholder('Hỏi AI về ca trực, nhân sự, tiền két...').fill('thiếu người');
+      await page.keyboard.press('Enter');
+      assert.equal(await page.getByText('Đang phân tích dữ liệu ca trực...').isVisible(), true);
+      await page.evaluate(() => document.querySelector('[aria-label="Đăng Xuất Phiên"]').click());
+      await page.waitForTimeout(700);
+      assert.deepEqual(await page.evaluate(() => [window.__replyCallbacks, window.__cancelledReplies]), [0, 1]);
+      assert.deepEqual(await page.evaluate(() => [typeof window.openDrawer, typeof window.closeDrawer]), ['undefined', 'undefined']);
+      assert.deepEqual(consoleErrors, []);
+    } finally {
+      await page.evaluate(() => window.__restoreTimers());
+    }
+    await page.getByRole('button', { name: /Get Started/i }).click();
+    await page.getByText(/Nguyễn Thị Phương Anh/i).first().click();
+  });
+
+  it('Combo B UI/UX Anti-Slop: Trigger button spinners, illustrated empty state & filter reset', async () => {
+    // 1. Trigger button: Tạo Ca Đột Xuất (disabled + spinner)
+    const emergencyBtn = page.locator('button').filter({ hasText: /Tạo Ca Đột Xuất|Đang khởi tạo/i });
+    assert.equal(await emergencyBtn.isVisible(), true);
+    await emergencyBtn.click();
+    assert.equal(await emergencyBtn.isDisabled(), true);
+    assert.match(await emergencyBtn.textContent(), /Đang khởi tạo/);
+    await page.waitForTimeout(800);
+    assert.equal(await emergencyBtn.isDisabled(), false);
+    assert.match(await emergencyBtn.textContent(), /Tạo Ca Đột Xuất/);
+
+    // 2. District Filter Cycle
+    const districtBtn = page.getByRole('button', { name: /Bộ lọc Quận/i });
+    await districtBtn.click();
+    await page.waitForTimeout(200);
+    const q1Btn = page.getByRole('button', { name: /Quận: Quận 1/i });
+    assert.equal(await q1Btn.isVisible(), true);
+
+    // 3. Illustrated Empty State and Reset CTA
+    const search = page.getByPlaceholder(/Lọc theo tên, quận, mã.../i);
+    await search.fill('KhongTheNaoCoChiNhanhNay999');
+    await page.getByText('Không tìm thấy chi nhánh nào phù hợp với từ khóa tìm kiếm.').waitFor({ state: 'visible' });
+    const resetBtn = page.getByRole('button', { name: /Đặt lại bộ lọc/i });
+    assert.equal(await resetBtn.isVisible(), true);
+    await resetBtn.click();
+    await page.waitForTimeout(200);
+    assert.equal(await search.inputValue(), '');
+    assert.equal(await page.getByText(/581 Sư Vạn Hạnh/i).isVisible(), true);
+
+    // 4. ChatDrawer Trigger Button State
+    await page.locator('nav a').filter({ hasText: 'Copilot' }).click();
+    const chatInput = page.getByPlaceholder('Hỏi AI về ca trực, nhân sự, tiền két...');
+    const sendBtn = page.getByRole('button', { name: 'Gửi', exact: true });
+    assert.equal(await sendBtn.isDisabled(), true);
+    await chatInput.fill('Kiểm tra quy định');
+    assert.equal(await sendBtn.isDisabled(), false);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
+
+    assert.deepEqual(consoleErrors, []);
+  });
+
+  it('Chặn liên kết chết href="#" trong CRM Dashboard, hiển thị toast ZKTeco', async () => {
+    // Click dead link "Lịch Phân Ca 24H"
+    const shiftLink = page.locator('nav a').filter({ hasText: /Lịch Phân Ca 24H/i });
+    await shiftLink.click();
+    const zkToast = page.getByText(/Tính năng đang trong chu kỳ đồng bộ dữ liệu ZKTeco/i);
+    await zkToast.waitFor({ state: 'visible', timeout: 3000 });
+    assert.equal(await zkToast.isVisible(), true);
   });
 
   it('Bước 7: Bấm nút "Đăng xuất", kiểm tra quay lại Landing Page an toàn', async () => {
@@ -215,5 +351,22 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     const heroTitle = page.getByText(/Quản Trị Nhân Sự & Phân Ca Tự Động/i);
     await heroTitle.waitFor({ state: 'visible', timeout: 5000 });
     assert.equal(await heroTitle.isVisible(), true);
+    assert.deepEqual(consoleErrors, [], 'Demo flow must have zero console errors and uncaught exceptions');
+    console.log(`Console errors / pageerrors: ${consoleErrors.length}`);
+  });
+
+  it('Chặn liên kết chết href="#" trên Landing Page và kiểm tra sạch ngữ cảnh học thuật', async () => {
+    // Click hero badge href="#"
+    const badgeLink = page.locator('a[href="#"]').filter({ hasText: /F&B Workforce Intelligence/i });
+    await badgeLink.click();
+    const zkToast = page.getByText(/Tính năng đang trong chu kỳ đồng bộ dữ liệu ZKTeco/i).last();
+    await zkToast.waitFor({ state: 'visible', timeout: 3000 });
+    assert.equal(await zkToast.isVisible(), true);
+
+    // Kiểm tra sạch các từ khóa học thuật/khóa luận
+    const pageContent = await page.content();
+    assert.doesNotMatch(pageContent, /KLCN133/i);
+    assert.doesNotMatch(pageContent, /khóa luận/i);
+    assert.doesNotMatch(pageContent, /F1–F7/i);
   });
 });
