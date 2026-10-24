@@ -20,9 +20,7 @@ const CRM_HTML = `
         <!-- Brand Header -->
         <div class="p-4 border-b border-border/80 flex items-center justify-between">
           <div class="flex items-center gap-2.5">
-            <div class="flex size-8 items-center justify-center rounded-lg bg-blue-600/10 p-1 border border-blue-500/20">
-              <img src="/assets/logos/guta-mark-pure.svg" alt="GUTA" class="size-6 object-contain" />
-            </div>
+            <div class="flex size-8 items-center justify-center rounded-lg bg-blue-600 text-white font-black text-sm shadow-sm shrink-0">G</div>
             <div class="flex flex-col">
               <div class="flex items-center gap-1.5 leading-none">
                 <span class="font-black tracking-wider text-foreground text-sm">GUTA</span>
@@ -31,7 +29,7 @@ const CRM_HTML = `
               <span class="text-[10px] text-muted-foreground mt-0.5 font-medium">Chuỗi Cà Phê • 45 Cửa Hàng</span>
             </div>
           </div>
-          <a href="#logout" title="Trở về Trang Chủ" class="text-xs text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted transition">
+          <a href="#logout" title="Trở về Trang Chủ" class="text-xs text-muted-foreground hover:text-foreground p-1.5 rounded hover:bg-muted transition">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           </a>
         </div>
@@ -39,9 +37,9 @@ const CRM_HTML = `
         <!-- Search Bar Trigger -->
         <div class="px-3 pt-3">
           <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-border/80 bg-background/60 text-xs text-muted-foreground shadow-xs cursor-pointer hover:border-blue-500/50 transition">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             <input type="text" placeholder="Lọc theo tên, quận, mã..." class="flex-1 bg-transparent border-0 outline-none text-xs text-foreground placeholder:text-muted-foreground w-full" />
-            <kbd class="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono border border-border">⌘K</kbd>
+            <kbd class="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono border border-border shrink-0">⌘K</kbd>
           </div>
         </div>
 
@@ -52,7 +50,7 @@ const CRM_HTML = `
           <a href="#" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-semibold bg-blue-600/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shadow-2xs">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
             <span>Cửa hàng / Chi nhánh</span>
-            <span class="ml-auto rounded-full bg-blue-600/20 px-1.5 py-0.5 text-[10px] font-bold font-mono text-blue-600 dark:text-blue-400">45</span>
+            <span class="ml-auto rounded-full bg-blue-600/20 px-1.5 py-0.2 text-[10px] font-bold font-mono text-blue-600 dark:text-blue-400">45</span>
           </a>
 
           <a href="#" data-entrypoint="coming-soon" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium text-muted-foreground/75 opacity-70 cursor-not-allowed select-none transition">
@@ -93,13 +91,13 @@ const CRM_HTML = `
 
       <!-- User Profile at bottom -->
       <div class="p-3 border-t border-border bg-sidebar/50">
-        <div class="flex items-center gap-3 p-2 rounded-xl border border-border/60 bg-background/80 shadow-xs">
-          <div class="size-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs ring-1 ring-border">PA</div>
+        <div class="flex items-center gap-3 p-2.5 rounded-xl border border-border/60 bg-background/80 shadow-xs">
+          <div class="size-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs ring-1 ring-border shrink-0">PA</div>
           <div class="flex-1 min-w-0">
             <div class="font-bold text-foreground text-xs truncate">Nguyễn Thị Phương Anh</div>
-            <div class="text-[10px] text-muted-foreground truncate">Cửa hàng trưởng (SM)</div>
+            <div class="text-[10px] text-muted-foreground truncate" title="Cửa hàng trưởng (SM)">Cửa hàng trưởng (SM)</div>
           </div>
-          <button type="button" role="button" aria-label="Đăng Xuất Phiên" title="Đăng Xuất Phiên" class="text-muted-foreground hover:text-red-500 p-1.5 rounded-md hover:bg-muted transition cursor-pointer">
+          <button type="button" role="button" aria-label="Đăng Xuất Phiên" title="Đăng Xuất Phiên" class="text-muted-foreground hover:text-red-500 p-1.5 rounded-md hover:bg-muted transition cursor-pointer shrink-0">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           </button>
         </div>
@@ -117,7 +115,7 @@ const CRM_HTML = `
             <span class="text-border">/</span>
             <span class="text-foreground font-semibold">Vận Hành Chi Nhánh & Phân Ca</span>
           </div>
-          <span class="rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[11px] font-semibold flex items-center gap-1.5">
+          <span class="rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 px-2.5 py-0.5 text-[11px] font-semibold flex items-center gap-1.5">
             <span class="size-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
             45/45 Chi nhánh mở ca sáng
           </span>
@@ -139,46 +137,50 @@ const CRM_HTML = `
 
       <!-- DATA TABLE AREA -->
       <main class="flex-1 overflow-auto p-6">
-        <!-- KPI SUMMARY RIBBON -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-6">
-          <div class="p-3.5 rounded-xl border border-border/80 bg-card/60 shadow-xs">
-            <div class="flex items-center justify-between text-muted-foreground mb-1">
-              <span class="text-[10px] font-bold tracking-wider uppercase">Tổng Cửa Hàng</span>
+        <!-- KPI SUMMARY RIBBON (Applied Taste-Skill Strict Styling) -->
+        <div class="crm-kpi-grid">
+          <div class="crm-kpi-card">
+            <div class="crm-kpi-header">
+              <span class="crm-kpi-title">Tổng Cửa Hàng</span>
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-500"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
             </div>
-            <div class="text-xl font-bold font-mono text-foreground">45 <span class="text-xs font-normal text-muted-foreground font-sans">chi nhánh</span></div>
-            <div class="text-[11px] text-emerald-500 font-medium mt-1 flex items-center gap-1">
-              <span class="size-1.5 rounded-full bg-emerald-500"></span> 100% mở ca 1
+            <div class="crm-kpi-value">45 <small style="font-size: 13px; font-weight: 400; color: #94a3b8; font-family: sans-serif;">chi nhánh</small></div>
+            <div class="crm-kpi-meta" style="color: #34d399;">
+              <span style="width: 6px; height: 6px; border-radius: 9999px; background: #10b981;"></span>
+              <span>100% mở ca 1</span>
             </div>
           </div>
-          <div class="p-3.5 rounded-xl border border-border/80 bg-card/60 shadow-xs">
-            <div class="flex items-center justify-between text-muted-foreground mb-1">
-              <span class="text-[10px] font-bold tracking-wider uppercase">Nhân Sự Trực Ca</span>
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-500"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+
+          <div class="crm-kpi-card">
+            <div class="crm-kpi-header">
+              <span class="crm-kpi-title">Nhân Sự Trực Ca</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-400"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             </div>
-            <div class="text-xl font-bold font-mono text-foreground">135 <span class="text-xs font-normal text-muted-foreground font-sans">nhân sự</span></div>
-            <div class="text-[11px] text-muted-foreground font-medium mt-1">
-              Định biên 3 người / cửa hàng
-            </div>
-          </div>
-          <div class="p-3.5 rounded-xl border border-border/80 bg-card/60 shadow-xs">
-            <div class="flex items-center justify-between text-muted-foreground mb-1">
-              <span class="text-[10px] font-bold tracking-wider uppercase">Doanh Thu Két Sáng</span>
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
-            </div>
-            <div class="text-xl font-bold font-mono text-blue-600 dark:text-blue-400">184.250.000 ₫</div>
-            <div class="text-[11px] text-emerald-500 font-medium mt-1">
-              Khớp 99.94% máy POS
+            <div class="crm-kpi-value">135 <small style="font-size: 13px; font-weight: 400; color: #94a3b8; font-family: sans-serif;">nhân sự</small></div>
+            <div class="crm-kpi-meta" style="color: #94a3b8;">
+              <span>Định biên 3 người / cửa hàng</span>
             </div>
           </div>
-          <div class="p-3.5 rounded-xl border border-border/80 bg-card/60 shadow-xs">
-            <div class="flex items-center justify-between text-muted-foreground mb-1">
-              <span class="text-[10px] font-bold tracking-wider uppercase">Tỷ Lệ Đúng Giờ</span>
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-500"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+
+          <div class="crm-kpi-card">
+            <div class="crm-kpi-header">
+              <span class="crm-kpi-title">Doanh Thu Két Sáng</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-400"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
             </div>
-            <div class="text-xl font-bold font-mono text-foreground">98.6%</div>
-            <div class="text-[11px] text-muted-foreground font-medium mt-1">
-              Đồng bộ ZKTeco vân tay
+            <div class="crm-kpi-value" style="color: #60a5fa;">184.250.000 ₫</div>
+            <div class="crm-kpi-meta" style="color: #34d399;">
+              <span>Khớp 99.94% máy POS</span>
+            </div>
+          </div>
+
+          <div class="crm-kpi-card">
+            <div class="crm-kpi-header">
+              <span class="crm-kpi-title">Tỷ Lệ Đúng Giờ</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-400"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="crm-kpi-value">98.6%</div>
+            <div class="crm-kpi-meta" style="color: #94a3b8;">
+              <span>Đồng bộ ZKTeco vân tay</span>
             </div>
           </div>
         </div>
@@ -188,264 +190,264 @@ const CRM_HTML = `
             <h1 class="text-xl font-bold tracking-tight text-foreground">Chi Nhánh Cà Phê Guta (Khu Vực TP.HCM)</h1>
             <p class="text-xs text-muted-foreground mt-0.5">Dữ liệu nhân sự, ca làm việc hiện tại và doanh thu két thời gian thực. Bấm vào từng hàng để mở Slide-Over Drawer.</p>
           </div>
-          <div class="text-xs font-medium text-muted-foreground">
+          <div class="text-xs font-medium text-muted-foreground whitespace-nowrap">
             Hiển thị 10 / 45 Cửa hàng
           </div>
         </div>
 
         <!-- TABLE -->
-        <div class="rounded-xl border border-border bg-card shadow-xs overflow-hidden">
-          <table class="w-full text-left text-xs border-collapse">
+        <div class="rounded-xl border border-border bg-card/60 shadow-xs overflow-x-auto">
+          <table class="w-full text-left text-xs border-collapse min-w-[960px]">
             <thead>
               <tr class="border-b border-border bg-muted/40 font-semibold text-muted-foreground">
-                <th class="py-3 px-4">Mã CH</th>
-                <th class="py-3 px-4">Tên Cửa Hàng / Chi Nhánh</th>
-                <th class="py-3 px-4">Cửa Hàng Trưởng (SM)</th>
-                <th class="py-3 px-4">Quận</th>
-                <th class="py-3 px-4 text-center">Số Barista</th>
-                <th class="py-3 px-4">Ca Hiện Tại</th>
-                <th class="py-3 px-4 text-right">Doanh Thu Két</th>
-                <th class="py-3 px-4 text-center">Đúng Giờ</th>
-                <th class="py-3 px-4 text-center">Trạng Thái</th>
+                <th class="py-3 px-3 whitespace-nowrap">Mã CH</th>
+                <th class="py-3 px-3 whitespace-nowrap">Tên Cửa Hàng / Chi Nhánh</th>
+                <th class="py-3 px-3 whitespace-nowrap">Cửa Hàng Trưởng (SM)</th>
+                <th class="py-3 px-3 whitespace-nowrap">Quận</th>
+                <th class="py-3 px-3 text-center whitespace-nowrap">Số Barista</th>
+                <th class="py-3 px-3 whitespace-nowrap">Ca Hiện Tại</th>
+                <th class="py-3 px-3 text-right whitespace-nowrap">Doanh Thu Két</th>
+                <th class="py-3 px-3 text-center whitespace-nowrap">Đúng Giờ</th>
+                <th class="py-3 px-3 text-center whitespace-nowrap">Trạng Thái</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-border font-medium">
+            <tbody class="divide-y divide-border/60 font-medium">
 
               <tr class="table-row-hover cursor-pointer" data-id="GT-CH-01" data-name="GUTA CAFE - Tân Bình - 02 Đặng Văn Sâm" data-sm="Nguyễn Thị Phương Anh" data-district="Tân Bình" data-staff="46" data-shift="Ca 1 (06:00 - 14:00)" data-rev="8.420.000 ₫" data-ontime="100%">
-                <td class="py-3 px-4 font-mono text-[11px] text-muted-foreground">GT-CH-01</td>
-                <td class="py-3 px-4 font-semibold text-foreground flex items-center gap-2.5">
-                  <div class="size-6 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <td class="py-3 px-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">GT-CH-01</td>
+                <td class="py-3 px-3 font-semibold text-foreground flex items-center gap-2 whitespace-nowrap">
+                  <div class="size-6 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>
                   </div>
                   <span>GUTA CAFE - Tân Bình - 02 Đặng Văn Sâm</span>
                 </td>
-                <td class="py-3 px-4 text-foreground/90">Nguyễn Thị Phương Anh</td>
-                <td class="py-3 px-4">
-                  <span class="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Tân Bình</span>
+                <td class="py-3 px-3 text-foreground/90 whitespace-nowrap">Nguyễn Thị Phương Anh</td>
+                <td class="py-3 px-3 whitespace-nowrap">
+                  <span class="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground whitespace-nowrap">Tân Bình</span>
                 </td>
-                <td class="py-3 px-4 text-center font-semibold text-foreground">46</td>
-                <td class="py-3 px-4 text-foreground/80 font-mono text-[11px]">Ca 1 (06:00 - 14:00)</td>
-                <td class="py-3 px-4 text-right font-mono font-semibold text-foreground">8.420.000 ₫</td>
-                <td class="py-3 px-4 text-center font-mono text-emerald-600 dark:text-emerald-400">100%</td>
-                <td class="py-3 px-4 text-center">
-                  <span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                    <span class="size-1 rounded-full bg-emerald-500"></span>
+                <td class="py-3 px-3 text-center font-semibold text-foreground whitespace-nowrap">46</td>
+                <td class="py-3 px-3 text-foreground/80 font-mono text-[11px] whitespace-nowrap">Ca 1 (06:00 - 14:00)</td>
+                <td class="py-3 px-3 text-right font-mono font-semibold text-foreground whitespace-nowrap">8.420.000 ₫</td>
+                <td class="py-3 px-3 text-center font-mono text-emerald-400 whitespace-nowrap">100%</td>
+                <td class="py-3 px-3 text-center whitespace-nowrap">
+                  <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
+                    <span class="size-1.5 rounded-full bg-emerald-500"></span>
                     Đang mở ca
                   </span>
                 </td>
               </tr>
 
               <tr class="table-row-hover cursor-pointer" data-id="GT-CH-02" data-name="GUTA CAFE - Quận 10 - 581 Sư Vạn Hạnh" data-sm="Đỗ Quỳnh Anh" data-district="Quận 10" data-staff="56" data-shift="Ca 1 (06:00 - 14:00)" data-rev="12.150.000 ₫" data-ontime="98%">
-                <td class="py-3 px-4 font-mono text-[11px] text-muted-foreground">GT-CH-02</td>
-                <td class="py-3 px-4 font-semibold text-foreground flex items-center gap-2.5">
-                  <div class="size-6 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <td class="py-3 px-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">GT-CH-02</td>
+                <td class="py-3 px-3 font-semibold text-foreground flex items-center gap-2 whitespace-nowrap">
+                  <div class="size-6 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>
                   </div>
                   <span>GUTA CAFE - Quận 10 - 581 Sư Vạn Hạnh</span>
                 </td>
-                <td class="py-3 px-4 text-foreground/90">Đỗ Quỳnh Anh</td>
-                <td class="py-3 px-4">
-                  <span class="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Quận 10</span>
+                <td class="py-3 px-3 text-foreground/90 whitespace-nowrap">Đỗ Quỳnh Anh</td>
+                <td class="py-3 px-3 whitespace-nowrap">
+                  <span class="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground whitespace-nowrap">Quận 10</span>
                 </td>
-                <td class="py-3 px-4 text-center font-semibold text-foreground">56</td>
-                <td class="py-3 px-4 text-foreground/80 font-mono text-[11px]">Ca 1 (06:00 - 14:00)</td>
-                <td class="py-3 px-4 text-right font-mono font-semibold text-foreground">12.150.000 ₫</td>
-                <td class="py-3 px-4 text-center font-mono text-emerald-600 dark:text-emerald-400">98%</td>
-                <td class="py-3 px-4 text-center">
-                  <span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                    <span class="size-1 rounded-full bg-emerald-500"></span>
+                <td class="py-3 px-3 text-center font-semibold text-foreground whitespace-nowrap">56</td>
+                <td class="py-3 px-3 text-foreground/80 font-mono text-[11px] whitespace-nowrap">Ca 1 (06:00 - 14:00)</td>
+                <td class="py-3 px-3 text-right font-mono font-semibold text-foreground whitespace-nowrap">12.150.000 ₫</td>
+                <td class="py-3 px-3 text-center font-mono text-emerald-400 whitespace-nowrap">98%</td>
+                <td class="py-3 px-3 text-center whitespace-nowrap">
+                  <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
+                    <span class="size-1.5 rounded-full bg-emerald-500"></span>
                     Đang mở ca
                   </span>
                 </td>
               </tr>
 
               <tr class="table-row-hover cursor-pointer" data-id="GT-CH-03" data-name="GUTA CAFE - Bình Thạnh - 18 Nguyễn Cửu Vân" data-sm="Nguyễn Lê Quang Trường" data-district="Bình Thạnh" data-staff="47" data-shift="Ca 1 (06:00 - 14:00)" data-rev="7.890.000 ₫" data-ontime="95%">
-                <td class="py-3 px-4 font-mono text-[11px] text-muted-foreground">GT-CH-03</td>
-                <td class="py-3 px-4 font-semibold text-foreground flex items-center gap-2.5">
-                  <div class="size-6 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <td class="py-3 px-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">GT-CH-03</td>
+                <td class="py-3 px-3 font-semibold text-foreground flex items-center gap-2 whitespace-nowrap">
+                  <div class="size-6 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>
                   </div>
                   <span>GUTA CAFE - Bình Thạnh - 18 Nguyễn Cửu Vân</span>
                 </td>
-                <td class="py-3 px-4 text-foreground/90">Nguyễn Lê Quang Trường</td>
-                <td class="py-3 px-4">
-                  <span class="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Bình Thạnh</span>
+                <td class="py-3 px-3 text-foreground/90 whitespace-nowrap">Nguyễn Lê Quang Trường</td>
+                <td class="py-3 px-3 whitespace-nowrap">
+                  <span class="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground whitespace-nowrap">Bình Thạnh</span>
                 </td>
-                <td class="py-3 px-4 text-center font-semibold text-foreground">47</td>
-                <td class="py-3 px-4 text-foreground/80 font-mono text-[11px]">Ca 1 (06:00 - 14:00)</td>
-                <td class="py-3 px-4 text-right font-mono font-semibold text-foreground">7.890.000 ₫</td>
-                <td class="py-3 px-4 text-center font-mono text-emerald-600 dark:text-emerald-400">95%</td>
-                <td class="py-3 px-4 text-center">
-                  <span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                    <span class="size-1 rounded-full bg-emerald-500"></span>
+                <td class="py-3 px-3 text-center font-semibold text-foreground whitespace-nowrap">47</td>
+                <td class="py-3 px-3 text-foreground/80 font-mono text-[11px] whitespace-nowrap">Ca 1 (06:00 - 14:00)</td>
+                <td class="py-3 px-3 text-right font-mono font-semibold text-foreground whitespace-nowrap">7.890.000 ₫</td>
+                <td class="py-3 px-3 text-center font-mono text-emerald-400 whitespace-nowrap">95%</td>
+                <td class="py-3 px-3 text-center whitespace-nowrap">
+                  <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
+                    <span class="size-1.5 rounded-full bg-emerald-500"></span>
                     Đang mở ca
                   </span>
                 </td>
               </tr>
 
               <tr class="table-row-hover cursor-pointer" data-id="GT-CH-04" data-name="GUTA CAFE - Quận 3 - 100 Nguyễn Thị Minh Khai" data-sm="Nguyễn Thị Thu Trúc" data-district="Quận 3" data-staff="45" data-shift="Ca 1 (06:00 - 14:00)" data-rev="9.340.000 ₫" data-ontime="100%">
-                <td class="py-3 px-4 font-mono text-[11px] text-muted-foreground">GT-CH-04</td>
-                <td class="py-3 px-4 font-semibold text-foreground flex items-center gap-2.5">
-                  <div class="size-6 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <td class="py-3 px-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">GT-CH-04</td>
+                <td class="py-3 px-3 font-semibold text-foreground flex items-center gap-2 whitespace-nowrap">
+                  <div class="size-6 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>
                   </div>
                   <span>GUTA CAFE - Quận 3 - 100 Nguyễn Thị Minh Khai</span>
                 </td>
-                <td class="py-3 px-4 text-foreground/90">Nguyễn Thị Thu Trúc</td>
-                <td class="py-3 px-4">
-                  <span class="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Quận 3</span>
+                <td class="py-3 px-3 text-foreground/90 whitespace-nowrap">Nguyễn Thị Thu Trúc</td>
+                <td class="py-3 px-3 whitespace-nowrap">
+                  <span class="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground whitespace-nowrap">Quận 3</span>
                 </td>
-                <td class="py-3 px-4 text-center font-semibold text-foreground">45</td>
-                <td class="py-3 px-4 text-foreground/80 font-mono text-[11px]">Ca 1 (06:00 - 14:00)</td>
-                <td class="py-3 px-4 text-right font-mono font-semibold text-foreground">9.340.000 ₫</td>
-                <td class="py-3 px-4 text-center font-mono text-emerald-600 dark:text-emerald-400">100%</td>
-                <td class="py-3 px-4 text-center">
-                  <span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                    <span class="size-1 rounded-full bg-emerald-500"></span>
+                <td class="py-3 px-3 text-center font-semibold text-foreground whitespace-nowrap">45</td>
+                <td class="py-3 px-3 text-foreground/80 font-mono text-[11px] whitespace-nowrap">Ca 1 (06:00 - 14:00)</td>
+                <td class="py-3 px-3 text-right font-mono font-semibold text-foreground whitespace-nowrap">9.340.000 ₫</td>
+                <td class="py-3 px-3 text-center font-mono text-emerald-400 whitespace-nowrap">100%</td>
+                <td class="py-3 px-3 text-center whitespace-nowrap">
+                  <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
+                    <span class="size-1.5 rounded-full bg-emerald-500"></span>
                     Đang mở ca
                   </span>
                 </td>
               </tr>
 
               <tr class="table-row-hover cursor-pointer" data-id="GT-CH-05" data-name="GUTA CAFE - Quận 3 - 41 Trần Cao Vân" data-sm="Triệu Quang Nhân" data-district="Quận 3" data-staff="45" data-shift="Ca 1 (06:00 - 14:00)" data-rev="8.120.000 ₫" data-ontime="96%">
-                <td class="py-3 px-4 font-mono text-[11px] text-muted-foreground">GT-CH-05</td>
-                <td class="py-3 px-4 font-semibold text-foreground flex items-center gap-2.5">
-                  <div class="size-6 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <td class="py-3 px-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">GT-CH-05</td>
+                <td class="py-3 px-3 font-semibold text-foreground flex items-center gap-2 whitespace-nowrap">
+                  <div class="size-6 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>
                   </div>
                   <span>GUTA CAFE - Quận 3 - 41 Trần Cao Vân</span>
                 </td>
-                <td class="py-3 px-4 text-foreground/90">Triệu Quang Nhân</td>
-                <td class="py-3 px-4">
-                  <span class="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Quận 3</span>
+                <td class="py-3 px-3 text-foreground/90 whitespace-nowrap">Triệu Quang Nhân</td>
+                <td class="py-3 px-3 whitespace-nowrap">
+                  <span class="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground whitespace-nowrap">Quận 3</span>
                 </td>
-                <td class="py-3 px-4 text-center font-semibold text-foreground">45</td>
-                <td class="py-3 px-4 text-foreground/80 font-mono text-[11px]">Ca 1 (06:00 - 14:00)</td>
-                <td class="py-3 px-4 text-right font-mono font-semibold text-foreground">8.120.000 ₫</td>
-                <td class="py-3 px-4 text-center font-mono text-emerald-600 dark:text-emerald-400">96%</td>
-                <td class="py-3 px-4 text-center">
-                  <span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                    <span class="size-1 rounded-full bg-emerald-500"></span>
+                <td class="py-3 px-3 text-center font-semibold text-foreground whitespace-nowrap">45</td>
+                <td class="py-3 px-3 text-foreground/80 font-mono text-[11px] whitespace-nowrap">Ca 1 (06:00 - 14:00)</td>
+                <td class="py-3 px-3 text-right font-mono font-semibold text-foreground whitespace-nowrap">8.120.000 ₫</td>
+                <td class="py-3 px-3 text-center font-mono text-emerald-400 whitespace-nowrap">96%</td>
+                <td class="py-3 px-3 text-center whitespace-nowrap">
+                  <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
+                    <span class="size-1.5 rounded-full bg-emerald-500"></span>
                     Đang mở ca
                   </span>
                 </td>
               </tr>
 
               <tr class="table-row-hover cursor-pointer" data-id="GT-CH-06" data-name="GUTA CAFE - Quận 1 - 146 Nguyễn Văn Thủ" data-sm="Trương Quốc Thái" data-district="Quận 1" data-staff="43" data-shift="Ca 1 (06:00 - 14:00)" data-rev="6.950.000 ₫" data-ontime="94%">
-                <td class="py-3 px-4 font-mono text-[11px] text-muted-foreground">GT-CH-06</td>
-                <td class="py-3 px-4 font-semibold text-foreground flex items-center gap-2.5">
-                  <div class="size-6 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <td class="py-3 px-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">GT-CH-06</td>
+                <td class="py-3 px-3 font-semibold text-foreground flex items-center gap-2 whitespace-nowrap">
+                  <div class="size-6 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>
                   </div>
                   <span>GUTA CAFE - Quận 1 - 146 Nguyễn Văn Thủ</span>
                 </td>
-                <td class="py-3 px-4 text-foreground/90">Trương Quốc Thái</td>
-                <td class="py-3 px-4">
-                  <span class="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Quận 1</span>
+                <td class="py-3 px-3 text-foreground/90 whitespace-nowrap">Trương Quốc Thái</td>
+                <td class="py-3 px-3 whitespace-nowrap">
+                  <span class="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground whitespace-nowrap">Quận 1</span>
                 </td>
-                <td class="py-3 px-4 text-center font-semibold text-foreground">43</td>
-                <td class="py-3 px-4 text-foreground/80 font-mono text-[11px]">Ca 1 (06:00 - 14:00)</td>
-                <td class="py-3 px-4 text-right font-mono font-semibold text-foreground">6.950.000 ₫</td>
-                <td class="py-3 px-4 text-center font-mono text-emerald-600 dark:text-emerald-400">94%</td>
-                <td class="py-3 px-4 text-center">
-                  <span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                    <span class="size-1 rounded-full bg-emerald-500"></span>
+                <td class="py-3 px-3 text-center font-semibold text-foreground whitespace-nowrap">43</td>
+                <td class="py-3 px-3 text-foreground/80 font-mono text-[11px] whitespace-nowrap">Ca 1 (06:00 - 14:00)</td>
+                <td class="py-3 px-3 text-right font-mono font-semibold text-foreground whitespace-nowrap">6.950.000 ₫</td>
+                <td class="py-3 px-3 text-center font-mono text-emerald-400 whitespace-nowrap">94%</td>
+                <td class="py-3 px-3 text-center whitespace-nowrap">
+                  <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
+                    <span class="size-1.5 rounded-full bg-emerald-500"></span>
                     Đang mở ca
                   </span>
                 </td>
               </tr>
 
               <tr class="table-row-hover cursor-pointer" data-id="GT-CH-07" data-name="GUTA CAFE - Gò Vấp - 1B Nguyễn Kiệm" data-sm="Thái Thanh Lam" data-district="Gò Vấp" data-staff="42" data-shift="Ca 1 (06:00 - 14:00)" data-rev="7.200.000 ₫" data-ontime="97%">
-                <td class="py-3 px-4 font-mono text-[11px] text-muted-foreground">GT-CH-07</td>
-                <td class="py-3 px-4 font-semibold text-foreground flex items-center gap-2.5">
-                  <div class="size-6 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <td class="py-3 px-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">GT-CH-07</td>
+                <td class="py-3 px-3 font-semibold text-foreground flex items-center gap-2 whitespace-nowrap">
+                  <div class="size-6 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>
                   </div>
                   <span>GUTA CAFE - Gò Vấp - 1B Nguyễn Kiệm</span>
                 </td>
-                <td class="py-3 px-4 text-foreground/90">Thái Thanh Lam</td>
-                <td class="py-3 px-4">
-                  <span class="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Gò Vấp</span>
+                <td class="py-3 px-3 text-foreground/90 whitespace-nowrap">Thái Thanh Lam</td>
+                <td class="py-3 px-3 whitespace-nowrap">
+                  <span class="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground whitespace-nowrap">Gò Vấp</span>
                 </td>
-                <td class="py-3 px-4 text-center font-semibold text-foreground">42</td>
-                <td class="py-3 px-4 text-foreground/80 font-mono text-[11px]">Ca 1 (06:00 - 14:00)</td>
-                <td class="py-3 px-4 text-right font-mono font-semibold text-foreground">7.200.000 ₫</td>
-                <td class="py-3 px-4 text-center font-mono text-emerald-600 dark:text-emerald-400">97%</td>
-                <td class="py-3 px-4 text-center">
-                  <span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                    <span class="size-1 rounded-full bg-emerald-500"></span>
+                <td class="py-3 px-3 text-center font-semibold text-foreground whitespace-nowrap">42</td>
+                <td class="py-3 px-3 text-foreground/80 font-mono text-[11px] whitespace-nowrap">Ca 1 (06:00 - 14:00)</td>
+                <td class="py-3 px-3 text-right font-mono font-semibold text-foreground whitespace-nowrap">7.200.000 ₫</td>
+                <td class="py-3 px-3 text-center font-mono text-emerald-400 whitespace-nowrap">97%</td>
+                <td class="py-3 px-3 text-center whitespace-nowrap">
+                  <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
+                    <span class="size-1.5 rounded-full bg-emerald-500"></span>
                     Đang mở ca
                   </span>
                 </td>
               </tr>
 
               <tr class="table-row-hover cursor-pointer" data-id="GT-CH-08" data-name="GUTA CAFE - Gò Vấp - 30 Phạm Văn Đồng" data-sm="Lại Ngọc Hoàng Nguyên" data-district="Gò Vấp" data-staff="42" data-shift="Ca 1 (06:00 - 14:00)" data-rev="7.600.000 ₫" data-ontime="99%">
-                <td class="py-3 px-4 font-mono text-[11px] text-muted-foreground">GT-CH-08</td>
-                <td class="py-3 px-4 font-semibold text-foreground flex items-center gap-2.5">
-                  <div class="size-6 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <td class="py-3 px-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">GT-CH-08</td>
+                <td class="py-3 px-3 font-semibold text-foreground flex items-center gap-2 whitespace-nowrap">
+                  <div class="size-6 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>
                   </div>
                   <span>GUTA CAFE - Gò Vấp - 30 Phạm Văn Đồng</span>
                 </td>
-                <td class="py-3 px-4 text-foreground/90">Lại Ngọc Hoàng Nguyên</td>
-                <td class="py-3 px-4">
-                  <span class="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Gò Vấp</span>
+                <td class="py-3 px-3 text-foreground/90 whitespace-nowrap">Lại Ngọc Hoàng Nguyên</td>
+                <td class="py-3 px-3 whitespace-nowrap">
+                  <span class="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground whitespace-nowrap">Gò Vấp</span>
                 </td>
-                <td class="py-3 px-4 text-center font-semibold text-foreground">42</td>
-                <td class="py-3 px-4 text-foreground/80 font-mono text-[11px]">Ca 1 (06:00 - 14:00)</td>
-                <td class="py-3 px-4 text-right font-mono font-semibold text-foreground">7.600.000 ₫</td>
-                <td class="py-3 px-4 text-center font-mono text-emerald-600 dark:text-emerald-400">99%</td>
-                <td class="py-3 px-4 text-center">
-                  <span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                    <span class="size-1 rounded-full bg-emerald-500"></span>
+                <td class="py-3 px-3 text-center font-semibold text-foreground whitespace-nowrap">42</td>
+                <td class="py-3 px-3 text-foreground/80 font-mono text-[11px] whitespace-nowrap">Ca 1 (06:00 - 14:00)</td>
+                <td class="py-3 px-3 text-right font-mono font-semibold text-foreground whitespace-nowrap">7.600.000 ₫</td>
+                <td class="py-3 px-3 text-center font-mono text-emerald-400 whitespace-nowrap">99%</td>
+                <td class="py-3 px-3 text-center whitespace-nowrap">
+                  <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
+                    <span class="size-1.5 rounded-full bg-emerald-500"></span>
                     Đang mở ca
                   </span>
                 </td>
               </tr>
 
               <tr class="table-row-hover cursor-pointer" data-id="GT-CH-09" data-name="GUTA CAFE - Bình Thạnh - 193F Điện Biên Phủ" data-sm="Nguyễn Cao Thanh Hằng" data-district="Bình Thạnh" data-staff="39" data-shift="Ca 1 (06:00 - 14:00)" data-rev="6.450.000 ₫" data-ontime="95%">
-                <td class="py-3 px-4 font-mono text-[11px] text-muted-foreground">GT-CH-09</td>
-                <td class="py-3 px-4 font-semibold text-foreground flex items-center gap-2.5">
-                  <div class="size-6 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <td class="py-3 px-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">GT-CH-09</td>
+                <td class="py-3 px-3 font-semibold text-foreground flex items-center gap-2 whitespace-nowrap">
+                  <div class="size-6 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>
                   </div>
                   <span>GUTA CAFE - Bình Thạnh - 193F Điện Biên Phủ</span>
                 </td>
-                <td class="py-3 px-4 text-foreground/90">Nguyễn Cao Thanh Hằng</td>
-                <td class="py-3 px-4">
-                  <span class="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Bình Thạnh</span>
+                <td class="py-3 px-3 text-foreground/90 whitespace-nowrap">Nguyễn Cao Thanh Hằng</td>
+                <td class="py-3 px-3 whitespace-nowrap">
+                  <span class="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground whitespace-nowrap">Bình Thạnh</span>
                 </td>
-                <td class="py-3 px-4 text-center font-semibold text-foreground">39</td>
-                <td class="py-3 px-4 text-foreground/80 font-mono text-[11px]">Ca 1 (06:00 - 14:00)</td>
-                <td class="py-3 px-4 text-right font-mono font-semibold text-foreground">6.450.000 ₫</td>
-                <td class="py-3 px-4 text-center font-mono text-emerald-600 dark:text-emerald-400">95%</td>
-                <td class="py-3 px-4 text-center">
-                  <span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                    <span class="size-1 rounded-full bg-emerald-500"></span>
+                <td class="py-3 px-3 text-center font-semibold text-foreground whitespace-nowrap">39</td>
+                <td class="py-3 px-3 text-foreground/80 font-mono text-[11px] whitespace-nowrap">Ca 1 (06:00 - 14:00)</td>
+                <td class="py-3 px-3 text-right font-mono font-semibold text-foreground whitespace-nowrap">6.450.000 ₫</td>
+                <td class="py-3 px-3 text-center font-mono text-emerald-400 whitespace-nowrap">95%</td>
+                <td class="py-3 px-3 text-center whitespace-nowrap">
+                  <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
+                    <span class="size-1.5 rounded-full bg-emerald-500"></span>
                     Đang mở ca
                   </span>
                 </td>
               </tr>
 
               <tr class="table-row-hover cursor-pointer" data-id="GT-CH-10" data-name="GUTA CAFE - Quận 3 - 206 Pasteur" data-sm="Lê Ngọc Bảo Trân" data-district="Quận 3" data-staff="38" data-shift="Ca 1 (06:00 - 14:00)" data-rev="8.870.000 ₫" data-ontime="100%">
-                <td class="py-3 px-4 font-mono text-[11px] text-muted-foreground">GT-CH-10</td>
-                <td class="py-3 px-4 font-semibold text-foreground flex items-center gap-2.5">
-                  <div class="size-6 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <td class="py-3 px-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">GT-CH-10</td>
+                <td class="py-3 px-3 font-semibold text-foreground flex items-center gap-2 whitespace-nowrap">
+                  <div class="size-6 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>
                   </div>
                   <span>GUTA CAFE - Quận 3 - 206 Pasteur</span>
                 </td>
-                <td class="py-3 px-4 text-foreground/90">Lê Ngọc Bảo Trân</td>
-                <td class="py-3 px-4">
-                  <span class="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Quận 3</span>
+                <td class="py-3 px-3 text-foreground/90 whitespace-nowrap">Lê Ngọc Bảo Trân</td>
+                <td class="py-3 px-3 whitespace-nowrap">
+                  <span class="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground whitespace-nowrap">Quận 3</span>
                 </td>
-                <td class="py-3 px-4 text-center font-semibold text-foreground">38</td>
-                <td class="py-3 px-4 text-foreground/80 font-mono text-[11px]">Ca 1 (06:00 - 14:00)</td>
-                <td class="py-3 px-4 text-right font-mono font-semibold text-foreground">8.870.000 ₫</td>
-                <td class="py-3 px-4 text-center font-mono text-emerald-600 dark:text-emerald-400">100%</td>
-                <td class="py-3 px-4 text-center">
-                  <span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                    <span class="size-1 rounded-full bg-emerald-500"></span>
+                <td class="py-3 px-3 text-center font-semibold text-foreground whitespace-nowrap">38</td>
+                <td class="py-3 px-3 text-foreground/80 font-mono text-[11px] whitespace-nowrap">Ca 1 (06:00 - 14:00)</td>
+                <td class="py-3 px-3 text-right font-mono font-semibold text-foreground whitespace-nowrap">8.870.000 ₫</td>
+                <td class="py-3 px-3 text-center font-mono text-emerald-400 whitespace-nowrap">100%</td>
+                <td class="py-3 px-3 text-center whitespace-nowrap">
+                  <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
+                    <span class="size-1.5 rounded-full bg-emerald-500"></span>
                     Đang mở ca
                   </span>
                 </td>
@@ -460,104 +462,100 @@ const CRM_HTML = `
   </div>
 
   <!-- SLIDE-OVER DETAIL DRAWER -->
-  <div id="drawer-backdrop" class="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs transition-opacity duration-300 opacity-0 pointer-events-none"></div>
-  <aside id="detail-drawer" class="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-card border-l border-border shadow-2xl flex flex-col justify-between transform translate-x-full transition-transform duration-300 ease-in-out">
-    <div>
-      <!-- Drawer Header -->
-      <div class="p-6 border-b border-border flex items-start justify-between bg-muted/20">
-        <div>
-          <span class="rounded bg-blue-500/10 text-foreground px-2 py-0.5 text-[10px] font-bold font-mono uppercase" id="d-id">GT-CH-01</span>
-          <h2 class="text-base font-bold text-foreground mt-1.5" id="d-name">GUTA CAFE - Tân Bình - 02 Đặng Văn Sâm</h2>
-          <p class="text-xs text-muted-foreground mt-0.5" id="d-district">Quận: Tân Bình • Cửa hàng trưởng: Nguyễn Thị Phương Anh</p>
-        </div>
-        <button type="button" aria-label="Đóng chi tiết" data-close-drawer class="size-8 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground flex items-center justify-center transition cursor-pointer">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-        </button>
+  <div id="drawer-backdrop" class="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs transition-opacity duration-300 opacity-0 pointer-events-none"></div>
+  <aside id="detail-drawer" class="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-card border-l border-border shadow-2xl flex flex-col h-full transform translate-x-full transition-transform duration-300 ease-in-out">
+    <!-- Drawer Header (shrink-0) -->
+    <div class="p-6 border-b border-border flex items-start justify-between bg-muted/20 shrink-0">
+      <div>
+        <span class="rounded-md bg-blue-500/10 border border-blue-500/20 text-blue-400 px-2 py-0.5 text-[10px] font-bold font-mono uppercase" id="d-id">GT-CH-01</span>
+        <h2 class="text-base font-bold text-foreground mt-2" id="d-name">GUTA CAFE - Tân Bình - 02 Đặng Văn Sâm</h2>
+        <p class="text-xs text-muted-foreground mt-0.5" id="d-district">Quận: Tân Bình • Cửa hàng trưởng: Nguyễn Thị Phương Anh</p>
       </div>
-
-      <!-- Drawer Body -->
-      <div class="p-6 space-y-6 overflow-y-auto max-h-[calc(100vh-210px)]">
-        <p class="mb-4 text-xs text-muted-foreground" role="note">Nội dung minh họa — không phải dữ liệu nhân sự hay vận hành thật.</p>
-        <!-- Metrics Grid -->
-        <div class="grid grid-cols-2 gap-3">
-          <div class="p-3.5 rounded-xl border border-border bg-background">
-            <span class="text-[10px] font-medium text-muted-foreground uppercase">Doanh Thu Két Hiện Tại</span>
-            <div class="text-base font-bold font-mono text-blue-600 dark:text-blue-400 mt-0.5" id="d-rev">8.420.000 ₫</div>
-            <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
-              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
-              +14% so với ca hôm qua
-            </span>
-          </div>
-          <div class="p-3.5 rounded-xl border border-border bg-background">
-            <span class="text-[10px] font-medium text-muted-foreground uppercase">Tổng Nhân Sự Barista</span>
-            <div class="text-base font-bold font-mono text-foreground mt-0.5" id="d-staff">46 người</div>
-            <span class="text-[10px] text-muted-foreground font-medium" id="d-ontime">Đúng giờ: 100%</span>
-          </div>
-        </div>
-
-        <!-- Shift Live Roster -->
-        <div>
-          <div class="flex items-center justify-between mb-3">
-            <h3 class="text-xs font-bold text-foreground uppercase tracking-wider">Barista Đang Làm Ca Hiện Tại</h3>
-            <span class="text-[10px] font-semibold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full">Đủ 3 người</span>
-          </div>
-
-          <div class="space-y-2">
-            <div class="flex items-center justify-between p-2.5 rounded-lg border border-border bg-background">
-              <div class="flex items-center gap-2.5">
-                <div class="size-7 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs">QT</div>
-                <div>
-                  <div class="text-xs font-semibold text-foreground">Trương Quốc Thái</div>
-                  <div class="text-[10px] text-muted-foreground">Pha chế chính (Barista) • Check-in: 05:55</div>
-                </div>
-              </div>
-              <span class="text-[10px] font-semibold text-emerald-600 bg-emerald-500/15 px-2 py-0.5 rounded">Đúng ca</span>
-            </div>
-
-            <div class="flex items-center justify-between p-2.5 rounded-lg border border-border bg-background">
-              <div class="flex items-center gap-2.5">
-                <div class="size-7 rounded-full bg-blue-500/15 text-blue-500 flex items-center justify-center font-bold text-xs">KN</div>
-                <div>
-                  <div class="text-xs font-semibold text-foreground">Lê Thị Kim Ngân</div>
-                  <div class="text-[10px] text-muted-foreground">Thu ngân / Order • Check-in: 06:01</div>
-                </div>
-              </div>
-              <span class="text-[10px] font-semibold text-emerald-600 bg-emerald-500/15 px-2 py-0.5 rounded">Đúng ca</span>
-            </div>
-
-            <div class="flex items-center justify-between p-2.5 rounded-lg border border-border bg-background">
-              <div class="flex items-center gap-2.5">
-                <div class="size-7 rounded-full bg-purple-500/15 text-purple-500 flex items-center justify-center font-bold text-xs">VD</div>
-                <div>
-                  <div class="text-xs font-semibold text-foreground">Nguyễn Văn Đạt</div>
-                  <div class="text-[10px] text-muted-foreground">Phụ ca / Rửa dụng cụ • Check-in: 06:00</div>
-                </div>
-              </div>
-              <span class="text-[10px] font-semibold text-emerald-600 bg-emerald-500/15 px-2 py-0.5 rounded">Đúng ca</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- AI Assistant Recommendation -->
-        <div class="p-3.5 rounded-xl border border-indigo-500/20 bg-indigo-500/5">
-          <div class="flex items-center gap-2 text-indigo-500 text-xs font-bold mb-1">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
-            <span>Trợ lý ca Guta AI</span>
-          </div>
-          <p class="text-[11px] text-foreground/80 leading-relaxed">
-            Dự báo lượng khách giờ trưa (11:30 - 13:00) tại chi nhánh này tăng 35% do khu vực văn phòng. Khuyến nghị điều chuyển thêm 1 Barista Part-time hỗ trợ order máy cà phê.
-          </p>
-        </div>
-
-      </div>
+      <button type="button" aria-label="Đóng chi tiết" data-close-drawer class="size-8 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground flex items-center justify-center transition cursor-pointer shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
     </div>
 
-    <!-- Drawer Footer Actions -->
-    <div class="p-4 border-t border-border bg-muted/10 flex items-center gap-2">
-      <button type="button" class="flex-1 py-2 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 dark:text-zinc-900 text-white font-semibold text-xs transition shadow-sm text-center cursor-pointer">
+    <!-- Drawer Body (scrollable) -->
+    <div class="p-6 space-y-5 flex-1 overflow-y-auto">
+      <p class="text-xs text-muted-foreground" role="note">Nội dung minh họa — không phải dữ liệu nhân sự hay vận hành thật.</p>
+
+      <!-- Metrics Grid -->
+      <div class="grid grid-cols-2 gap-3">
+        <div class="p-3.5 rounded-xl border border-border bg-background/80 shadow-2xs">
+          <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block whitespace-nowrap">Doanh Thu Két Ca</span>
+          <div class="text-base font-bold font-mono text-blue-600 dark:text-blue-400 mt-1" id="d-rev">8.420.000 ₫</div>
+          <span class="text-[10px] text-emerald-400 font-medium block mt-1">↑ +14% so với ca hôm qua</span>
+        </div>
+        <div class="p-3.5 rounded-xl border border-border bg-background/80 shadow-2xs">
+          <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block whitespace-nowrap">Tổng Nhân Sự</span>
+          <div class="text-base font-bold font-mono text-foreground mt-1" id="d-staff">46 người</div>
+          <span class="text-[10px] text-muted-foreground font-medium block mt-1" id="d-ontime">Đúng giờ: 100%</span>
+        </div>
+      </div>
+
+      <!-- Shift Live Roster -->
+      <div>
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-xs font-bold text-foreground uppercase tracking-wider">Barista Đang Làm Ca Hiện Tại</h3>
+          <span class="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-0.5 rounded-full">Đủ 3 người</span>
+        </div>
+
+        <div class="space-y-2.5">
+          <div class="flex items-center justify-between p-2.5 rounded-xl border border-border/80 bg-background/80 shadow-2xs">
+            <div class="flex items-center gap-3">
+              <div class="size-8 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs ring-1 ring-blue-500/25 shrink-0">QT</div>
+              <div>
+                <div class="text-xs font-semibold text-foreground">Trương Quốc Thái</div>
+                <div class="text-[10px] text-muted-foreground mt-0.5">Pha chế chính (Barista) • Check-in: 05:55</div>
+              </div>
+            </div>
+            <span class="text-[10px] font-semibold text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 px-2.5 py-1 rounded-md shrink-0 whitespace-nowrap">Đúng ca</span>
+          </div>
+
+          <div class="flex items-center justify-between p-2.5 rounded-xl border border-border/80 bg-background/80 shadow-2xs">
+            <div class="flex items-center gap-3">
+              <div class="size-8 rounded-full bg-blue-500/15 text-blue-500 flex items-center justify-center font-bold text-xs ring-1 ring-blue-500/25 shrink-0">KN</div>
+              <div>
+                <div class="text-xs font-semibold text-foreground">Lê Thị Kim Ngân</div>
+                <div class="text-[10px] text-muted-foreground mt-0.5">Thu ngân / Order • Check-in: 06:01</div>
+              </div>
+            </div>
+            <span class="text-[10px] font-semibold text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 px-2.5 py-1 rounded-md shrink-0 whitespace-nowrap">Đúng ca</span>
+          </div>
+
+          <div class="flex items-center justify-between p-2.5 rounded-xl border border-border/80 bg-background/80 shadow-2xs">
+            <div class="flex items-center gap-3">
+              <div class="size-8 rounded-full bg-purple-500/15 text-purple-400 flex items-center justify-center font-bold text-xs ring-1 ring-purple-500/25 shrink-0">VD</div>
+              <div>
+                <div class="text-xs font-semibold text-foreground">Nguyễn Văn Đạt</div>
+                <div class="text-[10px] text-muted-foreground mt-0.5">Phụ ca / Rửa dụng cụ • Check-in: 06:00</div>
+              </div>
+            </div>
+            <span class="text-[10px] font-semibold text-emerald-400 bg-emerald-500/15 border border-emerald-500/25 px-2.5 py-1 rounded-md shrink-0 whitespace-nowrap">Đúng ca</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Assistant Recommendation -->
+      <div class="p-3.5 rounded-xl border border-indigo-500/20 bg-indigo-500/5">
+        <div class="flex items-center gap-2 text-indigo-400 text-xs font-bold mb-1.5">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+          <span>Trợ lý ca Guta AI</span>
+        </div>
+        <p class="text-[11px] text-foreground/80 leading-relaxed">
+          Dự báo lượng khách giờ trưa (11:30 - 13:00) tại chi nhánh này tăng 35% do khu vực văn phòng. Khuyến nghị điều chuyển thêm 1 Barista Part-time hỗ trợ order máy cà phê.
+        </p>
+      </div>
+
+    </div>
+
+    <!-- Drawer Footer Actions (shrink-0) -->
+    <div class="p-4 border-t border-border bg-slate-900/95 flex items-center gap-2.5 shrink-0 z-10">
+      <button type="button" class="flex-1 py-2.5 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition shadow-sm text-center cursor-pointer">
         Gửi Cảnh Báo Telegram
       </button>
-      <button type="button" class="py-2 px-3 rounded-lg border border-border bg-background hover:bg-muted text-xs font-medium text-foreground transition cursor-pointer">
+      <button type="button" aria-label="Đóng" data-close-drawer class="py-2.5 px-4 rounded-lg border border-border bg-background hover:bg-muted text-xs font-medium text-foreground transition cursor-pointer">
         Đóng
       </button>
     </div>
@@ -590,14 +588,14 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
     if (!root) return;
 
     const brand = root.querySelector('.flex.size-8.items-center.justify-center.rounded-lg');
-    if (brand) brand.innerHTML = '<img src="/assets/logos/guta-mark-pure.svg" alt="GUTA" class="size-6 object-contain" />';
+    if (brand) brand.innerHTML = '<div class="flex size-8 items-center justify-center rounded-lg bg-blue-600 text-white font-black text-sm shadow-sm shrink-0">G</div>';
     const topbar = root.querySelector('main');
     if (topbar && !root.querySelector('[data-demo-notice]')) {
       const notice = document.createElement('p');
       notice.dataset.demoNotice = 'true';
       notice.setAttribute('role', 'note');
-      notice.className = 'border-b border-border bg-muted px-4 py-2 text-xs text-muted-foreground';
-      notice.textContent = 'Minh họa giao diện — nội dung mẫu, không phải dữ liệu nhân sự hay vận hành thật.';
+      notice.className = 'border border-border/80 bg-muted/30 px-3.5 py-2 text-xs text-muted-foreground mb-4 rounded-xl flex items-center gap-2';
+      notice.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-500 shrink-0"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span>Minh họa giao diện — nội dung mẫu, không phải dữ liệu nhân sự hay vận hành thật.</span>';
       topbar.prepend(notice);
     }
 
@@ -732,7 +730,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
     const emptyRow = document.createElement('tr');
     emptyRow.className = 'empty-state-row';
     emptyRow.innerHTML = `
-      <td colspan="9" class="text-center py-10 px-4">
+      <td colspan="8" class="text-center py-10 px-4">
         <div class="flex flex-col items-center justify-center max-w-sm mx-auto space-y-3">
           <div class="size-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground shadow-2xs">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="opacity-70"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M8 11h6"/></svg>
@@ -766,7 +764,6 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
         <td class="p-3"><div class="skeleton h-4 w-16"></div></td>
         <td class="p-3"><div class="skeleton h-4 w-20"></div></td>
         <td class="p-3"><div class="skeleton h-4 w-14"></div></td>
-        <td class="p-3"><div class="skeleton h-4 w-16"></div></td>
       `;
       tableBody?.append(skRow);
       skeletonRows.push(skRow);
