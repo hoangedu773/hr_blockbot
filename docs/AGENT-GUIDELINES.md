@@ -103,18 +103,15 @@ Kế hoạch chi tiết được quản lý tại:
 
 > **LƯU Ý QUAN TRỌNG:** Render Blueprint `hr-blockbot` được cấu hình theo dõi nhánh **`integration/full-delivery`**, **KHÔNG PHẢI** nhánh `main`. Nếu chỉ push lên `main`, Render **SẼ KHÔNG** tự động kích hoạt deploy!
 
-### 6.1. Quy Trình 5 Bước: Sửa Code → Kiểm Thử → Commit → Sync → Auto Deploy
+### 6.1. Quy Trình 4 Bước: Sửa Code → Kiểm Thử → Commit → Push & Auto Deploy
 
 Khi agent hoặc dev hoàn thành sửa lỗi/tính năng ở thư mục làm việc chính (`C:\work-space\hr-blockbot` - nhánh `main`):
 
 1. **Bước 1: Chạy kiểm thử tự động tại local (Bắt buộc pass 100%):**
    ```powershell
-   # Kiểm tra build Frontend & chạy trọn bộ 7 bài Playwright E2E:
-   pnpm --filter web build
+   # Kiểm tra build toàn bộ monorepo (Contracts + API + Web) & chạy E2E Playwright:
+   pnpm -r run build
    node apps/web/test/e2e-revamp-flow.test.mjs
-
-   # Kiểm tra Backend & Contracts:
-   pnpm --filter api build
    pnpm --filter @hr-blockbot/contracts test
    ```
 
@@ -125,27 +122,23 @@ Khi agent hoặc dev hoàn thành sửa lỗi/tính năng ở thư mục làm vi
    git commit -m "<type>(<scope>): <tiêu đề tiếng Anh ngắn gọn>"
    ```
 
-3. **Bước 3: Fast-forward merge vào nhánh `integration/full-delivery`:**
-   - Dự án đã thiết lập sẵn worktree tại `C:\work-space\hr-blockbot-int` đang checkout nhánh `integration/full-delivery`.
-   ```powershell
-   git -C "C:/work-space/hr-blockbot-int" merge main --ff-only
-   ```
-
-4. **Bước 4: Push đồng thời cả 2 nhánh lên GitHub Remote (`origin`):**
+3. **Bước 3: Push đồng bộ cả nhánh main và trigger Render deploy:**
+   - Đẩy trực tiếp HEAD của `main` lên cả `origin/main` và `origin/integration/full-delivery` mà không cần worktree phụ:
    ```powershell
    git push origin main
-   git -C "C:/work-space/hr-blockbot-int" push origin integration/full-delivery
+   git push origin main:integration/full-delivery
    ```
    *(Ngay khi nhánh `integration/full-delivery` nhận commit mới, webhook của Render sẽ tự động kích hoạt pipeline build và deploy trực tiếp trên cloud)*
 
-5. **Bước 5: Kiểm tra tiến độ deploy bằng Render CLI:**
+4. **Bước 4: Kiểm tra tiến độ deploy bằng Render CLI:**
    - Render CLI v2.31.0 đã được cài đặt sẵn tại `C:\Users\hoang\bin\render.exe` và đã đăng nhập workspace `tea-d08nvgqdbo4c73e4orig`.
    ```powershell
    # Xem lịch sử và trạng thái deploy mới nhất của Web:
-   render deploys list srv-dbbvs6o473hc73ahqu00 --output json
+   render deploys list srv-dbbvs6o473hc73ahqu00 -o json
 
    # Xem lịch sử deploy của API:
-   render deploys list srv-dbbvs6o473hc73ahqtt0 --output json
+   render deploys list srv-dbbvs6o473hc73ahqtt0 -o json
+   ```
 
    # Xem log trực tiếp khi build/run:
    render logs srv-dbbvs6o473hc73ahqu00
