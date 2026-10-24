@@ -34,7 +34,7 @@ const INITIAL_MESSAGES: ChatMessage[] = [
   {
     id: 'msg-0',
     sender: 'assistant',
-    text: 'Xin chào! Tôi là Guta AI Copilot — trợ lý điều hành ca trực và đối soát nhân sự chuỗi. Bạn cần hỗ trợ kiểm tra chi nhánh hoặc thông tin quy định nào hôm nay?',
+    text: 'Xin chào! Tôi là Guta AI Copilot — trợ lý điều hành ca trực và đối soát nhân sự chuỗi 45 chi nhánh. Bạn cần kiểm tra ca trực, nhân sự hay quỹ két nào hôm nay?',
     timestamp: '08:00',
   },
 ];
@@ -225,9 +225,9 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
         style={{
           position: 'fixed',
           inset: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.6)',
-          backdropFilter: 'blur(4px)',
-          zIndex: 80,
+          backgroundColor: 'rgba(0, 0, 0, 0.65)',
+          backdropFilter: 'blur(8px)',
+          zIndex: 240,
           transition: 'opacity 250ms ease, visibility 250ms ease',
           opacity: isOpen ? 1 : 0,
           visibility: isOpen ? 'visible' : 'hidden',
@@ -235,7 +235,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
         }}
       />
 
-      {/* Slide-over Chat Panel */}
+      {/* Slide-over Chat Panel (ChatGPT-Style Frosted Dark Slate) */}
       <aside
         role="dialog"
         aria-modal="true"
@@ -245,11 +245,12 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
           top: 0,
           right: 0,
           bottom: 0,
-          width: 'min(460px, 92vw)',
-          backgroundColor: '#0f172a',
-          borderLeft: '1px solid rgba(255, 255, 255, 0.1)',
-          boxShadow: '-10px 0 40px rgba(0, 0, 0, 0.8)',
-          zIndex: 90,
+          width: 'min(480px, 94vw)',
+          backgroundColor: 'rgba(15, 23, 42, 0.94)',
+          backdropFilter: 'blur(24px)',
+          borderLeft: '1px solid rgba(255, 255, 255, 0.08)',
+          boxShadow: '-16px 0 48px rgba(0, 0, 0, 0.85)',
+          zIndex: 250,
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
@@ -262,35 +263,37 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
         {/* Header */}
         <div
           style={{
-            padding: '16px 20px',
+            padding: '16px 22px',
             borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-            backgroundColor: 'rgba(9, 13, 22, 0.7)',
+            backgroundColor: 'rgba(9, 13, 22, 0.75)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div
               style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
+                width: '34px',
+                height: '34px',
+                borderRadius: '10px',
                 background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: '#ffffff',
+                boxShadow: '0 2px 8px rgba(37, 99, 235, 0.3)',
               }}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+              <img src="/assets/logos/01-electric-sapphire.svg" alt="AI Copilot" style={{ width: '22px', height: '22px', objectFit: 'contain' }} />
             </div>
             <div>
-              <div style={{ fontSize: '14px', fontWeight: 700, color: '#f8fafc' }}>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: '#f8fafc', letterSpacing: '-0.01em' }}>
                 GUTA AI COPILOT
               </div>
-              <div style={{ fontSize: '10px', color: '#34d399', fontFamily: 'var(--mono)' }}>
-                ● Sẵn sàng kết nối 45 CH & Gemini Flash
+              <div style={{ fontSize: '11px', color: '#34d399', display: 'flex', alignItems: 'center', gap: '5px', marginTop: '1px' }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '9999px', backgroundColor: '#10b981' }}></span>
+                <span>Trực tuyến • Gemini Flash & 45 Chi Nhánh</span>
               </div>
             </div>
           </div>
@@ -300,12 +303,26 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
             onClick={onClose}
             aria-label="Đóng Chat Copilot"
             style={{
-              background: 'transparent',
-              border: 'none',
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
               color: '#94a3b8',
-              fontSize: '18px',
+              fontSize: '15px',
               cursor: 'pointer',
-              padding: '4px 8px',
+              width: '30px',
+              height: '30px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 150ms ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = '#f8fafc';
+              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = '#94a3b8';
+              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
             }}
           >
             ✕
@@ -317,10 +334,10 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
           style={{
             flex: 1,
             overflowY: 'auto',
-            padding: '16px 20px',
+            padding: '20px 22px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '12px',
+            gap: '14px',
           }}
         >
           {messages.map((msg) => {
@@ -330,7 +347,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                 key={msg.id}
                 style={{
                   alignSelf: isUser ? 'flex-end' : 'flex-start',
-                  maxWidth: '88%',
+                  maxWidth: '90%',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '4px',
@@ -338,13 +355,14 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
               >
                 <div
                   style={{
-                    padding: '10px 14px',
-                    borderRadius: '12px',
-                    backgroundColor: isUser ? '#2563eb' : 'rgba(255, 255, 255, 0.05)',
-                    border: `1px solid ${isUser ? '#1d4ed8' : 'rgba(255, 255, 255, 0.08)'}`,
+                    padding: '12px 16px',
+                    borderRadius: '16px',
+                    backgroundColor: isUser ? '#2563eb' : 'rgba(255, 255, 255, 0.04)',
+                    border: `1px solid ${isUser ? '#1d4ed8' : 'rgba(255, 255, 255, 0.07)'}`,
                     color: '#f8fafc',
-                    fontSize: '13px',
-                    lineHeight: 1.55,
+                    fontSize: '13.5px',
+                    lineHeight: 1.6,
+                    boxShadow: isUser ? '0 2px 8px rgba(37, 99, 235, 0.25)' : '0 2px 8px rgba(0, 0, 0, 0.2)',
                   }}
                 >
                   <div>{msg.text}</div>
@@ -354,9 +372,9 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                     <div
                       style={{
                         marginTop: '10px',
-                        padding: '8px 10px',
-                        borderRadius: '8px',
-                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                        padding: '10px 12px',
+                        borderRadius: '10px',
+                        backgroundColor: 'rgba(37, 99, 235, 0.08)',
                         border: '1px solid rgba(37, 99, 235, 0.25)',
                         fontSize: '11px',
                       }}
@@ -414,7 +432,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                       style={{
                         marginTop: '10px',
                         padding: '10px 12px',
-                        borderRadius: '8px',
+                        borderRadius: '10px',
                         backgroundColor: 'rgba(37, 99, 235, 0.08)',
                         border: '1px solid rgba(37, 99, 235, 0.25)',
                         fontSize: '12px',
@@ -453,8 +471,8 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                               handleActionConfirm(msg.id, msg.proposedAction!, true)
                             }
                             style={{
-                              padding: '5px 12px',
-                              borderRadius: '6px',
+                              padding: '6px 14px',
+                              borderRadius: '8px',
                               backgroundColor: '#2563eb',
                               border: 'none',
                               color: '#ffffff',
@@ -472,30 +490,30 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                               handleActionConfirm(msg.id, msg.proposedAction!, false)
                             }
                             style={{
-                              padding: '5px 12px',
-                              borderRadius: '6px',
-                              backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                              border: '1px solid rgba(255, 255, 255, 0.2)',
+                              padding: '6px 14px',
+                              borderRadius: '8px',
+                              backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                              border: '1px solid rgba(255, 255, 255, 0.12)',
                               color: '#cbd5e1',
                               fontSize: '11px',
-                              fontWeight: 600,
                               cursor: 'pointer',
-                              transition: 'background-color 150ms ease',
+                              transition: 'all 150ms ease',
                             }}
                           >
-                            Từ Chối (Cancel)
+                            Từ Chối
                           </button>
                         </div>
                       )}
                     </div>
                   )}
                 </div>
+
                 <div
                   style={{
                     fontSize: '10px',
                     color: '#64748b',
-                    fontFamily: 'var(--mono)',
                     alignSelf: isUser ? 'flex-end' : 'flex-start',
+                    padding: '0 4px',
                   }}
                 >
                   {msg.timestamp}
@@ -504,77 +522,81 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
             );
           })}
 
+          {/* ChatGPT-Style Prompt Cards Grid on initial state */}
+          {messages.length <= 1 && (
+            <div style={{ margin: '14px 0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>
+                Gợi ý câu hỏi phổ biến:
+              </div>
+              {PROMPT_CHIPS.map((chip, i) => (
+                <div
+                  key={i}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => handleSend(chip)}
+                  style={{
+                    padding: '12px 14px',
+                    borderRadius: '12px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                    border: '1px solid rgba(255, 255, 255, 0.07)',
+                    color: '#e2e8f0',
+                    fontSize: '12.5px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    transition: 'all 150ms ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)';
+                    e.currentTarget.style.borderColor = 'rgba(37, 99, 235, 0.4)';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.03)';
+                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.07)';
+                    e.currentTarget.style.transform = 'none';
+                  }}
+                >
+                  <span>{chip}</span>
+                  <span style={{ color: '#60a5fa', fontSize: '13px', fontWeight: 700 }}>→</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           {isTyping && (
             <div
               style={{
                 alignSelf: 'flex-start',
-                padding: '8px 14px',
-                borderRadius: '12px',
-                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                padding: '10px 16px',
+                borderRadius: '14px',
+                backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
                 color: '#93c5fd',
                 fontSize: '12px',
                 fontFamily: 'var(--mono)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
               }}
             >
-              Đang phân tích dữ liệu ca trực...
+              <span className="size-2 rounded-full bg-blue-500 animate-pulse"></span>
+              <span>Đang phân tích dữ liệu ca trực...</span>
             </div>
           )}
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Prompt Chips */}
+        {/* Input Bar (ChatGPT-style) */}
         <div
           style={{
-            padding: '10px 16px',
-            borderTop: '1px solid rgba(255, 255, 255, 0.06)',
-            display: 'flex',
-            gap: '6px',
-            overflowX: 'auto',
-            backgroundColor: 'rgba(9, 13, 22, 0.4)',
-          }}
-        >
-          {PROMPT_CHIPS.map((chip, i) => (
-            <button
-              key={i}
-              type="button"
-              disabled={isTyping}
-              onClick={() => handleSend(chip)}
-              style={{
-                whiteSpace: 'nowrap',
-                padding: '4px 10px',
-                borderRadius: '9999px',
-                backgroundColor: 'rgba(37, 99, 235, 0.12)',
-                border: '1px solid rgba(37, 99, 235, 0.25)',
-                color: '#93c5fd',
-                fontSize: '11px',
-                cursor: isTyping ? 'not-allowed' : 'pointer',
-                opacity: isTyping ? 0.5 : 1,
-                transition: 'all 140ms ease',
-              }}
-              onMouseEnter={(e) => {
-                if (!isTyping) {
-                  e.currentTarget.style.backgroundColor = 'rgba(37, 99, 235, 0.22)';
-                  e.currentTarget.style.borderColor = 'rgba(37, 99, 235, 0.5)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(37, 99, 235, 0.12)';
-                e.currentTarget.style.borderColor = 'rgba(37, 99, 235, 0.25)';
-              }}
-            >
-              {chip}
-            </button>
-          ))}
-        </div>
-
-        {/* Input Bar */}
-        <div
-          style={{
-            padding: '12px 16px',
+            padding: '14px 18px',
             borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-            backgroundColor: 'rgba(9, 13, 22, 0.8)',
+            backgroundColor: 'rgba(9, 13, 22, 0.85)',
             display: 'flex',
-            gap: '8px',
+            gap: '10px',
+            alignItems: 'center',
           }}
         >
           <input
@@ -587,20 +609,22 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
             placeholder="Hỏi AI về ca trực, nhân sự, tiền két..."
             style={{
               flex: 1,
-              padding: '8px 12px',
-              borderRadius: '8px',
+              padding: '10px 14px',
+              borderRadius: '12px',
               backgroundColor: 'rgba(255, 255, 255, 0.04)',
               border: '1px solid rgba(255, 255, 255, 0.1)',
               color: '#f8fafc',
-              fontSize: '12px',
+              fontSize: '13px',
               outline: 'none',
-              transition: 'border-color 150ms ease',
+              transition: 'border-color 150ms ease, box-shadow 150ms ease',
             }}
             onFocus={(e) => {
               e.currentTarget.style.borderColor = '#3b82f6';
+              e.currentTarget.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.2)';
             }}
             onBlur={(e) => {
               e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+              e.currentTarget.style.boxShadow = 'none';
             }}
           />
           <button
@@ -608,12 +632,12 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
             disabled={isTyping || !inputText.trim()}
             onClick={() => handleSend()}
             style={{
-              padding: '8px 16px',
-              borderRadius: '8px',
-              backgroundColor: isTyping || !inputText.trim() ? '#1e3a8a' : '#2563eb',
+              padding: '10px 18px',
+              borderRadius: '12px',
+              backgroundColor: isTyping || !inputText.trim() ? 'rgba(37, 99, 235, 0.3)' : '#2563eb',
               border: 'none',
               color: '#ffffff',
-              fontSize: '12px',
+              fontSize: '12.5px',
               fontWeight: 700,
               cursor: isTyping || !inputText.trim() ? 'not-allowed' : 'pointer',
               opacity: isTyping || !inputText.trim() ? 0.6 : 1,
@@ -621,6 +645,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
+              boxShadow: isTyping || !inputText.trim() ? 'none' : '0 2px 8px rgba(37, 99, 235, 0.35)',
             }}
             onMouseDown={(e) => {
               if (!isTyping && inputText.trim()) {

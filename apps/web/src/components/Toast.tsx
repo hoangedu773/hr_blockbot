@@ -20,7 +20,7 @@ export const ToastContainer: React.FC<ToastProps> = ({ toasts, onDismiss }) => {
     <div style={{
       position: 'fixed',
       bottom: '24px',
-      right: '24px',
+      left: '24px',
       zIndex: 200,
       display: 'flex',
       flexDirection: 'column',

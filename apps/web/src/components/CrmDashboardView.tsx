@@ -12,79 +12,80 @@ export interface CrmDashboardViewProps {
 }
 
 const CRM_HTML = `
-  <div data-slot="sidebar-wrapper" style="--sidebar-width:16.5rem;--sidebar-width-icon:3.5rem" class="group/sidebar-wrapper flex min-h-svh w-full h-svh overflow-hidden">
+  <div data-slot="sidebar-wrapper" style="--sidebar-width:16rem;--sidebar-width-icon:16rem" class="group/sidebar-wrapper flex min-h-svh w-full h-svh overflow-hidden">
 
     <!-- SIDEBAR -->
-    <aside class="w-64 border-r border-border bg-sidebar flex flex-col justify-between shrink-0 select-none">
+    <aside class="w-64 border-r border-border/80 bg-sidebar flex flex-col justify-between shrink-0 select-none">
       <div class="flex flex-col">
-        <!-- Brand Header -->
+        <!-- Brand Header with HR-BlockBot Logo -->
         <div class="p-4 border-b border-border/80 flex items-center justify-between">
-          <div class="flex items-center gap-2.5">
-            <div class="flex size-8 items-center justify-center rounded-lg bg-blue-600 text-white font-black text-sm shadow-sm shrink-0">G</div>
+          <div class="flex items-center gap-3">
+            <div class="flex size-9 items-center justify-center rounded-xl bg-blue-600/10 p-1 border border-blue-500/20 shrink-0">
+              <img src="/assets/logos/01-electric-sapphire.svg" alt="HR-BlockBot" class="size-7 object-contain rounded-lg" />
+            </div>
             <div class="flex flex-col">
               <div class="flex items-center gap-1.5 leading-none">
                 <span class="font-black tracking-wider text-foreground text-sm">GUTA</span>
-                <span class="font-semibold tracking-tight text-blue-600 dark:text-blue-400 text-sm">WORKSPACE</span>
+                <span class="font-semibold tracking-tight text-blue-500 text-sm">WORKSPACE</span>
               </div>
-              <span class="text-[10px] text-muted-foreground mt-0.5 font-medium">Chuỗi Cà Phê • 45 Cửa Hàng</span>
             </div>
           </div>
-          <a href="#logout" title="Trở về Trang Chủ" class="text-xs text-muted-foreground hover:text-foreground p-1.5 rounded hover:bg-muted transition">
+          <a href="#logout" title="Trở về Trang Chủ" class="text-xs text-muted-foreground hover:text-foreground p-1.5 rounded-lg hover:bg-muted transition">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           </a>
         </div>
 
         <!-- Search Bar Trigger -->
         <div class="px-3 pt-3">
-          <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-border/80 bg-background/60 text-xs text-muted-foreground shadow-xs cursor-pointer hover:border-blue-500/50 transition">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <div class="flex items-center gap-2 px-3 py-2 rounded-xl border border-border/70 bg-background/60 text-xs text-muted-foreground shadow-xs cursor-pointer hover:border-blue-500/50 transition">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 text-muted-foreground"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             <input type="text" placeholder="Lọc theo tên, quận, mã..." class="flex-1 bg-transparent border-0 outline-none text-xs text-foreground placeholder:text-muted-foreground w-full" />
-            <kbd class="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono border border-border shrink-0">⌘K</kbd>
+            <kbd class="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-mono border border-border shrink-0">⌘K</kbd>
           </div>
         </div>
 
-        <!-- Navigation Menu -->
+        <!-- Navigation Menu with AI Copilot at TOP -->
         <nav class="px-2 py-3 space-y-1">
-          <div class="px-2 pb-1 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Hệ Thống Vận Hành</div>
+          <div class="px-2 pb-1.5 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Trợ Lý Thông Minh</div>
 
-          <a href="#" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-semibold bg-blue-600/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shadow-2xs">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-            <span>Cửa hàng / Chi nhánh</span>
-            <span class="ml-auto rounded-full bg-blue-600/20 px-1.5 py-0.2 text-[10px] font-bold font-mono text-blue-600 dark:text-blue-400">45</span>
+          <a href="#" class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold bg-blue-600/10 text-blue-400 border border-blue-500/20 shadow-xs hover:bg-blue-600/15 transition cursor-pointer mb-3">
+            <div class="size-6 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-2xs shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+            </div>
+            <span class="font-bold">Guta Copilot AI</span>
+            <span class="ml-auto text-[10px] font-mono font-semibold bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/30">Mở Chat</span>
           </a>
 
-          <a href="#" data-entrypoint="coming-soon" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium text-muted-foreground/75 opacity-70 cursor-not-allowed select-none transition">
+          <div class="px-2 pb-1 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Hệ Thống Vận Hành</div>
+
+          <a href="#" class="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold bg-muted/60 text-foreground border border-border/80">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-500"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <span>Cửa hàng / Chi nhánh</span>
+            <span class="ml-auto rounded-full bg-blue-600/20 px-2 py-0.5 text-[10px] font-bold font-mono text-blue-400">45</span>
+          </a>
+
+          <a href="#" data-entrypoint="coming-soon" class="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-muted-foreground/75 opacity-70 cursor-not-allowed select-none transition">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             <span>Đội ngũ Barista & SM</span>
             <span class="ml-auto text-[9px] font-mono text-muted-foreground/80 bg-muted/80 border border-border/50 px-1.5 py-0.5 rounded">Coming Soon</span>
           </a>
 
-          <a href="#" data-entrypoint="coming-soon" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium text-muted-foreground/75 opacity-70 cursor-not-allowed select-none transition">
+          <a href="#" data-entrypoint="coming-soon" class="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-muted-foreground/75 opacity-70 cursor-not-allowed select-none transition">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
             <span>Lịch Phân Ca 24H</span>
             <span class="ml-auto text-[9px] font-mono text-muted-foreground/80 bg-muted/80 border border-border/50 px-1.5 py-0.5 rounded">Coming Soon</span>
           </a>
 
-          <a href="#" data-entrypoint="coming-soon" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium text-muted-foreground/75 opacity-70 cursor-not-allowed select-none transition">
+          <a href="#" data-entrypoint="coming-soon" class="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-muted-foreground/75 opacity-70 cursor-not-allowed select-none transition">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
             <span>Chấm công & Đi trễ</span>
             <span class="ml-auto text-[9px] font-mono text-muted-foreground/80 bg-muted/80 border border-border/50 px-1.5 py-0.5 rounded">Coming Soon</span>
           </a>
 
-          <a href="#" data-entrypoint="coming-soon" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium text-muted-foreground/75 opacity-70 cursor-not-allowed select-none transition">
+          <a href="#" data-entrypoint="coming-soon" class="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-muted-foreground/75 opacity-70 cursor-not-allowed select-none transition">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
             <span>Báo cáo Két ca</span>
             <span class="ml-auto text-[9px] font-mono text-muted-foreground/80 bg-muted/80 border border-border/50 px-1.5 py-0.5 rounded">Coming Soon</span>
-          </a>
-
-          <div class="pt-4 px-2 pb-1 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">AI Intelligence</div>
-
-          <a href="#" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition">
-            <div class="size-5 rounded-md bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-2xs">
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
-            </div>
-            <span>Guta Copilot AI</span>
-            <span class="ml-auto text-[10px] font-mono font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 px-1.5 py-0.5 rounded">Chat</span>
           </a>
         </nav>
       </div>
@@ -107,28 +108,28 @@ const CRM_HTML = `
     <!-- MAIN CONTENT INSET -->
     <div class="flex flex-col flex-1 h-svh overflow-hidden bg-background">
 
-      <!-- TOP BAR -->
-      <header class="h-14 border-b border-border px-6 flex items-center justify-between shrink-0 bg-background">
-        <div class="flex items-center gap-3">
-          <div class="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
-            <span>Guta Workspace</span>
-            <span class="text-border">/</span>
-            <span class="text-foreground font-semibold">Vận Hành Chi Nhánh & Phân Ca</span>
+      <!-- TOP BAR (To hơn, mềm mại hơn) -->
+      <header class="crm-header-smooth flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-4">
+          <div class="flex items-center gap-2 text-xs text-muted-foreground font-medium">
+            <span class="text-foreground/90 font-medium text-sm">Guta Workspace</span>
+            <span class="text-muted-foreground/30 font-mono">/</span>
+            <span class="text-foreground font-semibold text-sm">Vận Hành Chi Nhánh & Phân Ca</span>
           </div>
-          <span class="rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 px-2.5 py-0.5 text-[11px] font-semibold flex items-center gap-1.5">
-            <span class="size-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span class="rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-3.5 py-1 text-xs font-medium flex items-center gap-2 shadow-2xs">
+            <span class="size-2 rounded-full bg-emerald-500 animate-pulse"></span>
             45/45 Chi nhánh mở ca sáng
           </span>
         </div>
 
         <div class="flex items-center gap-3">
-          <div class="flex items-center gap-2">
-            <button type="button" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-muted transition shadow-2xs cursor-pointer">
-              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+          <div class="flex items-center gap-2.5">
+            <button type="button" class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-border/80 bg-background/80 text-xs font-semibold text-foreground hover:bg-muted transition shadow-2xs cursor-pointer active:scale-95 transition-transform">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
               <span>Bộ lọc Quận</span>
             </button>
-            <button type="button" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 dark:text-zinc-900 text-white text-xs font-semibold transition shadow-sm cursor-pointer">
-              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+            <button type="button" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white text-xs font-bold transition shadow-sm cursor-pointer active:scale-95 transition-transform">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
               <span>Tạo Ca Đột Xuất</span>
             </button>
           </div>
@@ -137,12 +138,12 @@ const CRM_HTML = `
 
       <!-- DATA TABLE AREA -->
       <main class="flex-1 overflow-auto p-6">
-        <!-- KPI SUMMARY RIBBON (Applied Taste-Skill Strict Styling) -->
+        <!-- KPI SUMMARY RIBBON (Frosted Muted Slate Gray) -->
         <div class="crm-kpi-grid">
           <div class="crm-kpi-card">
             <div class="crm-kpi-header">
               <span class="crm-kpi-title">Tổng Cửa Hàng</span>
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-500"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-400"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
             </div>
             <div class="crm-kpi-value">45 <small style="font-size: 13px; font-weight: 400; color: #94a3b8; font-family: sans-serif;">chi nhánh</small></div>
             <div class="crm-kpi-meta" style="color: #34d399;">
@@ -586,18 +587,6 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
   useEffect(() => {
     const root = containerRef.current;
     if (!root) return;
-
-    const brand = root.querySelector('.flex.size-8.items-center.justify-center.rounded-lg');
-    if (brand) brand.innerHTML = '<div class="flex size-8 items-center justify-center rounded-lg bg-blue-600 text-white font-black text-sm shadow-sm shrink-0">G</div>';
-    const topbar = root.querySelector('main');
-    if (topbar && !root.querySelector('[data-demo-notice]')) {
-      const notice = document.createElement('p');
-      notice.dataset.demoNotice = 'true';
-      notice.setAttribute('role', 'note');
-      notice.className = 'border border-border/80 bg-muted/30 px-3.5 py-2 text-xs text-muted-foreground mb-4 rounded-xl flex items-center gap-2';
-      notice.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-500 shrink-0"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span>Minh họa giao diện — nội dung mẫu, không phải dữ liệu nhân sự hay vận hành thật.</span>';
-      topbar.prepend(notice);
-    }
 
     // 1. Update user profile display
     const title = root.querySelector('main h1');
