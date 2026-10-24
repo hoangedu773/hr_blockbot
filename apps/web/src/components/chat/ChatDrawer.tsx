@@ -281,10 +281,9 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: '#ffffff',
-                fontSize: '16px',
               }}
             >
-              ✨
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
             </div>
             <div>
               <div style={{ fontSize: '14px', fontWeight: 700, color: '#f8fafc' }}>
@@ -369,10 +368,11 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                           marginBottom: '4px',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          gap: '6px',
                         }}
                       >
-                        <span>📚 Căn cứ quy định (Citations):</span>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10"/><path d="M6 10h10"/></svg>
+                        <span>Căn cứ quy định (Citations):</span>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         {msg.citations.map((c, idx) => (
@@ -415,22 +415,23 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                         marginTop: '10px',
                         padding: '10px 12px',
                         borderRadius: '8px',
-                        backgroundColor: 'rgba(245, 158, 11, 0.08)',
-                        border: '1px solid rgba(245, 158, 11, 0.3)',
+                        backgroundColor: 'rgba(37, 99, 235, 0.08)',
+                        border: '1px solid rgba(37, 99, 235, 0.25)',
                         fontSize: '12px',
                       }}
                     >
                       <div
                         style={{
                           fontWeight: 700,
-                          color: '#fbbf24',
+                          color: '#60a5fa',
                           marginBottom: '6px',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '6px',
                         }}
                       >
-                        <span>⚡ Đề xuất hành động (Confirm-before-write):</span>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                        <span>Đề xuất hành động (Confirm-before-write):</span>
                       </div>
                       <div style={{ color: '#e2e8f0', marginBottom: '8px', lineHeight: 1.4 }}>
                         {msg.proposedAction.preview || `Hành động: ${msg.proposedAction.type}`}
@@ -631,10 +632,10 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
             }}
           >
             {isTyping ? (
-              <>
-                <span className="animate-spin inline-block">↻</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <svg className="animate-spin inline-block" width="13" height="13" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                 <span>Đang gửi...</span>
-              </>
+              </span>
             ) : (
               'Gửi'
             )}

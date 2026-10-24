@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './context/AuthContext';
 import { ToastContainer, type ToastMessage, type NotifyFn } from './components/Toast';
 import { FolioLandingView } from './components/FolioLandingView';
@@ -32,9 +32,11 @@ const ROLE_PROFILES: Record<'SM' | 'AOM' | 'Admin', LocalUser> = {
 
 export const AppContent: React.FC = () => {
   const { user: authUser, logout: authLogout } = useAuth();
+  const isLoggingOutRef = useRef(false);
   const [localUser, setLocalUser] = useState<LocalUser | null>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('guta_user');
+      // Prioritize sessionStorage so new tabs always start on Landing Page
+      const saved = sessionStorage.getItem('guta_user');
       if (saved) {
         try {
           return JSON.parse(saved) as LocalUser;
@@ -79,32 +81,46 @@ export const AppContent: React.FC = () => {
     if (crmCss) crmCss.disabled = !Boolean(localUser);
   }, [localUser]);
 
-  // Sync if context authUser changes
+  // Sync if context authUser changes (guarded against resurrection during logout)
   useEffect(() => {
-    if (authUser && !localUser) {
+    if (isLoggingOutRef.current) return;
+    if (authUser && !localUser && typeof window !== 'undefined' && sessionStorage.getItem('guta_user')) {
       const role = authUser.role === 'Admin' ? 'Admin' : 'SM';
       const profile = ROLE_PROFILES[role];
       setLocalUser(profile);
-      localStorage.setItem('guta_user', JSON.stringify(profile));
+      sessionStorage.setItem('guta_user', JSON.stringify(profile));
     }
   }, [authUser, localUser]);
 
   const handleSelectRole = (role: 'SM' | 'AOM' | 'Admin') => {
+    isLoggingOutRef.current = false;
     const profile = ROLE_PROFILES[role];
     setLocalUser(profile);
-    localStorage.setItem('guta_user', JSON.stringify(profile));
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('guta_user', JSON.stringify(profile));
+      localStorage.removeItem('guta_user');
+    }
     addToast(`Đăng nhập thành công với vai trò ${profile.name} (${role})`, 'success', 'Xác thực thành công');
   };
 
   const handleLogout = useCallback(async () => {
+    isLoggingOutRef.current = true;
     setLocalUser(null);
-    localStorage.removeItem('guta_user');
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('guta_user');
+      localStorage.removeItem('guta_user');
+      localStorage.removeItem('auth_user');
+      localStorage.removeItem('access_token');
+    }
     setIsChatDrawerOpen(false);
     try {
       await authLogout();
     } catch {
       // Ignore if offline
     }
+    setTimeout(() => {
+      isLoggingOutRef.current = false;
+    }, 1000);
     addToast('Đã đăng xuất phiên làm việc an toàn.', 'info');
   }, [authLogout, addToast]);
 
