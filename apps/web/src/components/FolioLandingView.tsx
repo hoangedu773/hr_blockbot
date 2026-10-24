@@ -85,7 +85,7 @@ export const FolioLandingView: React.FC<FolioLandingViewProps> = ({ onLogin, onN
     });
 
 
-    // Also attach to buttons with text "Bắt đầu", "Get Started", "Đăng nhập", "Xem dashboard"
+    // Also attach to buttons with text "Bắt đầu", "Get Started", "Đăng nhập", "Xem dashboard", "Khám phá dashboard" or CRM preview controls
     const allButtonsAndLinks = root.querySelectorAll('button, a');
     allButtonsAndLinks.forEach((el) => {
       const text = el.textContent?.trim().toLowerCase() || '';
@@ -93,7 +93,10 @@ export const FolioLandingView: React.FC<FolioLandingViewProps> = ({ onLogin, onN
         text.includes('bắt đầu ngay') ||
         text.includes('get started') ||
         text.includes('xem dashboard') ||
-        text.includes('đăng nhập')
+        text.includes('khám phá dashboard') ||
+        text.includes('đăng nhập') ||
+        el.classList.contains('crm-btn') ||
+        el.classList.contains('crm-mini-btn')
       ) {
         el.addEventListener('click', handleLoginClick);
       }

@@ -9,6 +9,7 @@ import employeesRouter from "./routes/employees.js";
 import projectsRouter from "./routes/projects.js";
 import reportsRouter from "./routes/reports.js";
 import adminSettingsRouter from "./routes/admin-settings.js";
+import chatRouter from "./routes/chat.js";
 
 // Load environment variables (supports apps/api/.env or workspace root .env)
 dotenv.config();
@@ -43,6 +44,7 @@ export function createApp(): Express {
   app.use("/api", projectsRouter);
   app.use("/api", reportsRouter);
   app.use("/api", adminSettingsRouter);
+  app.use("/api", chatRouter);
 
   // Security lockdown: Safely disable legacy endpoints outside bootstrap
   const disabledLegacyHandler = (_req: Request, res: Response) => {

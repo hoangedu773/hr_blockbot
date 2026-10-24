@@ -335,6 +335,13 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
   });
 
   it('Chặn liên kết chết href="#" trong CRM Dashboard, hiển thị toast ZKTeco', async () => {
+    // Kiểm tra 4 entrypoint chưa hoàn thiện được gắn cờ Coming Soon
+    const comingSoonElements = page.locator('nav a[data-entrypoint="coming-soon"]');
+    assert.equal(await comingSoonElements.count(), 4);
+
+    const comingSoonBadges = page.locator('nav a[data-entrypoint="coming-soon"]').getByText(/Coming Soon/i);
+    assert.equal(await comingSoonBadges.count(), 4);
+
     // Click dead link "Lịch Phân Ca 24H"
     const shiftLink = page.locator('nav a').filter({ hasText: /Lịch Phân Ca 24H/i });
     await shiftLink.click();
@@ -368,5 +375,14 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.doesNotMatch(pageContent, /KLCN133/i);
     assert.doesNotMatch(pageContent, /khóa luận/i);
     assert.doesNotMatch(pageContent, /F1–F7/i);
+    assert.doesNotMatch(pageContent, /TODO|FIXME|Lorem ipsum/i);
+
+    // Click nút preview trong thẻ CRM Landing Page kích hoạt AuthModal
+    const previewBtn = page.locator('.crm-btn').first();
+    if (await previewBtn.count() > 0) {
+      await previewBtn.click();
+      await page.getByText(/Đăng Nhập Nhanh 1-Click/i).waitFor({ state: 'visible', timeout: 3000 });
+      assert.equal(await page.getByText(/Đăng Nhập Nhanh 1-Click/i).isVisible(), true);
+    }
   });
 });

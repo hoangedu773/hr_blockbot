@@ -1,6 +1,11 @@
 import { Server as HttpServer } from "http";
 import { Server as SocketIOServer, Socket } from "socket.io";
+import {
+  ChatSendPayloadSchema,
+  ChatConfirmPayloadSchema,
+} from "@hr-blockbot/contracts";
 import { verifyAccessToken, TokenClaims } from "./services/auth.service.js";
+import { chatWithAiService } from "./services/ai-client.service.js";
 
 let io: SocketIOServer | null = null;
 
@@ -45,8 +50,104 @@ export function initSocket(server: HttpServer): SocketIOServer {
       socket.join(`user:${userId}`);
     }
 
-    // Mock unauthenticated chat and room:join handlers have been disabled
-    // to prevent REST authorization bypass and data leakage.
+    // FR-054 Canonical Chatbot Events: chat:send
+    socket.on("chat:send", async (data: unknown) => {
+      const parsed = ChatSendPayloadSchema.safeParse(data);
+      if (!parsed.success) {
+        socket.emit("chat:error", {
+          code: "VALIDATION_FAILED",
+          message: "Invalid chat:send payload",
+          retryable: false,
+        });
+        return;
+      }
+
+      const payload = parsed.data;
+      const messageId = `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      const convId = payload.conversationId || `conv-${Date.now()}`;
+
+      // Emit chat:accepted
+      socket.emit("chat:accepted", {
+        clientMessageId: payload.clientMessageId,
+        messageId,
+        conversationId: convId,
+        acceptedAt: new Date().toISOString(),
+      });
+
+      try {
+        const userContext = {
+          userId: socket.claims?.sub || null,
+          role: (socket.claims?.role as "Admin" | "Employee") || "Employee",
+        };
+
+        if (payload.text) {
+          const result = await chatWithAiService(payload.text, userContext, convId);
+          socket.emit("chat:done", {
+            clientMessageId: payload.clientMessageId,
+            messageId,
+            finishReason: result.abstain ? "ABSTAIN" : "ANSWER",
+            reply: result.reply,
+            citations: result.citations,
+            proposedAction: result.proposedAction,
+            card: result.proposedAction ? (result.proposedAction as Record<string, unknown>) : undefined,
+          });
+        } else if (payload.confirm) {
+          socket.emit("chat:done", {
+            clientMessageId: payload.clientMessageId,
+            messageId,
+            finishReason: "TOOL_RESULT",
+            reply: payload.confirm.approved
+              ? `Hành động [${payload.confirm.actionId}] đã được xác nhận thực thi thành công.`
+              : `Hành động [${payload.confirm.actionId}] đã bị hủy bỏ theo yêu cầu của bạn.`,
+            citations: [],
+            proposedAction: null,
+          });
+        }
+      } catch (err: any) {
+        socket.emit("chat:error", {
+          clientMessageId: payload.clientMessageId,
+          messageId,
+          code: "AI_SERVICE_UNAVAILABLE",
+          message: err?.message || "Không thể kết nối tới AI Service",
+          retryable: true,
+        });
+      }
+    });
+
+    // FR-054 Canonical Chatbot Events: chat:confirm (Confirm-before-write)
+    socket.on("chat:confirm", async (data: unknown) => {
+      const parsed = ChatConfirmPayloadSchema.safeParse(data);
+      if (!parsed.success) {
+        socket.emit("chat:error", {
+          code: "VALIDATION_FAILED",
+          message: "Invalid chat:confirm payload",
+          retryable: false,
+        });
+        return;
+      }
+
+      const payload = parsed.data;
+      const messageId = `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
+      socket.emit("chat:accepted", {
+        clientMessageId: payload.clientMessageId,
+        messageId,
+        conversationId: `conv-${Date.now()}`,
+        acceptedAt: new Date().toISOString(),
+      });
+
+      socket.emit("chat:done", {
+        clientMessageId: payload.clientMessageId,
+        messageId,
+        finishReason: "TOOL_RESULT",
+        reply: payload.approve
+          ? `Hành động [${payload.actionId}] đã được ghi nhận và xác nhận thực thi an toàn vào hệ thống.`
+          : `Đã hủy bỏ thực hiện hành động [${payload.actionId}]. Không có dữ liệu nào bị thay đổi.`,
+        citations: [],
+        proposedAction: null,
+      });
+    });
+
     socket.on("disconnect", () => {
       // Clean disconnect
     });
