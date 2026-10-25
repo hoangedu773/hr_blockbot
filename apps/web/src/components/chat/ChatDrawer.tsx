@@ -273,7 +273,41 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
         .guta-chat-drawer code { font-family: var(--mono); overflow-wrap: anywhere; }
         @media (hover: hover) and (pointer: fine) { .guta-chat-drawer button:hover:not(:disabled) { filter: brightness(1.2); } }
         @media (max-width: 768px) { aside.guta-chat-drawer { display: flex !important; } }
-        @media (prefers-reduced-motion: reduce) { .guta-chat-drawer, .guta-chat-drawer * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } .guta-chat-drawer button:active { transform: none !important; } }
+        .guta-chat-drawer .guta-chat-status { display: flex; align-items: flex-start; gap: 12px; padding: 14px 18px; border-radius: 16px; background: rgba(255, 255, 255, 0.04); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); color: #a1a1aa; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05); animation: guta-thinking-enter 220ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+        .guta-chat-drawer .guta-thinking-avatar { width: 32px; height: 32px; flex-shrink: 0; border-radius: 10px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); display: flex; align-items: center; justify-content: center; animation: guta-aura-pulse 2.4s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
+        .guta-chat-drawer .guta-thinking-avatar img { width: 18px; height: 18px; object-fit: contain; }
+        .guta-chat-drawer .guta-thinking-content { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+        .guta-chat-drawer .guta-thinking-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .guta-chat-drawer .guta-thinking-label { font-size: 13px; font-weight: 500; color: #e4e4e7; letter-spacing: -0.01em; line-height: 1.4; }
+        .guta-chat-drawer .guta-thinking-dots { display: inline-flex; align-items: center; gap: 3.5px; }
+        .guta-chat-drawer .guta-thinking-dot { width: 4px; height: 4px; border-radius: 9999px; background: #a1a1aa; animation: guta-dot-pulse 1.4s cubic-bezier(0.23, 1, 0.32, 1) infinite both; }
+        .guta-chat-drawer .guta-thinking-dot:nth-child(1) { animation-delay: 0s; }
+        .guta-chat-drawer .guta-thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+        .guta-chat-drawer .guta-thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+        .guta-chat-drawer .guta-thinking-shimmer-bar { width: 100%; max-width: 200px; height: 2px; border-radius: 9999px; background: rgba(255, 255, 255, 0.06); position: relative; overflow: hidden; margin: 1px 0; }
+        .guta-chat-drawer .guta-thinking-shimmer-line { position: absolute; inset: 0; width: 100%; height: 100%; background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.35) 50%, transparent 100%); transform: translateX(-100%); animation: guta-shimmer-sweep 2s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
+        .guta-chat-drawer .guta-thinking-steps { position: relative; height: 16px; font-size: 11px; line-height: 16px; color: #71717a; overflow: hidden; }
+        .guta-chat-drawer .guta-thinking-step { position: absolute; top: 0; left: 0; white-space: nowrap; opacity: 0; transform: translateY(3px); will-change: opacity, transform; }
+        .guta-chat-drawer .guta-step-1 { opacity: 1; transform: translateY(0); animation: guta-step-cycle-1 6s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
+        .guta-chat-drawer .guta-step-2 { animation: guta-step-cycle-2 6s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
+        .guta-chat-drawer .guta-step-3 { animation: guta-step-cycle-3 6s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
+        @keyframes guta-thinking-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes guta-aura-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.08), 0 0 8px rgba(255, 255, 255, 0.04); } 50% { box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.06), 0 0 16px rgba(255, 255, 255, 0.12); } }
+        @keyframes guta-dot-pulse { 0%, 80%, 100% { opacity: 0.25; transform: scale(0.85); } 40% { opacity: 1; transform: scale(1.2); background-color: #ffffff; } }
+        @keyframes guta-shimmer-sweep { 0% { transform: translateX(-100%); } 50%, 100% { transform: translateX(100%); } }
+        @keyframes guta-step-cycle-1 { 0%, 28% { opacity: 1; transform: translateY(0); } 33.33%, 94% { opacity: 0; transform: translateY(-3px); } 95%, 100% { opacity: 1; transform: translateY(0); } }
+        @keyframes guta-step-cycle-2 { 0%, 28% { opacity: 0; transform: translateY(3px); } 33.33%, 61% { opacity: 1; transform: translateY(0); } 66.66%, 100% { opacity: 0; transform: translateY(-3px); } }
+        @keyframes guta-step-cycle-3 { 0%, 61% { opacity: 0; transform: translateY(3px); } 66.66%, 94% { opacity: 1; transform: translateY(0); } 98%, 100% { opacity: 0; transform: translateY(-3px); } }
+        @media (prefers-reduced-motion: reduce) {
+          .guta-chat-drawer, .guta-chat-drawer * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+          .guta-chat-drawer button:active { transform: none !important; }
+          .guta-chat-drawer .guta-chat-status { animation: none !important; }
+          .guta-chat-drawer .guta-thinking-avatar { animation: none !important; }
+          .guta-chat-drawer .guta-thinking-dot { animation: none !important; opacity: 0.8 !important; }
+          .guta-chat-drawer .guta-thinking-shimmer-line { animation: none !important; display: none !important; }
+          .guta-chat-drawer .guta-step-1 { animation: none !important; opacity: 1 !important; transform: none !important; position: static !important; }
+          .guta-chat-drawer .guta-step-2, .guta-chat-drawer .guta-step-3 { display: none !important; }
+        }
       `}</style>
       {/* Backdrop */}
       <div
@@ -623,25 +657,38 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
             </div>
           )}
 
+          {/* ponytail: CSS keyframes step carousel; add SSE streaming stage events when backend supports event-driven progress */}
           {isTyping && (
             <div
               role="status"
+              className="guta-chat-status"
               style={{
                 alignSelf: 'flex-start',
-                padding: '10px 16px',
-                borderRadius: '14px',
-                backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                color: '#e4e4e7',
-                fontSize: '12px',
-                fontFamily: 'var(--mono)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
+                maxWidth: '92%',
+                margin: '12px 0',
               }}
             >
-              <span className="size-2 rounded-full bg-zinc-400 animate-pulse"></span>
-              <span>Đang phân tích dữ liệu ca trực...</span>
+              <div className="guta-thinking-avatar" aria-hidden="true">
+                <img src="/assets/logos/guta-mark-pure.svg" alt="" style={{ width: '18px', height: '18px', objectFit: 'contain' }} />
+              </div>
+              <div className="guta-thinking-content">
+                <div className="guta-thinking-header">
+                  <span className="guta-thinking-label">Đang phân tích dữ liệu ca trực...</span>
+                  <span className="guta-thinking-dots" aria-hidden="true">
+                    <span className="guta-thinking-dot" />
+                    <span className="guta-thinking-dot" />
+                    <span className="guta-thinking-dot" />
+                  </span>
+                </div>
+                <div className="guta-thinking-shimmer-bar" aria-hidden="true">
+                  <div className="guta-thinking-shimmer-line" />
+                </div>
+                <div className="guta-thinking-steps" aria-hidden="true">
+                  <span className="guta-thinking-step guta-step-1">Tra cứu quy chế Guta</span>
+                  <span className="guta-thinking-step guta-step-2">Kiểm tra điều khoản</span>
+                  <span className="guta-thinking-step guta-step-3">Soạn phản hồi</span>
+                </div>
+              </div>
             </div>
           )}
           <div ref={messagesEndRef} />

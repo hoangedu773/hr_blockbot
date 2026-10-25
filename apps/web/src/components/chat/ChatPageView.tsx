@@ -160,7 +160,39 @@ const styles = `
 .guta-chat-card ul { margin: 8px 0 0; padding-left: 24px; font-size: 14px; color: var(--chat-muted); }
 .guta-chat-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
 .guta-chat-actions button { font-size: 14px; border-color: var(--chat-border); white-space: nowrap; }
-.guta-chat-status { color: var(--chat-muted); margin: 16px 0; }
+.guta-chat-status { display: flex; align-items: flex-start; gap: 12px; padding: 14px 18px; border-radius: 16px; background: rgba(255, 255, 255, 0.04); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); color: #a1a1aa; margin: 16px 0; width: fit-content; max-width: 480px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05); animation: guta-thinking-enter 220ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.guta-thinking-avatar { width: 32px; height: 32px; flex-shrink: 0; border-radius: 10px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); display: flex; align-items: center; justify-content: center; animation: guta-aura-pulse 2.4s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
+.guta-thinking-avatar img { width: 18px; height: 18px; object-fit: contain; }
+.guta-thinking-content { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+.guta-thinking-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.guta-thinking-label { font-size: 13px; font-weight: 500; color: #e4e4e7; letter-spacing: -0.01em; line-height: 1.4; }
+.guta-thinking-dots { display: inline-flex; align-items: center; gap: 3.5px; }
+.guta-thinking-dot { width: 4px; height: 4px; border-radius: 9999px; background: #a1a1aa; animation: guta-dot-pulse 1.4s cubic-bezier(0.23, 1, 0.32, 1) infinite both; }
+.guta-thinking-dot:nth-child(1) { animation-delay: 0s; }
+.guta-thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+.guta-thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+.guta-thinking-shimmer-bar { width: 100%; max-width: 200px; height: 2px; border-radius: 9999px; background: rgba(255, 255, 255, 0.06); position: relative; overflow: hidden; margin: 1px 0; }
+.guta-thinking-shimmer-line { position: absolute; inset: 0; width: 100%; height: 100%; background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.35) 50%, transparent 100%); transform: translateX(-100%); animation: guta-shimmer-sweep 2s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
+.guta-thinking-steps { position: relative; height: 16px; font-size: 11px; line-height: 16px; color: #71717a; overflow: hidden; }
+.guta-thinking-step { position: absolute; top: 0; left: 0; white-space: nowrap; opacity: 0; transform: translateY(3px); will-change: opacity, transform; }
+.guta-step-1 { opacity: 1; transform: translateY(0); animation: guta-step-cycle-1 6s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
+.guta-step-2 { animation: guta-step-cycle-2 6s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
+.guta-step-3 { animation: guta-step-cycle-3 6s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
+@keyframes guta-thinking-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes guta-aura-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.08), 0 0 8px rgba(255, 255, 255, 0.04); } 50% { box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.06), 0 0 16px rgba(255, 255, 255, 0.12); } }
+@keyframes guta-dot-pulse { 0%, 80%, 100% { opacity: 0.25; transform: scale(0.85); } 40% { opacity: 1; transform: scale(1.2); background-color: #ffffff; } }
+@keyframes guta-shimmer-sweep { 0% { transform: translateX(-100%); } 50%, 100% { transform: translateX(100%); } }
+@keyframes guta-step-cycle-1 { 0%, 28% { opacity: 1; transform: translateY(0); } 33.33%, 94% { opacity: 0; transform: translateY(-3px); } 95%, 100% { opacity: 1; transform: translateY(0); } }
+@keyframes guta-step-cycle-2 { 0%, 28% { opacity: 0; transform: translateY(3px); } 33.33%, 61% { opacity: 1; transform: translateY(0); } 66.66%, 100% { opacity: 0; transform: translateY(-3px); } }
+@keyframes guta-step-cycle-3 { 0%, 61% { opacity: 0; transform: translateY(3px); } 66.66%, 94% { opacity: 1; transform: translateY(0); } 98%, 100% { opacity: 0; transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) {
+  .guta-chat-status { animation: none !important; }
+  .guta-thinking-avatar { animation: none !important; }
+  .guta-thinking-dot { animation: none !important; opacity: 0.8 !important; }
+  .guta-thinking-shimmer-line { animation: none !important; display: none !important; }
+  .guta-step-1 { animation: none !important; opacity: 1 !important; transform: none !important; position: static !important; }
+  .guta-step-2, .guta-step-3 { display: none !important; }
+}
 .guta-chat-sidebar, .guta-chat-body, .guta-chat-empty, .guta-chat textarea { scrollbar-width: thin; scrollbar-color: var(--chat-border) transparent; }
 @media (hover: hover) and (pointer: fine) {
   .guta-chat button:hover:not(:disabled) { background: var(--chat-hover); }
@@ -360,7 +392,32 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
                     </section>}
                   </article>
                 ))}
-                {isTyping && <p className="guta-chat-status" role="status">Đang phân tích dữ liệu ca trực...</p>}
+                {/* ponytail: CSS keyframes step carousel; add SSE streaming stage events when backend supports event-driven progress */}
+                {isTyping && (
+                  <div className="guta-chat-status" role="status">
+                    <div className="guta-thinking-avatar" aria-hidden="true">
+                      <img src="/assets/logos/guta-mark-pure.svg" alt="" />
+                    </div>
+                    <div className="guta-thinking-content">
+                      <div className="guta-thinking-header">
+                        <span className="guta-thinking-label">Đang phân tích dữ liệu ca trực...</span>
+                        <span className="guta-thinking-dots" aria-hidden="true">
+                          <span className="guta-thinking-dot" />
+                          <span className="guta-thinking-dot" />
+                          <span className="guta-thinking-dot" />
+                        </span>
+                      </div>
+                      <div className="guta-thinking-shimmer-bar" aria-hidden="true">
+                        <div className="guta-thinking-shimmer-line" />
+                      </div>
+                      <div className="guta-thinking-steps" aria-hidden="true">
+                        <span className="guta-thinking-step guta-step-1">Tra cứu quy chế Guta</span>
+                        <span className="guta-thinking-step guta-step-2">Kiểm tra điều khoản</span>
+                        <span className="guta-thinking-step guta-step-3">Soạn phản hồi</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div ref={endRef} />
               </div>
             </div>
