@@ -8,6 +8,7 @@ export interface CrmDashboardViewProps {
   onLogout: () => void;
   onTelegramAlert: (storeId: string) => void;
   onOpenAiCopilot?: () => void;
+  onSwitchTab?: (tab: 'crm' | 'chat') => void;
   onNotify?: NotifyFn;
 }
 
@@ -15,18 +16,18 @@ const CRM_HTML = `
   <div data-slot="sidebar-wrapper" style="--sidebar-width:16rem;--sidebar-width-icon:16rem" class="group/sidebar-wrapper flex min-h-svh w-full h-svh overflow-hidden">
 
     <!-- SIDEBAR -->
-    <aside class="w-64 border-r border-border/80 bg-sidebar flex flex-col justify-between shrink-0 select-none">
+    <aside class="crm-sidebar w-64 border-r border-white/[0.08] bg-slate-900/70 backdrop-blur-xl flex flex-col justify-between shrink-0 select-none">
       <div class="flex flex-col">
         <!-- Brand Header with HR-BlockBot Logo -->
         <div class="p-4 border-b border-border/80 flex items-center justify-between">
           <div class="flex items-center gap-3">
-            <div class="flex size-9 items-center justify-center rounded-xl bg-blue-600/10 p-1 border border-blue-500/20 shrink-0">
-              <img src="/assets/logos/01-electric-sapphire.svg" alt="HR-BlockBot" class="size-7 object-contain rounded-lg" />
+            <div class="flex size-8 items-center justify-center rounded-xl bg-white/[0.04] p-1 border border-white/10 shrink-0">
+              <img src="/assets/logos/guta-mark-pure.svg" alt="Guta Logo" class="size-6 object-contain" />
             </div>
             <div class="flex flex-col">
               <div class="flex items-center gap-1.5 leading-none">
                 <span class="font-black tracking-wider text-foreground text-sm">GUTA</span>
-                <span class="font-semibold tracking-tight text-blue-500 text-sm">WORKSPACE</span>
+                <span class="font-semibold tracking-tight text-foreground text-sm">WORKSPACE</span>
               </div>
             </div>
           </div>
@@ -197,10 +198,10 @@ const CRM_HTML = `
         </div>
 
         <!-- TABLE -->
-        <div class="rounded-xl border border-border bg-card/60 shadow-xs overflow-x-auto">
+        <div class="crm-table-shell rounded-xl border border-white/[0.08] bg-white/[0.02] backdrop-blur-md shadow-xs overflow-x-auto">
           <table class="w-full text-left text-xs border-collapse min-w-[960px]">
-            <thead>
-              <tr class="border-b border-border bg-muted/40 font-semibold text-muted-foreground">
+            <thead class="crm-table-head bg-slate-900/60 backdrop-blur-md">
+              <tr class="border-b border-white/[0.06] font-semibold text-muted-foreground">
                 <th class="py-3 px-3 whitespace-nowrap">Mã CH</th>
                 <th class="py-3 px-3 whitespace-nowrap">Tên Cửa Hàng / Chi Nhánh</th>
                 <th class="py-3 px-3 whitespace-nowrap">Cửa Hàng Trưởng (SM)</th>
@@ -217,7 +218,7 @@ const CRM_HTML = `
               <tr class="table-row-hover cursor-pointer" data-id="GT-CH-01" data-name="GUTA CAFE - Tân Bình - 02 Đặng Văn Sâm" data-sm="Nguyễn Thị Phương Anh" data-district="Tân Bình" data-staff="46" data-shift="Ca 1 (06:00 - 14:00)" data-rev="8.420.000 ₫" data-ontime="100%">
                 <td class="py-3 px-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">GT-CH-01</td>
                 <td class="py-3 px-3 font-semibold text-foreground flex items-center gap-2 whitespace-nowrap">
-                  <div class="size-6 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
+                  <div class="crm-branch-icon size-6 rounded-md bg-white/[0.05] text-slate-300 flex items-center justify-center shrink-0 border border-white/10">
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>
                   </div>
                   <span>GUTA CAFE - Tân Bình - 02 Đặng Văn Sâm</span>
@@ -241,7 +242,7 @@ const CRM_HTML = `
               <tr class="table-row-hover cursor-pointer" data-id="GT-CH-02" data-name="GUTA CAFE - Quận 10 - 581 Sư Vạn Hạnh" data-sm="Đỗ Quỳnh Anh" data-district="Quận 10" data-staff="56" data-shift="Ca 1 (06:00 - 14:00)" data-rev="12.150.000 ₫" data-ontime="98%">
                 <td class="py-3 px-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">GT-CH-02</td>
                 <td class="py-3 px-3 font-semibold text-foreground flex items-center gap-2 whitespace-nowrap">
-                  <div class="size-6 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
+                  <div class="crm-branch-icon size-6 rounded-md bg-white/[0.05] text-slate-300 flex items-center justify-center shrink-0 border border-white/10">
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>
                   </div>
                   <span>GUTA CAFE - Quận 10 - 581 Sư Vạn Hạnh</span>
@@ -265,7 +266,7 @@ const CRM_HTML = `
               <tr class="table-row-hover cursor-pointer" data-id="GT-CH-03" data-name="GUTA CAFE - Bình Thạnh - 18 Nguyễn Cửu Vân" data-sm="Nguyễn Lê Quang Trường" data-district="Bình Thạnh" data-staff="47" data-shift="Ca 1 (06:00 - 14:00)" data-rev="7.890.000 ₫" data-ontime="95%">
                 <td class="py-3 px-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">GT-CH-03</td>
                 <td class="py-3 px-3 font-semibold text-foreground flex items-center gap-2 whitespace-nowrap">
-                  <div class="size-6 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
+                  <div class="crm-branch-icon size-6 rounded-md bg-white/[0.05] text-slate-300 flex items-center justify-center shrink-0 border border-white/10">
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>
                   </div>
                   <span>GUTA CAFE - Bình Thạnh - 18 Nguyễn Cửu Vân</span>
@@ -289,7 +290,7 @@ const CRM_HTML = `
               <tr class="table-row-hover cursor-pointer" data-id="GT-CH-04" data-name="GUTA CAFE - Quận 3 - 100 Nguyễn Thị Minh Khai" data-sm="Nguyễn Thị Thu Trúc" data-district="Quận 3" data-staff="45" data-shift="Ca 1 (06:00 - 14:00)" data-rev="9.340.000 ₫" data-ontime="100%">
                 <td class="py-3 px-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">GT-CH-04</td>
                 <td class="py-3 px-3 font-semibold text-foreground flex items-center gap-2 whitespace-nowrap">
-                  <div class="size-6 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
+                  <div class="crm-branch-icon size-6 rounded-md bg-white/[0.05] text-slate-300 flex items-center justify-center shrink-0 border border-white/10">
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>
                   </div>
                   <span>GUTA CAFE - Quận 3 - 100 Nguyễn Thị Minh Khai</span>
@@ -313,7 +314,7 @@ const CRM_HTML = `
               <tr class="table-row-hover cursor-pointer" data-id="GT-CH-05" data-name="GUTA CAFE - Quận 3 - 41 Trần Cao Vân" data-sm="Triệu Quang Nhân" data-district="Quận 3" data-staff="45" data-shift="Ca 1 (06:00 - 14:00)" data-rev="8.120.000 ₫" data-ontime="96%">
                 <td class="py-3 px-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">GT-CH-05</td>
                 <td class="py-3 px-3 font-semibold text-foreground flex items-center gap-2 whitespace-nowrap">
-                  <div class="size-6 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
+                  <div class="crm-branch-icon size-6 rounded-md bg-white/[0.05] text-slate-300 flex items-center justify-center shrink-0 border border-white/10">
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>
                   </div>
                   <span>GUTA CAFE - Quận 3 - 41 Trần Cao Vân</span>
@@ -337,7 +338,7 @@ const CRM_HTML = `
               <tr class="table-row-hover cursor-pointer" data-id="GT-CH-06" data-name="GUTA CAFE - Quận 1 - 146 Nguyễn Văn Thủ" data-sm="Trương Quốc Thái" data-district="Quận 1" data-staff="43" data-shift="Ca 1 (06:00 - 14:00)" data-rev="6.950.000 ₫" data-ontime="94%">
                 <td class="py-3 px-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">GT-CH-06</td>
                 <td class="py-3 px-3 font-semibold text-foreground flex items-center gap-2 whitespace-nowrap">
-                  <div class="size-6 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
+                  <div class="crm-branch-icon size-6 rounded-md bg-white/[0.05] text-slate-300 flex items-center justify-center shrink-0 border border-white/10">
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>
                   </div>
                   <span>GUTA CAFE - Quận 1 - 146 Nguyễn Văn Thủ</span>
@@ -361,7 +362,7 @@ const CRM_HTML = `
               <tr class="table-row-hover cursor-pointer" data-id="GT-CH-07" data-name="GUTA CAFE - Gò Vấp - 1B Nguyễn Kiệm" data-sm="Thái Thanh Lam" data-district="Gò Vấp" data-staff="42" data-shift="Ca 1 (06:00 - 14:00)" data-rev="7.200.000 ₫" data-ontime="97%">
                 <td class="py-3 px-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">GT-CH-07</td>
                 <td class="py-3 px-3 font-semibold text-foreground flex items-center gap-2 whitespace-nowrap">
-                  <div class="size-6 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
+                  <div class="crm-branch-icon size-6 rounded-md bg-white/[0.05] text-slate-300 flex items-center justify-center shrink-0 border border-white/10">
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>
                   </div>
                   <span>GUTA CAFE - Gò Vấp - 1B Nguyễn Kiệm</span>
@@ -385,7 +386,7 @@ const CRM_HTML = `
               <tr class="table-row-hover cursor-pointer" data-id="GT-CH-08" data-name="GUTA CAFE - Gò Vấp - 30 Phạm Văn Đồng" data-sm="Lại Ngọc Hoàng Nguyên" data-district="Gò Vấp" data-staff="42" data-shift="Ca 1 (06:00 - 14:00)" data-rev="7.600.000 ₫" data-ontime="99%">
                 <td class="py-3 px-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">GT-CH-08</td>
                 <td class="py-3 px-3 font-semibold text-foreground flex items-center gap-2 whitespace-nowrap">
-                  <div class="size-6 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
+                  <div class="crm-branch-icon size-6 rounded-md bg-white/[0.05] text-slate-300 flex items-center justify-center shrink-0 border border-white/10">
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>
                   </div>
                   <span>GUTA CAFE - Gò Vấp - 30 Phạm Văn Đồng</span>
@@ -409,7 +410,7 @@ const CRM_HTML = `
               <tr class="table-row-hover cursor-pointer" data-id="GT-CH-09" data-name="GUTA CAFE - Bình Thạnh - 193F Điện Biên Phủ" data-sm="Nguyễn Cao Thanh Hằng" data-district="Bình Thạnh" data-staff="39" data-shift="Ca 1 (06:00 - 14:00)" data-rev="6.450.000 ₫" data-ontime="95%">
                 <td class="py-3 px-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">GT-CH-09</td>
                 <td class="py-3 px-3 font-semibold text-foreground flex items-center gap-2 whitespace-nowrap">
-                  <div class="size-6 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
+                  <div class="crm-branch-icon size-6 rounded-md bg-white/[0.05] text-slate-300 flex items-center justify-center shrink-0 border border-white/10">
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>
                   </div>
                   <span>GUTA CAFE - Bình Thạnh - 193F Điện Biên Phủ</span>
@@ -433,7 +434,7 @@ const CRM_HTML = `
               <tr class="table-row-hover cursor-pointer" data-id="GT-CH-10" data-name="GUTA CAFE - Quận 3 - 206 Pasteur" data-sm="Lê Ngọc Bảo Trân" data-district="Quận 3" data-staff="38" data-shift="Ca 1 (06:00 - 14:00)" data-rev="8.870.000 ₫" data-ontime="100%">
                 <td class="py-3 px-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">GT-CH-10</td>
                 <td class="py-3 px-3 font-semibold text-foreground flex items-center gap-2 whitespace-nowrap">
-                  <div class="size-6 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
+                  <div class="crm-branch-icon size-6 rounded-md bg-white/[0.05] text-slate-300 flex items-center justify-center shrink-0 border border-white/10">
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/></svg>
                   </div>
                   <span>GUTA CAFE - Quận 3 - 206 Pasteur</span>
@@ -463,8 +464,8 @@ const CRM_HTML = `
   </div>
 
   <!-- SLIDE-OVER DETAIL DRAWER -->
-  <div id="drawer-backdrop" class="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs transition-opacity duration-300 opacity-0 pointer-events-none"></div>
-  <aside id="detail-drawer" class="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-card border-l border-border shadow-2xl flex flex-col h-full transform translate-x-full transition-transform duration-300 ease-in-out">
+  <div id="drawer-backdrop" class="fixed inset-0 z-40 bg-black/60 backdrop-blur-md transition-opacity duration-200 opacity-0 pointer-events-none"></div>
+  <aside id="detail-drawer" class="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-slate-900/95 backdrop-blur-2xl border-l border-white/[0.08] shadow-2xl flex flex-col h-full transform translate-x-full transition-transform duration-200">
     <!-- Drawer Header (shrink-0) -->
     <div class="p-6 border-b border-border flex items-start justify-between bg-muted/20 shrink-0">
       <div>
@@ -572,6 +573,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
   onLogout,
   onTelegramAlert,
   onOpenAiCopilot,
+  onSwitchTab,
   onNotify,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -579,6 +581,8 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
   onTelegramAlertRef.current = onTelegramAlert;
   const onOpenAiCopilotRef = useRef(onOpenAiCopilot);
   onOpenAiCopilotRef.current = onOpenAiCopilot;
+  const onSwitchTabRef = useRef(onSwitchTab);
+  onSwitchTabRef.current = onSwitchTab;
   const onLogoutRef = useRef(onLogout);
   onLogoutRef.current = onLogout;
   const onNotifyRef = useRef(onNotify);
@@ -889,7 +893,8 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
       if (link.textContent?.includes('Copilot')) {
         link.addEventListener('click', (e) => {
           e.preventDefault();
-          onOpenAiCopilotRef.current?.();
+          if (onSwitchTabRef.current) onSwitchTabRef.current('chat');
+          else onOpenAiCopilotRef.current?.();
         }, { signal: listeners.signal });
       }
     });

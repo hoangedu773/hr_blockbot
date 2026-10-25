@@ -3,7 +3,7 @@ import { useAuth } from './context/AuthContext';
 import { ToastContainer, type ToastMessage, type NotifyFn } from './components/Toast';
 import { FolioLandingView } from './components/FolioLandingView';
 import { CrmDashboardView } from './components/CrmDashboardView';
-import { ChatDrawer } from './components/chat/ChatDrawer';
+import { ChatPageView } from './components/chat/ChatPageView';
 import { DemoErrorBoundary } from './components/DemoErrorBoundary';
 
 interface LocalUser {
@@ -48,7 +48,7 @@ export const AppContent: React.FC = () => {
     return null;
   });
 
-  const [isChatDrawerOpen, setIsChatDrawerOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'crm' | 'chat'>('crm');
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   const addToast = useCallback<NotifyFn>((message, type = 'info', title) => {
@@ -112,7 +112,7 @@ export const AppContent: React.FC = () => {
       localStorage.removeItem('auth_user');
       localStorage.removeItem('access_token');
     }
-    setIsChatDrawerOpen(false);
+    setActiveTab('crm');
     try {
       await authLogout();
     } catch {
@@ -132,12 +132,8 @@ export const AppContent: React.FC = () => {
     );
   }, [addToast]);
 
-  const handleOpenAiCopilot = useCallback(() => {
-    setIsChatDrawerOpen(true);
-  }, []);
-
-  const handleCloseChatDrawer = useCallback(() => {
-    setIsChatDrawerOpen(false);
+  const handleSwitchTab = useCallback((tab: 'crm' | 'chat') => {
+    setActiveTab(tab);
   }, []);
 
   // 1. Unauthenticated: Render Folio Landing Page (Exact Ruixen UI Design)
@@ -154,21 +150,19 @@ export const AppContent: React.FC = () => {
   return (
     <>
       <DemoErrorBoundary>
-      <CrmDashboardView
-        userName={localUser.name}
-        userRole={localUser.role}
-        userScope={localUser.scope}
-        onLogout={handleLogout}
-        onTelegramAlert={handleSendTelegramAlert}
-        onOpenAiCopilot={handleOpenAiCopilot}
-        onNotify={addToast}
-      />
-      </DemoErrorBoundary>
-      <DemoErrorBoundary>
-      <ChatDrawer
-        isOpen={isChatDrawerOpen}
-        onClose={handleCloseChatDrawer}
-      />
+      {activeTab === 'chat' ? (
+        <ChatPageView onSwitchTab={handleSwitchTab} onLogout={handleLogout} />
+      ) : (
+        <CrmDashboardView
+          userName={localUser.name}
+          userRole={localUser.role}
+          userScope={localUser.scope}
+          onLogout={handleLogout}
+          onTelegramAlert={handleSendTelegramAlert}
+          onSwitchTab={handleSwitchTab}
+          onNotify={addToast}
+        />
+      )}
       </DemoErrorBoundary>
       <ToastContainer toasts={toasts} onDismiss={removeToast} />
     </>

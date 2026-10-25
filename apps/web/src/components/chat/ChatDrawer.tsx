@@ -277,15 +277,16 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                 width: '34px',
                 height: '34px',
                 borderRadius: '10px',
-                background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: '#ffffff',
-                boxShadow: '0 2px 8px rgba(37, 99, 235, 0.3)',
+                boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.04)',
               }}
             >
-              <img src="/assets/logos/01-electric-sapphire.svg" alt="AI Copilot" style={{ width: '22px', height: '22px', objectFit: 'contain' }} />
+              <img src="/assets/logos/guta-mark-pure.svg" alt="Guta Logo" style={{ width: '22px', height: '22px', objectFit: 'contain' }} />
             </div>
             <div>
               <div style={{ fontSize: '14px', fontWeight: 700, color: '#f8fafc', letterSpacing: '-0.01em' }}>

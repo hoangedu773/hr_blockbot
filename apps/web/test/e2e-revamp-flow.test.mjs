@@ -94,6 +94,8 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     // UI demo contract: no live auth backend required.
     await page.route('**/api/auth/refresh', (route) => route.fulfill({ status: 200, json: { accessToken: null } }));
     await page.route('**/api/auth/logout', (route) => route.fulfill({ status: 204 }));
+    // Invalid payload exercises the safe demo boundary without a live backend.
+    await page.route('**/api/chat', (route) => route.fulfill({ status: 200, json: {} }));
 
     // Clear any previous state
     await page.goto(serverUrl, { waitUntil: 'networkidle' });
@@ -162,6 +164,49 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     // Kiểm tra thông tin user hiển thị ở sidebar
     const sidebarUser = page.getByText(/Nguyễn Thị Phương Anh/i);
     assert.equal(await sidebarUser.count() > 0, true);
+    const logo = page.locator('.crm-sidebar img');
+    assert.equal(await logo.getAttribute('src'), '/assets/logos/guta-mark-pure.svg');
+    assert.equal(await logo.getAttribute('alt'), 'Guta Logo');
+    assert.equal(await logo.evaluate((img) => img.complete && img.naturalWidth > 0), true);
+    const brandColors = await page.locator('.crm-sidebar .tracking-wider.text-foreground, .crm-sidebar .tracking-tight.text-foreground').evaluateAll((labels) => labels.map((label) => getComputedStyle(label).color));
+    assert.equal(brandColors.length, 2);
+    assert.equal(brandColors[0], brandColors[1], 'GUTA and WORKSPACE must share the foreground color');
+    const glass = await page.evaluate(() => {
+      const style = (selector) => getComputedStyle(document.querySelector(selector));
+      return {
+        sidebar: style('.crm-sidebar').backdropFilter,
+        header: style('.crm-header-smooth').backdropFilter,
+        kpi: style('.crm-kpi-card').backdropFilter,
+        gradient: style('.crm-kpi-card').backgroundImage,
+        thead: style('.crm-table-head').backdropFilter,
+        logoBackground: style('.crm-sidebar .size-8.rounded-xl').backgroundColor,
+        tableBackground: style('.crm-table-shell').backgroundColor,
+        iconBackground: style('tbody tr[data-id] td:nth-child(2) > div').backgroundColor,
+        iconColor: style('tbody tr[data-id] td:nth-child(2) > div').color,
+        yellow: [...document.querySelectorAll('*')].some((el) => {
+          const computed = getComputedStyle(el);
+          return ['color', 'backgroundColor', 'borderColor', 'backgroundImage', 'boxShadow'].some((key) => /(?:255, 209, 0|234, 179, 8|245, 158, 11)/.test(computed[key]));
+        }),
+      };
+    });
+    assert.equal(glass.sidebar, 'blur(24px)');
+    assert.equal(glass.header, 'blur(24px)');
+    assert.equal(glass.kpi, 'blur(16px)');
+    assert.match(glass.gradient, /linear-gradient/);
+    assert.equal(glass.thead, 'blur(12px)');
+    assert.equal(glass.logoBackground, 'rgba(255, 255, 255, 0.04)');
+    assert.equal(glass.tableBackground, 'rgba(255, 255, 255, 0.02)');
+    await page.locator('.crm-kpi-card').first().hover();
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('.crm-kpi-card')).transform === 'matrix(1, 0, 0, 1, 0, -2)');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    try {
+      await page.waitForFunction(() => getComputedStyle(document.querySelector('.crm-kpi-card')).transform === 'none');
+    } finally {
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+    }
+    assert.equal(glass.iconBackground, 'rgba(255, 255, 255, 0.05)');
+    assert.equal(glass.iconColor, 'rgb(203, 213, 225)');
+    assert.equal(glass.yellow, false);
   });
 
   it('Bước 4: Bảng cửa hàng render đủ 45 chi nhánh, tìm kiếm chi nhánh "Sư Vạn Hạnh"', async () => {
@@ -192,6 +237,8 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
   it('Bước 5: Click vào dòng cửa hàng, kiểm tra Slide-Over Drawer mở ra với thông tin Barista', async () => {
     // Click vào dòng Sư Vạn Hạnh
     const row = page.getByText(/581 Sư Vạn Hạnh/i);
+    await row.hover();
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('tr[data-id="GT-CH-02"]')).backgroundColor === 'rgba(255, 255, 255, 0.03)');
     await row.click();
 
     // Drawer trượt ra, kiểm tra Barista
@@ -201,6 +248,11 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
 
     const cashier = page.getByText(/Lê Thị Kim Ngân/i).first();
     assert.equal(await cashier.isVisible(), true);
+    assert.deepEqual(await page.locator('#detail-drawer').evaluate((el) => {
+      const style = getComputedStyle(el);
+      return [style.backgroundColor, style.backdropFilter, style.borderLeftColor];
+    }), ['rgba(15, 23, 42, 0.95)', 'blur(40px)', 'rgba(255, 255, 255, 0.08)']);
+    assert.equal(await page.locator('#drawer-backdrop').evaluate((el) => getComputedStyle(el).backdropFilter), 'blur(12px)');
   });
 
   it('Bước 6: Bấm nút "Gửi Cảnh Báo Telegram", kiểm tra toast xuất hiện', async () => {
@@ -247,11 +299,12 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     await search.fill('');
     await page.locator('nav a').filter({ hasText: 'Copilot' }).click();
     await page.keyboard.press('Escape');
-    assert.equal(await page.getByRole('dialog', { name: 'Guta AI Copilot Drawer' }).count(), 0);
+    assert.equal(await page.getByTestId('chat-page').count(), 0);
+    assert.equal(await page.getByRole('table').isVisible(), true);
     assert.deepEqual(consoleErrors, []);
   });
 
-  it('Regression: unmount ChatDrawer khi bot đang typing', async () => {
+  it('Regression: unmount ChatPageView khi bot đang typing', async () => {
     await page.evaluate(() => {
       window.__replyCallbacks = 0;
       window.__cancelledReplies = 0;
@@ -290,6 +343,182 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     }
     await page.getByRole('button', { name: /Get Started/i }).click();
     await page.getByText(/Nguyễn Thị Phương Anh/i).first().click();
+  });
+
+  it('ChatPage: desktop empty state, demo an toàn, citations và confirm không giả thực thi', async () => {
+    await page.locator('nav a').filter({ hasText: 'Copilot' }).click();
+    const chat = page.getByTestId('chat-page');
+    await chat.getByRole('heading', { name: 'Chào mừng Guta AI Copilot' }).waitFor();
+    assert.deepEqual(await chat.locator('img').evaluateAll((images) => images.map((img) => ({ src: img.getAttribute('src'), loaded: img.complete && img.naturalWidth > 0 }))), [
+      { src: '/assets/logos/guta-mark-pure.svg', loaded: true },
+      { src: '/assets/logos/guta-mark-pure.svg', loaded: true },
+    ]);
+    assert.equal(await chat.locator('.guta-chat-hero img').evaluate((img) => img.getBoundingClientRect().width), 48);
+    assert.equal(await page.getByRole('dialog').count(), 0);
+    assert.equal(await chat.getByRole('navigation', { name: 'Chủ đề mẫu' }).getByRole('button').count(), 3);
+    const width = await chat.locator('.guta-chat-width').first().evaluate((el) => el.getBoundingClientRect().width);
+    assert.ok(width >= 768 && width <= 800);
+    const input = chat.getByRole('textbox', { name: 'Tin nhắn cho Guta AI' });
+    const send = chat.getByRole('button', { name: 'Gửi', exact: true });
+    await input.fill('   ');
+    await input.press('Enter');
+    assert.equal(await send.isDisabled(), true);
+    assert.equal(await chat.getByRole('log').count(), 0);
+    await chat.getByRole('navigation', { name: 'Chủ đề mẫu' }).getByRole('button', { name: 'Gợi ý điều động ca' }).click();
+    await chat.getByText('Demo an toàn · Dịch vụ AI chưa khả dụng', { exact: true }).waitFor();
+    await chat.getByRole('button', { name: 'Xác Nhận (Confirm)' }).click();
+    assert.equal(await chat.getByText('Đã xác nhận đề xuất. Chưa thực thi.', { exact: true }).isVisible(), true);
+    await chat.getByRole('button', { name: '+ New Chat', exact: true }).click();
+    await chat.getByRole('navigation', { name: 'Chủ đề mẫu' }).getByRole('button', { name: 'Gợi ý điều động ca' }).click();
+    await chat.getByRole('button', { name: 'Từ Chối', exact: true }).click();
+    assert.equal(await chat.getByText('Đã từ chối hành động. Không có dữ liệu nào bị thay đổi.', { exact: true }).isVisible(), true);
+    await chat.getByRole('button', { name: '+ New Chat', exact: true }).click();
+    await chat.getByRole('navigation', { name: 'Chủ đề mẫu' }).getByRole('button', { name: 'Quy định kỷ luật' }).click();
+    await chat.getByRole('region', { name: 'Trích dẫn' }).waitFor();
+    assert.match(await chat.getByRole('log').textContent(), /không phải chính sách có hiệu lực/);
+    await chat.getByRole('button', { name: '+ New Chat', exact: true }).click();
+    await chat.getByRole('navigation', { name: 'Chủ đề mẫu' }).getByRole('button', { name: 'Báo cáo két ca' }).click();
+    await chat.getByText(/Không có số doanh thu đã xác thực/).waitFor();
+    assert.match(await chat.getByRole('region', { name: 'Trích dẫn' }).textContent(), /không phải báo cáo thực tế/);
+    assert.equal(await chat.evaluate((root) => {
+      const banned = /(?:255, 209, 0|234, 179, 8|245, 158, 11)/;
+      return [...root.querySelectorAll('*')].some((el) => {
+        const style = getComputedStyle(el);
+        return ['color', 'backgroundColor', 'borderColor', 'backgroundImage', 'boxShadow'].some((key) => banned.test(style[key]));
+      });
+    }), false);
+    const composer = await chat.locator('.guta-chat-composer').boundingBox();
+    assert.ok(composer.y > 600, 'Conversation composer must stay near the bottom');
+    await chat.getByRole('button', { name: 'Quay lại Vận Hành (CRM)', exact: true }).click();
+    assert.equal(await page.getByRole('table').isVisible(), true);
+  });
+
+  it('ChatPage: API hợp lệ, conversationId, spam Enter, Shift+Enter và escape HTML', async () => {
+    const requests = [];
+    const handler = async (route) => {
+      requests.push(route.request().postDataJSON());
+      await route.fulfill({ status: 200, json: {
+        reply: '<script>window.__chatInjected = true</script> Phản hồi kiểm thử API',
+        conversationId: 'conversation-test-1',
+        citations: [{ document: 'Nguồn kiểm thử API', version: '1', article: 'Điều kiểm thử', score: 0.9 }],
+        proposedAction: { type: 'TEST_ACTION', preview: 'Đề xuất kiểm thử API' },
+      } });
+    };
+    await page.route('**/api/chat', handler);
+    try {
+      await page.locator('nav a').filter({ hasText: 'Copilot' }).click();
+      const chat = page.getByTestId('chat-page');
+      const input = chat.getByRole('textbox', { name: 'Tin nhắn cho Guta AI' });
+      await input.fill('<img src=x onerror="window.__chatInjected=true">');
+      await input.press('Shift+Enter');
+      assert.match(await input.inputValue(), /\n$/);
+      await input.press('Enter');
+      await input.fill('Không gửi trùng');
+      for (let i = 0; i < 3; i++) await input.press('Enter');
+      await chat.getByText(/Phản hồi kiểm thử API/).waitFor();
+      assert.equal(requests.length, 1);
+      assert.deepEqual(requests[0], { message: '<img src=x onerror="window.__chatInjected=true">' });
+      assert.equal(await chat.locator('[data-sender="user"]').count(), 1);
+      assert.equal(await chat.getByRole('region', { name: 'Trích dẫn' }).isVisible(), true);
+      assert.equal(await chat.getByRole('button', { name: 'Xác Nhận (Confirm)' }).isVisible(), true);
+      assert.equal(await page.evaluate(() => window.__chatInjected), undefined);
+      assert.equal(await chat.getByText(/Demo an toàn/).count(), 0);
+      await input.fill('Câu hỏi tiếp theo');
+      await input.press('Enter');
+      await page.waitForFunction(() => document.querySelectorAll('[data-sender="assistant"]').length === 2);
+      assert.equal(requests[1].conversationId, 'conversation-test-1');
+      assert.equal(requests.length, 2);
+      await page.keyboard.press('Escape');
+    } finally {
+      await page.unroute('**/api/chat', handler);
+    }
+  });
+
+  it('ChatPage: hủy fetch khi quay CRM, không nhận phản hồi cũ sau New Chat', async () => {
+    let requestStarted;
+    const started = new Promise((resolve) => { requestStarted = resolve; });
+    let releaseResponse;
+    let responseGate = new Promise((resolve) => { releaseResponse = resolve; });
+    const handler = async (route) => {
+      requestStarted();
+      await responseGate;
+      await route.fulfill({ status: 200, json: { reply: 'Phản hồi cũ không được hiển thị' } });
+    };
+    await page.route('**/api/chat', handler);
+    await page.evaluate(() => {
+      window.__chatAborts = 0;
+      const originalFetch = window.fetch;
+      window.fetch = function (url, options) {
+        if (String(url).endsWith('/chat')) {
+          options?.signal?.addEventListener('abort', () => { window.__chatAborts++; }, { once: true });
+        }
+        return originalFetch.call(this, url, options);
+      };
+      window.__restoreAbort = () => { window.fetch = originalFetch; };
+    });
+    try {
+      await page.locator('nav a').filter({ hasText: 'Copilot' }).click();
+      await page.getByRole('textbox', { name: 'Tin nhắn cho Guta AI' }).fill('Kiểm tra fetch');
+      await page.keyboard.press('Enter');
+      await started;
+      await page.getByRole('button', { name: '+ New Chat', exact: true }).click();
+      assert.equal(await page.evaluate(() => window.__chatAborts), 1);
+      releaseResponse();
+      await page.waitForTimeout(100);
+      assert.equal(await page.getByRole('log').count(), 0);
+      assert.equal(await page.getByText('Phản hồi cũ không được hiển thị').count(), 0);
+      const secondStarted = new Promise((resolve) => { requestStarted = resolve; });
+      responseGate = new Promise((resolve) => { releaseResponse = resolve; });
+      await page.getByRole('textbox', { name: 'Tin nhắn cho Guta AI' }).fill('Kiểm tra unmount');
+      await page.keyboard.press('Enter');
+      await secondStarted;
+      await page.getByRole('button', { name: 'Quay lại CRM', exact: true }).click();
+      assert.equal(await page.evaluate(() => window.__chatAborts), 2);
+      releaseResponse();
+      assert.equal(await page.getByTestId('chat-page').count(), 0);
+    } finally {
+      releaseResponse();
+      await page.unroute('**/api/chat', handler);
+      await page.evaluate(() => window.__restoreAbort());
+    }
+    assert.deepEqual(consoleErrors, []);
+  });
+
+  it('ChatPage: mobile 320/375px, landscape, keyboard, reduced motion và contrast', async () => {
+    await page.locator('nav a').filter({ hasText: 'Copilot' }).click();
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const chat = page.getByTestId('chat-page');
+    for (const viewport of [{ width: 320, height: 740 }, { width: 375, height: 812 }, { width: 812, height: 375 }]) {
+      await page.setViewportSize(viewport);
+      assert.equal(await chat.evaluate((el) => el.scrollWidth <= el.clientWidth), true);
+      assert.equal(await chat.getByRole('textbox', { name: 'Tin nhắn cho Guta AI' }).isVisible(), true);
+      const targets = await chat.getByRole('button').evaluateAll((buttons) => buttons.filter((button) => button.getClientRects().length).map((button) => ({ width: button.getBoundingClientRect().width, height: button.getBoundingClientRect().height })));
+      assert.ok(targets.every(({ width, height }) => width >= 44 && height >= 44));
+    }
+    await page.setViewportSize({ width: 320, height: 740 });
+    const menu = chat.getByRole('button', { name: 'Menu Copilot' });
+    await menu.focus();
+    await page.keyboard.press('Enter');
+    assert.equal(await menu.getAttribute('aria-expanded'), 'true');
+    await page.keyboard.press('Escape');
+    assert.equal(await menu.getAttribute('aria-expanded'), 'false');
+    const focusOutline = await menu.evaluate((el) => getComputedStyle(el).outlineWidth);
+    assert.ok(parseFloat(focusOutline) >= 2, 'Keyboard focus ring must remain visible');
+    await page.evaluate(() => { document.documentElement.style.zoom = '1.5'; });
+    assert.equal(await chat.evaluate((el) => el.scrollWidth <= el.clientWidth), true);
+    await page.evaluate(() => { document.documentElement.style.zoom = ''; });
+    const contrast = (a, b) => {
+      const luminance = (hex) => hex.match(/\w\w/g).map((value) => parseInt(value, 16) / 255).map((v) => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4).reduce((sum, value, i) => sum + value * [.2126, .7152, .0722][i], 0);
+      const values = [luminance(a), luminance(b)].sort((x, y) => y - x);
+      return (values[0] + .05) / (values[1] + .05);
+    };
+    const ratios = [['f8fafc', '0f172a'], ['a8b6ca', '182235'], ['f8fafc', '2563eb']].map(([a, b]) => contrast(a, b));
+    assert.ok(ratios.every((ratio) => ratio >= 4.5));
+    console.log(`Chat text contrast ratios: ${ratios.map((ratio) => ratio.toFixed(2)).join(', ')}`);
+    await page.keyboard.press('Escape');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    assert.deepEqual(consoleErrors, []);
   });
 
   it('Combo B UI/UX Anti-Slop: Trigger button spinners, illustrated empty state & filter reset', async () => {
