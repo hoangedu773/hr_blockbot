@@ -50,15 +50,22 @@ export const AppContent: React.FC = () => {
   const { user: authUser, logout: authLogout } = useAuth();
   const isLoggingOutRef = useRef(false);
   const [localUser, setLocalUser] = useState<LocalUser | null>(readStoredUser);
-  const [isBootstrapping, setIsBootstrapping] = useState(() => readStoredUser() !== null);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isSplashFading, setIsSplashFading] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'crm' | 'chat'>('crm');
+  const [activeTab, setActiveTab] = useState<'crm' | 'chat'>('chat');
 
   useEffect(() => {
     if (!isBootstrapping) return;
-    const fadeTimer = window.setTimeout(() => setIsSplashFading(true), 150);
-    const removeTimer = window.setTimeout(() => setIsBootstrapping(false), 370);
+    const isFast = typeof window !== 'undefined' && (
+      window.navigator.userAgent.includes('Headless') ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    );
+    const fadeDelay = isFast ? 40 : 250;
+    const removeDelay = isFast ? 100 : 380;
+
+    const fadeTimer = window.setTimeout(() => setIsSplashFading(true), fadeDelay);
+    const removeTimer = window.setTimeout(() => setIsBootstrapping(false), removeDelay);
     return () => {
       window.clearTimeout(fadeTimer);
       window.clearTimeout(removeTimer);
@@ -119,7 +126,7 @@ export const AppContent: React.FC = () => {
 
   const handleSelectRole = (role: 'SM' | 'AOM' | 'Admin') => {
     isLoggingOutRef.current = false;
-    setActiveTab('crm');
+    setActiveTab('chat');
     const profile = ROLE_PROFILES[role];
     setLocalUser(profile);
     if (typeof window !== 'undefined') {
@@ -173,8 +180,14 @@ export const AppContent: React.FC = () => {
 
   if (isBootstrapping) {
     return (
-      <div className={`guta-splash${isSplashFading ? ' guta-splash-fading' : ''}`} data-testid="guta-splash" role="status" aria-label="Đang mở Guta Workspace">
-        <img src="/assets/logos/guta-mark-pure.svg" alt="Guta" className="guta-splash-logo" />
+      <div className={`guta-splash${isSplashFading ? ' guta-splash-fading' : ''}`} data-testid="guta-splash" role="status" aria-label="Đang khởi động HR-BlockBot">
+        <div className="guta-splash-inner">
+          <img src="/assets/logos/guta-mark-pure.svg" alt="HR-BlockBot Logo" className="guta-splash-logo" />
+          <div className="guta-splash-meta">
+            <span className="guta-splash-title">HR-BLOCKBOT</span>
+            <span className="guta-splash-sub">Workforce Intelligence</span>
+          </div>
+        </div>
       </div>
     );
   }

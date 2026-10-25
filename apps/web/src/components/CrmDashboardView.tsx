@@ -22,7 +22,7 @@ const CRM_HTML = `
         <div class="p-4 border-b border-border/80 flex items-center justify-between">
           <div class="flex items-center gap-3">
             <div class="flex size-8 items-center justify-center rounded-xl bg-white/[0.04] p-1 border border-white/10 shrink-0">
-              <img src="/assets/logos/guta-mark-pure.svg" alt="Guta Logo" class="size-6 object-contain" />
+              <img src="/assets/logos/guta-mark-pure.svg" alt="HR-BlockBot Logo" class="size-6 object-contain" />
             </div>
             <div class="flex flex-col">
               <div class="flex items-center gap-1.5 leading-none">

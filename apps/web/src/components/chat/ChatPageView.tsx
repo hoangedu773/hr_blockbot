@@ -325,7 +325,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
           <section className="guta-chat-empty" aria-label="Bắt đầu hội thoại">
             <div className="guta-chat-width">
               <div className="guta-chat-hero">
-                <img src="/assets/logos/guta-mark-pure.svg" alt="Guta Logo" />
+                <img src="/assets/logos/guta-mark-pure.svg" alt="HR-BlockBot Logo" />
                 <h1 ref={headingRef} tabIndex={-1}>Chào mừng Guta AI Copilot</h1>
                 <p>Cùng bạn điều phối ca trực, tra cứu nhân sự và đối soát tiền két.</p>
               </div>

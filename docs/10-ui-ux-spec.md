@@ -407,7 +407,7 @@ Hệ thống sử dụng thuần CSS Variables và transitions nội tại trong
    - Phản hồi chuột nhấn (:active): `transform: scale(0.98)` trong 80ms trên các nút bấm.
    - Card float: Card KPI nâng nhẹ 2px `transform: translateY(-2px)` khi hover trên desktop pointer fine.
 3. **Quy tắc Smart Motion:**
-   - **Branded Splash Loader:** Logo Guta (`guta-mark-pure.svg`) với hiệu ứng `guta-splash-pulse` mờ dần trong <370ms khi bootstrap session, không gây lag hay delay thao tác.
+   - **Branded Splash Loader:** Logo HR-BlockBot (`guta-mark-pure.svg`) với hiệu ứng `guta-splash-pulse` mờ dần trong <370ms khi bootstrap session, không gây lag hay delay thao tác.
    - **Landing Page Sticky Shrink Header:** Khi cuộn `window.scrollY > 20px`, navbar tự động co gọn, bo viền capsule, đổi sang frosted glass `backdrop-filter: blur(20px)` mà không gây layout shift (CLS = 0).
 4. **Tôn trọng `prefers-reduced-motion`:**
    - Tắt sạch translate, scale, pulse; chuyển cảnh dạng instant hoặc mờ đục thuần túy (`opacity`).

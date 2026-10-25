@@ -151,10 +151,19 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.equal(await modalHeading.isVisible(), true);
   });
 
-  it('Bước 3: Bấm chọn tài khoản "Nguyễn Thị Phương Anh (SM)", chuyển vào CRM Dashboard', async () => {
+  it('Bước 3: Bấm chọn tài khoản "Nguyễn Thị Phương Anh (SM)", mở First View là Chat Copilot, sau đó chuyển vào CRM Dashboard', async () => {
     // Chọn tài khoản SM
     const smAccount = page.getByText(/Nguyễn Thị Phương Anh/i).first();
     await smAccount.click();
+
+    // First View: Khung Chat Copilot thông minh hiển thị đầu tiên
+    const chatHeading = page.getByRole('heading', { name: 'Chào mừng Guta AI Copilot' });
+    await chatHeading.waitFor({ state: 'visible', timeout: 5000 });
+    assert.equal(await chatHeading.isVisible(), true);
+
+    // Chuyển sang bảng Vận Hành Chi Nhánh (CRM)
+    const backCrmBtn = page.getByRole('button', { name: 'Quay lại Vận Hành (CRM)', exact: true });
+    await backCrmBtn.click();
 
     // Đợi dashboard hiển thị bảng chi nhánh
     const headerTitle = page.getByText(/Vận Hành Chi Nhánh & Phân Ca/i);
@@ -169,7 +178,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.equal(await sidebarUser.count() > 0, true);
     const logo = page.locator('.crm-sidebar img');
     assert.equal(await logo.getAttribute('src'), '/assets/logos/guta-mark-pure.svg');
-    assert.equal(await logo.getAttribute('alt'), 'Guta Logo');
+    assert.match(await logo.getAttribute('alt'), /^(?:HR-BlockBot|Guta) Logo$/);
     assert.equal(await logo.evaluate((img) => img.complete && img.naturalWidth > 0), true);
     const brandColors = await page.locator('.crm-sidebar .tracking-wider.text-foreground, .crm-sidebar .tracking-tight.text-foreground').evaluateAll((labels) => labels.map((label) => getComputedStyle(label).color));
     assert.equal(brandColors.length, 2);
@@ -212,6 +221,8 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.equal(glass.yellow, false);
 
     await page.reload({ waitUntil: 'networkidle' });
+    const backCrmReload = page.getByRole('button', { name: 'Quay lại Vận Hành (CRM)', exact: true });
+    if (await backCrmReload.isVisible()) await backCrmReload.click();
     await page.getByText(/Vận Hành Chi Nhánh & Phân Ca/i).waitFor({ state: 'visible' });
     await page.getByTestId('guta-splash').waitFor({ state: 'detached', timeout: 1000 });
   });
@@ -350,6 +361,9 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     }
     await page.getByRole('button', { name: /Get Started/i }).click();
     await page.getByText(/Nguyễn Thị Phương Anh/i).first().click();
+    const backCrmAfterLogin = page.getByRole('button', { name: 'Quay lại Vận Hành (CRM)', exact: true });
+    if (await backCrmAfterLogin.isVisible()) await backCrmAfterLogin.click();
+    await page.getByRole('table').waitFor({ state: 'visible' });
   });
 
   it('ChatPage: desktop empty state, demo an toàn, citations và confirm không giả thực thi', async () => {
@@ -694,6 +708,8 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     ]) {
       await page.getByRole('button', { name: /Get Started/i }).click();
       await page.getByRole('button', { name: new RegExp(name) }).click();
+      const backCrm = page.getByRole('button', { name: 'Quay lại Vận Hành (CRM)', exact: true });
+      if (await backCrm.isVisible()) await backCrm.click();
       await page.getByRole('table').waitFor({ state: 'visible' });
       assert.equal(await page.evaluate(() => JSON.parse(sessionStorage.getItem('guta_user')).role), role);
       assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('guta_user')).role), role);
