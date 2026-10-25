@@ -49,12 +49,12 @@ const CRM_HTML = `
         <nav class="px-2 py-3 space-y-1">
           <div class="px-2 pb-1.5 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Trợ Lý Thông Minh</div>
 
-          <a href="#" class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold bg-blue-600/10 text-blue-400 border border-blue-500/20 shadow-xs hover:bg-blue-600/15 transition cursor-pointer mb-3">
+          <a href="#" aria-label="Trợ Lý AI (Copilot)" class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold bg-blue-600/10 text-blue-400 border border-blue-500/20 shadow-xs hover:bg-blue-600/15 transition cursor-pointer mb-3">
             <div class="size-6 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-2xs shrink-0">
               <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
             </div>
             <span class="font-bold">Guta Copilot AI</span>
-            <span class="ml-auto text-[10px] font-mono font-semibold bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/30">Mở Chat</span>
+            <span class="ml-auto inline-flex items-center gap-1.5 text-[10px] font-mono font-semibold bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/30"><span class="size-1.5 rounded-full bg-emerald-400 animate-pulse" aria-hidden="true"></span>Trợ Lý AI (Copilot)</span>
           </a>
 
           <div class="px-2 pb-1 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Hệ Thống Vận Hành</div>

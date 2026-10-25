@@ -30,25 +30,51 @@ const ROLE_PROFILES: Record<'SM' | 'AOM' | 'Admin', LocalUser> = {
   },
 };
 
+const readStoredUser = (): LocalUser | null => {
+  if (typeof window === 'undefined') return null;
+  for (const storage of [window.sessionStorage, window.localStorage]) {
+    try {
+      const value: unknown = JSON.parse(storage.getItem('guta_user') || 'null');
+      if (typeof value === 'object' && value !== null && 'role' in value
+        && (value.role === 'SM' || value.role === 'AOM' || value.role === 'Admin')) {
+        return ROLE_PROFILES[value.role];
+      }
+    } catch {
+      // Try the next storage location when a saved value is malformed or unavailable.
+    }
+  }
+  return null;
+};
+
 export const AppContent: React.FC = () => {
   const { user: authUser, logout: authLogout } = useAuth();
   const isLoggingOutRef = useRef(false);
-  const [localUser, setLocalUser] = useState<LocalUser | null>(() => {
-    if (typeof window !== 'undefined') {
-      // Prioritize sessionStorage so new tabs always start on Landing Page
-      const saved = sessionStorage.getItem('guta_user');
-      if (saved) {
-        try {
-          return JSON.parse(saved) as LocalUser;
-        } catch {
-          return null;
-        }
-      }
-    }
-    return null;
-  });
+  const [localUser, setLocalUser] = useState<LocalUser | null>(readStoredUser);
+  const [isBootstrapping, setIsBootstrapping] = useState(() => readStoredUser() !== null);
+  const [isSplashFading, setIsSplashFading] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'crm' | 'chat'>('crm');
+
+  useEffect(() => {
+    if (!isBootstrapping) return;
+    const fadeTimer = window.setTimeout(() => setIsSplashFading(true), 150);
+    const removeTimer = window.setTimeout(() => setIsBootstrapping(false), 370);
+    return () => {
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(removeTimer);
+    };
+  }, [isBootstrapping]);
+
+  useEffect(() => {
+    if (!localUser) return;
+    try {
+      window.sessionStorage.setItem('guta_user', JSON.stringify(localUser));
+      window.localStorage.setItem('guta_user', JSON.stringify(localUser));
+    } catch {
+      // A blocked storage API must not prevent this in-memory demo session from working.
+    }
+  }, [localUser]);
+
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   const addToast = useCallback<NotifyFn>((message, type = 'info', title) => {
@@ -88,17 +114,21 @@ export const AppContent: React.FC = () => {
       const role = authUser.role === 'Admin' ? 'Admin' : 'SM';
       const profile = ROLE_PROFILES[role];
       setLocalUser(profile);
-      sessionStorage.setItem('guta_user', JSON.stringify(profile));
     }
   }, [authUser, localUser]);
 
   const handleSelectRole = (role: 'SM' | 'AOM' | 'Admin') => {
     isLoggingOutRef.current = false;
+    setActiveTab('crm');
     const profile = ROLE_PROFILES[role];
     setLocalUser(profile);
     if (typeof window !== 'undefined') {
-      sessionStorage.setItem('guta_user', JSON.stringify(profile));
-      localStorage.removeItem('guta_user');
+      try {
+        sessionStorage.setItem('guta_user', JSON.stringify(profile));
+        localStorage.setItem('guta_user', JSON.stringify(profile));
+      } catch {
+        // The in-memory session remains available when browser storage is blocked.
+      }
     }
     addToast(`Đăng nhập thành công với vai trò ${profile.name} (${role})`, 'success', 'Xác thực thành công');
   };
@@ -107,12 +137,17 @@ export const AppContent: React.FC = () => {
     isLoggingOutRef.current = true;
     setLocalUser(null);
     if (typeof window !== 'undefined') {
-      sessionStorage.removeItem('guta_user');
-      localStorage.removeItem('guta_user');
-      localStorage.removeItem('auth_user');
-      localStorage.removeItem('access_token');
+      for (const storage of [window.sessionStorage, window.localStorage]) {
+        for (const key of ['guta_user', 'auth_user', 'access_token']) {
+          try {
+            storage.removeItem(key);
+          } catch {
+            // Keep logout flowing if browser storage is unavailable.
+          }
+        }
+      }
     }
-    setActiveTab('crm');
+    setActiveTab('chat');
     try {
       await authLogout();
     } catch {
@@ -135,6 +170,14 @@ export const AppContent: React.FC = () => {
   const handleSwitchTab = useCallback((tab: 'crm' | 'chat') => {
     setActiveTab(tab);
   }, []);
+
+  if (isBootstrapping) {
+    return (
+      <div className={`guta-splash${isSplashFading ? ' guta-splash-fading' : ''}`} data-testid="guta-splash" role="status" aria-label="Đang mở Guta Workspace">
+        <img src="/assets/logos/guta-mark-pure.svg" alt="Guta" className="guta-splash-logo" />
+      </div>
+    );
+  }
 
   // 1. Unauthenticated: Render Folio Landing Page (Exact Ruixen UI Design)
   if (!localUser) {

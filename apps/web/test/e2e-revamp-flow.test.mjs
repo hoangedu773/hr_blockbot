@@ -162,6 +162,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.equal(await headerTitle.isVisible(), true);
 
     assert.equal(await page.evaluate(() => JSON.parse(sessionStorage.getItem('guta_user')).role), 'SM');
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('guta_user')).role), 'SM');
 
     // Kiểm tra thông tin user hiển thị ở sidebar
     const sidebarUser = page.getByText(/Nguyễn Thị Phương Anh/i);
@@ -209,6 +210,10 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.equal(glass.iconBackground, 'rgba(255, 255, 255, 0.05)');
     assert.equal(glass.iconColor, 'rgb(203, 213, 225)');
     assert.equal(glass.yellow, false);
+
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.getByText(/Vận Hành Chi Nhánh & Phân Ca/i).waitFor({ state: 'visible' });
+    await page.getByTestId('guta-splash').waitFor({ state: 'detached', timeout: 1000 });
   });
 
   it('Bước 4: Bảng cửa hàng render đủ 45 chi nhánh, tìm kiếm chi nhánh "Sư Vạn Hạnh"', async () => {
@@ -682,6 +687,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     await heroTitle.waitFor({ state: 'visible', timeout: 5000 });
     assert.equal(await heroTitle.isVisible(), true);
     assert.equal(await page.evaluate(() => sessionStorage.getItem('guta_user')), null);
+    assert.equal(await page.evaluate(() => localStorage.getItem('guta_user')), null);
     for (const { role, name } of [
       { role: 'AOM', name: 'Nguyễn Cao Thanh Trầm' },
       { role: 'Admin', name: 'Ban Điều Hành Guta' },
@@ -690,10 +696,12 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       await page.getByRole('button', { name: new RegExp(name) }).click();
       await page.getByRole('table').waitFor({ state: 'visible' });
       assert.equal(await page.evaluate(() => JSON.parse(sessionStorage.getItem('guta_user')).role), role);
+      assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('guta_user')).role), role);
       assert.equal(await page.locator('.crm-sidebar').getByText(name, { exact: true }).isVisible(), true);
       await logoutBtn.click();
       await heroTitle.waitFor({ state: 'visible' });
       assert.equal(await page.evaluate(() => sessionStorage.getItem('guta_user')), null);
+      assert.equal(await page.evaluate(() => localStorage.getItem('guta_user')), null);
     }
     assert.deepEqual(consoleErrors, [], 'Demo flow must have zero console errors and uncaught exceptions');
     console.log(`Console errors / pageerrors: ${consoleErrors.length}`);

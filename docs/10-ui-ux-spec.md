@@ -395,19 +395,23 @@ Mục này là **danh sách thứ phải kiểm**, không phải tuyên bố đ�
 
 ## 10. States & motion
 
-**Nguyên tắc**, không phải danh sách thư viện. Không có animation library nào được chọn trong `NOTES-01`,
-nên **không** đặt tên một thư viện ở đây; nếu cần, đó là một quyết định mới phải có ADR.
+**Nguyên tắc và Bộ Token Chuyển Động Chuẩn (Cập nhật 10/2026 — Chuẩn Emil Kowalski & Apple Motion):**
+Hệ thống sử dụng thuần CSS Variables và transitions nội tại trong `apps/web/src/index.css`, không phụ thuộc thư viện bên ngoài:
 
-1. Motion phục vụ **giải thích chuyển tiếp trạng thái**, không trang trí: bubble đổi `sending → sent`,
-   skeleton thành nội dung, card mở rộng breakdown.
-2. Ngưỡng: **mọi motion phải để lại layout ổn định** — thời lượng `TBD`, nhưng CLS `≤ 0.1` (`§B9`) là trần
-   không thương lượng. Chiều cao phần tử **không đổi** sau khi animation kết thúc.
-3. Cùng một hành vi phải có ở Dashboard và Chat (nút "đã duyệt" và card `project:updated` giống nhau).
-4. Tôn trọng `prefers-reduced-motion`: tắt translate/scale, giữ đổi màu tức thì.
-5. Trạng thái "đang tải" của **biểu đồ** và **bảng** dùng chung một cơ chế skeleton để tránh hai kiểu nhảy
-   layout khác nhau trong cùng một route.
-6. Không animate thứ lặp lại hàng loạt (mỗi dòng bảng xuất hiện một kiểu): trên bảng 50 dòng đó chính là
-   nguyên nhân chậm và nhảy.
+1. **Hệ thống Motion Tokens:**
+   - `--motion-ease-standard: cubic-bezier(0.23, 1, 0.32, 1);` — curve gia tốc mượt mà, phản hồi tức thời.
+   - `--motion-fast: 140ms;` — dùng cho hover, focus-visible, active click.
+   - `--motion-base: 220ms;` — dùng cho chuyển cảnh tab (cross-fade), entry animation.
+   - `--motion-panel: 280ms;` — dùng cho trượt Slide-over Drawer và Modal.
+2. **Micro-interactions:**
+   - Phản hồi chuột nhấn (:active): `transform: scale(0.98)` trong 80ms trên các nút bấm.
+   - Card float: Card KPI nâng nhẹ 2px `transform: translateY(-2px)` khi hover trên desktop pointer fine.
+3. **Quy tắc Smart Motion:**
+   - **Branded Splash Loader:** Logo Guta (`guta-mark-pure.svg`) với hiệu ứng `guta-splash-pulse` mờ dần trong <370ms khi bootstrap session, không gây lag hay delay thao tác.
+   - **Landing Page Sticky Shrink Header:** Khi cuộn `window.scrollY > 20px`, navbar tự động co gọn, bo viền capsule, đổi sang frosted glass `backdrop-filter: blur(20px)` mà không gây layout shift (CLS = 0).
+4. **Tôn trọng `prefers-reduced-motion`:**
+   - Tắt sạch translate, scale, pulse; chuyển cảnh dạng instant hoặc mờ đục thuần túy (`opacity`).
+5. Ngưỡng: mọi motion giữ layout ổn định, CLS ≤ 0.1, chiều cao phần tử không đổi sau animation.
 
 ---
 

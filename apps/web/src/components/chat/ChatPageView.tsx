@@ -97,6 +97,7 @@ function demoReply(text: string): Omit<Message, 'id' | 'sender'> {
 
 const styles = `
 .guta-chat {
+  animation: guta-view-enter 220ms cubic-bezier(0.23, 1, 0.32, 1) both;
   --chat-bg: #171717; --chat-sidebar: #111111; --chat-card: #1e1e1e;
   --chat-text: #f5f5f5; --chat-muted: #b4b4b4; --chat-border: rgba(255, 255, 255, 0.1);
   --chat-accent: #ffffff; --chat-focus: rgba(255, 255, 255, 0.3); --chat-hover: rgba(255, 255, 255, 0.08);
@@ -121,6 +122,8 @@ const styles = `
 .guta-chat-sidebar nav button { font-size: 14px; white-space: nowrap; }
 .guta-chat-sidebar footer { margin-top: auto; display: grid; gap: 8px; }
 .guta-chat-sidebar footer button { font-size: 14px; padding: 8px; white-space: nowrap; }
+.guta-chat .chat-back-crm { border-color: var(--chat-border); background: var(--chat-hover); transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1), background-color 140ms cubic-bezier(0.23, 1, 0.32, 1); }
+.guta-chat .chat-back-crm:active:not(:disabled) { transform: scale(0.98); }
 .guta-chat-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .guta-chat-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 72px; padding: 16px 24px; }
 .guta-chat-header strong { font-size: 16px; }
@@ -308,7 +311,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
           {TOPICS.map((topic) => <button type="button" key={topic.title} disabled={isTyping} onClick={() => send(topic.prompt)}>{topic.title}</button>)}
         </nav>
         <footer>
-          <button type="button" onClick={() => onSwitchTab('crm')}>Quay lại Vận Hành (CRM)</button>
+          <button className="chat-back-crm" type="button" onClick={() => onSwitchTab('crm')}>Quay lại Vận Hành (CRM)</button>
           <button type="button" aria-label="Đăng Xuất Phiên" onClick={onLogout}>Đăng xuất</button>
         </footer>
       </aside>

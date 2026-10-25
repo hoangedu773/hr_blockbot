@@ -33,6 +33,9 @@ export const FolioLandingView: React.FC<FolioLandingViewProps> = ({ onLogin, onN
       toggle.addEventListener('click', handleToggle);
     }
     const nav = toggle?.closest('nav');
+    const syncScrolledNav = () => nav?.classList.toggle('nav-scrolled', window.scrollY > 20);
+    syncScrolledNav();
+    window.addEventListener('scroll', syncScrolledNav, { passive: true });
     const navLinks = nav?.querySelectorAll('a[href="#features"], a[href="#solution"], a[href="#product"], a[href="#about"]');
     const closeMobileMenu = () => {
       nav?.setAttribute('data-state', 'false');
@@ -135,6 +138,7 @@ export const FolioLandingView: React.FC<FolioLandingViewProps> = ({ onLogin, onN
     darkBtn?.addEventListener('click', setDark);
 
     return () => {
+      window.removeEventListener('scroll', syncScrolledNav);
       navLinks?.forEach((link) => link.removeEventListener('click', closeMobileMenu));
       if (handleToggle && toggle) toggle.removeEventListener('click', handleToggle);
       loginTriggers.forEach((el) => el.removeEventListener('click', handleLoginClick));
