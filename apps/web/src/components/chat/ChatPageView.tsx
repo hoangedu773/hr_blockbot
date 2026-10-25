@@ -97,9 +97,9 @@ function demoReply(text: string): Omit<Message, 'id' | 'sender'> {
 
 const styles = `
 .guta-chat {
-  --chat-bg: #0f172a; --chat-sidebar: #090d16; --chat-card: #182235;
-  --chat-text: #f8fafc; --chat-muted: #a8b6ca; --chat-border: #35435a;
-  --chat-accent: #2563eb; --chat-focus: #93c5fd; --chat-hover: #233149;
+  --chat-bg: #171717; --chat-sidebar: #111111; --chat-card: #1e1e1e;
+  --chat-text: #f5f5f5; --chat-muted: #b4b4b4; --chat-border: rgba(255, 255, 255, 0.1);
+  --chat-accent: #ffffff; --chat-focus: rgba(255, 255, 255, 0.3); --chat-hover: rgba(255, 255, 255, 0.08);
   --chat-font: var(--font-sans, 'Geist', system-ui, sans-serif);
   display: flex; height: 100dvh; overflow: hidden; background: var(--chat-bg);
   color: var(--chat-text); font: 16px/1.6 var(--chat-font); color-scheme: dark;
@@ -110,8 +110,8 @@ const styles = `
 .guta-chat button:focus-visible, .guta-chat textarea:focus-visible { outline: 2px solid var(--chat-focus); outline-offset: 3px; }
 .guta-chat button:active:not(:disabled) { background: var(--chat-hover); }
 .guta-chat button:disabled { opacity: .5; cursor: not-allowed; }
-.guta-chat .chat-primary { background: var(--chat-accent); color: var(--chat-text); }
-.guta-chat .chat-primary:active:not(:disabled) { background: var(--chat-hover); }
+.guta-chat .chat-primary { background: var(--chat-accent); color: #000000; }
+.guta-chat .chat-primary:active:not(:disabled), .guta-chat .chat-send:active:not(:disabled) { background: #dedede; }
 .guta-chat-sidebar { width: 256px; flex-shrink: 0; background: var(--chat-sidebar); border-right: 1px solid var(--chat-border); display: flex; flex-direction: column; gap: 24px; padding: 24px 16px; overflow-y: auto; }
 .guta-chat-brand { display: flex; align-items: center; gap: 8px; padding: 0 8px; font-weight: 700; }
 .guta-chat-logo { width: 32px; height: 32px; object-fit: contain; }
@@ -135,21 +135,22 @@ const styles = `
 .guta-chat-hero p { color: var(--chat-muted); margin: 0; }
 .guta-chat-prompts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 24px; }
 .guta-chat-prompts button { border-color: var(--chat-border); font-size: 14px; white-space: nowrap; border-radius: 999px; }
-.guta-chat-composer { background: var(--chat-card); border: 1px solid var(--chat-border); border-radius: 24px; padding: 16px; box-shadow: 0 8px 32px #090d1640; }
-.guta-chat-composer:focus-within { border-color: var(--chat-focus); }
-.guta-chat-composer label { display: block; color: var(--chat-muted); font-size: 12px; margin-bottom: 8px; }
-.guta-chat-composer textarea { display: block; width: 100%; min-height: 56px; max-height: 192px; resize: none; background: transparent; border: 0; padding: 8px; line-height: 24px; overflow-y: auto; }
+.guta-chat-composer { display: flex; align-items: center; gap: 10px; background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 9999px; padding: 6px 8px 6px 14px; }
+.guta-chat-composer:focus-within { border-color: rgba(255, 255, 255, 0.28); box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4); }
+.guta-chat .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.guta-chat-composer textarea { display: block; flex: 1; min-width: 0; min-height: 44px; max-height: 192px; resize: none; background: transparent; border: none !important; outline: none !important; box-shadow: none !important; padding: 10px 0; font-size: 14px; line-height: 24px; overflow-y: auto; }
 .guta-chat-composer textarea::placeholder { color: var(--chat-muted); opacity: 1; }
-.guta-chat-composer-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
-.guta-chat-composer-row span { color: var(--chat-muted); font-size: 12px; }
-.guta-chat .chat-send { text-align: center; padding: 8px; display: flex; justify-content: center; align-items: center; }
+.guta-chat .chat-send, .guta-chat .chat-attach-btn { flex-shrink: 0; border-radius: 9999px; width: 44px; height: 44px; min-width: 44px; min-height: 44px; border: none; padding: 0; display: flex; align-items: center; justify-content: center; }
+.guta-chat .chat-attach-btn { color: rgba(255, 255, 255, 0.6); background: transparent; }
+.guta-chat .chat-send { background: var(--chat-accent); color: #000000; transition: none; }
+.guta-chat .chat-send:disabled { opacity: 1; background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.3); }
 .guta-chat-note { text-align: center; font-size: 12px; color: var(--chat-muted); margin: 16px 0 0; }
 .guta-chat-bottom { padding: 16px 24px max(16px, env(safe-area-inset-bottom)); }
 .guta-chat-message { margin-bottom: 32px; overflow-wrap: anywhere; }
 .guta-chat-message > p { white-space: pre-wrap; margin: 8px 0 0; }
 .guta-chat-message[data-sender="user"] { margin-left: auto; padding: 16px 24px; border-radius: 24px; background: var(--chat-card); width: fit-content; max-width: 90%; }
 .guta-chat-message strong { font-size: 14px; }
-.guta-chat-demo { display: block; font-size: 12px; color: var(--chat-focus); margin-top: 8px; }
+.guta-chat-demo { display: block; font-size: 12px; color: var(--chat-muted); margin-top: 8px; }
 .guta-chat-card { border: 1px solid var(--chat-border); border-radius: 16px; padding: 16px; margin-top: 16px; background: var(--chat-card); }
 .guta-chat-card p { margin: 8px 0; }
 .guta-chat-card ul { margin: 8px 0 0; padding-left: 24px; font-size: 14px; color: var(--chat-muted); }
@@ -157,9 +158,13 @@ const styles = `
 .guta-chat-actions button { font-size: 14px; border-color: var(--chat-border); white-space: nowrap; }
 .guta-chat-status { color: var(--chat-muted); margin: 16px 0; }
 .guta-chat-sidebar, .guta-chat-body, .guta-chat-empty, .guta-chat textarea { scrollbar-width: thin; scrollbar-color: var(--chat-border) transparent; }
-@media (hover: hover) and (pointer: fine) { .guta-chat button:hover:not(:disabled) { background: var(--chat-hover); } }
+@media (hover: hover) and (pointer: fine) {
+  .guta-chat button:hover:not(:disabled) { background: var(--chat-hover); }
+  .guta-chat .chat-attach-btn:hover { color: var(--chat-accent); }
+  .guta-chat .chat-primary:hover:not(:disabled), .guta-chat .chat-send:hover:not(:disabled) { background: #dedede; }
+}
 @media (max-width: 767px) {
-  .guta-chat-sidebar { display: none; position: absolute; top: 72px; bottom: 0; left: 0; z-index: 2; width: min(280px, 100%); box-shadow: 16px 0 32px #090d1640; }
+  .guta-chat-sidebar { display: none; position: absolute; top: 72px; bottom: 0; left: 0; z-index: 2; width: min(280px, 100%); box-shadow: 16px 0 32px rgba(0, 0, 0, 0.25); }
   .guta-chat-sidebar[data-open="true"] { display: flex; }
   .guta-chat-header { padding: 8px 16px; }
   .guta-chat-header .chat-menu { display: block; }
@@ -168,7 +173,6 @@ const styles = `
   .guta-chat-empty { justify-content: safe center; }
   .guta-chat-bottom { padding: 8px 16px max(16px, env(safe-area-inset-bottom)); }
   .guta-chat-hero { margin-bottom: 24px; }
-  .guta-chat-composer-row span { font-size: 12px; }
 }
 `;
 
@@ -272,8 +276,11 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   const composer = (
     <div className="guta-chat-width">
       <form className="guta-chat-composer" onSubmit={(event) => { event.preventDefault(); send(); }}>
-        <label htmlFor="copilot-message">Tin nhắn cho Guta AI</label>
-        <textarea id="copilot-message" ref={inputRef} rows={2} maxLength={4000} value={input}
+        <label htmlFor="copilot-message" className="sr-only">Tin nhắn cho Guta AI</label>
+        <button type="button" className="chat-attach-btn" aria-label="Thao tác bổ sung" title="Nhập câu hỏi cho Guta AI" onClick={() => inputRef.current?.focus()}>
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14m-7-7h14" /></svg>
+        </button>
+        <textarea id="copilot-message" ref={inputRef} rows={1} maxLength={4000} value={input}
           onChange={(event) => setInput(event.target.value)}
           placeholder="Hỏi AI về ca trực, nhân sự, tiền két..."
           onKeyDown={(event) => {
@@ -282,12 +289,9 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
               send();
             }
           }} />
-        <div className="guta-chat-composer-row">
-          <span>Enter gửi · Shift+Enter xuống dòng</span>
-          <button className="chat-primary chat-send" type="submit" aria-label="Gửi" disabled={isTyping || !input.trim()}>
-            <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5m-6 6 6-6 6 6" /></svg>
-          </button>
-        </div>
+        <button className="chat-send" type="submit" aria-label="Gửi" disabled={isTyping || !input.trim()}>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5m-6 6 6-6 6 6" /></svg>
+        </button>
       </form>
       <p className="guta-chat-note">AI có thể nhầm lẫn. Kiểm tra nguồn trước khi quyết định.</p>
     </div>

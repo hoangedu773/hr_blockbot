@@ -161,6 +161,8 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     await headerTitle.waitFor({ state: 'visible', timeout: 5000 });
     assert.equal(await headerTitle.isVisible(), true);
 
+    assert.equal(await page.evaluate(() => JSON.parse(sessionStorage.getItem('guta_user')).role), 'SM');
+
     // Kiểm tra thông tin user hiển thị ở sidebar
     const sidebarUser = page.getByText(/Nguyễn Thị Phương Anh/i);
     assert.equal(await sidebarUser.count() > 0, true);
@@ -348,6 +350,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
   it('ChatPage: desktop empty state, demo an toàn, citations và confirm không giả thực thi', async () => {
     await page.locator('nav a').filter({ hasText: 'Copilot' }).click();
     const chat = page.getByTestId('chat-page');
+    assert.doesNotMatch(fs.readFileSync(path.resolve(__dirname, '../src/components/chat/ChatPageView.tsx'), 'utf8'), /#(?:2563eb|93c5fd|35435a|233149)\b/i);
     await chat.getByRole('heading', { name: 'Chào mừng Guta AI Copilot' }).waitFor();
     assert.deepEqual(await chat.locator('img').evaluateAll((images) => images.map((img) => ({ src: img.getAttribute('src'), loaded: img.complete && img.naturalWidth > 0 }))), [
       { src: '/assets/logos/guta-mark-pure.svg', loaded: true },
@@ -360,13 +363,70 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.ok(width >= 768 && width <= 800);
     const input = chat.getByRole('textbox', { name: 'Tin nhắn cho Guta AI' });
     const send = chat.getByRole('button', { name: 'Gửi', exact: true });
+    const composerStyle = await chat.locator('.guta-chat-composer').evaluate((form) => {
+      const style = getComputedStyle(form);
+      const input = form.querySelector('textarea');
+      const label = form.querySelector('label');
+      return {
+        radius: style.borderRadius, background: style.backgroundColor,
+        border: style.borderTopColor, blur: style.backdropFilter, display: style.display,
+        rows: input.rows, labelClass: label.className, labelWidth: label.getBoundingClientRect().width,
+        order: [...form.children].map((el) => el.tagName),
+      };
+    });
+    assert.deepEqual(composerStyle, {
+      radius: '9999px', background: 'rgba(255, 255, 255, 0.05)',
+      border: 'rgba(255, 255, 255, 0.12)', blur: 'blur(20px)', display: 'flex',
+      rows: 1, labelClass: 'sr-only', labelWidth: 1,
+      order: ['LABEL', 'BUTTON', 'TEXTAREA', 'BUTTON'],
+    });
+    assert.equal(await chat.getByText('Enter gửi · Shift+Enter xuống dòng', { exact: true }).count(), 0);
+    const attach = chat.getByRole('button', { name: 'Thao tác bổ sung', exact: true });
+    for (const button of [attach, send]) {
+      assert.deepEqual(await button.evaluate((el) => {
+        const rect = el.getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return [rect.width, rect.height, style.borderRadius, style.borderTopWidth];
+      }), [44, 44, '9999px', '0px']);
+    }
+    await input.focus();
+    await page.keyboard.press('Shift+Tab');
+    assert.equal(await attach.evaluate((el) => document.activeElement === el && el.matches(':focus-visible') && parseFloat(getComputedStyle(el).outlineWidth) >= 2), true);
+    await page.keyboard.press('Enter');
+    assert.equal(await input.evaluate((el) => document.activeElement === el), true);
+    assert.deepEqual(await input.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return [style.borderTopWidth, style.outlineStyle, style.boxShadow, style.backgroundColor];
+    }), ['0px', 'none', 'none', 'rgba(0, 0, 0, 0)']);
+    assert.equal(await chat.locator('.guta-chat-composer').evaluate((el) => getComputedStyle(el).borderTopColor), 'rgba(255, 255, 255, 0.28)');
     await input.fill('   ');
     await input.press('Enter');
     assert.equal(await send.isDisabled(), true);
+    assert.deepEqual(await send.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return [style.backgroundColor, style.color, style.opacity];
+    }), ['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.3)', '1']);
     assert.equal(await chat.getByRole('log').count(), 0);
+    await input.fill('Tin nhắn kiểm thử');
+    assert.equal(await send.isDisabled(), false);
+    assert.deepEqual(await send.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return [style.backgroundColor, style.color];
+    }), ['rgb(255, 255, 255)', 'rgb(0, 0, 0)']);
+    await send.hover();
+    assert.deepEqual(await send.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return [style.backgroundColor, style.color];
+    }), ['rgb(222, 222, 222)', 'rgb(0, 0, 0)']);
     await chat.getByRole('navigation', { name: 'Chủ đề mẫu' }).getByRole('button', { name: 'Gợi ý điều động ca' }).click();
+    assert.equal(await send.isDisabled(), true);
     await chat.getByText('Demo an toàn · Dịch vụ AI chưa khả dụng', { exact: true }).waitFor();
-    await chat.getByRole('button', { name: 'Xác Nhận (Confirm)' }).click();
+    const confirm = chat.getByRole('button', { name: 'Xác Nhận (Confirm)' });
+    assert.deepEqual(await confirm.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return [style.backgroundColor, style.color];
+    }), ['rgb(255, 255, 255)', 'rgb(0, 0, 0)']);
+    await confirm.click();
     assert.equal(await chat.getByText('Đã xác nhận đề xuất. Chưa thực thi.', { exact: true }).isVisible(), true);
     await chat.getByRole('button', { name: '+ New Chat', exact: true }).click();
     await chat.getByRole('navigation', { name: 'Chủ đề mẫu' }).getByRole('button', { name: 'Gợi ý điều động ca' }).click();
@@ -381,7 +441,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     await chat.getByText(/Không có số doanh thu đã xác thực/).waitFor();
     assert.match(await chat.getByRole('region', { name: 'Trích dẫn' }).textContent(), /không phải báo cáo thực tế/);
     assert.equal(await chat.evaluate((root) => {
-      const banned = /(?:255, 209, 0|234, 179, 8|245, 158, 11)/;
+      const banned = /(?:255, 209, 0|234, 179, 8|245, 158, 11|37, 99, 235|147, 197, 253|53, 67, 90|35, 49, 73)/;
       return [...root.querySelectorAll('*')].some((el) => {
         const style = getComputedStyle(el);
         return ['color', 'backgroundColor', 'borderColor', 'backgroundImage', 'boxShadow'].some((key) => banned.test(style[key]));
@@ -389,6 +449,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     }), false);
     const composer = await chat.locator('.guta-chat-composer').boundingBox();
     assert.ok(composer.y > 600, 'Conversation composer must stay near the bottom');
+    assert.equal(await chat.locator('.guta-chat-composer').evaluate((el) => getComputedStyle(el).borderRadius), '9999px');
     await chat.getByRole('button', { name: 'Quay lại Vận Hành (CRM)', exact: true }).click();
     assert.equal(await page.getByRole('table').isVisible(), true);
   });
@@ -409,9 +470,16 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       await page.locator('nav a').filter({ hasText: 'Copilot' }).click();
       const chat = page.getByTestId('chat-page');
       const input = chat.getByRole('textbox', { name: 'Tin nhắn cho Guta AI' });
+      const singleLineHeight = await input.evaluate((el) => el.getBoundingClientRect().height);
+      await input.fill(Array(12).fill('Dòng kiểm thử').join('\n'));
+      assert.equal(await input.evaluate((el) => el.getBoundingClientRect().height), 192);
+      assert.equal(await input.evaluate((el) => el.scrollHeight > el.clientHeight), true);
+      await input.fill('');
+      assert.equal(await input.evaluate((el) => el.getBoundingClientRect().height), singleLineHeight);
       await input.fill('<img src=x onerror="window.__chatInjected=true">');
       await input.press('Shift+Enter');
       assert.match(await input.inputValue(), /\n$/);
+      assert.ok(await input.evaluate((el) => el.getBoundingClientRect().height) > singleLineHeight);
       await input.press('Enter');
       await input.fill('Không gửi trùng');
       for (let i = 0; i < 3; i++) await input.press('Enter');
@@ -484,7 +552,16 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.deepEqual(consoleErrors, []);
   });
 
-  it('ChatPage: mobile 320/375px, landscape, keyboard, reduced motion và contrast', async () => {
+  it('ChatPage: mobile 320/375px, landscape, keyboard, reduced motion và contrast', async (t) => {
+    t.after(async () => {
+      await page.evaluate(() => { document.documentElement.style.zoom = ''; });
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+      if (await page.getByTestId('chat-page').count()) {
+        await page.getByRole('button', { name: 'Quay lại Vận Hành (CRM)', exact: true }).click();
+      }
+      await page.getByRole('table').waitFor({ state: 'visible' });
+    });
     await page.locator('nav a').filter({ hasText: 'Copilot' }).click();
     await page.emulateMedia({ reducedMotion: 'reduce' });
     const chat = page.getByTestId('chat-page');
@@ -507,17 +584,33 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     await page.evaluate(() => { document.documentElement.style.zoom = '1.5'; });
     assert.equal(await chat.evaluate((el) => el.scrollWidth <= el.clientWidth), true);
     await page.evaluate(() => { document.documentElement.style.zoom = ''; });
+    await chat.getByRole('textbox', { name: 'Tin nhắn cho Guta AI' }).fill('Kiểm tra tương phản');
+    await page.waitForFunction(() => !document.querySelector('.chat-send').disabled);
+    await page.mouse.move(0, 0);
+    const pairs = await chat.evaluate((root) => {
+      const rgb = (value) => value.match(/[\d.]+/g).map(Number);
+      const blend = (front, back) => front.slice(0, 3).map((value, i) => value * (front[3] ?? 1) + back[i] * (1 - (front[3] ?? 1)));
+      const background = (element) => {
+        const chain = [];
+        for (let node = element; node; node = node.parentElement) chain.unshift(node);
+        return chain.reduce((color, node) => blend(rgb(getComputedStyle(node).backgroundColor), color), [0, 0, 0]);
+      };
+      return [
+        [root], [root.querySelector('.guta-chat-hero p')],
+        [root.querySelector('textarea'), '::placeholder'], [root.querySelector('.chat-send')],
+      ].map(([element, pseudo]) => {
+        const bg = background(element);
+        return [blend(rgb(getComputedStyle(element, pseudo).color), bg), bg];
+      });
+    });
     const contrast = (a, b) => {
-      const luminance = (hex) => hex.match(/\w\w/g).map((value) => parseInt(value, 16) / 255).map((v) => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4).reduce((sum, value, i) => sum + value * [.2126, .7152, .0722][i], 0);
+      const luminance = (rgb) => rgb.map((value) => value / 255).map((v) => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4).reduce((sum, value, i) => sum + value * [.2126, .7152, .0722][i], 0);
       const values = [luminance(a), luminance(b)].sort((x, y) => y - x);
       return (values[0] + .05) / (values[1] + .05);
     };
-    const ratios = [['f8fafc', '0f172a'], ['a8b6ca', '182235'], ['f8fafc', '2563eb']].map(([a, b]) => contrast(a, b));
-    assert.ok(ratios.every((ratio) => ratio >= 4.5));
+    const ratios = pairs.map(([a, b]) => contrast(a, b));
+    assert.ok(ratios.every((ratio) => ratio >= 4.5), `Computed contrast ratios: ${ratios.join(', ')}; color pairs: ${JSON.stringify(pairs)}`);
     console.log(`Chat text contrast ratios: ${ratios.map((ratio) => ratio.toFixed(2)).join(', ')}`);
-    await page.keyboard.press('Escape');
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await page.emulateMedia({ reducedMotion: 'no-preference' });
     assert.deepEqual(consoleErrors, []);
   });
 
@@ -538,6 +631,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     await page.waitForTimeout(200);
     const q1Btn = page.getByRole('button', { name: /Quận: Quận 1/i });
     assert.equal(await q1Btn.isVisible(), true);
+    assert.deepEqual(await page.locator('tbody tr[data-id]:visible').evaluateAll((rows) => rows.map((row) => row.getAttribute('data-district'))), ['Quận 1']);
 
     // 3. Illustrated Empty State and Reset CTA
     const search = page.getByPlaceholder(/Lọc theo tên, quận, mã.../i);
@@ -587,6 +681,20 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     const heroTitle = page.getByText(/Quản Trị Nhân Sự & Phân Ca Tự Động/i);
     await heroTitle.waitFor({ state: 'visible', timeout: 5000 });
     assert.equal(await heroTitle.isVisible(), true);
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('guta_user')), null);
+    for (const { role, name } of [
+      { role: 'AOM', name: 'Nguyễn Cao Thanh Trầm' },
+      { role: 'Admin', name: 'Ban Điều Hành Guta' },
+    ]) {
+      await page.getByRole('button', { name: /Get Started/i }).click();
+      await page.getByRole('button', { name: new RegExp(name) }).click();
+      await page.getByRole('table').waitFor({ state: 'visible' });
+      assert.equal(await page.evaluate(() => JSON.parse(sessionStorage.getItem('guta_user')).role), role);
+      assert.equal(await page.locator('.crm-sidebar').getByText(name, { exact: true }).isVisible(), true);
+      await logoutBtn.click();
+      await heroTitle.waitFor({ state: 'visible' });
+      assert.equal(await page.evaluate(() => sessionStorage.getItem('guta_user')), null);
+    }
     assert.deepEqual(consoleErrors, [], 'Demo flow must have zero console errors and uncaught exceptions');
     console.log(`Console errors / pageerrors: ${consoleErrors.length}`);
   });

@@ -780,8 +780,8 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
       dataRows.forEach((row) => {
         const text = row.textContent?.toLowerCase() || '';
         const cells = row.querySelectorAll('td');
-        const districtCell = cells[3]?.textContent?.toLowerCase() || '';
-        const matchesDistrict = !activeDistrict || districtCell.includes(activeDistrict.toLowerCase());
+        const districtCell = cells[3]?.textContent?.trim().toLowerCase() || '';
+        const matchesDistrict = !activeDistrict || districtCell === activeDistrict.toLowerCase();
         const matchesQuery = !q || text.includes(q);
         const matchesShift = !activeShift || text.includes(activeShift.toLowerCase());
         const visible = matchesQuery && matchesShift && matchesDistrict;
