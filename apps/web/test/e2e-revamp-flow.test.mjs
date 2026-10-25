@@ -157,7 +157,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     await smAccount.click();
 
     // First View: Khung Chat Copilot thông minh hiển thị đầu tiên
-    const chatHeading = page.getByRole('heading', { name: 'Chào mừng Guta AI Copilot' });
+    const chatHeading = page.getByRole('heading', { name: 'Chào mừng HR-BlockBot AI Copilot' });
     await chatHeading.waitFor({ state: 'visible', timeout: 5000 });
     assert.equal(await chatHeading.isVisible(), true);
 
@@ -370,7 +370,14 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     await page.locator('nav a').filter({ hasText: 'Copilot' }).click();
     const chat = page.getByTestId('chat-page');
     assert.doesNotMatch(fs.readFileSync(path.resolve(__dirname, '../src/components/chat/ChatPageView.tsx'), 'utf8'), /#(?:2563eb|93c5fd|35435a|233149)\b/i);
-    await chat.getByRole('heading', { name: 'Chào mừng Guta AI Copilot' }).waitFor();
+    const heading = chat.getByRole('heading', { name: 'Chào mừng HR-BlockBot AI Copilot' });
+    await heading.waitFor();
+    assert.deepEqual(await heading.evaluate((h1) => {
+      const style = getComputedStyle(h1);
+      return [style.outlineStyle === 'none' || style.outlineWidth === '0px', style.borderTopWidth, style.boxShadow];
+    }), [true, '0px', 'none']);
+    assert.equal(await chat.getByText('HR-BlockBot AI Copilot', { exact: true }).count(), 1);
+    assert.equal(await chat.getByText('HR-BlockBot Workspace', { exact: true }).count(), 1);
     assert.deepEqual(await chat.locator('img').evaluateAll((images) => images.map((img) => ({ src: img.getAttribute('src'), loaded: img.complete && img.naturalWidth > 0 }))), [
       { src: '/assets/logos/guta-mark-pure.svg', loaded: true },
       { src: '/assets/logos/guta-mark-pure.svg', loaded: true },

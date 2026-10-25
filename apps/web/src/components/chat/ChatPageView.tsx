@@ -134,6 +134,7 @@ const styles = `
 .guta-chat-empty { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; justify-content: center; padding: 24px; }
 .guta-chat-hero { text-align: center; margin-bottom: 32px; }
 .guta-chat-hero img { width: 48px; height: 48px; margin: 0 auto 24px; object-fit: contain; }
+.guta-chat h1, .guta-chat h1:focus, .guta-chat h1:focus-visible { outline: none !important; border: none !important; box-shadow: none !important; }
 .guta-chat h1 { font-size: clamp(24px, 3vw, 32px); line-height: 1.25; font-weight: 600; font-style: normal; letter-spacing: -.03em; margin: 0 0 16px; }
 .guta-chat-hero p { color: var(--chat-muted); margin: 0; }
 .guta-chat-prompts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 24px; }
@@ -304,7 +305,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     <div className="guta-chat" data-testid="chat-page">
       <style>{styles}</style>
       <aside id="copilot-sidebar" className="guta-chat-sidebar" data-open={sidebarOpen} aria-label="Điều hướng Copilot">
-        <div className="guta-chat-brand"><img className="guta-chat-logo" src="/assets/logos/guta-mark-pure.svg" alt="" />Guta Workspace</div>
+        <div className="guta-chat-brand"><img className="guta-chat-logo" src="/assets/logos/guta-mark-pure.svg" alt="" />HR-BlockBot Workspace</div>
         <button className="chat-new" type="button" onClick={newChat}>+ New Chat</button>
         <nav aria-label="Chủ đề mẫu">
           <p>CHỦ ĐỀ MẪU</p>
@@ -315,10 +316,10 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
           <button type="button" aria-label="Đăng Xuất Phiên" onClick={onLogout}>Đăng xuất</button>
         </footer>
       </aside>
-      <main className="guta-chat-main" aria-label="Guta AI Copilot">
+      <main className="guta-chat-main" aria-label="HR-BlockBot AI Copilot">
         <header className="guta-chat-header">
           <button className="chat-menu" type="button" aria-label="Menu Copilot" aria-expanded={sidebarOpen} aria-controls="copilot-sidebar" onClick={() => setSidebarOpen(!sidebarOpen)}><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg></button>
-          <strong>Guta AI Copilot</strong><span>Trợ lý vận hành · Xác nhận trước khi ghi</span>
+          <strong>HR-BlockBot AI Copilot</strong><span>Trợ lý vận hành · Xác nhận trước khi ghi</span>
           <button type="button" aria-label="Quay lại CRM" onClick={() => onSwitchTab('crm')}>CRM</button>
         </header>
         {messages.length === 0 ? (
@@ -326,7 +327,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
             <div className="guta-chat-width">
               <div className="guta-chat-hero">
                 <img src="/assets/logos/guta-mark-pure.svg" alt="HR-BlockBot Logo" />
-                <h1 ref={headingRef} tabIndex={-1}>Chào mừng Guta AI Copilot</h1>
+                <h1 ref={headingRef} tabIndex={-1}>Chào mừng HR-BlockBot AI Copilot</h1>
                 <p>Cùng bạn điều phối ca trực, tra cứu nhân sự và đối soát tiền két.</p>
               </div>
               {composer}

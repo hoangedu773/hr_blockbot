@@ -146,7 +146,10 @@ def _resolve_employee(runtime: "ToolRuntime", ctx: UserContext) -> tuple[Any, di
             "code": "SCOPE_DENIED",
             "message": "Thiếu định danh nhân viên (employeeId/employeeCode) trong ngữ cảnh xác thực.",
         }
-    row = _db(runtime).employees.find_one({"employeeCode": code}, {"_id": 1})
+    row = _db(runtime).employees.find_one(
+        {"$or": [{"employeeCode": code}, {"employee_code": code}, {"code": code}]},
+        {"_id": 1}
+    )
     if not row:
         return None, {"status": "not_found", "code": "EMPLOYEE_NOT_FOUND", "message": "Không tìm thấy hồ sơ nhân viên."}
     return row.get("_id"), None
@@ -172,11 +175,17 @@ def _get_my_profile(runtime: "ToolRuntime", args: BaseModel, ctx: UserContext) -
     oid, error = _resolve_employee(runtime, ctx)
     if error:
         return error
-    query: dict[str, Any] = {"_id": oid} if oid else {"employeeCode": ctx.employee_code}
+    query: dict[str, Any] = (
+        {"_id": oid}
+        if oid
+        else {"$or": [{"employeeCode": ctx.employee_code}, {"employee_code": ctx.employee_code}]}
+    )
     projection = {
         "_id": 0,
         "employeeCode": 1,
+        "employee_code": 1,
         "fullName": 1,
+        "full_name": 1,
         "level": 1,
         "departmentId": 1,
         "skills": 1,
@@ -186,20 +195,22 @@ def _get_my_profile(runtime: "ToolRuntime", args: BaseModel, ctx: UserContext) -
     if not row:
         return {"status": "not_found", "code": "EMPLOYEE_NOT_FOUND", "message": "Không tìm thấy hồ sơ nhân viên."}
     department = _department_name(runtime, row.get("departmentId"))
+    emp_code = row.get("employeeCode") or row.get("employee_code")
+    full_name = row.get("fullName") or row.get("full_name")
     return {
         "status": "success",
         "tool": "get_my_profile",
         "profile": {
-            "employeeCode": row.get("employeeCode"),
-            "fullName": row.get("fullName"),
+            "employeeCode": emp_code,
+            "fullName": full_name,
             "level": row.get("level"),
             "department": department,
             "skills": row.get("skills") or [],
             "status": row.get("status"),
         },
         "summary": (
-            f"Hồ sơ của bạn: {row.get('fullName') or 'N/A'} "
-            f"(mã {row.get('employeeCode') or 'N/A'}), cấp bậc {row.get('level') or 'N/A'}, "
+            f"Hồ sơ của bạn: {full_name or 'N/A'} "
+            f"(mã {emp_code or 'N/A'}), cấp bậc {row.get('level') or 'N/A'}, "
             f"phòng ban {department or 'N/A'}."
         ),
     }

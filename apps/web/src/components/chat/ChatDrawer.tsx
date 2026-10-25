@@ -16,6 +16,7 @@ export interface Citation {
 export interface ProposedAction {
   actionId?: string;
   type: string;
+  requiresConfirmation?: boolean;
   preview?: string;
   args?: Record<string, unknown>;
   status?: 'pending' | 'confirmed' | 'cancelled';
@@ -28,6 +29,53 @@ interface ChatMessage {
   timestamp: string;
   citations?: Citation[];
   proposedAction?: ProposedAction | null;
+  retryText?: string;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+function parseReply(value: unknown) {
+  if (!isRecord(value) || typeof value.reply !== 'string' || !value.reply.trim()) {
+    throw new Error('INVALID_CHAT_RESPONSE');
+  }
+  const citations: Citation[] = [];
+  for (const item of Array.isArray(value.citations) ? value.citations : []) {
+    if (!isRecord(item) || typeof item.document !== 'string' || !item.document.trim()) continue;
+    citations.push({
+      document: item.document,
+      article: typeof item.article === 'string' ? item.article : undefined,
+      version: typeof item.version === 'string' ? item.version : undefined,
+      score: typeof item.score === 'number' && Number.isFinite(item.score) && item.score >= 0 && item.score <= 1 ? item.score : undefined,
+    });
+  }
+  const action = value.proposedAction;
+  const proposedAction: ProposedAction | null = isRecord(action) && typeof action.type === 'string' && action.type.trim()
+    ? {
+      type: action.type,
+      actionId: typeof action.actionId === 'string' ? action.actionId : undefined,
+      requiresConfirmation: action.requiresConfirmation !== false,
+      preview: typeof action.preview === 'string' ? action.preview : undefined,
+      args: isRecord(action.args) ? action.args : undefined,
+      status: 'pending',
+    } : null;
+  return {
+    reply: value.reply,
+    citations,
+    proposedAction,
+    degraded: value.degraded === true,
+    conversationId: typeof value.conversationId === 'string' && value.conversationId.trim() && value.conversationId.length <= 200 ? value.conversationId : undefined,
+  };
+}
+
+// ponytail: safe Markdown subset (headings, lists, bold, inline code); add a parser when tables/links are required.
+function renderMarkdown(text: string): React.ReactNode {
+  return text.split('\n').map((line, index) => {
+    const parts = line.replace(/^#{1,6}\s+/, '').split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map((part, i) =>
+      part.startsWith('**') ? <strong key={i}>{part.slice(2, -2)}</strong>
+        : part.startsWith('`') ? <code key={i}>{part.slice(1, -1)}</code> : part);
+    return <div key={index} style={{ minHeight: '1.6em', fontWeight: /^#{1,6}\s/.test(line) ? 700 : undefined }}>{parts}</div>;
+  });
 }
 
 const INITIAL_MESSAGES: ChatMessage[] = [
@@ -41,14 +89,18 @@ const INITIAL_MESSAGES: ChatMessage[] = [
 
 const PROMPT_CHIPS = [
   'Chi nhánh nào đang thiếu người ca trưa nay?',
-  'Kiểm tra quy định trừ lương đi trễ quá 15 phút',
-  'Tổng hợp doanh thu két sáng toàn chuỗi',
+  'Đi trễ 20 phút tại Guta bị xử lý thế nào?',
+  'Quỹ két ca sáng bị lệch 50k xử lý sao?',
 ];
 
 export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [toast, setToast] = useState('');
+  const conversationId = useRef<string>();
+  const busyRef = useRef(false);
+  const dialogRef = useRef<HTMLElement | null>(null);
   const replyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const messageId = useRef(0);
@@ -57,7 +109,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
   // Auto-scroll on new messages
   useEffect(() => {
     if (isOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      messagesEndRef.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
     }
   }, [messages, isTyping, isOpen]);
 
@@ -73,18 +125,48 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
     }
   }, []);
 
-  // Keyboard navigation: Escape to close
+  useEffect(() => {
+    if (!isOpen) return;
+    const previousFocus = document.activeElement;
+    dialogRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
+    return () => {
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) return;
+    if (replyTimer.current !== null) clearTimeout(replyTimer.current);
+    replyTimer.current = null;
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    busyRef.current = false;
+    setIsTyping(false);
+    setToast('');
+  }, [isOpen]);
+
+  // Keep keyboard focus inside the modal; restore the trigger on close.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
+      if (!isOpen) return;
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'Tab') {
+        const targets = dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), [tabindex="0"]');
+        const first = targets?.[0];
+        const last = targets?.[targets.length - 1];
+        if (first && last && (e.shiftKey ? document.activeElement === first : document.activeElement === last)) {
+          e.preventDefault();
+          (e.shiftKey ? last : first).focus();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  const handleActionConfirm = (targetMsgId: string, action: ProposedAction, approved: boolean) => {
+  const handleActionConfirm = (targetMsgId: string, approved: boolean) => {
+    const action = messages.find((msg) => msg.id === targetMsgId)?.proposedAction;
+    if (!action || action.status !== 'pending') return;
     setMessages((prev) =>
       prev.map((msg) => {
         if (msg.id === targetMsgId && msg.proposedAction) {
@@ -100,21 +182,15 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
       })
     );
 
-    const resultMsg: ChatMessage = {
-      id: `msg-${++messageId.current}`,
-      sender: 'assistant',
-      text: approved
-        ? `✓ Đã xác nhận và gửi lệnh thực thi an toàn: "${action.preview || action.type}". Hệ thống ghi nhận trạng thái thành công.`
-        : `✕ Đã hủy bỏ đề xuất hành động: "${action.preview || action.type}". Không có dữ liệu nào bị thay đổi.`,
-      timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-    };
-
-    setMessages((prev) => [...prev, resultMsg]);
+    setToast(approved
+      ? 'Đã xác nhận đề xuất trong phiên chat. Chưa thực thi hoặc ghi dữ liệu lên hệ thống.'
+      : 'Đã hủy bỏ đề xuất. Không có dữ liệu nào bị thay đổi.');
   };
 
   const handleSend = (textToSend?: string) => {
     const text = (textToSend ?? inputText).trim();
-    if (!text || replyTimer.current !== null) return;
+    if (!text || text.length > 2000 || busyRef.current) return;
+    busyRef.current = true;
 
     const userMsg: ChatMessage = {
       id: `msg-${++messageId.current}`,
@@ -130,74 +206,41 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
     // Bắt buộc giữ delay 600ms chống hồi quy Playwright unmount test
     replyTimer.current = setTimeout(async () => {
       replyTimer.current = null;
-      let botResponse = '';
-      let citations: Citation[] | undefined = undefined;
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      let timedOut = false;
+      const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 20000);
+      let botResponse = 'Trợ lý AI hiện chưa kết nối hoặc phản hồi không hợp lệ. Vui lòng thử lại; chưa có hành động nào được thực hiện.';
+      let citations: Citation[] = [];
       let proposedAction: ProposedAction | null = null;
-
+      let retryText: string | undefined;
       try {
-        abortControllerRef.current = new AbortController();
         const res = await apiFetch(`${API_BASE}/chat`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ message: text }),
-          signal: abortControllerRef.current.signal,
+          body: JSON.stringify({ message: text, conversationId: conversationId.current }),
+          signal: controller.signal,
         });
 
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.reply) {
-            botResponse = data.reply;
-            if (Array.isArray(data.citations) && data.citations.length > 0) {
-              citations = data.citations;
-            }
-            if (data.proposedAction) {
-              proposedAction = {
-                ...data.proposedAction,
-                status: 'pending',
-              };
-            }
-          }
-        }
+        if (!res.ok) throw new Error('CHAT_UNAVAILABLE');
+        const data = parseReply(await res.json());
+        if (controller.signal.aborted) return;
+        botResponse = data.reply;
+        citations = data.citations;
+        proposedAction = data.proposedAction;
+        retryText = data.degraded ? text : undefined;
+        conversationId.current = data.conversationId ?? conversationId.current;
       } catch {
-        // Fallback below
+        if (controller.signal.aborted && !timedOut) return;
+        retryText = text;
       } finally {
-        abortControllerRef.current = null;
-      }
-
-      // Graceful Fallback: nếu API chưa kết nối (hoặc chạy trong offline demo test)
-      if (!botResponse) {
-        if (text.includes('thiếu người')) {
-          botResponse = '🔍 Kiểm tra 45 chi nhánh: Hiện tại chi nhánh GUTA CAFE - Quận 10 - 581 Sư Vạn Hạnh đang dự báo tăng 35% order giờ trưa (11:30 - 13:00). Khuyến nghị điều chuyển thêm 1 Barista Part-time từ CH Tô Hiến Thành gần đó hỗ trợ đứng máy.';
-          proposedAction = {
-            actionId: 'act-transfer-01',
-            type: 'DISPATCH_BARISTA',
-            preview: 'Điều động 01 Barista Part-time từ Guta Tô Hiến Thành sang Guta 581 Sư Vạn Hạnh (11:30 - 13:30)',
-            status: 'pending',
-          };
-        } else if (text.includes('quy định') || text.includes('đi trễ')) {
-          botResponse = '📋 Theo Sổ tay Nhân viên Guta F&B (Mục 4.2): Nhân viên đi trễ từ 15-30 phút không báo trước sẽ bị trừ 50.000 ₫ phụ cấp ca trực và ghi nhận 01 điểm vi phạm kỷ luật. Đi trễ trên 30 phút mà không có sự đồng ý của SM sẽ bị hủy ca trực ngày hôm đó.';
-          citations = [
-            {
-              document: 'Sổ tay Nhân viên Guta F&B',
-              version: '2026.1',
-              article: 'Mục 4.2 - Giờ giấc & Kỷ luật ca trực',
-              score: 0.94,
-            },
-          ];
-        } else if (text.includes('doanh thu') || text.includes('két')) {
-          botResponse = '💰 Tổng hợp doanh thu két sáng toàn hệ thống 45 cửa hàng: Đạt 184.250.000 ₫ (khớp 99.94% với máy POS bán hàng). Top 3 chi nhánh dẫn đầu: Tân Bình - 02 Đặng Văn Sâm (11.82M), Quận 1 - Huỳnh Thúc Kháng (11.20M), Quận 1 - Tôn Đức Thắng (10.89M).';
-          citations = [
-            {
-              document: 'Quy trình Quản lý Tiền két & Bàn giao Ca',
-              version: '2026.10',
-              article: 'Điều 3 - Đối soát doanh thu',
-              score: 0.98,
-            },
-          ];
-        } else {
-          botResponse = `Tôi đã tiếp nhận yêu cầu: "${text}". Đang đồng bộ dữ liệu từ 45 máy chấm công vân tay ZKTeco và máy POS...`;
+        clearTimeout(timeout);
+        if (abortControllerRef.current === controller) {
+          abortControllerRef.current = null;
+          busyRef.current = false;
+          setIsTyping(false);
         }
       }
 
@@ -208,6 +251,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
         timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
         citations,
         proposedAction,
+        retryText,
       };
 
       setMessages((prev) => [...prev, botMsg]);
@@ -219,6 +263,18 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
 
   return (
     <>
+      <style>{`
+        .guta-chat-drawer { --drawer-text: #f4f4f5; --drawer-muted: #a1a1aa; --drawer-surface: #121214; --drawer-raised: #27272a; --drawer-border: #52525b; --drawer-on-primary: #fafafa; --drawer-primary: #52525b; --drawer-success: #6ee7b7; --drawer-shade: #09090b; font-family: var(--font-sans); }
+        .guta-chat-drawer button, .guta-chat-drawer input { min-width: 44px; min-height: 44px; }
+        .guta-chat-drawer button { font-family: inherit; white-space: nowrap; }
+        .guta-chat-drawer button:focus-visible, .guta-chat-drawer input:focus-visible { outline: 2px solid var(--drawer-text); outline-offset: 2px; }
+        .guta-chat-drawer button:disabled { opacity: .5; cursor: not-allowed; }
+        .guta-chat-drawer button:active:not(:disabled) { transform: translateY(1px); }
+        .guta-chat-drawer code { font-family: var(--mono); overflow-wrap: anywhere; }
+        @media (hover: hover) and (pointer: fine) { .guta-chat-drawer button:hover:not(:disabled) { filter: brightness(1.2); } }
+        @media (max-width: 768px) { aside.guta-chat-drawer { display: flex !important; } }
+        @media (prefers-reduced-motion: reduce) { .guta-chat-drawer, .guta-chat-drawer * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } .guta-chat-drawer button:active { transform: none !important; } }
+      `}</style>
       {/* Backdrop */}
       <div
         onClick={onClose}
@@ -237,6 +293,8 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
 
       {/* Slide-over Chat Panel (ChatGPT-Style Frosted Dark Slate) */}
       <aside
+        ref={dialogRef}
+        className="guta-chat-drawer"
         role="dialog"
         aria-modal="true"
         aria-label="Guta AI Copilot Drawer"
@@ -265,7 +323,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
           style={{
             padding: '16px 22px',
             borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-            backgroundColor: 'rgba(9, 13, 22, 0.75)',
+            backgroundColor: 'var(--drawer-surface)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -289,12 +347,12 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
               <img src="/assets/logos/guta-mark-pure.svg" alt="Guta Logo" style={{ width: '22px', height: '22px', objectFit: 'contain' }} />
             </div>
             <div>
-              <div style={{ fontSize: '14px', fontWeight: 700, color: '#f8fafc', letterSpacing: '-0.01em' }}>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--drawer-text)', letterSpacing: '-0.01em' }}>
                 GUTA AI COPILOT
               </div>
               <div style={{ fontSize: '11px', color: '#34d399', display: 'flex', alignItems: 'center', gap: '5px', marginTop: '1px' }}>
                 <span style={{ width: '6px', height: '6px', borderRadius: '9999px', backgroundColor: '#10b981' }}></span>
-                <span>Trực tuyến • Gemini Flash & 45 Chi Nhánh</span>
+                <span>Gemini Flash · Trợ lý ca trực</span>
               </div>
             </div>
           </div>
@@ -306,7 +364,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
             style={{
               background: 'rgba(255, 255, 255, 0.05)',
               border: '1px solid rgba(255, 255, 255, 0.08)',
-              color: '#94a3b8',
+              color: 'var(--drawer-muted)',
               fontSize: '15px',
               cursor: 'pointer',
               width: '30px',
@@ -315,14 +373,14 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              transition: 'all 150ms ease',
+              transition: 'opacity 140ms var(--motion-ease-standard)',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.color = '#f8fafc';
+              e.currentTarget.style.color = 'var(--drawer-text)';
               e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.color = '#94a3b8';
+              e.currentTarget.style.color = 'var(--drawer-muted)';
               e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
             }}
           >
@@ -360,17 +418,20 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                     borderRadius: '16px',
                     backgroundColor: isUser ? '#52525b' : 'rgba(255, 255, 255, 0.04)',
                     border: `1px solid ${isUser ? '#3f3f46' : 'rgba(255, 255, 255, 0.07)'}`,
-                    color: '#f8fafc',
+                    color: 'var(--drawer-text)',
                     fontSize: '13.5px',
                     lineHeight: 1.6,
                     boxShadow: isUser ? '0 2px 8px rgba(255, 255, 255, 0.12)' : '0 2px 8px rgba(0, 0, 0, 0.2)',
                   }}
                 >
-                  <div>{msg.text}</div>
+                  <div style={{ overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>{isUser ? msg.text : renderMarkdown(msg.text)}</div>
+                  {msg.retryText && <button type="button" disabled={isTyping} onClick={() => handleSend(msg.retryText)} style={{ marginTop: '8px', color: 'var(--drawer-text)', background: 'var(--drawer-raised)', border: '1px solid var(--drawer-border)', borderRadius: '8px', padding: '8px' }}>Thử lại</button>}
 
                   {/* Khối Trích Dẫn Citations (RAG) */}
                   {msg.citations && msg.citations.length > 0 && (
                     <div
+                      role="region"
+                      aria-label="Trích dẫn"
                       style={{
                         marginTop: '10px',
                         padding: '10px 12px',
@@ -402,7 +463,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                               justifyContent: 'space-between',
                               alignItems: 'baseline',
                               gap: '6px',
-                              color: '#cbd5e1',
+                              color: 'var(--drawer-text)',
                             }}
                           >
                             <span>
@@ -418,7 +479,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                                   whiteSpace: 'nowrap',
                                 }}
                               >
-                                {(c.score * 100).toFixed(0)}% match
+                                Điểm {c.score.toFixed(2)}
                               </span>
                             )}
                           </div>
@@ -452,24 +513,28 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                         <span>Đề xuất hành động (Confirm-before-write):</span>
                       </div>
-                      <div style={{ color: '#e2e8f0', marginBottom: '8px', lineHeight: 1.4 }}>
+                      <div style={{ color: 'var(--drawer-text)', marginBottom: '8px', lineHeight: 1.4 }}>
                         {msg.proposedAction.preview || `Hành động: ${msg.proposedAction.type}`}
                       </div>
 
+                      {msg.proposedAction.args && (
+                        <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontFamily: 'var(--mono)', fontSize: '11px', margin: '8px 0' }}>{JSON.stringify(msg.proposedAction.args, null, 2)}</pre>
+                      )}
+                      <p style={{ color: 'var(--drawer-muted)', margin: '8px 0', fontSize: '11px' }}>Bản nháp cần quản lý phê duyệt. Xác nhận chỉ lưu trạng thái trong phiên chat, chưa ghi dữ liệu.</p>
                       {msg.proposedAction.status === 'confirmed' ? (
                         <div style={{ color: '#34d399', fontSize: '11px', fontWeight: 600 }}>
-                          ✓ Đã xác nhận thực thi
+                          Đã xác nhận đề xuất. Chưa thực thi.
                         </div>
                       ) : msg.proposedAction.status === 'cancelled' ? (
-                        <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 600 }}>
+                        <div style={{ color: 'var(--drawer-muted)', fontSize: '11px', fontWeight: 600 }}>
                           ✕ Đã từ chối hành động
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
                           <button
                             type="button"
                             onClick={() =>
-                              handleActionConfirm(msg.id, msg.proposedAction!, true)
+                              handleActionConfirm(msg.id, true)
                             }
                             style={{
                               padding: '6px 14px',
@@ -483,25 +548,25 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                               transition: 'background-color 150ms ease',
                             }}
                           >
-                            Xác Nhận (Confirm)
+                            Xác nhận thực hiện
                           </button>
                           <button
                             type="button"
                             onClick={() =>
-                              handleActionConfirm(msg.id, msg.proposedAction!, false)
+                              handleActionConfirm(msg.id, false)
                             }
                             style={{
                               padding: '6px 14px',
                               borderRadius: '8px',
                               backgroundColor: 'rgba(255, 255, 255, 0.06)',
                               border: '1px solid rgba(255, 255, 255, 0.12)',
-                              color: '#cbd5e1',
+                              color: 'var(--drawer-text)',
                               fontSize: '11px',
                               cursor: 'pointer',
-                              transition: 'all 150ms ease',
+                              transition: 'opacity 140ms var(--motion-ease-standard)',
                             }}
                           >
-                            Từ Chối
+                            Hủy bỏ
                           </button>
                         </div>
                       )}
@@ -512,7 +577,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                 <div
                   style={{
                     fontSize: '10px',
-                    color: '#64748b',
+                    color: 'var(--drawer-muted)',
                     alignSelf: isUser ? 'flex-end' : 'flex-start',
                     padding: '0 4px',
                   }}
@@ -526,48 +591,41 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
           {/* ChatGPT-Style Prompt Cards Grid on initial state */}
           {messages.length <= 1 && (
             <div style={{ margin: '14px 0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--drawer-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>
                 Gợi ý câu hỏi phổ biến:
               </div>
               {PROMPT_CHIPS.map((chip, i) => (
-                <div
+                <button
                   key={i}
-                  role="button"
-                  tabIndex={0}
+                  type="button"
+                  disabled={isTyping}
                   onClick={() => handleSend(chip)}
                   style={{
                     padding: '12px 14px',
                     borderRadius: '12px',
                     backgroundColor: 'rgba(255, 255, 255, 0.03)',
                     border: '1px solid rgba(255, 255, 255, 0.07)',
-                    color: '#e2e8f0',
+                    color: 'var(--drawer-text)',
                     fontSize: '12.5px',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    transition: 'all 150ms ease',
+                    transition: 'opacity 140ms var(--motion-ease-standard)',
                   }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)';
-                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-                    e.currentTarget.style.transform = 'translateY(-1px)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.03)';
-                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.07)';
-                    e.currentTarget.style.transform = 'none';
-                  }}
+                  className="chat-prompt"
+                  title={chip}
                 >
-                  <span>{chip}</span>
-                  <span style={{ color: '#d4d4d8', fontSize: '13px', fontWeight: 700 }}>→</span>
-                </div>
+                  <span style={{ whiteSpace: 'normal' }}>{chip}</span>
+                  <span style={{ color: 'var(--drawer-text)', fontSize: '13px', fontWeight: 700 }}>→</span>
+                </button>
               ))}
             </div>
           )}
 
           {isTyping && (
             <div
+              role="status"
               style={{
                 alignSelf: 'flex-start',
                 padding: '10px 16px',
@@ -589,12 +647,14 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
           <div ref={messagesEndRef} />
         </div>
 
+        {toast && <div role="status" style={{ margin: '8px 16px', padding: '16px', border: '1px solid var(--drawer-border)', borderRadius: '8px', background: 'var(--drawer-raised)', color: 'var(--drawer-success)', fontSize: '12px' }}>{toast}</div>}
         {/* Input Bar (ChatGPT-style) */}
         <div
           style={{
             padding: '14px 18px',
-            borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-            backgroundColor: 'rgba(9, 13, 22, 0.85)',
+            borderTop: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-pill)',
+            backgroundColor: 'var(--drawer-surface)',
             display: 'flex',
             gap: '10px',
             alignItems: 'center',
@@ -602,6 +662,8 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
         >
           <input
             type="text"
+            aria-label="Tin nhắn cho Guta AI"
+            maxLength={2000}
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => {
@@ -614,7 +676,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
               borderRadius: '12px',
               backgroundColor: 'rgba(255, 255, 255, 0.04)',
               border: '1px solid rgba(255, 255, 255, 0.1)',
-              color: '#f8fafc',
+              color: 'var(--drawer-text)',
               fontSize: '13px',
               outline: 'none',
               transition: 'border-color 150ms ease, box-shadow 150ms ease',
@@ -642,7 +704,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
               fontWeight: 700,
               cursor: isTyping || !inputText.trim() ? 'not-allowed' : 'pointer',
               opacity: isTyping || !inputText.trim() ? 0.6 : 1,
-              transition: 'all 150ms ease',
+              transition: 'opacity 140ms var(--motion-ease-standard)',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',

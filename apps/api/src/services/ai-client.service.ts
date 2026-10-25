@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { getActiveProviderConfig, ActiveProviderConfig } from "./settings.service.js";
 
 export const DEFAULT_GEMINI_PROVIDER: ActiveProviderConfig = {
@@ -5,8 +6,8 @@ export const DEFAULT_GEMINI_PROVIDER: ActiveProviderConfig = {
   name: "Gemini 3.8 Flash Proxy",
   type: "openai_compatible",
   baseUrl: "https://rbnvqls.abc-tunnel.us/v1",
-  model: "ag/gemini-3.8-flash",
-  apiKey: "sk-6391717b21217848-40w3qp-d43413fb",
+  model: "ag/gemini-3.8-flash-low",
+  apiKey: "",
   maxTokens: 1024,
   timeoutMs: 15000,
   priority: 1,
@@ -19,21 +20,33 @@ export interface UserContextPayload {
   departmentId?: string | null;
 }
 
-export interface Citation {
-  document: string;
-  version: string;
-  article: string;
-  score: number;
-}
+const citationSchema = z.object({
+  document: z.string().trim().min(1),
+  version: z.string().optional(),
+  article: z.string().optional(),
+  score: z.number().finite().min(0).max(1),
+});
+const proposedActionSchema = z.object({
+  actionId: z.string().optional(),
+  type: z.string().trim().min(1),
+  requiresConfirmation: z.boolean().default(true),
+  args: z.record(z.unknown()).optional(),
+  preview: z.string().optional(),
+});
+const chatResultSchema = z.object({
+  reply: z.string().trim().min(1),
+  intent: z.string().default("UNKNOWN"),
+  intentId: z.string().default("unknown"),
+  citations: z.array(citationSchema).default([]),
+  proposedAction: proposedActionSchema.nullish(),
+  proposed_action: proposedActionSchema.nullish(),
+  abstain: z.boolean().default(false),
+  degraded: z.boolean().default(false),
+  conversationId: z.string().trim().min(1).max(200).optional(),
+});
 
-export interface ProposedAction {
-  actionId?: string;
-  type: string;
-  args?: Record<string, unknown>;
-  preview?: string;
-  [key: string]: unknown;
-}
-
+export type Citation = z.infer<typeof citationSchema>;
+export type ProposedAction = z.infer<typeof proposedActionSchema>;
 export interface ChatResult {
   reply: string;
   intent?: string;
@@ -50,80 +63,76 @@ export async function chatWithAiService(
   userContext: UserContextPayload = {},
   conversationId?: string
 ): Promise<ChatResult> {
-  const aiServiceUrl = (process.env.AI_SERVICE_URL || "http://localhost:8000").replace(/\/+$/, "");
-  const aiServiceApiKey = process.env.AI_SERVICE_API_KEY;
-
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error("AI_SERVICE_TIMEOUT"));
+    }, 15000);
+  });
 
   try {
-    let activeProviders = await getActiveProviderConfig().catch(() => []);
-    if (!activeProviders || activeProviders.length === 0) {
-      activeProviders = [DEFAULT_GEMINI_PROVIDER];
-    }
+    return await Promise.race([deadline, (async (): Promise<ChatResult> => {
+      let activeProviders: ActiveProviderConfig[];
+      try {
+        activeProviders = await getActiveProviderConfig();
+      } catch {
+        console.warn("[AIClient] Provider settings unavailable; using environment configuration");
+        activeProviders = [];
+      }
+      controller.signal.throwIfAborted();
+      if (activeProviders.length === 0) {
+        const apiKey = process.env.AI_LLM_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim();
+        activeProviders = apiKey ? [{
+          ...DEFAULT_GEMINI_PROVIDER,
+          baseUrl: process.env.AI_LLM_BASE_URL?.trim() || DEFAULT_GEMINI_PROVIDER.baseUrl,
+          model: process.env.AI_LLM_MODEL?.trim() || DEFAULT_GEMINI_PROVIDER.model,
+          apiKey,
+        }] : [];
+      }
 
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-    if (aiServiceApiKey) {
-      headers["x-ai-service-key"] = aiServiceApiKey;
-    }
-
-    const body = {
-      message,
-      conversationId,
-      userContext: {
-        userId: userContext.userId ?? undefined,
-        role: userContext.role ?? "Employee",
-        employeeId: userContext.employeeId ?? undefined,
-        departmentId: userContext.departmentId ?? undefined,
-      },
-      providerConfig: {
-        configVersion: 1,
-        providers: activeProviders,
-      },
-    };
-
-    const response = await fetch(`${aiServiceUrl}/api/v1/chat`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      console.warn(`[AIClient] Service responded with HTTP ${response.status}`, errorData);
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (process.env.AI_SERVICE_API_KEY) {
+        headers["x-ai-service-key"] = process.env.AI_SERVICE_API_KEY;
+      }
+      const aiServiceUrl = (process.env.AI_SERVICE_URL || "http://localhost:8000").replace(/\/+$/, "");
+      const response = await fetch(`${aiServiceUrl}/api/v1/chat`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          message,
+          conversationId,
+          userContext: {
+            userId: userContext.userId ?? undefined,
+            role: userContext.role ?? "Employee",
+            employeeId: userContext.employeeId ?? undefined,
+            departmentId: userContext.departmentId ?? undefined,
+          },
+          providerConfig: { configVersion: 1, providers: activeProviders },
+        }),
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        throw new Error("AI_SERVICE_HTTP_ERROR");
+      }
+      const data = chatResultSchema.parse(await response.json());
       return {
-        reply:
-          "Hệ thống AI Service hiện chưa thể phản hồi lúc này. Vui lòng thử lại sau giây lát hoặc liên hệ Quản lý cửa hàng (SM/AOM).",
-        intent: "UNKNOWN",
-        intentId: "unknown",
-        citations: [],
-        proposedAction: null,
-        abstain: true,
-        degraded: true,
-        conversationId,
+        reply: data.reply,
+        intent: data.intent,
+        intentId: data.intentId,
+        citations: data.citations,
+        proposedAction: data.proposedAction ?? data.proposed_action ?? null,
+        abstain: data.abstain,
+        degraded: data.degraded,
+        conversationId: data.conversationId ?? conversationId,
       };
-    }
-
-    const data = (await response.json()) as any;
+    })()]);
+  } catch {
+    // Upstream response bodies and error messages may contain credentials or PII.
+    console.warn(`[AIClient] Request unavailable (${controller.signal.aborted ? "timeout 15s" : "service or response failure"})`);
     return {
-      reply: data.reply || "",
-      intent: data.intent || "UNKNOWN",
-      intentId: data.intentId || "unknown",
-      citations: Array.isArray(data.citations) ? data.citations : [],
-      proposedAction: data.proposedAction ?? data.proposed_action ?? null,
-      abstain: Boolean(data.abstain),
-      degraded: Boolean(data.degraded),
-      conversationId: data.conversationId || conversationId,
-    };
-  } catch (err: any) {
-    const isTimeout = err?.name === "AbortError";
-    console.warn(`[AIClient] Request failed (${isTimeout ? "timeout 15s" : err?.message})`);
-    return {
-      reply:
-        "Hệ thống AI Service hiện tại đang bận hoặc chưa khởi động. Vui lòng thử lại sau giây lát hoặc liên hệ Quản lý cửa hàng (SM/AOM).",
+      reply: "Hệ thống AI Service hiện đang bận hoặc chưa kết nối. Vui lòng thử lại sau giây lát hoặc liên hệ Quản lý cửa hàng (SM/AOM). Chưa có hành động nào được thực hiện.",
       intent: "UNKNOWN",
       intentId: "unknown",
       citations: [],

@@ -64,6 +64,14 @@ class Settings:
     provider_cache_ttl_seconds: float = 60.0
     provider_cache_max_versions: int = 8
 
+    # In-context generation and typed decisions. Secrets come from env/request only.
+    llm_base_url: str = "https://rbnvqls.abc-tunnel.us/v1"
+    llm_api_key: str = ""
+    llm_model: str = "ag/gemini-3.8-flash-low"
+    jev_api_key: str = ""
+    jev_model: str = "typesafe/jev-1.14"
+    decision_timeout_ms: int = 5000
+
     # Transport / auth.
     ai_service_api_key: str = ""
     request_max_chars: int = 2000
@@ -89,6 +97,12 @@ def load_settings() -> Settings:
         max_tool_result_items=_env_int("AI_MAX_TOOL_RESULT_ITEMS", 20),
         provider_cache_ttl_seconds=_env_float("AI_PROVIDER_CACHE_TTL_SECONDS", 60.0),
         provider_cache_max_versions=_env_int("AI_PROVIDER_CACHE_MAX_VERSIONS", 8),
+        llm_base_url=_env_str("AI_LLM_BASE_URL", "https://rbnvqls.abc-tunnel.us/v1"),
+        llm_api_key=_env_str("AI_LLM_API_KEY", _env_str("OPENAI_API_KEY", "")),
+        llm_model=_env_str("AI_LLM_MODEL", "ag/gemini-3.8-flash-low"),
+        jev_api_key=_env_str("JEV_API_KEY", ""),
+        jev_model=_env_str("JEV_MODEL", "typesafe/jev-1.14"),
+        decision_timeout_ms=_env_int("AI_DECISION_TIMEOUT_MS", 5000),
         ai_service_api_key=_env_str("AI_SERVICE_API_KEY", ""),
         request_max_chars=_env_int("AI_REQUEST_MAX_CHARS", 2000),
     )

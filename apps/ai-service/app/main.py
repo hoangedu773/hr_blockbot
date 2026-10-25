@@ -20,7 +20,9 @@ from typing import Any, Literal, Optional
 from fastapi import FastAPI, Header, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
+
+from app.agent.jev_gateway import default_chain
 
 from app.agent.loop import AgentLoop, AgentTurn
 from app.agent.tools import TOOL_SPECS, ToolRuntime, UserContext, is_agent_enabled
@@ -38,7 +40,7 @@ logger = logging.getLogger("ai.api")
 
 app = FastAPI(
     title="HR BlockBot AI Service",
-    description="Hybrid RAG + agent loop cho chatbot quản lý nhân sự Guta Cafe",
+    description="Jev AI typed decisions + in-context policy cho chatbot Guta Cafe",
     version="2.0.0",
 )
 
@@ -55,7 +57,7 @@ app.add_middleware(
 
 
 class ChatRequest(BaseModel):
-    message: str = Field(min_length=1)
+    message: str = Field(min_length=1, max_length=settings.request_max_chars, pattern=r"\S")
     conversationId: Optional[str] = None
     userContext: dict[str, Any] = Field(default_factory=dict)
     # ADR-017: {"configVersion": n, "providers": [{id,type,model,baseUrl,apiKey,...}]}
@@ -148,9 +150,7 @@ def _build_policy_engine(kind: str, chain: ProviderChain | None) -> PolicyEngine
 def health_check() -> dict[str, Any]:
     """Liveness + readiness with an honest DB ping and vector-index capability."""
     db_connected = db_client.ping()
-    capability = policy_engine.check_vector_search_capability(
-        db_client.db if db_connected else None
-    )
+    # In-context chat has no vector-index dependency or index-readiness probe.
     return {
         "status": "ok" if db_connected else "degraded",
         "service": "ai-service",
@@ -163,10 +163,10 @@ def health_check() -> dict[str, Any]:
         },
         "rag_engine": {
             "status": "active" if db_connected else "degraded",
-            "mode": "hybrid_rag",
-            "default_retriever": settings.default_retriever,
-            "vector_search": capability["status"],
-            "vector_search_detail": capability["reason"],
+            "mode": "in_context_policy",
+            "default_retriever": None,
+            "vector_search": "NOT_REQUIRED",
+            "vector_search_detail": "Chat uses in-context knowledge without embeddings or BM25.",
         },
         "agent": {
             "status": "enabled" if is_agent_enabled() else "locked",
@@ -244,23 +244,22 @@ def chat(
                 "message": "Agent chat is disabled. Set AI_AGENT_ENABLED=true on the AI service.",
             },
         )
-    chain = _chain_for(req.providerConfig)
-    if chain is None or not chain:
-        # Fail-closed for the chat path (plan invariant 5): no provider config means
-        # the answer could be fabricated, so the caller must retry after fixing settings.
+    chain = _chain_for(req.providerConfig) if req.providerConfig is not None else default_chain()
+    if not chain:
         return _llm_unavailable_response(
             LLMUnavailable([{"providerId": "none", "code": "LLM_UNAVAILABLE"}])
         )
     try:
         user_ctx = UserContext.model_validate(req.userContext or {})
-    except Exception:  # noqa: BLE001 - invalid scope must deny, not crash
+    except ValidationError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": "VALIDATION_FAILED", "message": "invalid userContext"},
         )
     try:
-        engine = _build_policy_engine(settings.default_retriever, chain)
-        runtime = ToolRuntime(db=db_client.db, policy=engine)
+        # Chat never loads DB chunks, embeddings or a retriever. Legacy reads still
+        # use the scoped runtime; /rag/query remains an isolated compatibility path.
+        runtime = ToolRuntime(db=db_client.db, policy=policy_engine)
         turn: AgentTurn = AgentLoop(runtime, chain, strict_provider=True).run(req.message, user_ctx)
     except LLMUnavailable as exc:
         return _llm_unavailable_response(exc)

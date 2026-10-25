@@ -12,8 +12,9 @@ export function getMongoUri(): string {
 
 export async function connectDB(): Promise<typeof mongoose> {
   const uri = getMongoUri();
+  const dbName = process.env.MONGODB_DB_NAME || "hr_bot";
   try {
-    const conn = await mongoose.connect(uri);
+    const conn = await mongoose.connect(uri, { dbName });
     console.log(`[MongoDB] Connected successfully to: ${conn.connection.name}`);
     return conn;
   } catch (err) {

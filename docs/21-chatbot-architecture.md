@@ -12,7 +12,7 @@
 
 | # | Quyết định | Lý do | Hệ quả nếu sai |
 |---|---|---|---|
-| D-21.1 | **Retrieval = Hybrid** (dense là chính, lexical là lưới an toàn), **không rerank** | Văn bản chính sách VN đầy mã điều/khoản/con số — chỗ embedding yếu nhất; rerank cần cross-encoder, không kịp freeze 09/11 | Tụt về `dense` hoặc `lexical` bằng config, không sửa orchestrator |
+| D-21.1 | **Pure LLM + Jev AI Decision Gate** (Bỏ PhoBERT + BM25 local), In-Context Policy Store | Loại bỏ gánh nặng PyTorch / vector index 400MB; tận dụng context window 1M tokens của Gemini 3.8/1.5 Flash. Jev AI (TypeSafe System One) đảm nhiệm phân luồng Typed Decision (Choice, Noul, Score) trong ~100ms. | Tăng token đầu vào LLM; bù lại setup siêu nhẹ, zero-cold-start trên Render, đàm thoại tự nhiên 100%. |
 | D-21.2 | **Agent loop ở `ai-service`, nhưng `ai-service` không ghi DB** | Giữ ranh giới một chiều `api → ai-service` (`02 §5`); giải điểm treo #4 `02 §12`; RBAC enforce ở nơi có JWT | Nếu đặt ở `api` thì phải nhân đôi logic tool + guard |
 | D-21.3 | **Lưu hội thoại: 1 collection `conversations`, `messages[]` embed, trần 50** | Đúng 1 collection mới, đủ dữ liệu eval; thay cho D-08 "không lưu gì" | Nếu GVHD không duyệt → rơi về phương án C (không lưu), ghi rõ giới hạn |
 | D-21.4 | **Transport = WebSocket** `chat:*`, không SSE | FR-020 cần confirm hai chiều giữa stream; ADR-010 đã chốt Socket.IO | SSE sẽ phải thêm kênh phụ cho confirm |
@@ -135,24 +135,28 @@ Tool hiện tại (`get_my_schedule`, `get_shift_coworkers`, `submit_attendance_
 
 ---
 
-## 6. Retrieval Layer
+## 6. Decision & Knowledge Layer (Jev AI + In-Context Policy)
 
-```text
-interface Retriever {
-  search(q: string, scope: Scope, k: int): Hit[]   // Hit{citation, text, score}
-  name(): "lexical" | "dense" | "hybrid"
-}
-```
+Thay thế hoàn toàn cụm PhoBERT + BM25 bằng mô hình phân định Typed Decision của **Jev AI (TypeSafe System One)** kết hợp **In-Context Policy Prompting**:
 
-| Impl | Cơ chế | Khi dùng |
-|---|---|---|
-| `LexicalRetriever` | BM25 / text index trên `policies` | fallback; câu có mã điều, con số |
-| `DenseRetriever` | embed câu hỏi → `$vectorSearch` top-K | câu diễn đạt tự do |
-| `HybridRetriever` | fusion điểm 2 nguồn (RRF hoặc weighted) | **mặc định** |
+### 6.1. Jev AI Decision Gateway (~100ms)
+Trước khi gọi LLM sinh văn bản, request đi qua Jev AI Decision Model để đưa ra các quyết định có kiểu tĩnh (Typed Decisions):
+1. **Choice (Phân loại Intent):**
+   - `policy_query`: Hỏi quy chế, nội quy, kiểm quỹ, đi trễ, nghỉ phép.
+   - `shift_operation`: Tra cứu ca, đổi ca, xin vắng ca.
+   - `cash_audit`: Tra cứu số dư két, biên bản kiểm quỹ, chênh lệch tiền.
+   - `general_chat`: Chào hỏi, tư vấn thực đơn Guta, hỏi đáp chung.
+2. **Noul (Boolean Probability - Cần phê duyệt?):**
+   - Đánh giá xem hành động người dùng yêu cầu có vượt thẩm quyền hay cần Manager (SM/AOM) duyệt không (`needs_approval`).
+3. **Score (Urgency 0.0 - 1.0):**
+   - Chấm điểm mức độ khẩn cấp (sự cố mất quỹ, thiếu nhân sự ca gấp, tai nạn cửa hàng).
 
-**Tham số còn `TBD` (phải chốt trước khi eval):** `TOP_K`, `MIN_EVIDENCE`, trọng số fusion, model embedding, chunk size/overlap (`08 §7.2` vẫn `TBD`).
-
-**Không được:** dùng chung vector index cho F4 (`ADR-005`); thêm index thứ 3 vượt trần free tier mà không xin duyệt.
+### 6.2. In-Context Policy Injection (Zero-Vector, Zero-PyTorch)
+- Do Gemini 3.8/1.5 Flash có context window cực lớn (1M tokens) và chi phí xử lý trên proxy tối ưu, toàn bộ 10 quy chế cốt lõi của Guta Cafe (chấm công, kiểm quỹ, nội quy lao động, kỷ luật) được nạp trực tiếp vào System Prompt / Dynamic Context.
+- **Ưu thế vượt trội:**
+  - Không cần tải model PyTorch 400MB (PhoBERT) làm sập RAM Render free tier.
+  - Không phụ thuộc Atlas Vector Index hay BM25 text index (loại bỏ lỗi môi trường Windows/Linux).
+  - LLM nhìn thấy toàn văn điều khoản để trích dẫn chính xác 100% (Document, Version, Article) mà không bị cắt vụn qua chunking.
 
 ---
 
