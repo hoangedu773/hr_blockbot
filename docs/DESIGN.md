@@ -74,7 +74,7 @@ Dưới đây là các kho giao diện Dark Mode xịn xò nhất dành cho Reac
    - Stylesheets: `/assets/folio/folio.css` + `/assets/folio/folio-layout.css`.
    - Typography: Font Editorial Serif **Newsreader** (Google Fonts) kết hợp Geist Sans, bảo đảm 100% hiển thị mượt mà dấu thanh tiếng Việt không bị nhảy font (Georgia fallback bug).
    - Nội dung: Hero với Headline chuẩn "Quản Trị Nhân Sự & Phân Ca Tự Động Chuỗi F&B", mockup 5 cột Kanban theo vòng đời đề tài (Khởi tạo, Đã giao, Đang thực hiện, Chờ duyệt, Hoàn thành), thẻ gợi ý phân công AI PhoBERT, khối tính năng đối chiếu và dải đối tác cung ứng F&B (Vinamilk, La Marzocco, Dalatmilk, Monin,...).
-   - **Sticky Shrink Header:** Cuộn trang `scrollY > 20px` tự động co nhỏ padding thành dạng capsule pill với hiệu ứng frosted glass `backdrop-filter: blur(20px)` và viền mờ tinh tế.
+   - **Sticky Shrink Header:** Cuộn trang `scrollY > 20px` navbar full-width co nhỏ padding dọc với hiệu ứng frosted glass neutral obsidian `backdrop-filter: blur(24px)` và viền đáy mờ tinh tế; không bo góc capsule.
 
 2. **Cổng Đăng Nhập (Auth Modal):** 
    - Modal bật lên từ nút "Get Started" / "Đăng nhập" / "Xem dashboard".
@@ -91,13 +91,13 @@ Dưới đây là các kho giao diện Dark Mode xịn xò nhất dành cho Reac
    - **Slide-Over Sheet:** Bấm vào bất kỳ dòng cửa hàng nào -> Drawer trượt từ bên phải ra hiển thị danh sách Barista trong ca, doanh thu két tiền mặt, và nút gửi cảnh báo qua Bot Telegram.
 
 ### 4.2. Hệ Màu Nhận Diện & Tokens Chuẩn (Zero-Yellow Token System)
-- **Màu sắc & Logo HR-BlockBot:** Triệt tiêu hoàn toàn màu vàng chói cũ (`#ffd100`, `#eab308`), thay bằng **Titanium Slate + Electric Sapphire** (`#2563eb` / `oklch(0.55 0.22 260)`):
+- **Màu sắc & Logo HR-BlockBot:** Triệt tiêu hoàn toàn màu vàng chói cũ (`#ffd100`, `#eab308`), thay bằng **Neutral Obsidian + Electric Sapphire** (`#121214` / `#2563eb`):
   - Biểu tượng nhận diện: **Logo chính thức của nền tảng HR-BlockBot** (`hr-blockbot-logo.svg` / `guta-mark-pure.svg`).
-  - Chữ `GUTA`: `font-black text-foreground tracking-wider` (Trắng sáng trong Dark Mode, Đen Slate trong Light Mode)
+  - Chữ `GUTA`: `font-black text-foreground tracking-wider` (Trắng sáng trong Dark Mode, Đen neutral trong Light Mode)
   - Chữ `WORKSPACE`: `font-semibold text-muted-foreground tracking-tight`
   - Accent chính: Electric Sapphire (`#2563eb` / `#3b82f6`) dùng cho nút bấm chính, viền focus, icon khối đa giác.
   - Trạng thái ca: Xanh ngọc lục bảo Emerald (`#10b981`) cho trạng thái mở ca / đúng giờ, Tuyệt đối không dùng màu vàng.
-  - Nền: Dark Mode (`#090d16` / `#0f172a`), Light Mode (`#ffffff` / `#f8fafc`).
+  - Nền: Dark Mode (`#0a0a0c` / `#121214`), Light Mode (`#ffffff` / `#f8fafc`).
 - **Thư viện Preview Tổng Hợp:** Xem trực tiếp tại `previews/index.html` (Tab *Mẫu D: Guta AI Landing* và *Mẫu E: Guta Workspace Dashboard*).
 
 ### 4.3. Quyết Định Logo Vector Chuẩn (Official HR-BlockBot Vector Logo Mark — Chốt 10/2026)
@@ -147,7 +147,7 @@ Dưới đây là các kho giao diện Dark Mode xịn xò nhất dành cho Reac
      - Ứng dụng tự động kiểm tra phiên làm việc lưu trong `sessionStorage` và `localStorage`. Nếu đã đăng nhập trước đó, web tự động vào thẳng giao diện Dashboard.
      - Hiệu ứng Splash Loader: Biểu tượng Logo HR-BlockBot (`guta-mark-pure.svg`) với animation nhịp thở (`guta-splash-pulse`) mờ dần trong <370ms trước khi đưa người dùng vào giao diện làm việc.
   2. **Landing Page Sticky Shrink Header:**
-     - Navbar trang chủ cố định ở đầu trang (`fixed`). Khi người dùng cuộn trang `window.scrollY > 20px`, navbar tự động co gọn padding, bo tròn viền capsule (`rounded-full`), chuyển sang bề mặt kính mờ frosted glass (`backdrop-filter: blur(20px)`), viền mờ `rgba(255, 255, 255, 0.1)` chống nhảy layout (Zero-CLS).
+     - Navbar trang chủ cố định full-width ở đầu trang (`fixed`). Khi người dùng cuộn trang `window.scrollY > 20px`, navbar tự động co gọn padding dọc, chuyển sang bề mặt kính mờ neutral obsidian (`backdrop-filter: blur(24px)`) với viền đáy `rgba(255, 255, 255, 0.08)`; không bo góc capsule, giữ layout ổn định (Zero-CLS).
   3. **Trợ Lý AI Trung Tâm (Chat Copilot First View):**
      - Đặt Trợ lý AI Copilot làm trung tâm hành động (Action Center). Người dùng khi vào Dashboard sẽ tương tác ngay với AI Copilot thông minh, dễ dàng chuyển đổi sang bảng quản trị chi nhánh CRM thông qua nút chuyển nhanh hoặc thanh điều hướng.
 - **Hỗ trợ khả năng tiếp cận (Accessibility & Reduced Motion):**

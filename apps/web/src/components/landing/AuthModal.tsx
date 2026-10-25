@@ -81,7 +81,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSelectR
         style={{
           width: '100%',
           maxWidth: '520px',
-          background: 'rgba(15, 23, 42, 0.95)',
+          background: 'rgba(18, 18, 20, 0.95)',
           border: '1px solid rgba(255, 255, 255, 0.12)',
           borderRadius: '16px',
           padding: '28px',

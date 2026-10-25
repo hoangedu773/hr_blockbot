@@ -174,10 +174,10 @@ export const FolioLandingView: React.FC<FolioLandingViewProps> = ({ onLogin, onN
           style={{ animation: 'fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)' }}
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-slate-700/80 bg-slate-900/95 p-6 shadow-2xl text-slate-100"
+            className="w-full max-w-md rounded-2xl border border-neutral-700/80 bg-neutral-900/95 p-6 shadow-2xl text-slate-100"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+            <div className="flex items-center justify-between pb-4 border-b border-neutral-800">
               <div className="flex items-center gap-3">
                 <img src="/assets/logos/guta-mark-pure.svg" alt="Guta" className="size-7 object-contain" />
                 <div>
@@ -191,7 +191,7 @@ export const FolioLandingView: React.FC<FolioLandingViewProps> = ({ onLogin, onN
                 type="button"
                 aria-label="Đóng"
                 onClick={() => setIsAuthOpen(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-neutral-800 transition"
               >
                 ✕
               </button>
@@ -205,7 +205,7 @@ export const FolioLandingView: React.FC<FolioLandingViewProps> = ({ onLogin, onN
                   setIsAuthOpen(false);
                   onLogin('SM');
                 }}
-                className="w-full text-left p-3.5 rounded-xl border border-slate-800 bg-slate-800/40 hover:bg-blue-600/10 hover:border-blue-500/50 transition-all flex items-center justify-between group"
+                className="w-full text-left p-3.5 rounded-xl border border-neutral-800 bg-neutral-800/40 hover:bg-blue-600/10 hover:border-blue-500/50 transition-all flex items-center justify-between group"
               >
                 <div className="flex items-center gap-3">
                   <div className="size-10 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold text-sm border border-blue-500/30">
@@ -230,7 +230,7 @@ export const FolioLandingView: React.FC<FolioLandingViewProps> = ({ onLogin, onN
                   setIsAuthOpen(false);
                   onLogin('AOM');
                 }}
-                className="w-full text-left p-3.5 rounded-xl border border-slate-800 bg-slate-800/40 hover:bg-emerald-600/10 hover:border-emerald-500/50 transition-all flex items-center justify-between group"
+                className="w-full text-left p-3.5 rounded-xl border border-neutral-800 bg-neutral-800/40 hover:bg-emerald-600/10 hover:border-emerald-500/50 transition-all flex items-center justify-between group"
               >
                 <div className="flex items-center gap-3">
                   <div className="size-10 rounded-lg bg-emerald-600/20 text-emerald-400 flex items-center justify-center font-bold text-sm border border-emerald-500/30">
@@ -255,7 +255,7 @@ export const FolioLandingView: React.FC<FolioLandingViewProps> = ({ onLogin, onN
                   setIsAuthOpen(false);
                   onLogin('Admin');
                 }}
-                className="w-full text-left p-3.5 rounded-xl border border-slate-800 bg-slate-800/40 hover:bg-purple-600/10 hover:border-purple-500/50 transition-all flex items-center justify-between group"
+                className="w-full text-left p-3.5 rounded-xl border border-neutral-800 bg-neutral-800/40 hover:bg-purple-600/10 hover:border-purple-500/50 transition-all flex items-center justify-between group"
               >
                 <div className="flex items-center gap-3">
                   <div className="size-10 rounded-lg bg-purple-600/20 text-purple-400 flex items-center justify-center font-bold text-sm border border-purple-500/30">
@@ -274,7 +274,7 @@ export const FolioLandingView: React.FC<FolioLandingViewProps> = ({ onLogin, onN
               </button>
             </div>
 
-            <div className="mt-5 pt-3 border-t border-slate-800/80 text-center">
+            <div className="mt-5 pt-3 border-t border-neutral-800/80 text-center">
               <span className="text-[11px] text-slate-500">
                 Môi trường thử nghiệm trực tiếp • Không cần mật khẩu
               </span>

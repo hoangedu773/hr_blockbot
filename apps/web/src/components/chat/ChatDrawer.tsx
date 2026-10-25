@@ -246,7 +246,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
           right: 0,
           bottom: 0,
           width: 'min(480px, 94vw)',
-          backgroundColor: 'rgba(15, 23, 42, 0.94)',
+          backgroundColor: 'rgba(18, 18, 20, 0.94)',
           backdropFilter: 'blur(24px)',
           borderLeft: '1px solid rgba(255, 255, 255, 0.08)',
           boxShadow: '-16px 0 48px rgba(0, 0, 0, 0.85)',

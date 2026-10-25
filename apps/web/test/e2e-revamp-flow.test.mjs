@@ -269,7 +269,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.deepEqual(await page.locator('#detail-drawer').evaluate((el) => {
       const style = getComputedStyle(el);
       return [style.backgroundColor, style.backdropFilter, style.borderLeftColor];
-    }), ['rgba(15, 23, 42, 0.95)', 'blur(40px)', 'rgba(255, 255, 255, 0.08)']);
+    }), ['rgba(18, 18, 20, 0.96)', 'blur(40px)', 'rgba(255, 255, 255, 0.08)']);
     assert.equal(await page.locator('#drawer-backdrop').evaluate((el) => getComputedStyle(el).backdropFilter), 'blur(12px)');
   });
 
