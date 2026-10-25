@@ -358,12 +358,12 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                   style={{
                     padding: '12px 16px',
                     borderRadius: '16px',
-                    backgroundColor: isUser ? '#2563eb' : 'rgba(255, 255, 255, 0.04)',
-                    border: `1px solid ${isUser ? '#1d4ed8' : 'rgba(255, 255, 255, 0.07)'}`,
+                    backgroundColor: isUser ? '#52525b' : 'rgba(255, 255, 255, 0.04)',
+                    border: `1px solid ${isUser ? '#3f3f46' : 'rgba(255, 255, 255, 0.07)'}`,
                     color: '#f8fafc',
                     fontSize: '13.5px',
                     lineHeight: 1.6,
-                    boxShadow: isUser ? '0 2px 8px rgba(37, 99, 235, 0.25)' : '0 2px 8px rgba(0, 0, 0, 0.2)',
+                    boxShadow: isUser ? '0 2px 8px rgba(255, 255, 255, 0.12)' : '0 2px 8px rgba(0, 0, 0, 0.2)',
                   }}
                 >
                   <div>{msg.text}</div>
@@ -375,15 +375,15 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                         marginTop: '10px',
                         padding: '10px 12px',
                         borderRadius: '10px',
-                        backgroundColor: 'rgba(37, 99, 235, 0.08)',
-                        border: '1px solid rgba(37, 99, 235, 0.25)',
+                        backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                        border: '1px solid rgba(255, 255, 255, 0.12)',
                         fontSize: '11px',
                       }}
                     >
                       <div
                         style={{
                           fontWeight: 700,
-                          color: '#93c5fd',
+                          color: '#e4e4e7',
                           marginBottom: '4px',
                           display: 'flex',
                           alignItems: 'center',
@@ -413,7 +413,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                               <span
                                 style={{
                                   fontSize: '10px',
-                                  color: '#60a5fa',
+                                  color: '#d4d4d8',
                                   fontFamily: 'var(--mono)',
                                   whiteSpace: 'nowrap',
                                 }}
@@ -434,15 +434,15 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                         marginTop: '10px',
                         padding: '10px 12px',
                         borderRadius: '10px',
-                        backgroundColor: 'rgba(37, 99, 235, 0.08)',
-                        border: '1px solid rgba(37, 99, 235, 0.25)',
+                        backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                        border: '1px solid rgba(255, 255, 255, 0.12)',
                         fontSize: '12px',
                       }}
                     >
                       <div
                         style={{
                           fontWeight: 700,
-                          color: '#60a5fa',
+                          color: '#d4d4d8',
                           marginBottom: '6px',
                           display: 'flex',
                           alignItems: 'center',
@@ -474,7 +474,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                             style={{
                               padding: '6px 14px',
                               borderRadius: '8px',
-                              backgroundColor: '#2563eb',
+                              backgroundColor: '#52525b',
                               border: 'none',
                               color: '#ffffff',
                               fontSize: '11px',
@@ -550,7 +550,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)';
-                    e.currentTarget.style.borderColor = 'rgba(37, 99, 235, 0.4)';
+                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
                     e.currentTarget.style.transform = 'translateY(-1px)';
                   }}
                   onMouseLeave={(e) => {
@@ -560,7 +560,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                   }}
                 >
                   <span>{chip}</span>
-                  <span style={{ color: '#60a5fa', fontSize: '13px', fontWeight: 700 }}>→</span>
+                  <span style={{ color: '#d4d4d8', fontSize: '13px', fontWeight: 700 }}>→</span>
                 </div>
               ))}
             </div>
@@ -574,7 +574,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                 borderRadius: '14px',
                 backgroundColor: 'rgba(255, 255, 255, 0.04)',
                 border: '1px solid rgba(255, 255, 255, 0.08)',
-                color: '#93c5fd',
+                color: '#e4e4e7',
                 fontSize: '12px',
                 fontFamily: 'var(--mono)',
                 display: 'flex',
@@ -582,7 +582,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                 gap: '8px',
               }}
             >
-              <span className="size-2 rounded-full bg-blue-500 animate-pulse"></span>
+              <span className="size-2 rounded-full bg-zinc-400 animate-pulse"></span>
               <span>Đang phân tích dữ liệu ca trực...</span>
             </div>
           )}
@@ -620,8 +620,8 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
               transition: 'border-color 150ms ease, box-shadow 150ms ease',
             }}
             onFocus={(e) => {
-              e.currentTarget.style.borderColor = '#3b82f6';
-              e.currentTarget.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.2)';
+              e.currentTarget.style.borderColor = '#a1a1aa';
+              e.currentTarget.style.boxShadow = '0 0 0 2px rgba(255, 255, 255, 0.12)';
             }}
             onBlur={(e) => {
               e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
@@ -635,7 +635,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
             style={{
               padding: '10px 18px',
               borderRadius: '12px',
-              backgroundColor: isTyping || !inputText.trim() ? 'rgba(37, 99, 235, 0.3)' : '#2563eb',
+              backgroundColor: isTyping || !inputText.trim() ? 'rgba(255, 255, 255, 0.12)' : '#52525b',
               border: 'none',
               color: '#ffffff',
               fontSize: '12.5px',
@@ -646,7 +646,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              boxShadow: isTyping || !inputText.trim() ? 'none' : '0 2px 8px rgba(37, 99, 235, 0.35)',
+              boxShadow: isTyping || !inputText.trim() ? 'none' : '0 2px 8px rgba(255, 255, 255, 0.08)',
             }}
             onMouseDown={(e) => {
               if (!isTyping && inputText.trim()) {

@@ -46,19 +46,19 @@ const ToastItem: React.FC<{ toast: ToastMessage; onDismiss: (id: string) => void
 
   const borderColor =
     toast.type === 'success' ? '#10b981' :
-    toast.type === 'warning' ? '#3b82f6' :
+    toast.type === 'warning' ? '#f59e0b' :
     toast.type === 'error' ? '#ef4444' :
-    '#2563eb';
+    '#71717a';
 
   return (
     <div style={{
       pointerEvents: 'auto',
-      background: '#0d111a',
+      background: 'rgba(18, 18, 20, 0.96)',
       border: '1px solid rgba(255, 255, 255, 0.1)',
       borderLeft: `3px solid ${borderColor}`,
       borderRadius: '8px',
       padding: '12px 14px',
-      boxShadow: '0 12px 30px rgba(0,0,0,0.85), 0 0 15px rgba(0,0,0,0.5)',
+      boxShadow: '0 12px 30px rgba(0,0,0,0.85)',
       display: 'flex',
       alignItems: 'flex-start',
       gap: '10px',

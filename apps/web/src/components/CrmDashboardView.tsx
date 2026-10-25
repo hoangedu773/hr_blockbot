@@ -38,7 +38,7 @@ const CRM_HTML = `
 
         <!-- Search Bar Trigger -->
         <div class="px-3 pt-3">
-          <div class="flex items-center gap-2 px-3 py-2 rounded-xl border border-border/70 bg-background/60 text-xs text-muted-foreground shadow-xs cursor-pointer hover:border-blue-500/50 transition">
+          <div class="flex items-center gap-2 px-3 py-2 rounded-xl border border-border/70 bg-background/60 text-xs text-muted-foreground shadow-xs cursor-pointer hover:border-zinc-400/50 transition">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 text-muted-foreground"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             <input type="text" placeholder="Lọc theo tên, quận, mã..." class="flex-1 bg-transparent border-0 outline-none text-xs text-foreground placeholder:text-muted-foreground w-full" />
             <kbd class="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-mono border border-border shrink-0">⌘K</kbd>
@@ -49,52 +49,28 @@ const CRM_HTML = `
         <nav class="px-2 py-3 space-y-1">
           <div class="px-2 pb-1.5 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Trợ Lý Thông Minh</div>
 
-          <a href="#" aria-label="Trợ Lý AI (Copilot)" class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold bg-blue-600/10 text-blue-400 border border-blue-500/20 shadow-xs hover:bg-blue-600/15 transition cursor-pointer mb-3">
-            <div class="size-6 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-2xs shrink-0">
+          <a href="#" aria-label="Trợ Lý AI (Copilot)" class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold bg-zinc-700/10 text-zinc-300 border border-zinc-400/20 shadow-xs hover:bg-zinc-700/15 transition cursor-pointer mb-3">
+            <div class="size-6 rounded-lg bg-gradient-to-tr from-zinc-700 to-zinc-600 flex items-center justify-center text-white shadow-2xs shrink-0">
               <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
             </div>
             <span class="font-bold">Guta Copilot AI</span>
-            <span class="ml-auto inline-flex items-center gap-1.5 text-[10px] font-mono font-semibold bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/30"><span class="size-1.5 rounded-full bg-emerald-400 animate-pulse" aria-hidden="true"></span>Trợ Lý AI (Copilot)</span>
+            <span class="ml-auto inline-flex items-center gap-1.5 text-[10px] font-mono font-semibold bg-zinc-400/20 text-zinc-300 px-2 py-0.5 rounded-full border border-zinc-400/30"><span class="size-1.5 rounded-full bg-emerald-400 animate-pulse" aria-hidden="true"></span>Trợ Lý AI (Copilot)</span>
           </a>
 
           <div class="px-2 pb-1 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Hệ Thống Vận Hành</div>
 
-          <a href="#" class="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold bg-muted/60 text-foreground border border-border/80">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-500"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-            <span>Cửa hàng / Chi nhánh</span>
-            <span class="ml-auto rounded-full bg-blue-600/20 px-2 py-0.5 text-[10px] font-bold font-mono text-blue-400">45</span>
-          </a>
-
-          <a href="#" data-entrypoint="coming-soon" class="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-muted-foreground/75 opacity-70 cursor-not-allowed select-none transition">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            <span>Đội ngũ Barista & SM</span>
-            <span class="ml-auto text-[9px] font-mono text-muted-foreground/80 bg-muted/80 border border-border/50 px-1.5 py-0.5 rounded">Coming Soon</span>
-          </a>
-
-          <a href="#" data-entrypoint="coming-soon" class="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-muted-foreground/75 opacity-70 cursor-not-allowed select-none transition">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
-            <span>Lịch Phân Ca 24H</span>
-            <span class="ml-auto text-[9px] font-mono text-muted-foreground/80 bg-muted/80 border border-border/50 px-1.5 py-0.5 rounded">Coming Soon</span>
-          </a>
-
-          <a href="#" data-entrypoint="coming-soon" class="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-muted-foreground/75 opacity-70 cursor-not-allowed select-none transition">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            <span>Chấm công & Đi trễ</span>
-            <span class="ml-auto text-[9px] font-mono text-muted-foreground/80 bg-muted/80 border border-border/50 px-1.5 py-0.5 rounded">Coming Soon</span>
-          </a>
-
-          <a href="#" data-entrypoint="coming-soon" class="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-muted-foreground/75 opacity-70 cursor-not-allowed select-none transition">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-            <span>Báo cáo Két ca</span>
-            <span class="ml-auto text-[9px] font-mono text-muted-foreground/80 bg-muted/80 border border-border/50 px-1.5 py-0.5 rounded">Coming Soon</span>
-          </a>
+          <button type="button" data-section="stores" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold bg-muted/60 text-foreground border border-border/80 text-left">Cửa hàng / Chi nhánh <span class="ml-auto">45</span></button>
+          <button type="button" data-section="employees" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Đội ngũ Barista &amp; SM</button>
+          <button type="button" data-section="schedules" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Lịch Phân Ca 24H</button>
+          <button type="button" data-section="attendance" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Chấm công &amp; Đi trễ</button>
+          <button type="button" data-section="cash" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Báo cáo Két ca</button>
         </nav>
       </div>
 
       <!-- User Profile at bottom -->
       <div class="p-3 border-t border-border bg-sidebar/50">
         <div class="flex items-center gap-3 p-2.5 rounded-xl border border-border/60 bg-background/80 shadow-xs">
-          <div class="size-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs ring-1 ring-border shrink-0">PA</div>
+          <div class="size-8 rounded-full bg-gradient-to-tr from-zinc-700 to-zinc-600 text-white flex items-center justify-center font-bold text-xs ring-1 ring-border shrink-0">PA</div>
           <div class="flex-1 min-w-0">
             <div class="font-bold text-foreground text-xs truncate">Nguyễn Thị Phương Anh</div>
             <div class="text-[10px] text-muted-foreground truncate" title="Cửa hàng trưởng (SM)">Cửa hàng trưởng (SM)</div>
@@ -129,7 +105,7 @@ const CRM_HTML = `
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
               <span>Bộ lọc Quận</span>
             </button>
-            <button type="button" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white text-xs font-bold transition shadow-sm cursor-pointer active:scale-95 transition-transform">
+            <button type="button" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-zinc-700 to-zinc-800 hover:from-zinc-400 hover:to-zinc-700 text-white text-xs font-bold transition shadow-sm cursor-pointer active:scale-95 transition-transform">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
               <span>Tạo Ca Đột Xuất</span>
             </button>
@@ -144,7 +120,7 @@ const CRM_HTML = `
           <div class="crm-kpi-card">
             <div class="crm-kpi-header">
               <span class="crm-kpi-title">Tổng Cửa Hàng</span>
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-400"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-zinc-300"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
             </div>
             <div class="crm-kpi-value">45 <small style="font-size: 13px; font-weight: 400; color: #94a3b8; font-family: sans-serif;">chi nhánh</small></div>
             <div class="crm-kpi-meta" style="color: #34d399;">
@@ -156,7 +132,7 @@ const CRM_HTML = `
           <div class="crm-kpi-card">
             <div class="crm-kpi-header">
               <span class="crm-kpi-title">Nhân Sự Trực Ca</span>
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-400"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-zinc-300"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             </div>
             <div class="crm-kpi-value">135 <small style="font-size: 13px; font-weight: 400; color: #94a3b8; font-family: sans-serif;">nhân sự</small></div>
             <div class="crm-kpi-meta" style="color: #94a3b8;">
@@ -167,9 +143,9 @@ const CRM_HTML = `
           <div class="crm-kpi-card">
             <div class="crm-kpi-header">
               <span class="crm-kpi-title">Doanh Thu Két Sáng</span>
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-400"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-zinc-300"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
             </div>
-            <div class="crm-kpi-value" style="color: #60a5fa;">184.250.000 ₫</div>
+            <div class="crm-kpi-value" style="color: #e4e4e7;">184.250.000 ₫</div>
             <div class="crm-kpi-meta" style="color: #34d399;">
               <span>Khớp 99.94% máy POS</span>
             </div>
@@ -469,7 +445,7 @@ const CRM_HTML = `
     <!-- Drawer Header (shrink-0) -->
     <div class="p-6 border-b border-border flex items-start justify-between bg-muted/20 shrink-0">
       <div>
-        <span class="rounded-md bg-blue-500/10 border border-blue-500/20 text-blue-400 px-2 py-0.5 text-[10px] font-bold font-mono uppercase" id="d-id">GT-CH-01</span>
+        <span class="rounded-md bg-zinc-400/10 border border-zinc-400/20 text-zinc-300 px-2 py-0.5 text-[10px] font-bold font-mono uppercase" id="d-id">GT-CH-01</span>
         <h2 class="text-base font-bold text-foreground mt-2" id="d-name">GUTA CAFE - Tân Bình - 02 Đặng Văn Sâm</h2>
         <p class="text-xs text-muted-foreground mt-0.5" id="d-district">Quận: Tân Bình • Cửa hàng trưởng: Nguyễn Thị Phương Anh</p>
       </div>
@@ -486,7 +462,7 @@ const CRM_HTML = `
       <div class="grid grid-cols-2 gap-3">
         <div class="p-3.5 rounded-xl border border-border bg-background/80 shadow-2xs">
           <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block whitespace-nowrap">Doanh Thu Két Ca</span>
-          <div class="text-base font-bold font-mono text-blue-600 dark:text-blue-400 mt-1" id="d-rev">8.420.000 ₫</div>
+          <div class="text-base font-bold font-mono text-zinc-700 dark:text-zinc-300 mt-1" id="d-rev">8.420.000 ₫</div>
           <span class="text-[10px] text-emerald-400 font-medium block mt-1">↑ +14% so với ca hôm qua</span>
         </div>
         <div class="p-3.5 rounded-xl border border-border bg-background/80 shadow-2xs">
@@ -506,7 +482,7 @@ const CRM_HTML = `
         <div class="space-y-2.5">
           <div class="flex items-center justify-between p-2.5 rounded-xl border border-border/80 bg-background/80 shadow-2xs">
             <div class="flex items-center gap-3">
-              <div class="size-8 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs ring-1 ring-blue-500/25 shrink-0">QT</div>
+              <div class="size-8 rounded-full bg-zinc-400/10 text-zinc-700 dark:text-zinc-300 flex items-center justify-center font-bold text-xs ring-1 ring-zinc-400/25 shrink-0">QT</div>
               <div>
                 <div class="text-xs font-semibold text-foreground">Trương Quốc Thái</div>
                 <div class="text-[10px] text-muted-foreground mt-0.5">Pha chế chính (Barista) • Check-in: 05:55</div>
@@ -517,7 +493,7 @@ const CRM_HTML = `
 
           <div class="flex items-center justify-between p-2.5 rounded-xl border border-border/80 bg-background/80 shadow-2xs">
             <div class="flex items-center gap-3">
-              <div class="size-8 rounded-full bg-blue-500/15 text-blue-500 flex items-center justify-center font-bold text-xs ring-1 ring-blue-500/25 shrink-0">KN</div>
+              <div class="size-8 rounded-full bg-zinc-400/15 text-zinc-400 flex items-center justify-center font-bold text-xs ring-1 ring-zinc-400/25 shrink-0">KN</div>
               <div>
                 <div class="text-xs font-semibold text-foreground">Lê Thị Kim Ngân</div>
                 <div class="text-[10px] text-muted-foreground mt-0.5">Thu ngân / Order • Check-in: 06:01</div>
@@ -540,8 +516,8 @@ const CRM_HTML = `
       </div>
 
       <!-- AI Assistant Recommendation -->
-      <div class="p-3.5 rounded-xl border border-indigo-500/20 bg-indigo-500/5">
-        <div class="flex items-center gap-2 text-indigo-400 text-xs font-bold mb-1.5">
+      <div class="p-3.5 rounded-xl border border-zinc-500/20 bg-zinc-500/5">
+        <div class="flex items-center gap-2 text-zinc-300 text-xs font-bold mb-1.5">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
           <span>Trợ lý ca Guta AI</span>
         </div>
@@ -554,7 +530,7 @@ const CRM_HTML = `
 
     <!-- Drawer Footer Actions (shrink-0) -->
     <div class="p-4 border-t border-border bg-neutral-900/95 flex items-center gap-2.5 shrink-0 z-10">
-      <button type="button" class="flex-1 py-2.5 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition shadow-sm text-center cursor-pointer">
+      <button type="button" class="flex-1 py-2.5 px-3 rounded-lg bg-zinc-700 hover:bg-zinc-800 text-white font-semibold text-xs transition shadow-sm text-center cursor-pointer">
         Gửi Cảnh Báo Telegram
       </button>
       <button type="button" aria-label="Đóng" data-close-drawer class="py-2.5 px-4 rounded-lg border border-border bg-background hover:bg-muted text-xs font-medium text-foreground transition cursor-pointer">
@@ -574,7 +550,6 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
   onTelegramAlert,
   onOpenAiCopilot,
   onSwitchTab,
-  onNotify,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const onTelegramAlertRef = useRef(onTelegramAlert);
@@ -585,8 +560,6 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
   onSwitchTabRef.current = onSwitchTab;
   const onLogoutRef = useRef(onLogout);
   onLogoutRef.current = onLogout;
-  const onNotifyRef = useRef(onNotify);
-  onNotifyRef.current = onNotify;
 
   useEffect(() => {
     const root = containerRef.current;
@@ -899,46 +872,43 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
       }
     });
 
-    // 6. Coming Soon & Dead links interceptor (Phân hệ chưa kích hoạt / demo containment)
-    const showSyncNotice = (message: string) => {
-      if (onNotifyRef.current) {
-        onNotifyRef.current(
-          message,
-          'info',
-          'Lộ trình phát triển'
-        );
-      } else {
-        const existing = document.getElementById('zkteco-sync-toast');
-        if (existing) existing.remove();
-        const toast = document.createElement('div');
-        toast.id = 'zkteco-sync-toast';
-        toast.setAttribute('role', 'status');
-        toast.className = 'fixed bottom-6 right-6 z-50 bg-neutral-900/95 border border-blue-500/40 text-slate-100 px-4 py-3 rounded-xl shadow-2xl text-xs flex items-center gap-2.5 backdrop-blur';
-        toast.innerHTML = `<span class="size-2 rounded-full bg-blue-500 animate-ping inline-block"></span><span class="font-medium">${message}</span>`;
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 4000);
-      }
+    const sections = ['stores', 'employees', 'schedules', 'attendance', 'cash'] as const;
+    const main = root.querySelector('main');
+    const storeNodes = main ? Array.from(main.childNodes) : [];
+    let activeSection: (typeof sections)[number] = 'stores';
+    const headings: Record<(typeof sections)[number], string> = { stores: 'Chi Nhánh Cà Phê Guta (Khu Vực TP.HCM)', employees: 'Đội ngũ Barista & SM', schedules: 'Lịch Phân Ca 24H', attendance: 'Chấm công & Đi trễ — ZKTeco', cash: 'Báo cáo Két ca' };
+    const columns: Record<Exclude<(typeof sections)[number], 'stores'>, string[]> = {
+      employees: ['Mã NV', 'Họ tên', 'Vị trí', 'Chi nhánh trực thuộc', 'Ca phụ trách', 'Trạng thái hoạt động'],
+      schedules: ['Chi nhánh', 'Ngày làm việc', 'Ca 1 (06:00-14:00)', 'Ca 2 (14:00-22:00)', 'Ca Đêm (22:00-06:00)', 'Trạng thái mở ca'],
+      attendance: ['Mã NV', 'Nhân sự', 'Giờ quẹt vào', 'Giờ quẹt ra', 'Đi trễ', 'Giải trình ca', 'Trạng thái đối soát'],
+      cash: ['Mã CH', 'Tiền đầu ca', 'Doanh thu POS', 'Tiền cuối ca', 'Chênh lệch', 'Trạng thái chốt két'],
     };
-
-    const comingSoonLinks = root.querySelectorAll('a[data-entrypoint="coming-soon"]');
-    comingSoonLinks.forEach((link) => {
-      link.addEventListener('click', (e) => {
-        e.preventDefault();
-        const label = link.querySelector('span')?.textContent?.trim() || 'Phân hệ';
-        showSyncNotice(`Tính năng đang trong chu kỳ đồng bộ dữ liệu ZKTeco (${label} — Coming Soon)`);
-      }, { signal: listeners.signal });
+    const people = [
+      ['Trương Quốc Thái', 'Head Barista', 'GT-CH-06', 'Ca 1 (06:00-14:00)'], ['Đỗ Quỳnh Anh', 'Cửa hàng trưởng (SM)', 'GT-CH-02', 'Ca 1 (06:00-14:00)'], ['Lê Thị Kim Ngân', 'Thu ngân', 'GT-CH-01', 'Ca 1 (06:00-14:00)'], ['Nguyễn Văn Đạt', 'Barista', 'GT-CH-01', 'Ca 1 (06:00-14:00)'], ['Nguyễn Thị Phương Anh', 'Cửa hàng trưởng (SM)', 'GT-CH-01', 'Ca 1 (06:00-14:00)'], ['Nguyễn Lê Quang Trường', 'Cửa hàng trưởng (SM)', 'GT-CH-03', 'Ca 2 (14:00-22:00)'], ['Nguyễn Thị Thu Trúc', 'Cửa hàng trưởng (SM)', 'GT-CH-04', 'Ca 1 (06:00-14:00)'], ['Triệu Quang Nhân', 'Barista', 'GT-CH-05', 'Ca Đêm (22:00-06:00)'], ['Thái Thanh Lam', 'Barista', 'GT-CH-07', 'Ca 2 (14:00-22:00)'], ['Lại Ngọc Hoàng Nguyên', 'Barista', 'GT-CH-08', 'Ca 1 (06:00-14:00)'],
+    ];
+    const rowsFor = (section: Exclude<(typeof sections)[number], 'stores'>): string[][] => Array.from({ length: 10 }, (_, i) => {
+      const id = String(i + 1).padStart(2, '0');
+      if (section === 'employees') return [`NV-${id}`, ...people[i], 'Đang hoạt động'];
+      if (section === 'schedules') return [`GT-CH-${id}`, '25/10/2026', '06:00-14:00 · 3 NV', '14:00-22:00 · 3 NV', '22:00-06:00 · 2 NV', 'Đang mở ca'];
+      if (section === 'attendance') return [`NV-${id}`, people[i][0], '05:55', '14:02', i % 2 ? '5 phút' : '0 phút', 'Đủ ca', 'Đã đối soát'];
+      return [`GT-CH-${id}`, '2.000.000 ₫', '8.420.000 ₫', '10.420.000 ₫', '0 ₫', 'Đã chốt két'];
     });
-
-    const deadLinks = root.querySelectorAll('a[href="#"], a[href=""]');
-    deadLinks.forEach((link) => {
-      if (link.textContent?.includes('Copilot')) return;
-      if (link.getAttribute('href') === '#logout' || link.getAttribute('title')?.includes('Trang Chủ')) return;
-      if (link.hasAttribute('data-entrypoint')) return;
-      link.addEventListener('click', (e) => {
-        e.preventDefault();
-        showSyncNotice('Tính năng đang trong chu kỳ đồng bộ dữ liệu thời gian thực.');
-      }, { signal: listeners.signal });
-    });
+    const renderSection = (section: (typeof sections)[number]) => {
+      if (!main) return;
+      if (activeSection === section) return;
+      activeSection = section;
+      if (section === 'stores') { main.replaceChildren(...storeNodes); return; }
+      const headers = columns[section];
+      const rows = rowsFor(section);
+      main.innerHTML = `<div class="crm-kpi-grid"><div class="crm-kpi-card"><div class="crm-kpi-title">${headings[section]}</div><div class="crm-kpi-value">${rows.length}<small> bản ghi</small></div></div><div class="crm-kpi-card"><div class="crm-kpi-title">Đang hoạt động</div><div class="crm-kpi-value text-emerald-400">${rows.length}</div></div><div class="crm-kpi-card"><div class="crm-kpi-title">Đối soát</div><div class="crm-kpi-value">100%</div></div></div><header class="mb-4"><h1 class="text-xl font-bold text-zinc-100">${headings[section]}</h1><p class="text-xs text-zinc-400 mt-1">Bảng quản lý vận hành Guta.</p></header><div class="crm-table-shell rounded-xl border border-white/[0.12] bg-white/[0.02] overflow-x-auto"><table class="w-full text-left text-xs border-collapse min-w-[900px]"><thead class="bg-white/[0.04]"><tr>${headers.map((h) => `<th class="py-3 px-3 text-zinc-400">${h}</th>`).join('')}</tr></thead><tbody class="divide-y divide-white/[0.08]">${rows.map((row) => `<tr class="table-row-hover">${row.map((cell) => `<td class="py-3 px-3 text-zinc-100">${cell}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+    };
+    root.querySelectorAll<HTMLButtonElement>('nav [data-section]').forEach((button) => button.addEventListener('click', () => {
+      const section = button.dataset.section;
+      if (!sections.includes(section as (typeof sections)[number])) return;
+      renderSection(section as (typeof sections)[number]);
+      root.querySelectorAll('nav [data-section]').forEach((item) => item.classList.remove('bg-muted/60', 'text-foreground', 'border', 'border-border/80'));
+      button.classList.add('bg-muted/60', 'text-foreground', 'border', 'border-border/80');
+    }, { signal: listeners.signal }));
 
     return () => {
       listeners.abort();

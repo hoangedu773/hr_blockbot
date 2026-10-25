@@ -676,20 +676,37 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.deepEqual(consoleErrors, []);
   });
 
-  it('Chặn liên kết chết href="#" trong CRM Dashboard, hiển thị toast ZKTeco', async () => {
-    // Kiểm tra 4 entrypoint chưa hoàn thiện được gắn cờ Coming Soon
-    const comingSoonElements = page.locator('nav a[data-entrypoint="coming-soon"]');
-    assert.equal(await comingSoonElements.count(), 4);
+  it('CRM sidebar chuyển đầy đủ 5 phân hệ hoạt động thật', async () => {
+    // 1. Phân hệ Đội ngũ Barista & SM
+    const employees = page.locator('nav [data-section="employees"]');
+    await employees.click();
+    await page.getByRole('heading', { name: 'Đội ngũ Barista & SM' }).waitFor({ state: 'visible' });
+    assert.equal(await page.getByRole('table').getByText('Trương Quốc Thái').isVisible(), true);
+    assert.equal(await page.locator('nav [data-entrypoint="coming-soon"]').count(), 0);
 
-    const comingSoonBadges = page.locator('nav a[data-entrypoint="coming-soon"]').getByText(/Coming Soon/i);
-    assert.equal(await comingSoonBadges.count(), 4);
+    // 2. Phân hệ Lịch Phân Ca 24H
+    await page.locator('nav [data-section="schedules"]').click();
+    await page.getByRole('heading', { name: 'Lịch Phân Ca 24H' }).waitFor({ state: 'visible' });
+    assert.equal(await page.getByRole('table').getByText('25/10/2026').first().isVisible(), true);
 
-    // Click dead link "Lịch Phân Ca 24H"
-    const shiftLink = page.locator('nav a').filter({ hasText: /Lịch Phân Ca 24H/i });
-    await shiftLink.click();
-    const zkToast = page.getByText(/Tính năng đang trong chu kỳ đồng bộ dữ liệu ZKTeco/i);
-    await zkToast.waitFor({ state: 'visible', timeout: 3000 });
-    assert.equal(await zkToast.isVisible(), true);
+    // 3. Phân hệ Chấm công & Đi trễ
+    await page.locator('nav [data-section="attendance"]').click();
+    await page.getByRole('heading', { name: 'Chấm công & Đi trễ — ZKTeco' }).waitFor({ state: 'visible' });
+    assert.equal(await page.getByRole('table').getByText('05:55').first().isVisible(), true);
+
+    // 4. Phân hệ Báo cáo Két ca
+    await page.locator('nav [data-section="cash"]').click();
+    await page.getByRole('heading', { name: 'Báo cáo Két ca' }).waitFor({ state: 'visible' });
+    assert.equal(await page.getByRole('table').getByText('0 ₫').first().isVisible(), true);
+
+    // 5. Quay lại Phân hệ Cửa hàng / Chi nhánh
+    await page.locator('nav [data-section="stores"]').click();
+    await page.getByRole('heading', { name: /Guta Workspace — Quản lý nhân sự & 45 chi nhánh|Chi Nhánh Cà Phê Guta/i }).waitFor({ state: 'visible' });
+    assert.equal(await page.getByRole('table').getByText('GT-CH-01').first().isVisible(), true);
+
+    // Xác nhận không có toast coming soon / lộ trình phát triển nào xuất hiện
+    assert.equal(await page.locator('#zkteco-sync-toast').count(), 0);
+    assert.equal(await page.getByText(/Coming Soon|Lộ trình phát triển/i).count(), 0);
   });
 
   it('Bước 7: Bấm nút "Đăng xuất", kiểm tra quay lại Landing Page an toàn', async () => {
@@ -724,12 +741,9 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
   });
 
   it('Chặn liên kết chết href="#" trên Landing Page và kiểm tra sạch ngữ cảnh học thuật', async () => {
-    // Click hero badge href="#"
     const badgeLink = page.locator('a[href="#"]').filter({ hasText: /F&B Workforce Intelligence/i });
     await badgeLink.click();
-    const zkToast = page.getByText(/Tính năng đang trong chu kỳ đồng bộ dữ liệu ZKTeco/i).last();
-    await zkToast.waitFor({ state: 'visible', timeout: 3000 });
-    assert.equal(await zkToast.isVisible(), true);
+    assert.equal(await page.locator('#zkteco-sync-toast').count(), 0);
 
     // Kiểm tra sạch các từ khóa học thuật/khóa luận
     const pageContent = await page.content();
