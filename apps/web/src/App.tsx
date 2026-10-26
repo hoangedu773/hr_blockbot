@@ -2,9 +2,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import type { LoginRequest } from '@hr-blockbot/contracts';
 import { useAuth } from './context/AuthContext';
 import { ToastContainer, type ToastMessage, type NotifyFn } from './components/Toast';
-import { FolioLandingView } from './components/FolioLandingView';
-import { CrmDashboardView } from './components/CrmDashboardView';
-import { ChatPageView } from './components/chat/ChatPageView';
+const FolioLandingView = React.lazy(() =>
+  import('./components/FolioLandingView').then((m) => ({ default: m.FolioLandingView }))
+);
+const CrmDashboardView = React.lazy(() =>
+  import('./components/CrmDashboardView').then((m) => ({ default: m.CrmDashboardView }))
+);
+const ChatPageView = React.lazy(() =>
+  import('./components/chat/ChatPageView').then((m) => ({ default: m.ChatPageView }))
+);
 import { DemoErrorBoundary } from './components/DemoErrorBoundary';
 
 export const AppContent: React.FC = () => {
@@ -74,6 +80,13 @@ export const AppContent: React.FC = () => {
     if (crmCss) crmCss.disabled = !hasSession;
   }, [hasSession]);
 
+  useEffect(() => {
+    if (hasSession) {
+      import('./components/CrmDashboardView');
+      import('./components/chat/ChatPageView');
+    }
+  }, [hasSession]);
+
   const handleLogin = async (credentials: LoginRequest) => {
     await login(credentials);
     setActiveTab('chat');
@@ -116,7 +129,11 @@ export const AppContent: React.FC = () => {
   if (!hasSession) {
     return (
       <>
-        <FolioLandingView onLogin={handleLogin} isAuthLoading={isLoading} onNotify={addToast} />
+        <DemoErrorBoundary>
+          <React.Suspense fallback={<div className="guta-view-loading" role="status" aria-label="Đang tải giao diện..." />}>
+            <FolioLandingView onLogin={handleLogin} isAuthLoading={isLoading} onNotify={addToast} />
+          </React.Suspense>
+        </DemoErrorBoundary>
         <ToastContainer toasts={toasts} onDismiss={removeToast} />
       </>
     );
@@ -126,19 +143,21 @@ export const AppContent: React.FC = () => {
   return (
     <>
       <DemoErrorBoundary>
-      {activeTab === 'chat' ? (
-        <ChatPageView onSwitchTab={handleSwitchTab} onLogout={handleLogout} />
-      ) : (
-        <CrmDashboardView
-          userName={('username' in user && typeof user.username === 'string' && user.username) || (user.role === 'Admin' ? 'Quản trị viên' : 'Nhân viên')}
-          userRole={user.role}
-          userScope={('departmentId' in user && typeof user.departmentId === 'string' && user.departmentId) ? 'Phòng ban ' + user.departmentId : 'Toàn chuỗi GUTA'}
-          onLogout={handleLogout}
-          onTelegramAlert={handleSendTelegramAlert}
-          onSwitchTab={handleSwitchTab}
-          onNotify={addToast}
-        />
-      )}
+        <React.Suspense fallback={<div className="guta-view-loading" role="status" aria-label="Đang tải không gian làm việc..." />}>
+          {activeTab === 'chat' ? (
+            <ChatPageView onSwitchTab={handleSwitchTab} onLogout={handleLogout} />
+          ) : (
+            <CrmDashboardView
+              userName={('username' in user && typeof user.username === 'string' && user.username) || (user.role === 'Admin' ? 'Quản trị viên' : 'Nhân viên')}
+              userRole={user.role}
+              userScope={('departmentId' in user && typeof user.departmentId === 'string' && user.departmentId) ? 'Phòng ban ' + user.departmentId : 'Toàn chuỗi GUTA'}
+              onLogout={handleLogout}
+              onTelegramAlert={handleSendTelegramAlert}
+              onSwitchTab={handleSwitchTab}
+              onNotify={addToast}
+            />
+          )}
+        </React.Suspense>
       </DemoErrorBoundary>
       <ToastContainer toasts={toasts} onDismiss={removeToast} />
     </>

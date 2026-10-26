@@ -19,6 +19,64 @@ interface ChatPageViewProps {
   onLogout: () => void;
 }
 
+interface ChatComposerProps {
+  isTyping: boolean;
+  onSend: (text: string) => void;
+  inputRef?: React.RefObject<HTMLTextAreaElement>;
+}
+
+export const ChatComposer: React.FC<ChatComposerProps> = ({ isTyping, onSend, inputRef: externalRef }) => {
+  const [input, setInput] = useState('');
+  const internalRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = externalRef || internalRef;
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 192)}px`;
+  }, [input]);
+
+  const handleSubmit = (event?: React.FormEvent) => {
+    if (event) event.preventDefault();
+    const trimmed = input.trim();
+    if (!trimmed || isTyping) return;
+    onSend(trimmed);
+    setInput('');
+  };
+
+  return (
+    <div className="guta-chat-width">
+      <form className="guta-chat-composer" onSubmit={handleSubmit}>
+        <label htmlFor="copilot-message" className="sr-only">Tin nhắn cho Guta AI</label>
+        <button type="button" className="chat-attach-btn" aria-label="Thao tác bổ sung" title="Nhập câu hỏi cho Guta AI" onClick={() => textareaRef.current?.focus()}>
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14m-7-7h14" /></svg>
+        </button>
+        <textarea
+          id="copilot-message"
+          ref={textareaRef}
+          rows={1}
+          maxLength={4000}
+          value={input}
+          onChange={(event) => setInput(event.target.value)}
+          placeholder="Hỏi AI về ca trực, nhân sự, tiền két..."
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              handleSubmit();
+            }
+          }}
+        />
+        <button className="chat-send" type="submit" aria-label="Gửi" disabled={isTyping || !input.trim()}>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5m-6 6 6-6 6 6" /></svg>
+        </button>
+      </form>
+      <p className="guta-chat-note">AI có thể nhầm lẫn. Kiểm tra nguồn trước khi quyết định.</p>
+    </div>
+  );
+};
+
+
 interface Message {
   id: number;
   sender: 'user' | 'assistant';
@@ -214,11 +272,18 @@ const styles = `
   .guta-chat-sidebar[data-open="true"] { display: flex; }
   .guta-chat-header { padding: 8px 16px; }
   .guta-chat-header .chat-menu { display: block; }
-  .guta-chat-header span { display: none; }
+  .guta-chat-header-title span { display: none; }
   .guta-chat-body, .guta-chat-empty { padding: 16px; }
   .guta-chat-empty { justify-content: safe center; }
   .guta-chat-bottom { padding: 8px 16px max(16px, env(safe-area-inset-bottom)); }
   .guta-chat-hero { margin-bottom: 24px; }
+}
+@media (max-width: 480px) {
+  .guta-chat-header { padding: 8px 12px; gap: 8px; }
+  .guta-chat-header-actions { gap: 4px; }
+  .guta-chat-header-actions button { padding: 6px 10px; text-align: center; }
+  .guta-verified-badge { padding: 4px 6px !important; }
+  .guta-verified-badge span:last-child { display: none; }
 }
 `;
 
@@ -226,7 +291,6 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   const { user } = useAuth();
   const currentRole: 'Admin' | 'Employee' = user?.role === 'Admin' ? 'Admin' : 'Employee';
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
   const [modelTier, setModelTier] = useState<ModelTier>(getSafeModelTier);
   const [isTyping, setIsTyping] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -261,30 +325,22 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   }, [onSwitchTab, sidebarOpen]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'auto' }); }, [messages, isTyping]);
-  useEffect(() => {
-    const textarea = inputRef.current;
-    if (!textarea) return;
-    textarea.style.height = 'auto';
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 192)}px`;
-  }, [input, messages.length === 0]);
 
   const newChat = () => {
     cancelPending();
     conversationId.current = undefined;
     setMessages([]);
-    setInput('');
     setIsTyping(false);
     setSidebarOpen(false);
     inputRef.current?.focus();
   };
 
-  const send = (prompt?: string) => {
-    const text = (prompt ?? input).trim();
+  const send = (prompt: string) => {
+    const text = prompt.trim();
     if (!text || text.length > 4000 || pending.current) return;
     const controller = new AbortController();
     pending.current = controller;
     setMessages((previous) => [...previous, { id: ++nextId.current, sender: 'user', text }]);
-    setInput('');
     setIsTyping(true);
     setSidebarOpen(false);
     // Preserve the delay and cancel it on reset/unmount before starting a request.
@@ -332,27 +388,11 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   };
 
   const composer = (
-    <div className="guta-chat-width">
-      <form className="guta-chat-composer" onSubmit={(event) => { event.preventDefault(); send(); }}>
-        <label htmlFor="copilot-message" className="sr-only">Tin nhắn cho Guta AI</label>
-        <button type="button" className="chat-attach-btn" aria-label="Thao tác bổ sung" title="Nhập câu hỏi cho Guta AI" onClick={() => inputRef.current?.focus()}>
-          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14m-7-7h14" /></svg>
-        </button>
-        <textarea id="copilot-message" ref={inputRef} rows={1} maxLength={4000} value={input}
-          onChange={(event) => setInput(event.target.value)}
-          placeholder="Hỏi AI về ca trực, nhân sự, tiền két..."
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-              event.preventDefault();
-              send();
-            }
-          }} />
-        <button className="chat-send" type="submit" aria-label="Gửi" disabled={isTyping || !input.trim()}>
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5m-6 6 6-6 6 6" /></svg>
-        </button>
-      </form>
-      <p className="guta-chat-note">AI có thể nhầm lẫn. Kiểm tra nguồn trước khi quyết định.</p>
-    </div>
+    <ChatComposer
+      isTyping={isTyping}
+      onSend={(text) => send(text)}
+      inputRef={inputRef}
+    />
   );
 
   return (
@@ -398,7 +438,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
             </div>
           </div>
           <div className="guta-chat-header-actions">
-            <div className="guta-verified-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', borderRadius: '9999px', background: 'rgba(255,255,255,0.06)', border: '1px solid var(--chat-border)', fontSize: '11px' }}>
+            <div className="guta-verified-badge">
               <span style={{ width: '6px', height: '6px', borderRadius: '9999px', backgroundColor: '#10b981' }} />
               <span style={{ fontWeight: 600, color: 'var(--chat-text)' }}>
                 {user?.role === 'Admin' ? 'Quản trị viên (Admin)' : 'Nhân viên (Employee)'}
@@ -570,3 +610,5 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     </div>
   );
 };
+
+export default ChatPageView;

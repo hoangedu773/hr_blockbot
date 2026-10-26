@@ -37,13 +37,87 @@ export function getGeminiKeyPool(): string[] {
   ));
 }
 
+export const keyCooldownMap = new Map<string, number>();
+
+export function markKeyRateLimited(apiKey: string, durationMs: number = 60_000): void {
+  if (!apiKey) return;
+  keyCooldownMap.set(apiKey, Date.now() + durationMs);
+}
+
+export function resetKeyCooldowns(): void {
+  keyCooldownMap.clear();
+}
+
+export function getHealthyKeyPool(): string[] {
+  const fullPool = getGeminiKeyPool();
+  if (fullPool.length === 0) return [];
+
+  const now = Date.now();
+  for (const [key, expiresAt] of keyCooldownMap.entries()) {
+    if (expiresAt <= now) {
+      keyCooldownMap.delete(key);
+    }
+  }
+
+  const healthy = fullPool.filter((key) => !keyCooldownMap.has(key));
+  return healthy.length > 0 ? healthy : fullPool;
+}
+
 let keyRotationCounter = 0;
 export function getRotatedKeyPool(): string[] {
-  const pool = getGeminiKeyPool();
+  const pool = getHealthyKeyPool();
   if (pool.length <= 1) return pool;
   const start = keyRotationCounter % pool.length;
   keyRotationCounter = (keyRotationCounter + 1) % pool.length;
   return [...pool.slice(start), ...pool.slice(0, start)];
+}
+
+export function extractAndMarkRateLimitedKeys(payload: unknown, providers: ActiveProviderConfig[]): void {
+  if (!payload || typeof payload !== "object") return;
+  const p = payload as Record<string, any>;
+  const provErrors = p.error?.providers || p.providers;
+  if (Array.isArray(provErrors)) {
+    for (const pErr of provErrors) {
+      if (
+        pErr?.code === "QUOTA_EXCEEDED" ||
+        pErr?.code === "PROVIDER_RATE_LIMITED" ||
+        pErr?.code === "429" ||
+        pErr?.code === 429 ||
+        pErr?.status === 429 ||
+        pErr?.status === "429"
+      ) {
+        const matched = providers.find(
+          (item) => item.id === pErr.providerId || item.name === pErr.providerId
+        );
+        if (matched?.apiKey) {
+          markKeyRateLimited(matched.apiKey);
+        }
+      }
+    }
+  }
+  if (
+    p.error?.code === "QUOTA_EXCEEDED" ||
+    p.error?.code === "PROVIDER_RATE_LIMITED" ||
+    p.error?.code === "429" ||
+    p.error?.code === 429 ||
+    p.error?.status === 429 ||
+    p.error?.status === "429" ||
+    p.code === "QUOTA_EXCEEDED" ||
+    p.code === "PROVIDER_RATE_LIMITED" ||
+    p.code === "429" ||
+    p.code === 429 ||
+    p.status === 429 ||
+    p.status === "429" ||
+    p.statusCode === 429
+  ) {
+    const provId = p.providerId || p.error?.providerId;
+    const matched = provId
+      ? providers.find((item) => item.id === provId || item.name === provId)
+      : providers[0];
+    if (matched?.apiKey) {
+      markKeyRateLimited(matched.apiKey);
+    }
+  }
 }
 
 export type ModelTier = keyof typeof MODEL_TIER_MAP;
@@ -196,6 +270,7 @@ export async function chatWithAiService(
       const response = await fetch(`${aiServiceUrl}/api/v1/chat`, {
         method: "POST",
         headers,
+        keepalive: true,
         body: JSON.stringify({
           message,
           conversationId,
@@ -213,9 +288,20 @@ export async function chatWithAiService(
         signal: controller.signal,
       });
       if (!response.ok) {
+        if (response.status === 429 && activeProviders[0]?.apiKey) {
+          markKeyRateLimited(activeProviders[0].apiKey);
+        }
+        try {
+          const errBody = await response.json();
+          extractAndMarkRateLimitedKeys(errBody, activeProviders);
+        } catch {
+          // Body is not valid JSON
+        }
         throw new Error("AI_SERVICE_HTTP_ERROR");
       }
-      const data = chatResultSchema.parse(await response.json());
+      const rawJson = await response.json();
+      extractAndMarkRateLimitedKeys(rawJson, activeProviders);
+      const data = chatResultSchema.parse(rawJson);
       return {
         reply: data.reply,
         intent: data.intent,

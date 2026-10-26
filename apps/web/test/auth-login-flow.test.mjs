@@ -141,7 +141,9 @@ describe('Account login and session lifecycle (isolated browser fixtures)', () =
     const { page, state, errors } = await fixture();
     await signIn(page);
     await page.getByRole('button', { name: 'Quay lại Vận Hành (CRM)', exact: true }).click();
-    assert.equal(await page.getByText('Nhân viên', { exact: true }).count(), 1);
+    const roleBadge = page.getByText('Nhân viên', { exact: true });
+    await roleBadge.waitFor({ state: 'visible' });
+    assert.equal(await roleBadge.count(), 1);
     const saved = await page.evaluate(() => ({ local: { ...localStorage }, session: { ...sessionStorage } }));
     assert.equal(JSON.stringify(saved).includes('test-login-token'), false);
     assert.equal(JSON.stringify(saved).includes('guta_user'), false);
