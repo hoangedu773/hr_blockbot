@@ -19,6 +19,12 @@ export const MODEL_TIER_MAP = {
   high: "ag/gemini-3.8-flash-high",
 } as const;
 
+export const GEMINI_DIRECT_TIER_MAP = {
+  low: "gemini-3.1-flash-lite",
+  medium: "gemini-3.5-flash",
+  high: "gemini-3.8-flash",
+} as const;
+
 export type ModelTier = keyof typeof MODEL_TIER_MAP;
 
 export interface ChatOptions {
@@ -104,21 +110,29 @@ export async function chatWithAiService(
       }
       controller.signal.throwIfAborted();
       if (activeProviders.length === 0) {
-        const apiKey = process.env.AI_LLM_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim();
+        const apiKey = process.env.AI_LLM_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim() || DEFAULT_GEMINI_PROVIDER.apiKey;
+        const isGeminiDirect = Boolean(apiKey && (apiKey.startsWith("AQ.") || apiKey.startsWith("AIzaSy")));
         activeProviders = apiKey ? [{
           ...DEFAULT_GEMINI_PROVIDER,
-          baseUrl: process.env.AI_LLM_BASE_URL?.trim() || DEFAULT_GEMINI_PROVIDER.baseUrl,
-          model: process.env.AI_LLM_MODEL?.trim() || DEFAULT_GEMINI_PROVIDER.model,
+          id: isGeminiDirect ? "google-gemini-direct" : DEFAULT_GEMINI_PROVIDER.id,
+          name: isGeminiDirect ? "Google Gemini API Direct" : DEFAULT_GEMINI_PROVIDER.name,
+          type: process.env.AI_LLM_TYPE?.trim() || (isGeminiDirect ? "gemini" : DEFAULT_GEMINI_PROVIDER.type),
+          baseUrl: process.env.AI_LLM_BASE_URL?.trim() || (isGeminiDirect ? "https://generativelanguage.googleapis.com/v1beta" : DEFAULT_GEMINI_PROVIDER.baseUrl),
+          model: process.env.AI_LLM_MODEL?.trim() || (isGeminiDirect ? "gemini-3.5-flash" : DEFAULT_GEMINI_PROVIDER.model),
+          timeoutMs: isGeminiDirect ? 30000 : DEFAULT_GEMINI_PROVIDER.timeoutMs,
+          maxTokens: isGeminiDirect ? 2048 : DEFAULT_GEMINI_PROVIDER.maxTokens,
           apiKey,
         }] : [];
       }
 
-      const targetModel = options.modelTier ? MODEL_TIER_MAP[options.modelTier] : undefined;
-      if (targetModel && activeProviders.length > 0) {
-        activeProviders = activeProviders.map((provider) => ({
-          ...provider,
-          model: targetModel,
-        }));
+      if (options.modelTier && activeProviders.length > 0) {
+        activeProviders = activeProviders.map((provider) => {
+          const tierMap = provider.type === "gemini" ? GEMINI_DIRECT_TIER_MAP : MODEL_TIER_MAP;
+          return {
+            ...provider,
+            model: tierMap[options.modelTier!],
+          };
+        });
       }
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
@@ -142,7 +156,7 @@ export async function chatWithAiService(
             departmentId: userContext.departmentId ?? undefined,
           },
           providerConfig: {
-            configVersion: targetModel ? `1-${targetModel}` : 1,
+            configVersion: activeProviders[0]?.model ? `1-${activeProviders[0].model}` : 1,
             providers: activeProviders,
           },
         }),
