@@ -38,16 +38,20 @@ def default_chain() -> ProviderChain:
     """No credentials in source; request-scoped providers take precedence elsewhere."""
     if not settings.llm_api_key:
         return ProviderChain([])
+    key = settings.llm_api_key.strip()
+    is_gemini_direct = key.startswith("AQ.") or key.startswith("AIzaSy")
+    provider_type = "gemini" if is_gemini_direct else "openai_compatible"
+    base_url = "https://generativelanguage.googleapis.com/v1beta" if is_gemini_direct else settings.llm_base_url
+    model = "gemini-3.5-flash" if is_gemini_direct else settings.llm_model
     return build_chain({"providers": [{
-        "id": "gemini-flash-proxy",
-        "type": "openai_compatible",
-        "baseUrl": settings.llm_base_url,
-        "apiKey": settings.llm_api_key,
-        "model": settings.llm_model,
+        "id": "google-gemini-direct" if is_gemini_direct else "gemini-flash-proxy",
+        "type": provider_type,
+        "baseUrl": base_url,
+        "apiKey": key,
+        "model": model,
         "timeoutMs": settings.llm_timeout_ms,
-        "maxTokens": 1200,
+        "maxTokens": 2048 if is_gemini_direct else 1200,
     }]})
-
 
 def json_object(text: str) -> dict[str, object]:
     """Accept plain JSON or a single Markdown JSON fence, never prose fragments."""

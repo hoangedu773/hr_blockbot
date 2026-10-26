@@ -25,6 +25,27 @@ export const GEMINI_DIRECT_TIER_MAP = {
   high: "gemini-3.8-flash",
 } as const;
 
+/** Key Pool Google Gemini nạp an toàn qua biến môi trường AI_LLM_API_KEYS */
+export function getGeminiKeyPool(): string[] {
+  const envRaw = process.env.AI_LLM_API_KEYS || process.env.GEMINI_API_KEYS || process.env.AI_LLM_API_KEY;
+  if (!envRaw) return [];
+  return Array.from(new Set(
+    envRaw
+      .split(/[,\n;]/)
+      .map((k) => k.trim())
+      .filter((k) => k.startsWith("AQ.") || k.startsWith("AIzaSy"))
+  ));
+}
+
+let keyRotationCounter = 0;
+export function getRotatedKeyPool(): string[] {
+  const pool = getGeminiKeyPool();
+  if (pool.length <= 1) return pool;
+  const start = keyRotationCounter % pool.length;
+  keyRotationCounter = (keyRotationCounter + 1) % pool.length;
+  return [...pool.slice(start), ...pool.slice(0, start)];
+}
+
 export type ModelTier = keyof typeof MODEL_TIER_MAP;
 
 export interface ChatOptions {
@@ -110,22 +131,51 @@ export async function chatWithAiService(
       }
       controller.signal.throwIfAborted();
       if (activeProviders.length === 0) {
-        const apiKey = process.env.AI_LLM_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim() || DEFAULT_GEMINI_PROVIDER.apiKey;
-        const isGeminiDirect = Boolean(apiKey && (apiKey.startsWith("AQ.") || apiKey.startsWith("AIzaSy")));
-        activeProviders = apiKey ? [{
-          ...DEFAULT_GEMINI_PROVIDER,
-          id: isGeminiDirect ? "google-gemini-direct" : DEFAULT_GEMINI_PROVIDER.id,
-          name: isGeminiDirect ? "Google Gemini API Direct" : DEFAULT_GEMINI_PROVIDER.name,
-          type: process.env.AI_LLM_TYPE?.trim() || (isGeminiDirect ? "gemini" : DEFAULT_GEMINI_PROVIDER.type),
-          baseUrl: process.env.AI_LLM_BASE_URL?.trim() || (isGeminiDirect ? "https://generativelanguage.googleapis.com/v1beta" : DEFAULT_GEMINI_PROVIDER.baseUrl),
-          model: process.env.AI_LLM_MODEL?.trim() || (isGeminiDirect ? "gemini-3.5-flash" : DEFAULT_GEMINI_PROVIDER.model),
-          timeoutMs: isGeminiDirect ? 30000 : DEFAULT_GEMINI_PROVIDER.timeoutMs,
-          maxTokens: isGeminiDirect ? 2048 : DEFAULT_GEMINI_PROVIDER.maxTokens,
-          apiKey,
-        }] : [];
-      }
+        const envKey = process.env.AI_LLM_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim();
+        const isMockTest = Boolean(envKey && !envKey.startsWith("AQ.") && !envKey.startsWith("AIzaSy"));
 
-      if (options.modelTier && activeProviders.length > 0) {
+        if (isMockTest) {
+          activeProviders = [{
+            ...DEFAULT_GEMINI_PROVIDER,
+            baseUrl: process.env.AI_LLM_BASE_URL?.trim() || DEFAULT_GEMINI_PROVIDER.baseUrl,
+            model: process.env.AI_LLM_MODEL?.trim() || DEFAULT_GEMINI_PROVIDER.model,
+            apiKey: envKey!,
+          }];
+        } else {
+          // Google Gemini Direct: Multi-Key Pool & Multi-Model Failover
+          const pool = getRotatedKeyPool();
+          const targetModel = options.modelTier
+            ? GEMINI_DIRECT_TIER_MAP[options.modelTier]
+            : (process.env.AI_LLM_MODEL?.trim() || "gemini-3.5-flash");
+
+          activeProviders = pool.map((key, idx) => ({
+            id: `google-gemini-slot-${idx + 1}`,
+            name: `Google Gemini Direct (Slot ${idx + 1})`,
+            type: "gemini",
+            baseUrl: process.env.AI_LLM_BASE_URL?.trim() || "https://generativelanguage.googleapis.com/v1beta",
+            model: targetModel,
+            apiKey: key,
+            maxTokens: 2048,
+            timeoutMs: 30000,
+            priority: idx + 1,
+          }));
+
+          // Multi-model resilience: nếu yêu cầu High Tier (gemini-3.8-flash), thêm fallback gemini-3.5-flash
+          if (targetModel === "gemini-3.8-flash" && pool.length > 0) {
+            activeProviders.push({
+              id: "google-gemini-fallback-3.5",
+              name: "Google Gemini 3.5 Flash Fallback",
+              type: "gemini",
+              baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+              model: "gemini-3.5-flash",
+              apiKey: pool[0],
+              maxTokens: 2048,
+              timeoutMs: 30000,
+              priority: activeProviders.length + 1,
+            });
+          }
+        }
+      } else if (options.modelTier && activeProviders.length > 0) {
         activeProviders = activeProviders.map((provider) => {
           const tierMap = provider.type === "gemini" ? GEMINI_DIRECT_TIER_MAP : MODEL_TIER_MAP;
           return {
