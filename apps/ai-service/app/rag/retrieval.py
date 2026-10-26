@@ -474,4 +474,36 @@ def build_retriever(
         return dense
     if kind == "hybrid":
         return HybridRetriever(LexicalRetriever(chunks), dense)
+    if kind == "cached":
+        return CachedRetriever(LexicalRetriever(chunks))
     raise ValueError(f"unknown retriever: {kind}")
+
+
+class CachedRetriever:
+    name = "cached"
+
+    def __init__(self, inner: Retriever, ttl_seconds: float = 300.0, max_size: int = 128) -> None:
+        import time
+        self.inner = inner
+        self.ttl = ttl_seconds
+        self.max_size = max_size
+        self._time = time.time
+        self._cache: dict[str, tuple[float, RetrievalResult]] = {}
+
+    def search(self, query: str, k: int | None = None, scope: dict[str, Any] | None = None) -> RetrievalResult:
+        norm_q = " ".join(query.strip().lower().split())
+        scope_key = str(sorted(scope.items())) if scope else ""
+        cache_key = f"{norm_q}:{k}:{scope_key}"
+        now = self._time()
+        if cache_key in self._cache:
+            timestamp, result = self._cache[cache_key]
+            if now - timestamp < self.ttl:
+                return result
+            self._cache.pop(cache_key, None)
+
+        result = self.inner.search(query, k=k, scope=scope)
+        if len(self._cache) >= self.max_size:
+            oldest_key = min(self._cache, key=lambda key: self._cache[key][0])
+            self._cache.pop(oldest_key, None)
+        self._cache[cache_key] = (now, result)
+        return result

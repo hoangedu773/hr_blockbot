@@ -1,6 +1,31 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { apiFetch, API_BASE } from '../../services/auth';
-import type { Citation, ProposedAction } from './ChatDrawer';
+import {
+  type Citation,
+  type ProposedAction,
+  type Attachment,
+  type UserRole,
+  ROLE_CONFIG,
+  getSafeUserRole,
+  ROLE_QUICK_REPLIES,
+} from './ChatDrawer';
+export type ModelTier = 'low' | 'medium' | 'high';
+
+export const MODEL_TIER_CONFIG = {
+  low: { id: 'ag/gemini-3.8-flash-low', label: 'Low', desc: 'Tiết kiệm / Nhanh' },
+  medium: { id: 'ag/gemini-3.8-flash-medium', label: 'Medium', desc: 'Cân bằng' },
+  high: { id: 'ag/gemini-3.8-flash-high', label: 'High', desc: 'Phân tích sâu' },
+} as const;
+
+export function getSafeModelTier(): ModelTier {
+  try {
+    if (typeof window === 'undefined') return 'medium';
+    const saved = localStorage.getItem('guta_model_tier');
+    return saved === 'low' || saved === 'medium' || saved === 'high' ? saved : 'medium';
+  } catch {
+    return 'medium';
+  }
+}
 
 interface ChatPageViewProps {
   onSwitchTab: (tab: 'crm' | 'chat') => void;
@@ -12,6 +37,7 @@ interface Message {
   sender: 'user' | 'assistant';
   text: string;
   citations?: Citation[];
+  attachments?: Attachment[];
   proposedAction?: ProposedAction | null;
   demo?: boolean;
 }
@@ -47,6 +73,21 @@ function parseReply(value: unknown): Omit<Message, 'id' | 'sender'> & { conversa
       });
     }
   }
+  const attachments: Attachment[] = [];
+  if (value.attachments != null) {
+    if (!Array.isArray(value.attachments)) throw new Error('Invalid attachments');
+    for (const item of value.attachments) {
+      if (!isRecord(item) || typeof item.title !== 'string' || typeof item.url !== 'string') {
+        continue;
+      }
+      attachments.push({
+        title: item.title,
+        type: item.type === 'image' ? 'image' : 'pdf',
+        url: item.url,
+        fileName: typeof item.fileName === 'string' && item.fileName ? item.fileName : item.url.split('/').pop() || 'document',
+      });
+    }
+  }
   let proposedAction: ProposedAction | null = null;
   if (value.proposedAction != null) {
     const action = value.proposedAction;
@@ -66,11 +107,31 @@ function parseReply(value: unknown): Omit<Message, 'id' | 'sender'> & { conversa
   if (value.conversationId != null && (typeof value.conversationId !== 'string' || !value.conversationId.trim())) {
     throw new Error('Invalid conversation ID');
   }
-  return { text: value.reply, citations, proposedAction, conversationId: value.conversationId as string | undefined };
+  return { text: value.reply, citations, attachments, proposedAction, conversationId: value.conversationId as string | undefined };
 }
 
 function demoReply(text: string): Omit<Message, 'id' | 'sender'> {
   const query = text.toLocaleLowerCase('vi-VN');
+  if (query.includes('bàn giao') || query.includes('biên bản') || query.includes('mẫu')) {
+    return {
+      text: 'Đây là các biểu mẫu biên bản bàn giao chuẩn của GUTA Cafe. Bạn có thể xem và tải bản PDF gốc đính kèm bên dưới:',
+      demo: true,
+      attachments: [
+        {
+          title: 'Biên bản bàn giao công việc GUTA',
+          type: 'pdf',
+          url: '/api/attachments/pdf/GUTA_Bien_ban_ban_giao_cong_viec.pdf',
+          fileName: 'GUTA_Bien_ban_ban_giao_cong_viec.pdf',
+        },
+        {
+          title: 'Biên bản bàn giao tài sản GUTA',
+          type: 'pdf',
+          url: '/api/attachments/pdf/GUTA_Bien_ban_ban_giao_tai_san.pdf',
+          fileName: 'GUTA_Bien_ban_ban_giao_tai_san.pdf',
+        },
+      ],
+    };
+  }
   if (query.includes('thiếu người') || query.includes('điều động')) {
     return {
       text: 'Chưa có dữ liệu ca trực trực tiếp. Trong bản demo, bạn có thể xem trước đề xuất bổ sung Barista cho ca thiếu người. Cần kiểm tra lịch ca và sự đồng ý của quản lý trước khi điều động.',
@@ -125,9 +186,18 @@ const styles = `
 .guta-chat .chat-back-crm { border-color: var(--chat-border); background: var(--chat-hover); transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1), background-color 140ms cubic-bezier(0.23, 1, 0.32, 1); }
 .guta-chat .chat-back-crm:active:not(:disabled) { transform: scale(0.98); }
 .guta-chat-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.guta-chat-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 72px; padding: 16px 24px; }
+.guta-chat-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 72px; padding: 16px 24px; flex-wrap: wrap; }
+.guta-chat-header-title { display: flex; flex-direction: column; gap: 2px; }
 .guta-chat-header strong { font-size: 16px; }
 .guta-chat-header span { font-size: 12px; color: var(--chat-muted); }
+.guta-chat-header-actions { display: flex; align-items: center; gap: 12px; }
+.guta-chat-role-picker { display: inline-flex; align-items: center; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--chat-border); border-radius: 9999px; padding: 3px; gap: 2px; }
+.guta-chat-role-btn { min-height: 28px !important; min-width: 44px !important; padding: 4px 10px !important; font-size: 12px !important; border-radius: 9999px !important; border: none !important; text-align: center !important; color: var(--chat-muted); transition: background-color 150ms ease, color 150ms ease; cursor: pointer; white-space: nowrap; }
+.guta-chat-role-btn:hover:not(:disabled) { color: var(--chat-text); background: var(--chat-hover); }
+.guta-chat-role-btn[data-active="true"] { background: var(--chat-accent) !important; color: #000000 !important; font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); }
+.guta-chat-model-tier { display: inline-flex; align-items: center; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--chat-border); border-radius: 9999px; padding: 3px; gap: 2px; }
+.guta-chat-model-btn:hover:not(:disabled) { color: var(--chat-text); background: var(--chat-hover); }
+.guta-chat-model-btn[data-active="true"] { background: var(--chat-accent) !important; color: #000000 !important; font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); }
 .guta-chat-header .chat-menu { display: none; }
 .guta-chat-body { flex: 1; min-height: 0; overflow-y: auto; padding: 24px; }
 .guta-chat-width { width: 100%; max-width: 768px; margin: 0 auto; }
@@ -215,6 +285,8 @@ const styles = `
 export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogout }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
+  const [modelTier, setModelTier] = useState<ModelTier>(getSafeModelTier);
+  const [role, setRole] = useState<UserRole>(getSafeUserRole);
   const [isTyping, setIsTyping] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -283,7 +355,14 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
         const response = await apiFetch(`${API_BASE}/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: text, conversationId: conversationId.current }),
+          body: JSON.stringify({
+            message: text,
+            conversationId: conversationId.current,
+            modelTier,
+            model: MODEL_TIER_CONFIG[modelTier].id,
+            role,
+            userContext: { role },
+          }),
           signal: controller.signal,
         });
         if (!response.ok) throw new Error(`Chat HTTP ${response.status}`);
@@ -339,9 +418,25 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
       <aside id="copilot-sidebar" className="guta-chat-sidebar" data-open={sidebarOpen} aria-label="Điều hướng Copilot">
         <div className="guta-chat-brand"><img className="guta-chat-logo" src="/assets/logos/guta-mark-pure.svg" alt="" />HR-BlockBot Workspace</div>
         <button className="chat-new" type="button" onClick={newChat}>+ New Chat</button>
-        <nav aria-label="Chủ đề mẫu">
-          <p>CHỦ ĐỀ MẪU</p>
-          {TOPICS.map((topic) => <button type="button" key={topic.title} disabled={isTyping} onClick={() => send(topic.prompt)}>{topic.title}</button>)}
+        <nav aria-label="Gợi ý theo vai trò">
+          <p>GỢI Ý · {ROLE_CONFIG[role].badge.toUpperCase()}</p>
+          {ROLE_QUICK_REPLIES[role].map((item) => (
+            <button
+              type="button"
+              key={item.label}
+              disabled={isTyping}
+              title={item.prompt}
+              onClick={() => send(item.prompt)}
+            >
+              {item.label}
+            </button>
+          ))}
+          <p style={{ marginTop: '16px' }}>CHỦ ĐỀ CHUNG</p>
+          {TOPICS.map((topic) => (
+            <button type="button" key={topic.title} disabled={isTyping} onClick={() => send(topic.prompt)}>
+              {topic.title}
+            </button>
+          ))}
         </nav>
         <footer>
           <button className="chat-back-crm" type="button" onClick={() => onSwitchTab('crm')}>Quay lại Vận Hành (CRM)</button>
@@ -350,9 +445,54 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
       </aside>
       <main className="guta-chat-main" aria-label="HR-BlockBot AI Copilot">
         <header className="guta-chat-header">
-          <button className="chat-menu" type="button" aria-label="Menu Copilot" aria-expanded={sidebarOpen} aria-controls="copilot-sidebar" onClick={() => setSidebarOpen(!sidebarOpen)}><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg></button>
-          <strong>HR-BlockBot AI Copilot</strong><span>Trợ lý vận hành · Xác nhận trước khi ghi</span>
-          <button type="button" aria-label="Quay lại CRM" onClick={() => onSwitchTab('crm')}>CRM</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button className="chat-menu" type="button" aria-label="Menu Copilot" aria-expanded={sidebarOpen} aria-controls="copilot-sidebar" onClick={() => setSidebarOpen(!sidebarOpen)}><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg></button>
+            <div className="guta-chat-header-title">
+              <strong>HR-BlockBot AI Copilot</strong>
+              <span>{ROLE_CONFIG[role].label} · {MODEL_TIER_CONFIG[modelTier].desc}</span>
+            </div>
+          </div>
+          <div className="guta-chat-header-actions">
+            <div className="guta-chat-role-picker" role="radiogroup" aria-label="Chọn vai trò người dùng">
+              {(['Employee', 'SM', 'AOM', 'Admin'] as const).map((r) => (
+                <button
+                  type="button"
+                  key={r}
+                  role="radio"
+                  aria-checked={role === r}
+                  data-active={role === r}
+                  className="guta-chat-role-btn"
+                  title={`${ROLE_CONFIG[r].label} (${ROLE_CONFIG[r].badge}) - ${ROLE_CONFIG[r].desc}`}
+                  onClick={() => {
+                    setRole(r);
+                    try { localStorage.setItem('guta_chat_role', r); } catch { /* ignore quota/private */ }
+                  }}
+                >
+                  {ROLE_CONFIG[r].badge}
+                </button>
+              ))}
+            </div>
+            <div className="guta-chat-model-tier" role="radiogroup" aria-label="Chọn chế độ Model AI">
+              {(['low', 'medium', 'high'] as const).map((tier) => (
+                <button
+                  type="button"
+                  key={tier}
+                  role="radio"
+                  aria-checked={modelTier === tier}
+                  data-active={modelTier === tier}
+                  className="guta-chat-model-btn"
+                  title={`${MODEL_TIER_CONFIG[tier].label} (${MODEL_TIER_CONFIG[tier].id}) - ${MODEL_TIER_CONFIG[tier].desc}`}
+                  onClick={() => {
+                    setModelTier(tier);
+                    try { localStorage.setItem('guta_model_tier', tier); } catch { /* ignore quota/private */ }
+                  }}
+                >
+                  {MODEL_TIER_CONFIG[tier].label}
+                </button>
+              ))}
+            </div>
+            <button type="button" aria-label="Quay lại CRM" onClick={() => onSwitchTab('crm')}>CRM</button>
+          </div>
         </header>
         {messages.length === 0 ? (
           <section className="guta-chat-empty" aria-label="Bắt đầu hội thoại">
@@ -363,8 +503,20 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
                 <p>Cùng bạn điều phối ca trực, tra cứu nhân sự và đối soát tiền két.</p>
               </div>
               {composer}
-              <div className="guta-chat-prompts" aria-label="Gợi ý câu hỏi">
-                {TOPICS.map((topic) => <button type="button" key={topic.title} onClick={() => send(topic.prompt)}>{topic.title}</button>)}
+              <div className="guta-chat-prompts" aria-label="Gợi ý hành động nhanh theo vai trò">
+                <div style={{ width: '100%', textAlign: 'center', marginBottom: '8px', fontSize: '11px', color: 'var(--chat-muted)', letterSpacing: '0.04em' }}>
+                  GỢI Ý NHANH CHO {ROLE_CONFIG[role].label.toUpperCase()} ({ROLE_CONFIG[role].badge}):
+                </div>
+                {ROLE_QUICK_REPLIES[role].map((item) => (
+                  <button
+                    type="button"
+                    key={item.label}
+                    title={item.prompt}
+                    onClick={() => send(item.prompt)}
+                  >
+                    {item.label}
+                  </button>
+                ))}
               </div>
             </div>
           </section>
@@ -381,6 +533,77 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
                       <strong>Căn cứ quy định (Citations)</strong>
                       <ul>{message.citations.map((citation, index) => <li key={index}>{citation.document}{citation.version ? ` · ${citation.version}` : ''}{citation.article ? ` · ${citation.article}` : ''}</li>)}</ul>
                     </section>}
+                    {!!message.attachments?.length && (
+                      <section className="guta-chat-card" aria-label="Tài liệu đính kèm" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <strong>Tài liệu & Biểu mẫu đính kèm (Attachments)</strong>
+                        {message.attachments.map((att, index) => {
+                          const isPdf = att.type === 'pdf';
+                          return (
+                            <div
+                              key={index}
+                              style={{
+                                display: 'flex',
+                                flexDirection: isPdf ? 'row' : 'column',
+                                alignItems: isPdf ? 'center' : 'stretch',
+                                justifyContent: isPdf ? 'space-between' : 'flex-start',
+                                gap: '10px',
+                                padding: '10px 12px',
+                                borderRadius: '8px',
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                              }}
+                            >
+                              {isPdf ? (
+                                <>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                                    <span style={{ background: '#dc2626', color: '#fff', fontSize: '10px', fontWeight: 700, padding: '3px 6px', borderRadius: '4px', flexShrink: 0 }}>PDF</span>
+                                    <div style={{ minWidth: 0 }}>
+                                      <div style={{ fontWeight: 600, fontSize: '13px', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{att.title}</div>
+                                      <div style={{ fontSize: '11px', color: 'var(--chat-muted)' }}>
+                                        <span style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', padding: '1px 5px', borderRadius: '4px', marginRight: '6px' }}>Biểu mẫu GUTA</span>
+                                        {att.fileName}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <a
+                                    href={att.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                      padding: '6px 12px',
+                                      borderRadius: '6px',
+                                      background: '#10b981',
+                                      color: '#fff',
+                                      fontSize: '12px',
+                                      fontWeight: 600,
+                                      textDecoration: 'none',
+                                      whiteSpace: 'nowrap',
+                                      flexShrink: 0,
+                                    }}
+                                  >
+                                    Xem / Tải PDF
+                                  </a>
+                                </>
+                              ) : (
+                                <>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span style={{ background: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa', fontSize: '10px', fontWeight: 600, padding: '2px 6px', borderRadius: '4px' }}>Ảnh tham chiếu</span>
+                                    <span style={{ fontWeight: 600, fontSize: '13px', color: '#fff' }}>{att.title}</span>
+                                  </div>
+                                  <a href={att.url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', borderRadius: '6px', overflow: 'hidden', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                                    <img src={att.url} alt={att.title} style={{ width: '100%', maxHeight: '200px', objectFit: 'contain', background: '#000', display: 'block' }} loading="lazy" />
+                                  </a>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--chat-muted)' }}>
+                                    <span>{att.fileName}</span>
+                                    <a href={att.url} target="_blank" rel="noopener noreferrer" style={{ color: '#38bdf8', textDecoration: 'none' }}>Xem ảnh lớn ↗</a>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </section>
+                    )}
                     {message.proposedAction && <section className="guta-chat-card" aria-label="Đề xuất hành động">
                       <strong>Đề xuất hành động (Confirm-before-write)</strong>
                       <p>{message.proposedAction.preview || message.proposedAction.type}</p>

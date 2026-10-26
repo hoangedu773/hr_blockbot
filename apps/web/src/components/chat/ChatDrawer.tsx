@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { apiFetch, API_BASE } from '../../services/auth';
-
+import { apiFetch, API_BASE, getAuthUser } from '../../services/auth';
 export interface ChatDrawerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -22,12 +21,185 @@ export interface ProposedAction {
   status?: 'pending' | 'confirmed' | 'cancelled';
 }
 
+export interface Attachment {
+  title: string;
+  type: 'pdf' | 'image';
+  url: string;
+  fileName: string;
+}
+
+export type ModelTier = 'low' | 'medium' | 'high';
+
+export const MODEL_TIER_CONFIG = {
+  low: { id: 'ag/gemini-3.8-flash-low', label: 'Low', desc: 'Tiết kiệm / Nhanh' },
+  medium: { id: 'ag/gemini-3.8-flash-medium', label: 'Medium', desc: 'Cân bằng' },
+  high: { id: 'ag/gemini-3.8-flash-high', label: 'High', desc: 'Phân tích sâu' },
+} as const;
+
+export function getSafeModelTier(): ModelTier {
+  try {
+    if (typeof window === 'undefined') return 'medium';
+    const saved = localStorage.getItem('guta_model_tier');
+    return saved === 'low' || saved === 'medium' || saved === 'high' ? saved : 'medium';
+  } catch {
+    return 'medium';
+  }
+}
+
+export type UserRole = 'Employee' | 'SM' | 'AOM' | 'Admin';
+
+export const ROLE_CONFIG: Record<
+  UserRole,
+  { label: string; badge: string; desc: string; isManager: boolean }
+> = {
+  Employee: {
+    label: 'Nhân viên',
+    badge: 'Barista / NV',
+    desc: 'Thao tác ca trực, biểu mẫu bàn giao & giải trình két',
+    isManager: false,
+  },
+  SM: {
+    label: 'Cửa hàng trưởng',
+    badge: 'SM',
+    desc: 'Quản lý cửa hàng, duyệt đổi ca & đối soát két',
+    isManager: true,
+  },
+  AOM: {
+    label: 'Quản lý khu vực',
+    badge: 'AOM',
+    desc: 'Điều phối cụm cửa hàng & xử lý chênh lệch quỹ',
+    isManager: true,
+  },
+  Admin: {
+    label: 'Ban điều hành',
+    badge: 'Admin',
+    desc: 'Toàn quyền quản trị quy chế & đối soát toàn chuỗi',
+    isManager: true,
+  },
+};
+
+export function getSafeUserRole(): UserRole {
+  try {
+    const authUser = getAuthUser();
+    if (authUser?.role) {
+      const r = authUser.role.toLowerCase();
+      if (r === 'admin') return 'Admin';
+      if (r === 'aom') return 'AOM';
+      if (r === 'sm') return 'SM';
+    }
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('guta_chat_role');
+      if (saved && (saved === 'Employee' || saved === 'SM' || saved === 'AOM' || saved === 'Admin')) {
+        return saved;
+      }
+    }
+  } catch {
+    // fallback
+  }
+  return 'Employee';
+}
+
+export const ROLE_QUICK_REPLIES: Record<
+  UserRole,
+  Array<{ label: string; prompt: string; desc?: string }>
+> = {
+  Employee: [
+    {
+      label: 'Xem cách ghi mẫu bàn giao',
+      prompt: 'Xem cách ghi mẫu biên bản bàn giao công việc và tài sản tại cửa hàng Guta',
+      desc: 'Hướng dẫn ghi biểu mẫu bàn giao ca & tài sản',
+    },
+    {
+      label: 'Hướng dẫn xin đổi ca',
+      prompt: 'Hướng dẫn xin đổi ca trực: quy trình, điều kiện và thời hạn báo trước 4 tiếng',
+      desc: 'Báo trước 4 tiếng, tìm người thay thế',
+    },
+    {
+      label: 'Giải trình chênh lệch két',
+      prompt: 'Quy trình xử lý chênh lệch két tiền và hướng dẫn viết bản giải trình trong 48 giờ',
+      desc: 'Lập biên bản và giải trình trong 48h',
+    },
+    {
+      label: 'Quy định tác phong & đi trễ',
+      prompt: 'Quy định tác phong, đồng phục và mức chế tài khi đi trễ quá 15 phút tại Guta',
+      desc: 'Đồng phục, nón, tạp dề và đi trễ >15p',
+    },
+  ],
+  SM: [
+    {
+      label: 'Checklist xác nhận bàn giao',
+      prompt: 'Checklist kiểm tra và xác nhận biên bản bàn giao ca, tài sản của Cửa hàng trưởng (SM)',
+      desc: 'Checklist kiểm tra đối soát bàn giao cho SM',
+    },
+    {
+      label: 'Biên bản kiểm quỹ & xử lý chênh lệch',
+      prompt: 'Biên bản kiểm quỹ đột xuất và thẩm quyền xử lý chênh lệch quỹ két của Quản lý cửa hàng',
+      desc: 'Thẩm quyền xử lý chênh lệch két trong hạn mức',
+    },
+    {
+      label: 'Quy trình duyệt đổi ca & thiếu người',
+      prompt: 'Quy trình phê duyệt đơn đổi ca của nhân viên và phương án điều động khi ca trực thiếu người',
+      desc: 'Duyệt đổi ca & điều động khi thiếu Barista',
+    },
+    {
+      label: 'Báo cáo doanh thu & chốt két',
+      prompt: 'Quy trình đối soát doanh thu POS, chốt két ca và bàn giao tiền mặt cuối ngày',
+      desc: 'Đối soát POS và bàn giao tiền mặt cuối ngày',
+    },
+  ],
+  AOM: [
+    {
+      label: 'Checklist xác nhận bàn giao',
+      prompt: 'Checklist kiểm tra và xác nhận biên bản bàn giao ca, tài sản của Quản lý khu vực (AOM)',
+      desc: 'Đối soát bàn giao cụm cửa hàng',
+    },
+    {
+      label: 'Biên bản kiểm quỹ & xử lý chênh lệch',
+      prompt: 'Biên bản kiểm quỹ đột xuất và thẩm quyền xử lý chênh lệch quỹ két vượt hạn mức SM',
+      desc: 'Xử lý chênh lệch quỹ két vượt hạn mức SM',
+    },
+    {
+      label: 'Quy trình duyệt đổi ca & thiếu người',
+      prompt: 'Quy trình phê duyệt đổi ca cụm chi nhánh và điều phối nhân sự khu vực',
+      desc: 'Điều phối nhân sự liên chi nhánh',
+    },
+    {
+      label: 'Báo cáo doanh thu & chốt két',
+      prompt: 'Quy trình đối soát doanh thu chuỗi chi nhánh và chốt két ca khu vực',
+      desc: 'Đối soát doanh thu cụm chi nhánh',
+    },
+  ],
+  Admin: [
+    {
+      label: 'Checklist xác nhận bàn giao',
+      prompt: 'Checklist kiểm tra và xác nhận biên bản bàn giao ca, tài sản toàn chuỗi Guta',
+      desc: 'Quy chuẩn bàn giao tài sản toàn chuỗi',
+    },
+    {
+      label: 'Biên bản kiểm quỹ & xử lý chênh lệch',
+      prompt: 'Quy trình kiểm quỹ, đối soát tài chính và xử lý gian lận chênh lệch két',
+      desc: 'Quy chuẩn kiểm quỹ và đối soát tài chính',
+    },
+    {
+      label: 'Quy trình duyệt đổi ca & thiếu người',
+      prompt: 'Chính sách điều động nhân sự chuỗi 45 chi nhánh và quy trình duyệt ca đặc biệt',
+      desc: 'Chính sách điều động chuỗi 45 chi nhánh',
+    },
+    {
+      label: 'Báo cáo doanh thu & chốt két',
+      prompt: 'Tổng hợp đối soát doanh thu POS và chốt két toàn chuỗi 45 cửa hàng Guta',
+      desc: 'Tổng hợp doanh thu chuỗi 45 cửa hàng',
+    },
+  ],
+};
+
 interface ChatMessage {
   id: string;
   sender: 'user' | 'assistant';
   text: string;
   timestamp: string;
   citations?: Citation[];
+  attachments?: Attachment[];
   proposedAction?: ProposedAction | null;
   retryText?: string;
 }
@@ -49,6 +221,17 @@ function parseReply(value: unknown) {
       score: typeof item.score === 'number' && Number.isFinite(item.score) && item.score >= 0 && item.score <= 1 ? item.score : undefined,
     });
   }
+  const attachments: Attachment[] = [];
+  for (const item of Array.isArray(value.attachments) ? value.attachments : []) {
+    if (!isRecord(item) || typeof item.title !== 'string' || typeof item.url !== 'string') continue;
+    const type = item.type === 'image' ? 'image' : 'pdf';
+    attachments.push({
+      title: item.title,
+      type,
+      url: item.url,
+      fileName: typeof item.fileName === 'string' && item.fileName ? item.fileName : item.url.split('/').pop() || 'document',
+    });
+  }
   const action = value.proposedAction;
   const proposedAction: ProposedAction | null = isRecord(action) && typeof action.type === 'string' && action.type.trim()
     ? {
@@ -62,6 +245,7 @@ function parseReply(value: unknown) {
   return {
     reply: value.reply,
     citations,
+    attachments,
     proposedAction,
     degraded: value.degraded === true,
     conversationId: typeof value.conversationId === 'string' && value.conversationId.trim() && value.conversationId.length <= 200 ? value.conversationId : undefined,
@@ -96,6 +280,8 @@ const PROMPT_CHIPS = [
 export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
   const [inputText, setInputText] = useState('');
+  const [modelTier, setModelTier] = useState<ModelTier>(getSafeModelTier);
+  const [role, setRole] = useState<UserRole>(getSafeUserRole);
   const [isTyping, setIsTyping] = useState(false);
   const [toast, setToast] = useState('');
   const conversationId = useRef<string>();
@@ -212,6 +398,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
       const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 20000);
       let botResponse = 'Trợ lý AI hiện chưa kết nối hoặc phản hồi không hợp lệ. Vui lòng thử lại; chưa có hành động nào được thực hiện.';
       let citations: Citation[] = [];
+      let attachments: Attachment[] = [];
       let proposedAction: ProposedAction | null = null;
       let retryText: string | undefined;
       try {
@@ -220,8 +407,14 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ message: text, conversationId: conversationId.current }),
-          signal: controller.signal,
+          body: JSON.stringify({
+            message: text,
+            conversationId: conversationId.current,
+            modelTier,
+            model: MODEL_TIER_CONFIG[modelTier].id,
+            role,
+            userContext: { role },
+          }),
         });
 
         if (!res.ok) throw new Error('CHAT_UNAVAILABLE');
@@ -229,6 +422,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
         if (controller.signal.aborted) return;
         botResponse = data.reply;
         citations = data.citations;
+        attachments = data.attachments;
         proposedAction = data.proposedAction;
         retryText = data.degraded ? text : undefined;
         conversationId.current = data.conversationId ?? conversationId.current;
@@ -250,6 +444,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
         text: botResponse,
         timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
         citations,
+        attachments,
         proposedAction,
         retryText,
       };
@@ -267,7 +462,8 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
         .guta-chat-drawer { --drawer-text: #f4f4f5; --drawer-muted: #a1a1aa; --drawer-surface: #121214; --drawer-raised: #27272a; --drawer-border: #52525b; --drawer-on-primary: #fafafa; --drawer-primary: #52525b; --drawer-success: #6ee7b7; --drawer-shade: #09090b; font-family: var(--font-sans); }
         .guta-chat-drawer button, .guta-chat-drawer input { min-width: 44px; min-height: 44px; }
         .guta-chat-drawer button { font-family: inherit; white-space: nowrap; }
-        .guta-chat-drawer button:focus-visible, .guta-chat-drawer input:focus-visible { outline: 2px solid var(--drawer-text); outline-offset: 2px; }
+        .guta-chat-drawer .guta-tier-btn { min-width: 0; min-height: 0; }
+        .guta-chat-drawer .guta-role-btn { min-width: 0; min-height: 0; }
         .guta-chat-drawer button:disabled { opacity: .5; cursor: not-allowed; }
         .guta-chat-drawer button:active:not(:disabled) { transform: translateY(1px); }
         .guta-chat-drawer code { font-family: var(--mono); overflow-wrap: anywhere; }
@@ -337,7 +533,9 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
           top: 0,
           right: 0,
           bottom: 0,
-          width: 'min(480px, 94vw)',
+          width: 'min(480px, 100vw)',
+          maxWidth: '100%',
+          overflowX: 'hidden',
           backgroundColor: 'rgba(18, 18, 20, 0.94)',
           backdropFilter: 'blur(24px)',
           borderLeft: '1px solid rgba(255, 255, 255, 0.08)',
@@ -355,15 +553,52 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
         {/* Header */}
         <div
           style={{
-            padding: '16px 22px',
+            padding: '12px 14px',
             borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
             backgroundColor: 'var(--drawer-surface)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            gap: '8px',
+            flexWrap: 'wrap',
+            minWidth: 0,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Đóng Chat Copilot"
+            style={{
+              order: 2,
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              color: 'var(--drawer-muted)',
+              fontSize: '15px',
+              cursor: 'pointer',
+              width: '44px',
+              height: '44px',
+              minWidth: '44px',
+              minHeight: '44px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'opacity 140ms var(--motion-ease-standard)',
+              flexShrink: 0,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = 'var(--drawer-text)';
+              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = 'var(--drawer-muted)';
+              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+            }}
+          >
+            ✕
+          </button>
+
+          <div style={{ order: 1, display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div
               style={{
                 width: '34px',
@@ -386,42 +621,119 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
               </div>
               <div style={{ fontSize: '11px', color: '#34d399', display: 'flex', alignItems: 'center', gap: '5px', marginTop: '1px' }}>
                 <span style={{ width: '6px', height: '6px', borderRadius: '9999px', backgroundColor: '#10b981' }}></span>
-                <span>Gemini Flash · Trợ lý ca trực</span>
+                <span>{ROLE_CONFIG[role].label} · {MODEL_TIER_CONFIG[modelTier].desc}</span>
               </div>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Đóng Chat Copilot"
-            style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              color: 'var(--drawer-muted)',
-              fontSize: '15px',
-              cursor: 'pointer',
-              width: '30px',
-              height: '30px',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'opacity 140ms var(--motion-ease-standard)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = 'var(--drawer-text)';
-              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = 'var(--drawer-muted)';
-              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-            }}
-          >
-            ✕
-          </button>
+          <div style={{ order: 3, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, marginLeft: 'auto' }}>
+            <div
+              role="radiogroup"
+              aria-label="Chọn chế độ Model AI"
+              style={{
+                alignItems: 'center',
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: '9999px',
+                padding: '2px',
+                gap: '2px',
+              }}
+            >
+              {(['low', 'medium', 'high'] as const).map((tier) => (
+                <button
+                  type="button"
+                  key={tier}
+                  role="radio"
+                  aria-checked={modelTier === tier}
+                  title={`${MODEL_TIER_CONFIG[tier].label} (${MODEL_TIER_CONFIG[tier].id}) - ${MODEL_TIER_CONFIG[tier].desc}`}
+                  onClick={() => {
+                    setModelTier(tier);
+                    try { localStorage.setItem('guta_model_tier', tier); } catch { /* ignore quota/private */ }
+                  }}
+                  className="guta-tier-btn"
+                  style={{
+                    border: 'none',
+                    borderRadius: '9999px',
+                    padding: '3px 7px',
+                    fontSize: '11px',
+                    fontWeight: modelTier === tier ? 700 : 500,
+                    backgroundColor: modelTier === tier ? '#ffffff' : 'transparent',
+                    color: modelTier === tier ? '#000000' : 'var(--drawer-muted)',
+                    cursor: 'pointer',
+                    transition: 'all 140ms ease',
+                  }}
+                >
+                  {MODEL_TIER_CONFIG[tier].label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+
         </div>
 
+        {/* Role Selector Toolbar */}
+        <div
+          style={{
+            padding: '8px 14px',
+            backgroundColor: 'rgba(255, 255, 255, 0.02)',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px',
+            flexWrap: 'wrap',
+            minWidth: 0,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--drawer-muted)' }}>
+            <span>Vai trò:</span>
+            <span style={{ fontWeight: 700, color: 'var(--drawer-text)', backgroundColor: 'rgba(255, 255, 255, 0.08)', padding: '2px 6px', borderRadius: '4px' }}>
+              {ROLE_CONFIG[role].label}
+            </span>
+          </div>
+          <div
+            role="radiogroup"
+            aria-label="Chọn vai trò người dùng"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '9999px',
+              padding: '2px',
+              gap: '2px',
+            }}
+          >
+            {(['Employee', 'SM', 'AOM', 'Admin'] as const).map((r) => (
+              <button
+                type="button"
+                key={r}
+                role="radio"
+                aria-checked={role === r}
+                title={`${ROLE_CONFIG[r].label} (${ROLE_CONFIG[r].badge}) - ${ROLE_CONFIG[r].desc}`}
+                onClick={() => {
+                  setRole(r);
+                  try { localStorage.setItem('guta_chat_role', r); } catch { /* ignore quota/private */ }
+                }}
+                className="guta-role-btn"
+                style={{
+                  border: 'none',
+                  borderRadius: '9999px',
+                  padding: '3px 7px',
+                  fontSize: '11px',
+                  fontWeight: role === r ? 700 : 500,
+                  backgroundColor: role === r ? '#ffffff' : 'transparent',
+                  color: role === r ? '#000000' : 'var(--drawer-muted)',
+                  cursor: 'pointer',
+                  transition: 'all 140ms ease',
+                }}
+              >
+                {ROLE_CONFIG[r].badge}
+              </button>
+            ))}
+          </div>
+        </div>
         {/* Message Log */}
         <div
           style={{
@@ -522,6 +834,130 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                     </div>
                   )}
 
+                  {/* Khối Đính Kèm Tệp & Ảnh (Attachments) */}
+                  {msg.attachments && msg.attachments.length > 0 && (
+                    <div
+                      role="region"
+                      aria-label="Tài liệu đính kèm"
+                      style={{
+                        marginTop: '10px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px',
+                      }}
+                    >
+                      {msg.attachments.map((att, idx) => {
+                        const isPdf = att.type === 'pdf';
+                        return (
+                          <div
+                            key={idx}
+                            style={{
+                              display: 'flex',
+                              flexDirection: isPdf ? 'row' : 'column',
+                              alignItems: isPdf ? 'center' : 'stretch',
+                              justifyContent: isPdf ? 'space-between' : 'flex-start',
+                              gap: '10px',
+                              padding: '10px 12px',
+                              borderRadius: '10px',
+                              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                              border: '1px solid rgba(255, 255, 255, 0.12)',
+                            }}
+                          >
+                            {isPdf ? (
+                              <>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                                  <div
+                                    style={{
+                                      width: '32px',
+                                      height: '32px',
+                                      borderRadius: '6px',
+                                      backgroundColor: '#dc2626',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      color: '#fff',
+                                      fontWeight: 700,
+                                      fontSize: '11px',
+                                      flexShrink: 0,
+                                    }}
+                                  >
+                                    PDF
+                                  </div>
+                                  <div style={{ minWidth: 0 }}>
+                                    <div style={{ fontWeight: 600, fontSize: '12px', color: '#f4f4f5', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {att.title}
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: '#a1a1aa' }}>
+                                      <span style={{ backgroundColor: 'rgba(16, 185, 129, 0.2)', color: '#34d399', padding: '1px 5px', borderRadius: '4px', marginRight: '6px', fontSize: '10px' }}>
+                                        Biểu mẫu GUTA
+                                      </span>
+                                      {att.fileName}
+                                    </div>
+                                  </div>
+                                </div>
+                                <a
+                                  href={att.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    padding: '6px 12px',
+                                    borderRadius: '6px',
+                                    backgroundColor: '#10b981',
+                                    color: '#fff',
+                                    fontSize: '11px',
+                                    fontWeight: 600,
+                                    textDecoration: 'none',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    flexShrink: 0,
+                                    minHeight: '44px',
+                                    boxSizing: 'border-box',
+                                  }}
+                                >
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                                  <span>Tải PDF</span>
+                                </a>
+                              </>
+                            ) : (
+                              <>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                                  <span style={{ backgroundColor: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa', padding: '1px 5px', borderRadius: '4px', fontSize: '10px' }}>
+                                    Ảnh tham chiếu
+                                  </span>
+                                  <span style={{ fontWeight: 600, fontSize: '12px', color: '#f4f4f5' }}>{att.title}</span>
+                                </div>
+                                <a
+                                  href={att.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ display: 'block', borderRadius: '6px', overflow: 'hidden', border: '1px solid rgba(255, 255, 255, 0.1)' }}
+                                >
+                                  <img
+                                    src={att.url}
+                                    alt={att.title}
+                                    style={{ width: '100%', maxHeight: '200px', objectFit: 'contain', backgroundColor: '#000', display: 'block' }}
+                                    loading="lazy"
+                                  />
+                                </a>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', fontSize: '11px', color: '#a1a1aa' }}>
+                                  <span>{att.fileName}</span>
+                                  <a
+                                    href={att.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ color: '#38bdf8', textDecoration: 'none', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '2px' }}
+                                  >
+                                    Xem ảnh lớn ↗
+                                  </a>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                   {/* Khối Đề Xuất Hành Động (Confirm-Before-Write Action Card) */}
                   {msg.proposedAction && (
                     <div
@@ -624,36 +1060,82 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
 
           {/* ChatGPT-Style Prompt Cards Grid on initial state */}
           {messages.length <= 1 && (
-            <div style={{ margin: '14px 0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--drawer-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>
+            <div style={{ margin: '14px 0', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--drawer-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Hành động đề xuất ({ROLE_CONFIG[role].label}):
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#a1a1aa' }}>
+                  {ROLE_CONFIG[role].desc}
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {ROLE_QUICK_REPLIES[role].map((item) => (
+                  <button
+                    key={item.label}
+                    type="button"
+                    disabled={isTyping}
+                    onClick={() => handleSend(item.prompt)}
+                    style={{
+                      minHeight: '44px',
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                      border: '1px solid rgba(255, 255, 255, 0.09)',
+                      color: 'var(--drawer-text)',
+                      fontSize: '12.5px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '8px',
+                      textAlign: 'left',
+                      transition: 'background-color 140ms ease',
+                    }}
+                    className="chat-prompt"
+                    title={item.prompt}
+                  >
+                    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                      <span style={{ fontWeight: 600, color: 'var(--drawer-text)', whiteSpace: 'normal' }}>{item.label}</span>
+                      {item.desc && <span style={{ fontSize: '11px', color: 'var(--drawer-muted)', whiteSpace: 'normal' }}>{item.desc}</span>}
+                    </div>
+                    <span style={{ color: 'var(--drawer-text)', fontSize: '13px', fontWeight: 700, flexShrink: 0 }}>→</span>
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--drawer-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '6px' }}>
                 Gợi ý câu hỏi phổ biến:
               </div>
-              {PROMPT_CHIPS.map((chip, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  disabled={isTyping}
-                  onClick={() => handleSend(chip)}
-                  style={{
-                    padding: '12px 14px',
-                    borderRadius: '12px',
-                    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                    border: '1px solid rgba(255, 255, 255, 0.07)',
-                    color: 'var(--drawer-text)',
-                    fontSize: '12.5px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    transition: 'opacity 140ms var(--motion-ease-standard)',
-                  }}
-                  className="chat-prompt"
-                  title={chip}
-                >
-                  <span style={{ whiteSpace: 'normal' }}>{chip}</span>
-                  <span style={{ color: 'var(--drawer-text)', fontSize: '13px', fontWeight: 700 }}>→</span>
-                </button>
-              ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {PROMPT_CHIPS.map((chip, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    disabled={isTyping}
+                    onClick={() => handleSend(chip)}
+                    style={{
+                      minHeight: '44px',
+                      padding: '12px 14px',
+                      borderRadius: '12px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                      border: '1px solid rgba(255, 255, 255, 0.07)',
+                      color: 'var(--drawer-text)',
+                      fontSize: '12.5px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      transition: 'opacity 140ms var(--motion-ease-standard)',
+                    }}
+                    className="chat-prompt"
+                    title={chip}
+                  >
+                    <span style={{ whiteSpace: 'normal' }}>{chip}</span>
+                    <span style={{ color: 'var(--drawer-text)', fontSize: '13px', fontWeight: 700 }}>→</span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 

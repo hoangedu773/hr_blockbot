@@ -85,6 +85,92 @@ SEED_POLICIES: list[dict[str, Any]] = [
             },
         ],
     },
+    {
+        "document": "Biểu Mẫu Biên Bản Bàn Giao GUTA",
+        "version": "v1.0-2026",
+        "source": "seed",
+        "articles": [
+            {
+                "article": "Biên bản bàn giao công việc",
+                "text": "Mẫu ghi nhận các đầu việc được chuyển giao cùng tình trạng thực hiện. Mẫu có phần thông tin hai bên (Bên giao và Bên nhận), lý do chuyển giao, danh sách nội dung công việc và chữ ký xác nhận của ba bên (Người giao, Người nhận, Quản lý SM). Tệp đính kèm chính thức: GUTA_Bien_ban_ban_giao_cong_viec.pdf (tải tại /api/attachments/pdf/GUTA_Bien_ban_ban_giao_cong_viec.pdf).",
+            },
+            {
+                "article": "Biên bản bàn giao tài sản",
+                "text": "Mẫu ghi nhận việc chuyển giao tài sản, máy móc thiết bị và công cụ dụng cụ giữa bên giao và bên nhận tại cửa hàng. Mẫu có phần thông tin hai bên, lý do bàn giao, danh sách chi tiết tài sản/hiện trạng hoạt động và chữ ký xác nhận của ba bên. Tệp đính kèm chính thức: GUTA_Bien_ban_ban_giao_tai_san.pdf (tải tại /api/attachments/pdf/GUTA_Bien_ban_ban_giao_tai_san.pdf).",
+            },
+        ],
+    },
+    {
+        "document": "Bộ Tri Thức Đào Tạo & Hội Nhập GUTA",
+        "version": "v1.0-2026",
+        "source": "seed",
+        "articles": [
+            {
+                "article": "GUTA-KB-001: Tra cứu tài liệu đào tạo",
+                "text": "Tài liệu đào tạo GUTA gồm 4 nhóm: tài liệu GUTA Cafe, bộ quy trình GUTA Cafe, bộ quy trình Bánh Mì 365 và bộ quy trình GUTA Express. Chọn đúng mô hình cửa hàng trước khi mở tài liệu. Liên hệ bộ phận Đào tạo khi cần hỗ trợ tìm tài liệu chính thức.",
+            },
+            {
+                "article": "GUTA-KB-002: Tra cứu quy trình, quy định và biểu mẫu",
+                "text": "Danh mục trung tâm GUTA tập hợp liên kết về nhân sự (lương thưởng, lịch trả lương, phân cấp, tuyển dụng), vận hành (KPI, nộp doanh thu, đơn online, hao hụt, gian lận) và biểu mẫu chia thành kế toán và nhân sự.",
+            },
+            {
+                "article": "GUTA-KB-003: Tra cứu biểu mẫu nhân sự",
+                "text": "Biểu mẫu nhân sự chia theo khối cửa hàng (tuyển dụng, nghỉ phép, chấm công, đề xuất đổi lương/chức danh, tiếp nhận/nghỉ việc/điều chuyển) và khối văn phòng (đề nghị tuyển dụng, mô tả công việc, đánh giá thử việc, nghỉ phép).",
+            },
+            {
+                "article": "GUTA-KB-004: Tra cứu biểu mẫu kế toán",
+                "text": "Cung cấp 4 loại biểu mẫu: đề nghị tạm ứng, đề nghị hoàn ứng, bảng kê hoàn ứng và đề nghị thanh toán. Khi thiếu mẫu liên hệ Phòng Kế toán Guta.",
+            },
+            {
+                "article": "GUTA-KB-005: Chính sách lương NVBH và PTCH",
+                "text": "Chính sách lương cho nhân viên bán hàng và phụ trách cửa hàng đề cập 4 nhóm: ghi nhận thời gian làm việc và số giờ tối thiểu, chế độ công ngày lễ, cấp lương cơ bản và thưởng tháng 13.",
+            },
+            {
+                "article": "GUTA-KB-006: Hội nhập ngày 1 - Tác phong trang phục",
+                "text": "Nhân viên mới được hướng dẫn tác phong trang phục: quần áo sạch sẽ, ngay ngắn, áo đồng phục Guta, giày che kín đầu chân (giày bít mũi), tóc thu gọn gàng, đeo tạp dề và bảng tên đúng quy định.",
+            },
+            {
+                "article": "GUTA-KB-007: Hội nhập ngày 2 - Tiêu chuẩn chào khách",
+                "text": "Cách đón khách lịch sự và thân thiện: nét mặt tích cực, tươi tắn, giao tiếp bằng ánh mắt, dùng giọng chào ấm áp rõ ràng để tạo cảm giác khách được chào đón nồng nhiệt.",
+            },
+            {
+                "article": "GUTA-KB-008: Hội nhập ngày 3 - Đọc đơn hàng và bill",
+                "text": "Khi đọc bill cần kiểm tra: tên món khách gọi, số lượng, thời điểm đặt đơn, các ghi chú yêu cầu riêng (độ ngọt, lượng đá, topping). Kiểm tra kỹ giúp pha chế đúng món, giảm tối đa sai sót đơn hàng.",
+            },
+            {
+                "article": "GUTA-KB-009: Hội nhập ngày 4 - Phân biệt cỡ ly",
+                "text": "Phân biệt rõ ràng 3 cỡ ly: S (nhỏ), M (vừa) và L (lớn) để dùng đúng định lượng đá và nguyên liệu pha chế theo công thức tiêu chuẩn GUTA, giảm nhầm cỡ ly khi phục vụ và giao hàng.",
+            },
+            {
+                "article": "GUTA-KB-010: Hội nhập ngày 5 - Chuẩn bị nước đường",
+                "text": "Công đoạn chuẩn bị nước đường: đong đo tỷ lệ nguyên liệu, gia nhiệt nấu tan đều, lọc cặn sạch sẽ và bảo quản trong bình kín chuyên dụng, đảm bảo vệ sinh an toàn thực phẩm và tính ổn định khi pha chế.",
+            },
+            {
+                "article": "GUTA-KB-011: Hình thức đào tạo nhân viên",
+                "text": "Đào tạo cho nhân viên mới theo từng vị trí, kết hợp học lý thuyết kiến thức sản phẩm với thực hành tại quầy: pha chế Barista, bán hàng gợi ý, chăm sóc khách hàng, quản lý vệ sinh và kiểm soát chất lượng.",
+            },
+            {
+                "article": "GUTA-KB-012: Nhiệm vụ của Cửa hàng trưởng (SM)",
+                "text": "Năm nhóm nhiệm vụ chính của SM: sắp xếp và phân bổ lịch làm việc nhân viên, hướng dẫn và đào tạo nhân viên mới, kiểm tra nguyên vật liệu và công cụ dụng cụ, duy trì vệ sinh an toàn cửa hàng, theo dõi và báo cáo doanh thu két định kỳ.",
+            },
+            {
+                "article": "GUTA-KB-013: Vai trò Quản lý khu vực (AOM)",
+                "text": "AOM là đầu mối kết nối Ban điều hành vận hành với các SM điểm bán: triển khai chỉ đạo vận hành, theo dõi hoạt động cụm chi nhánh, điều phối nhân sự hỗ trợ ca thiếu người và đào tạo nâng cao chất lượng đội ngũ.",
+            },
+            {
+                "article": "GUTA-KB-014: Gợi ý tổ chức công việc hiệu quả",
+                "text": "Năm thói quen làm việc hiệu quả: xác định việc ưu tiên, phân chia thời gian cho từng nhiệm vụ, giảm yếu tố gây mất tập trung, điều chỉnh thói quen ảnh hưởng năng suất và nghỉ ngơi hợp lý. Kèm ảnh tham chiếu (/api/attachments/images/A-0f2e554322.png).",
+            },
+            {
+                "article": "GUTA-KB-015: Kỹ năng mềm cho nhân viên",
+                "text": "Các kỹ năng mềm thiết yếu: giao tiếp lịch thiệp với khách hàng, phối hợp làm việc nhóm ăn ý, tinh thần học hỏi thích nghi, quản lý thời gian và bình tĩnh xử lý vấn đề phát sinh tại quầy. Kèm ảnh tham chiếu (/api/attachments/images/A-104e9ffff0.jpg).",
+            },
+            {
+                "article": "GUTA-KB-PROMOTION: Lộ trình thăng tiến khối vận hành",
+                "text": "Lộ trình phát triển sự nghiệp trong khối vận hành GUTA: Nhân viên thử việc -> Barista / Thu ngân chính thức -> Ca trưởng -> Cửa hàng trưởng (SM) -> Quản lý khu vực (AOM). Kèm ảnh sơ đồ lộ trình thăng tiến tham chiếu (/api/attachments/images/A-a7f1d20c2e.jpg).",
+            },
+        ],
+    },
 ]
 
 

@@ -94,10 +94,12 @@ INTENTS: tuple[IntentDef, ...] = (
               ("hồ sơ của tôi", "thông tin cá nhân", "xem hồ sơ", "profile của tôi"), "/profile"),
     IntentDef("25", "Chính sách", "hỏi quy định công ty", "search_policy", "read", ("Admin", "Employee"),
               ("quy định", "chính sách", "quy chế", "nội quy", "điều lệ", "được hưởng",
-               "lương", "nghỉ", "chấm công", "ca làm", "két tiền", "đào tạo", "lễ tết"),
+               "lương", "nghỉ", "chấm công", "ca làm", "két tiền", "đào tạo", "lễ tết",
+               "tác phong", "đi trễ", "chênh lệch két", "kiểm quỹ", "chốt két", "quản lý quỹ"),
               "/policies"),
     IntentDef("26", "Chính sách", "hỏi quy trình nghiệp vụ", "search_policy", "read", ("Admin", "Employee"),
-              ("quy trình", "thủ tục", "các bước", "làm thế nào để", "hướng dẫn"), "/policies"),
+              ("quy trình", "thủ tục", "các bước", "làm thế nào để", "hướng dẫn",
+               "bàn giao", "biên bản", "đổi ca", "checklist", "đối soát", "xác nhận bàn giao"), "/policies"),
     # Default policy-QA intent so out-of-scope questions reach retrieval and abstain.
     IntentDef("25b", "Chính sách", "câu hỏi chính sách (mặc định)", "search_policy", "read", ("Admin", "Employee"),
               (), "/policies"),
@@ -159,12 +161,26 @@ def _extract_report_args(message: str) -> dict[str, Any]:
         content = message
     return {"projectRef": project_ref, "content": content[:4000]}
 
+def is_role_allowed(user_role: str | None, intent_roles: tuple[str, ...]) -> bool:
+    if not user_role or not intent_roles:
+        return True
+    norm = str(user_role).strip().lower()
+    is_mgr = norm in (
+        "admin", "administrator", "sm", "aom", "manager", "quan_ly", "quản lý",
+        "cửa hàng trưởng", "quản lý khu vực", "ban điều hành",
+    )
+    if is_mgr:
+        return any(r in intent_roles for r in ("Admin", "SM", "AOM", "Manager"))
+    return any(r in intent_roles for r in ("Employee", "Barista"))
 
-def classify(message: str) -> RouteDecision:
+
+def classify(message: str, role: str | None = None) -> RouteDecision:
     """Keyword/rule router; deterministic and offline (no LLM call)."""
     normalised = normalize_text(message)
     for intent in INTENTS:
         if not _match_keywords(normalised, intent.keywords):
+            continue
+        if role is not None and not is_role_allowed(role, intent.roles):
             continue
         decision = RouteDecision(
             intent_id=intent.id,

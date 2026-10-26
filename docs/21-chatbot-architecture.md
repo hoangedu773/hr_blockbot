@@ -22,6 +22,8 @@
 ---
 
 ## 2. Sơ đồ khối
+> **Bản đồ kiến trúc trực quan (Interactive Architecture Reader):** Xem file HTML tương tác tại [`docs/diagrams/chatbot-architecture.html`](diagrams/chatbot-architecture.html) hoặc vector SVG [`docs/diagrams/chatbot-architecture.svg`](diagrams/chatbot-architecture.svg) (biên dịch từ typed IR `chatbot-architecture.json` theo chuẩn `ak-diagram`).
+
 
 ```mermaid
 flowchart TB
@@ -333,3 +335,16 @@ Harness: bộ câu hỏi tất định + `temperature=0` + snapshot, chạy `pyt
 - `toolTimeout`, `LLM timeout`, trần kích thước kết quả tool
 - Retention của `conversations` (bao lâu thì xoá/đóng)
 - Có dùng lại `feedback_events` cho đánh giá câu trả lời hay không
+
+---
+
+## 14. Lộ trình mở rộng & Học hỏi Agent Sandbox (Roadmap / Coming Soon)
+
+Học hỏi từ mô hình Agentic Container Isolation (tham chiếu kiến trúc Zero-Trust Agent Host):
+
+1. **Outbound Egress Proxy & Key-Swap:** Tách biệt LLM API Key thật khỏi AI Sidecar. Sidecar chỉ nhận `per-turn ephemeral token`; Egress Proxy hoán đổi secret key từ Vault và thực thi domain allowlist nghiêm ngặt (chống prompt injection data exfiltration).
+2. **Isolated Docker Sandbox Runner:** Cung cấp môi trường thực thi mã cô lập (Docker container) để chạy phân tích số liệu chấm công / KPI / xuất file báo cáo mà không tiêu tốn RAM hay rủi ro crash dịch vụ chính.
+3. **Headless Browser Agent (Chrome CDP + Xvnc):** Tự động hóa tác vụ trên portal nhân sự bên ngoài (tra cứu bảo hiểm xã hội, nộp báo cáo lao động).
+4. **Episodic & Long-term Memory (Qdrant + SQLite Git):** Vượt qua giới hạn 50 tin nhắn của `conversations`, lưu trữ vết ngữ cảnh dài hạn và thói quen đổi ca của nhân viên có thể kiểm toán qua Git commit log.
+5. **Omni-Channel Ingress Relay:** Mở rộng kết nối qua Telegram Bot và Zalo OA thông qua Tailscale sidecar bảo mật cho quản lý cửa hàng trên di động.
+

@@ -7,6 +7,7 @@ const router = Router();
 const chatRequestSchema = z.object({
   message: z.string().trim().min(1).max(2000),
   conversationId: z.string().trim().min(1).max(200).optional(),
+  modelTier: z.enum(["low", "medium", "high"]).optional(),
 });
 
 // POST /api/chat - Giao tiếp với AI Copilot Agent Loop
@@ -32,8 +33,8 @@ router.post("/chat", authenticateToken, async (req: Request, res: Response) => {
       departmentId: user.departmentId ?? null,
     };
 
-    const { message, conversationId } = parsed.data;
-    const result = await chatWithAiService(message, userContext, conversationId);
+    const { message, conversationId, modelTier } = parsed.data;
+    const result = await chatWithAiService(message, userContext, conversationId, { modelTier });
 
     res.status(200).json({
       reply: result.reply,
@@ -44,6 +45,7 @@ router.post("/chat", authenticateToken, async (req: Request, res: Response) => {
       abstain: result.abstain,
       degraded: result.degraded,
       conversationId: result.conversationId,
+      attachments: result.attachments,
     });
   } catch {
     console.error("[ChatRoute] Unexpected chat processing failure");

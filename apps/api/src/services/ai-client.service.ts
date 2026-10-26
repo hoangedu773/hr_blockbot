@@ -13,6 +13,17 @@ export const DEFAULT_GEMINI_PROVIDER: ActiveProviderConfig = {
   priority: 1,
 };
 
+export const MODEL_TIER_MAP = {
+  low: "ag/gemini-3.8-flash-low",
+  medium: "ag/gemini-3.8-flash-medium",
+  high: "ag/gemini-3.8-flash-high",
+} as const;
+
+export type ModelTier = keyof typeof MODEL_TIER_MAP;
+
+export interface ChatOptions {
+  modelTier?: ModelTier;
+}
 export interface UserContextPayload {
   userId?: string | null;
   role?: "Admin" | "Employee";
@@ -33,6 +44,12 @@ const proposedActionSchema = z.object({
   args: z.record(z.unknown()).optional(),
   preview: z.string().optional(),
 });
+const attachmentSchema = z.object({
+  title: z.string().trim().min(1),
+  type: z.enum(["pdf", "image"]),
+  url: z.string().trim().min(1),
+  fileName: z.string().trim().min(1),
+});
 const chatResultSchema = z.object({
   reply: z.string().trim().min(1),
   intent: z.string().default("UNKNOWN"),
@@ -43,10 +60,12 @@ const chatResultSchema = z.object({
   abstain: z.boolean().default(false),
   degraded: z.boolean().default(false),
   conversationId: z.string().trim().min(1).max(200).optional(),
+  attachments: z.array(attachmentSchema).default([]),
 });
 
 export type Citation = z.infer<typeof citationSchema>;
 export type ProposedAction = z.infer<typeof proposedActionSchema>;
+export type Attachment = z.infer<typeof attachmentSchema>;
 export interface ChatResult {
   reply: string;
   intent?: string;
@@ -56,12 +75,14 @@ export interface ChatResult {
   abstain: boolean;
   degraded?: boolean;
   conversationId?: string;
+  attachments: Attachment[];
 }
 
 export async function chatWithAiService(
   message: string,
   userContext: UserContextPayload = {},
-  conversationId?: string
+  conversationId?: string,
+  options: ChatOptions = {}
 ): Promise<ChatResult> {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -92,7 +113,18 @@ export async function chatWithAiService(
         }] : [];
       }
 
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const targetModel = options.modelTier ? MODEL_TIER_MAP[options.modelTier] : undefined;
+      if (targetModel && activeProviders.length > 0) {
+        activeProviders = activeProviders.map((provider) => ({
+          ...provider,
+          model: targetModel,
+        }));
+      }
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "Connection": "keep-alive",
+        "Keep-Alive": "timeout=15, max=1000",
+      };
       if (process.env.AI_SERVICE_API_KEY) {
         headers["x-ai-service-key"] = process.env.AI_SERVICE_API_KEY;
       }
@@ -109,7 +141,10 @@ export async function chatWithAiService(
             employeeId: userContext.employeeId ?? undefined,
             departmentId: userContext.departmentId ?? undefined,
           },
-          providerConfig: { configVersion: 1, providers: activeProviders },
+          providerConfig: {
+            configVersion: targetModel ? `1-${targetModel}` : 1,
+            providers: activeProviders,
+          },
         }),
         signal: controller.signal,
       });
@@ -126,6 +161,7 @@ export async function chatWithAiService(
         abstain: data.abstain,
         degraded: data.degraded,
         conversationId: data.conversationId ?? conversationId,
+        attachments: data.attachments ?? [],
       };
     })()]);
   } catch {
@@ -140,6 +176,7 @@ export async function chatWithAiService(
       abstain: true,
       degraded: true,
       conversationId,
+      attachments: [],
     };
   } finally {
     clearTimeout(timer);
