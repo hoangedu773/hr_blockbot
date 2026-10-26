@@ -40,7 +40,7 @@ try {
       const login = await (await loginResponse).json();
       assert.ok(['Admin', 'Employee'].includes(login.user.role));
       await page.getByTestId('chat-page').waitFor();
-      const cookie = (await context.cookies(api)).find((item) => item.name === 'refreshToken');
+      const cookie = (await context.cookies(`${api}/auth/refresh`)).find((item) => item.name === 'refreshToken');
       assert.ok(cookie?.httpOnly && cookie.secure);
       assert.equal(cookie.sameSite, 'None');
       const me = await context.request.get(`${api}/auth/me`, { headers: { Authorization: `Bearer ${login.accessToken}` } });
