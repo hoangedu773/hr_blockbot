@@ -4,6 +4,7 @@ import type {
   LoginResponse,
   RefreshResponse,
 } from '@hr-blockbot/contracts';
+import { LoginResponseSchema, MeResponseSchema, RefreshResponseSchema } from '@hr-blockbot/contracts';
 
 /**
  * Public API origin. MUST stay overridable at build time: the Render deployment
@@ -21,6 +22,8 @@ export const API_BASE = import.meta.env.VITE_API_BASE ?? FALLBACK_API_BASE;
  */
 let inMemoryAccessToken: string | null = null;
 let inMemoryUser: AuthUser | null = null;
+// In-flight requests from an older session must never restore a logged-out user.
+let authRevision = 0;
 
 type AuthChangeListener = (user: AuthUser | null, token: string | null) => void;
 type AuthFailureListener = () => void;
@@ -37,12 +40,14 @@ export function getAuthUser(): AuthUser | null {
 }
 
 export function setAuthState(token: string | null, user: AuthUser | null): void {
+  authRevision += 1;
   inMemoryAccessToken = token;
   inMemoryUser = user;
   authChangeListeners.forEach((listener) => listener(user, token));
 }
 
 export function clearAuthState(): void {
+  authRevision += 1;
   inMemoryAccessToken = null;
   inMemoryUser = null;
   authChangeListeners.forEach((listener) => listener(null, null));
@@ -72,6 +77,7 @@ function notifyAuthFailure(): void {
  * Nếu có nhiều request đồng thời gặp 401, tất cả cùng chia sẻ 1 promise refresh duy nhất.
  */
 let refreshPromise: Promise<string | null> | null = null;
+let logoutPromise: Promise<void> | null = null;
 
 export async function refreshAccessToken(): Promise<string | null> {
   if (refreshPromise) {
@@ -79,6 +85,7 @@ export async function refreshAccessToken(): Promise<string | null> {
   }
 
   refreshPromise = (async () => {
+    const revision = authRevision;
     try {
       const res = await fetch(`${API_BASE}/auth/refresh`, {
         method: 'POST',
@@ -86,22 +93,33 @@ export async function refreshAccessToken(): Promise<string | null> {
           'Content-Type': 'application/json',
         },
         credentials: 'include', // Truyền HttpOnly Refresh Token cookie
+        signal: AbortSignal.timeout(15000),
       });
 
       if (!res.ok) {
         throw new Error(`Refresh failed with HTTP ${res.status}`);
       }
 
-      const data: RefreshResponse = await res.json();
+      const data: RefreshResponse = RefreshResponseSchema.parse(await res.json());
       if (!data?.accessToken) {
         throw new Error('Refresh response missing accessToken');
       }
 
+      const meResponse = await fetch(`${API_BASE}/auth/me`, {
+        headers: { Authorization: `Bearer ${data.accessToken}` },
+        credentials: 'include',
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!meResponse.ok) throw new Error('Không thể khôi phục thông tin tài khoản.');
+      const me = MeResponseSchema.parse(await meResponse.json());
+      if (revision !== authRevision) return null;
+
       inMemoryAccessToken = data.accessToken;
-      authChangeListeners.forEach((l) => l(inMemoryUser, inMemoryAccessToken));
+      inMemoryUser = { id: me.userId, role: me.role };
+      authChangeListeners.forEach((listener) => listener(inMemoryUser, inMemoryAccessToken));
       return data.accessToken;
     } catch {
-      notifyAuthFailure();
+      if (revision === authRevision) notifyAuthFailure();
       return null;
     } finally {
       refreshPromise = null;
@@ -112,49 +130,61 @@ export async function refreshAccessToken(): Promise<string | null> {
 }
 
 export async function login(credentials: LoginRequest): Promise<LoginResponse> {
+  // A previous logout must finish clearing its cookie before a new login sets one.
+  await logoutPromise;
+  const revision = ++authRevision;
   const res = await fetch(`${API_BASE}/auth/login`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     credentials: 'include',
-    body: JSON.stringify(credentials),
+    signal: AbortSignal.timeout(15000),
+    body: JSON.stringify({ email: credentials.email.trim().toLowerCase(), password: credentials.password }),
+  }).catch(() => {
+    throw new Error('Không thể kết nối máy chủ. Vui lòng thử lại.');
   });
 
   if (!res.ok) {
-    let errMsg = `Đăng nhập thất bại (HTTP ${res.status})`;
-    try {
-      const errJson = await res.json();
-      if (errJson?.error?.message) {
-        errMsg = errJson.error.message;
-      }
-    } catch {
-      // ignore json parse error
-    }
-    throw new Error(errMsg);
+    throw new Error(res.status === 401
+      ? 'Email hoặc mật khẩu không đúng.'
+      : res.status === 429
+      ? 'Bạn đã thử quá nhiều lần. Vui lòng thử lại sau.'
+      : 'Chưa thể đăng nhập lúc này. Vui lòng thử lại.');
   }
 
-  const data: LoginResponse = await res.json();
+  const parsed = LoginResponseSchema.safeParse(await res.json());
+  if (!parsed.success || !parsed.data.accessToken) {
+    throw new Error('Phản hồi đăng nhập không hợp lệ. Vui lòng thử lại.');
+  }
+  const data = parsed.data;
+  if (revision !== authRevision) throw new Error('Yêu cầu đăng nhập đã bị hủy.');
   setAuthState(data.accessToken, data.user);
   return data;
 }
 
-export async function logout(): Promise<void> {
+export function logout(): Promise<void> {
+  if (logoutPromise) return logoutPromise;
   const token = inMemoryAccessToken;
-  try {
-    await fetch(`${API_BASE}/auth/logout`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      credentials: 'include',
-    });
-  } catch {
-    // ignore network errors on logout
-  } finally {
-    clearAuthState();
-  }
+  // Clear the UI immediately. Wait for any rotating cookie before revoking it.
+  clearAuthState();
+  logoutPromise = (async () => {
+    await refreshPromise;
+    try {
+      await fetch(`${API_BASE}/auth/logout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'include',
+        signal: AbortSignal.timeout(15000),
+      });
+    } catch {
+      // The local session is already cleared if the server is unavailable.
+    }
+  })().finally(() => { logoutPromise = null; });
+  return logoutPromise;
 }
 
 /**
@@ -171,6 +201,8 @@ export async function apiFetch(
   init?: RequestInit,
   isRetry = false
 ): Promise<Response> {
+  const revision = authRevision;
+  const requestToken = inMemoryAccessToken;
   const headers = new Headers(init?.headers);
 
   if (inMemoryAccessToken && !headers.has('Authorization')) {
@@ -185,7 +217,7 @@ export async function apiFetch(
 
   const response = await fetch(input, config);
 
-  if (response.status === 401) {
+  if (response.status === 401 && revision === authRevision) {
     const urlStr =
       typeof input === 'string'
         ? input
@@ -204,7 +236,10 @@ export async function apiFetch(
     }
 
     // Single-flight refresh
-    const newToken = await refreshAccessToken();
+    const newToken = inMemoryAccessToken !== requestToken && inMemoryAccessToken
+      ? inMemoryAccessToken
+      : await refreshAccessToken();
+    if (revision !== authRevision) return response;
     if (newToken) {
       const retryHeaders = new Headers(init?.headers);
       retryHeaders.set('Authorization', `Bearer ${newToken}`);

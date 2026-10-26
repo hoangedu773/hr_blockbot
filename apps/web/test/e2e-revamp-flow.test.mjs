@@ -91,9 +91,17 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       }
     });
 
-    // UI demo contract: no live auth backend required.
-    await page.route('**/api/auth/refresh', (route) => route.fulfill({ status: 200, json: { accessToken: null } }));
-    await page.route('**/api/auth/logout', (route) => route.fulfill({ status: 204 }));
+    // Isolated auth boundary; never use real accounts or contact Atlas in this suite.
+    let activeUser = null;
+    await page.route('**/api/auth/login', (route) => {
+      const { email, password } = route.request().postDataJSON();
+      assert.equal(password, 'fixture-password');
+      activeUser = { id: 'fixture-user', role: email.startsWith('admin') ? 'Admin' : 'Employee' };
+      return route.fulfill({ status: 200, json: { accessToken: 'fixture-token', user: activeUser } });
+    });
+    await page.route('**/api/auth/refresh', (route) => route.fulfill({ status: 200, json: { accessToken: activeUser ? 'fixture-token' : null } }));
+    await page.route('**/api/auth/me', (route) => route.fulfill({ status: 200, json: { userId: activeUser.id, role: activeUser.role, skills: [] } }));
+    await page.route('**/api/auth/logout', (route) => { activeUser = null; return route.fulfill({ status: 204 }); });
     // Invalid payload exercises the safe demo boundary without a live backend.
     await page.route('**/api/chat', (route) => route.fulfill({ status: 200, json: {} }));
 
@@ -145,16 +153,16 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     const getStartedBtn = page.getByRole('button', { name: /Get Started/i });
     await getStartedBtn.click();
 
-    // Modal hiển thị 1-Click Login
-    const modalHeading = page.getByText(/Đăng Nhập Nhanh 1-Click/i);
+    // Account credentials replace the unrestricted role picker.
+    const modalHeading = page.getByRole('heading', { name: 'Đăng nhập Guta Workspace' });
     await modalHeading.waitFor({ state: 'visible', timeout: 3000 });
     assert.equal(await modalHeading.isVisible(), true);
   });
 
-  it('Bước 3: Bấm chọn tài khoản "Nguyễn Thị Phương Anh (SM)", mở First View là Chat Copilot, sau đó chuyển vào CRM Dashboard', async () => {
-    // Chọn tài khoản SM
-    const smAccount = page.getByText(/Nguyễn Thị Phương Anh/i).first();
-    await smAccount.click();
+  it('Bước 3: đăng nhập bằng tài khoản, mở Chat Copilot rồi chuyển vào CRM Dashboard', async () => {
+    await page.getByLabel('Email', { exact: true }).fill('employee@guta.test');
+    await page.getByLabel('Mật khẩu', { exact: true }).fill('fixture-password');
+    await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
 
     // First View: Khung Chat Copilot thông minh hiển thị đầu tiên
     const chatHeading = page.getByRole('heading', { name: 'Chào mừng HR-BlockBot AI Copilot' });
@@ -170,11 +178,11 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     await headerTitle.waitFor({ state: 'visible', timeout: 5000 });
     assert.equal(await headerTitle.isVisible(), true);
 
-    assert.equal(await page.evaluate(() => JSON.parse(sessionStorage.getItem('guta_user')).role), 'SM');
-    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('guta_user')).role), 'SM');
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('guta_user')), null);
+    assert.equal(await page.evaluate(() => localStorage.getItem('guta_user')), null);
 
     // Kiểm tra thông tin user hiển thị ở sidebar
-    const sidebarUser = page.getByText(/Nguyễn Thị Phương Anh/i);
+    const sidebarUser = page.locator('.crm-sidebar').getByText('Nhân viên', { exact: true });
     assert.equal(await sidebarUser.count() > 0, true);
     const logo = page.locator('.crm-sidebar img');
     assert.equal(await logo.getAttribute('src'), '/assets/logos/guta-mark-pure.svg');
@@ -322,47 +330,39 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.deepEqual(consoleErrors, []);
   });
 
-  it('Regression: unmount ChatPageView khi bot đang typing', async () => {
-    await page.evaluate(() => {
-      window.__replyCallbacks = 0;
-      window.__cancelledReplies = 0;
-      const originalSetTimeout = window.setTimeout.bind(window);
-      const originalClearTimeout = window.clearTimeout.bind(window);
-      const replies = new Set();
-      window.setTimeout = (callback, delay, ...args) => {
-        const id = originalSetTimeout(() => {
-          if (delay === 600) window.__replyCallbacks++;
-          callback(...args);
-        }, delay);
-        if (delay === 600) replies.add(id);
-        return id;
-      };
-      window.clearTimeout = (id) => {
-        if (replies.delete(id)) window.__cancelledReplies++;
-        originalClearTimeout(id);
-      };
-      window.__restoreTimers = () => {
-        window.setTimeout = originalSetTimeout;
-        window.clearTimeout = originalClearTimeout;
-      };
-    });
+  it('Regression: logout aborts an in-flight ChatPage request without reviving the session', async () => {
+    let release;
+    let started;
+    const waiting = new Promise((resolve) => { release = resolve; });
+    const requestStarted = new Promise((resolve) => { started = resolve; });
+    const pendingReply = async (route) => {
+      started();
+      await waiting;
+      await route.fulfill({ status: 200, json: { reply: 'Late answer', citations: [] } }).catch(() => {});
+    };
+    await page.route('**/api/chat', pendingReply);
     try {
       await page.locator('nav a').filter({ hasText: 'Copilot' }).click();
       await page.getByPlaceholder('Hỏi AI về ca trực, nhân sự, tiền két...').fill('thiếu người');
       await page.keyboard.press('Enter');
-      assert.equal(await page.getByText('Đang phân tích dữ liệu ca trực...').isVisible(), true);
-      await page.evaluate(() => document.querySelector('[aria-label="Đăng Xuất Phiên"]').click());
-      await page.waitForTimeout(700);
-      assert.deepEqual(await page.evaluate(() => [window.__replyCallbacks, window.__cancelledReplies]), [0, 1]);
+      await requestStarted;
+      assert.equal(await page.locator('.guta-chat-status').isVisible(), true);
+      const aborted = page.waitForEvent('requestfailed', { predicate: (request) => request.url().endsWith('/api/chat') });
+      await page.getByRole('button', { name: 'Đăng Xuất Phiên', exact: true }).click();
+      await aborted;
+      await page.getByRole('button', { name: /Get Started/i }).waitFor();
+      assert.equal(await page.getByTestId('chat-page').count(), 0);
       assert.deepEqual(await page.evaluate(() => [typeof window.openDrawer, typeof window.closeDrawer]), ['undefined', 'undefined']);
       assert.deepEqual(consoleErrors, []);
     } finally {
-      await page.evaluate(() => window.__restoreTimers());
+      release();
+      await page.unroute('**/api/chat', pendingReply);
     }
     await page.getByRole('button', { name: /Get Started/i }).click();
-    await page.getByText(/Nguyễn Thị Phương Anh/i).first().click();
-    const backCrmAfterLogin = page.getByRole('button', { name: 'Quay lại Vận Hành (CRM)', exact: true });
-    if (await backCrmAfterLogin.isVisible()) await backCrmAfterLogin.click();
+    await page.getByLabel('Email', { exact: true }).fill('employee@guta.test');
+    await page.getByLabel('Mật khẩu', { exact: true }).fill('fixture-password');
+    await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
+    await page.getByRole('button', { name: 'Quay lại Vận Hành (CRM)', exact: true }).click();
     await page.getByRole('table').waitFor({ state: 'visible' });
   });
 
@@ -726,17 +726,19 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.equal(await heroTitle.isVisible(), true);
     assert.equal(await page.evaluate(() => sessionStorage.getItem('guta_user')), null);
     assert.equal(await page.evaluate(() => localStorage.getItem('guta_user')), null);
-    for (const { role, name } of [
-      { role: 'AOM', name: 'Nguyễn Cao Thanh Trầm' },
-      { role: 'Admin', name: 'Ban Điều Hành Guta' },
+    for (const { email, name } of [
+      { email: 'employee@guta.test', name: 'Nhân viên' },
+      { email: 'admin@guta.test', name: 'Quản trị viên' },
     ]) {
       await page.getByRole('button', { name: /Get Started/i }).click();
-      await page.getByRole('button', { name: new RegExp(name) }).click();
+      await page.getByLabel('Email', { exact: true }).fill(email);
+      await page.getByLabel('Mật khẩu', { exact: true }).fill('fixture-password');
+      await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
       const backCrm = page.getByRole('button', { name: 'Quay lại Vận Hành (CRM)', exact: true });
-      if (await backCrm.isVisible()) await backCrm.click();
+      await backCrm.click();
       await page.getByRole('table').waitFor({ state: 'visible' });
-      assert.equal(await page.evaluate(() => JSON.parse(sessionStorage.getItem('guta_user')).role), role);
-      assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('guta_user')).role), role);
+      assert.equal(await page.evaluate(() => sessionStorage.getItem('guta_user')), null);
+      assert.equal(await page.evaluate(() => localStorage.getItem('guta_user')), null);
       assert.equal(await page.locator('.crm-sidebar').getByText(name, { exact: true }).isVisible(), true);
       await logoutBtn.click();
       await heroTitle.waitFor({ state: 'visible' });
@@ -763,8 +765,8 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     const previewBtn = page.locator('.crm-btn').first();
     if (await previewBtn.count() > 0) {
       await previewBtn.click();
-      await page.getByText(/Đăng Nhập Nhanh 1-Click/i).waitFor({ state: 'visible', timeout: 3000 });
-      assert.equal(await page.getByText(/Đăng Nhập Nhanh 1-Click/i).isVisible(), true);
+      await page.getByRole('heading', { name: 'Đăng nhập Guta Workspace' }).waitFor({ state: 'visible', timeout: 3000 });
+      assert.equal(await page.getByRole('heading', { name: 'Đăng nhập Guta Workspace' }).isVisible(), true);
     }
   });
 });

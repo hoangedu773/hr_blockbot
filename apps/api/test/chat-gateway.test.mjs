@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { SettingsModel } from '../dist/models/Settings.js';
 import router from '../dist/routes/chat.js';
+import { authenticateToken } from '../dist/middlewares/auth.middleware.js';
 import { chatWithAiService, DEFAULT_GEMINI_PROVIDER } from '../dist/services/ai-client.service.js';
 
 const context = { userId: 'user-test', role: 'Employee', employeeId: 'employee-test', departmentId: 'department-test' };
@@ -28,6 +29,21 @@ function handler() {
 function response() {
   return { statusCode: 0, body: null, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };
 }
+
+test('chat requires authentication and rejects missing or invalid tokens before upstream', async (t) => {
+  const fetchMock = mockBoundaries(t);
+  const authenticate = router.stack.find((layer) => layer.route?.path === '/chat').route.stack[0].handle;
+  assert.equal(authenticate, authenticateToken);
+  for (const headers of [{}, { authorization: 'Bearer invalid-token' }]) {
+    const res = response();
+    let continued = false;
+    await authenticate({ headers }, res, () => { continued = true; });
+    assert.equal(res.statusCode, 401);
+    assert.equal(res.body.error.code, 'UNAUTHENTICATED');
+    assert.equal(continued, false);
+  }
+  assert.equal(fetchMock.mock.calls.length, 0);
+});
 
 test('gateway forwards authenticated context, conversation and canonical action fields', async (t) => {
   const fetchMock = mockBoundaries(t);

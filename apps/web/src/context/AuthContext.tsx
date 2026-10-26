@@ -70,8 +70,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const handleLogout = async () => {
     await authLogout();
-    setUser(null);
-    setToken(null);
   };
 
   return (

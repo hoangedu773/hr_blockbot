@@ -11,20 +11,6 @@
     <link id="theme-css" rel="stylesheet" href="/assets/folio/folio.css" />
     <link id="folio-layout-css" rel="stylesheet" href="/assets/folio/folio-layout.css" />
     <link id="crm-layout-css" rel="stylesheet" href="/assets/crm/2e445toz63gzv.css" disabled />
-    <script>
-      (function() {
-        try {
-          if (localStorage.getItem('guta_user')) {
-            var themeLink = document.getElementById('theme-css');
-            if (themeLink) themeLink.setAttribute('href', '/assets/crm/2voh1gse7971r.css');
-            var folioCss = document.getElementById('folio-layout-css');
-            if (folioCss) folioCss.disabled = true;
-            var crmCss = document.getElementById('crm-layout-css');
-            if (crmCss) crmCss.disabled = false;
-          }
-        } catch (e) {}
-      })();
-    </script>
   </head>
   <body class="antialiased">
     <div id="root"></div>

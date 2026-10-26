@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { z } from "zod";
-import { optionalAuthenticateToken } from "../middlewares/auth.middleware.js";
+import { authenticateToken } from "../middlewares/auth.middleware.js";
 import { chatWithAiService } from "../services/ai-client.service.js";
 
 const router = Router();
@@ -10,7 +10,7 @@ const chatRequestSchema = z.object({
 });
 
 // POST /api/chat - Giao tiếp với AI Copilot Agent Loop
-router.post("/chat", optionalAuthenticateToken, async (req: Request, res: Response) => {
+router.post("/chat", authenticateToken, async (req: Request, res: Response) => {
   const parsed = chatRequestSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -24,12 +24,12 @@ router.post("/chat", optionalAuthenticateToken, async (req: Request, res: Respon
   }
 
   try {
-    const user = req.user;
+    const user = req.user!;
     const userContext = {
-      userId: user?.userId ?? null,
-      role: user?.role ?? "Employee",
-      employeeId: user?.employeeId ?? null,
-      departmentId: user?.departmentId ?? null,
+      userId: user.userId,
+      role: user.role,
+      employeeId: user.employeeId ?? null,
+      departmentId: user.departmentId ?? null,
     };
 
     const { message, conversationId } = parsed.data;

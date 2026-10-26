@@ -99,7 +99,9 @@ export function getRefreshTokenCookieOptions() {
   return {
     httpOnly: true,
     secure: isProd,
-    sameSite: "strict" as const,
+    // Render serves the web and API on separate sites; secure cross-site cookies
+    // are required there. The API's origin allowlist still guards cookie requests.
+    sameSite: isProd ? "none" as const : "strict" as const,
     path: "/api/auth",
     maxAge: REFRESH_TOKEN_TTL_MS,
   };
@@ -110,7 +112,7 @@ export function getClearCookieOptions() {
   return {
     httpOnly: true,
     secure: isProd,
-    sameSite: "strict" as const,
+    sameSite: isProd ? "none" as const : "strict" as const,
     path: "/api/auth",
   };
 }

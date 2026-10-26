@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import type { LoginRequest } from '@hr-blockbot/contracts';
 import { useAuth } from './context/AuthContext';
 import { ToastContainer, type ToastMessage, type NotifyFn } from './components/Toast';
 import { FolioLandingView } from './components/FolioLandingView';
@@ -6,50 +7,9 @@ import { CrmDashboardView } from './components/CrmDashboardView';
 import { ChatPageView } from './components/chat/ChatPageView';
 import { DemoErrorBoundary } from './components/DemoErrorBoundary';
 
-interface LocalUser {
-  role: 'SM' | 'AOM' | 'Admin';
-  name: string;
-  scope: string;
-}
-
-const ROLE_PROFILES: Record<'SM' | 'AOM' | 'Admin', LocalUser> = {
-  SM: {
-    role: 'SM',
-    name: 'Nguyễn Thị Phương Anh',
-    scope: 'Tân Bình - 02 Đặng Văn Sâm',
-  },
-  AOM: {
-    role: 'AOM',
-    name: 'Nguyễn Cao Thanh Trầm',
-    scope: 'Khu vực Q1/Q3/Q10 (18 Chi nhánh)',
-  },
-  Admin: {
-    role: 'Admin',
-    name: 'Ban Điều Hành Guta',
-    scope: 'Toàn bộ 45 Chi nhánh TP.HCM',
-  },
-};
-
-const readStoredUser = (): LocalUser | null => {
-  if (typeof window === 'undefined') return null;
-  for (const storage of [window.sessionStorage, window.localStorage]) {
-    try {
-      const value: unknown = JSON.parse(storage.getItem('guta_user') || 'null');
-      if (typeof value === 'object' && value !== null && 'role' in value
-        && (value.role === 'SM' || value.role === 'AOM' || value.role === 'Admin')) {
-        return ROLE_PROFILES[value.role];
-      }
-    } catch {
-      // Try the next storage location when a saved value is malformed or unavailable.
-    }
-  }
-  return null;
-};
-
 export const AppContent: React.FC = () => {
-  const { user: authUser, logout: authLogout } = useAuth();
-  const isLoggingOutRef = useRef(false);
-  const [localUser, setLocalUser] = useState<LocalUser | null>(readStoredUser);
+  const { user, isAuthenticated, isLoading, login, logout } = useAuth();
+  const hasSession = isAuthenticated && user !== null;
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isSplashFading, setIsSplashFading] = useState(false);
 
@@ -73,14 +33,14 @@ export const AppContent: React.FC = () => {
   }, [isBootstrapping]);
 
   useEffect(() => {
-    if (!localUser) return;
-    try {
-      window.sessionStorage.setItem('guta_user', JSON.stringify(localUser));
-      window.localStorage.setItem('guta_user', JSON.stringify(localUser));
-    } catch {
-      // A blocked storage API must not prevent this in-memory demo session from working.
+    // A locally selected role is not a server-authenticated session.
+    for (const storageName of ['sessionStorage', 'localStorage'] as const) {
+      try {
+        const storage = window[storageName];
+        for (const key of ['guta_user', 'auth_user', 'access_token']) storage.removeItem(key);
+      } catch { /* Storage may be blocked. */ }
     }
-  }, [localUser]);
+  }, []);
 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
@@ -93,7 +53,7 @@ export const AppContent: React.FC = () => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
   }, []);
 
-  // Dynamic stylesheet switching according to route / localUser view
+  // Switch styles only after the API confirms an authenticated session.
   useEffect(() => {
     let link = document.getElementById('theme-css') as HTMLLinkElement | null;
     if (!link) {
@@ -102,69 +62,29 @@ export const AppContent: React.FC = () => {
       link.rel = 'stylesheet';
       document.head.appendChild(link);
     }
-    const targetHref = localUser ? '/assets/crm/2voh1gse7971r.css' : '/assets/folio/folio.css';
+    const targetHref = hasSession ? '/assets/crm/2voh1gse7971r.css' : '/assets/folio/folio.css';
     if (link.getAttribute('href') !== targetHref) {
       link.setAttribute('href', targetHref);
     }
 
     const folioCss = document.getElementById('folio-layout-css') as HTMLLinkElement | null;
-    if (folioCss) folioCss.disabled = Boolean(localUser);
+    if (folioCss) folioCss.disabled = hasSession;
 
     const crmCss = document.getElementById('crm-layout-css') as HTMLLinkElement | null;
-    if (crmCss) crmCss.disabled = !Boolean(localUser);
-  }, [localUser]);
+    if (crmCss) crmCss.disabled = !hasSession;
+  }, [hasSession]);
 
-  // Sync if context authUser changes (guarded against resurrection during logout)
-  useEffect(() => {
-    if (isLoggingOutRef.current) return;
-    if (authUser && !localUser && typeof window !== 'undefined' && sessionStorage.getItem('guta_user')) {
-      const role = authUser.role === 'Admin' ? 'Admin' : 'SM';
-      const profile = ROLE_PROFILES[role];
-      setLocalUser(profile);
-    }
-  }, [authUser, localUser]);
-
-  const handleSelectRole = (role: 'SM' | 'AOM' | 'Admin') => {
-    isLoggingOutRef.current = false;
+  const handleLogin = async (credentials: LoginRequest) => {
+    await login(credentials);
     setActiveTab('chat');
-    const profile = ROLE_PROFILES[role];
-    setLocalUser(profile);
-    if (typeof window !== 'undefined') {
-      try {
-        sessionStorage.setItem('guta_user', JSON.stringify(profile));
-        localStorage.setItem('guta_user', JSON.stringify(profile));
-      } catch {
-        // The in-memory session remains available when browser storage is blocked.
-      }
-    }
-    addToast(`Đăng nhập thành công với vai trò ${profile.name} (${role})`, 'success', 'Xác thực thành công');
+    addToast('Bạn đã đăng nhập vào Guta Workspace.', 'success', 'Đăng nhập thành công');
   };
 
   const handleLogout = useCallback(async () => {
-    isLoggingOutRef.current = true;
-    setLocalUser(null);
-    if (typeof window !== 'undefined') {
-      for (const storage of [window.sessionStorage, window.localStorage]) {
-        for (const key of ['guta_user', 'auth_user', 'access_token']) {
-          try {
-            storage.removeItem(key);
-          } catch {
-            // Keep logout flowing if browser storage is unavailable.
-          }
-        }
-      }
-    }
     setActiveTab('chat');
-    try {
-      await authLogout();
-    } catch {
-      // Ignore if offline
-    }
-    setTimeout(() => {
-      isLoggingOutRef.current = false;
-    }, 1000);
+    await logout();
     addToast('Đã đăng xuất phiên làm việc an toàn.', 'info');
-  }, [authLogout, addToast]);
+  }, [logout, addToast]);
 
   const handleSendTelegramAlert = useCallback((storeId: string) => {
     addToast(
@@ -178,9 +98,9 @@ export const AppContent: React.FC = () => {
     setActiveTab(tab);
   }, []);
 
-  if (isBootstrapping) {
+  if (isBootstrapping || isLoading) {
     return (
-      <div className={`guta-splash${isSplashFading ? ' guta-splash-fading' : ''}`} data-testid="guta-splash" role="status" aria-label="Đang khởi động HR-BlockBot">
+      <div className={`guta-splash${isSplashFading && !isLoading ? ' guta-splash-fading' : ''}`} data-testid="guta-splash" role="status" aria-label="Đang khởi động HR-BlockBot">
         <div className="guta-splash-inner">
           <img src="/assets/logos/guta-mark-pure.svg" alt="HR-BlockBot Logo" className="guta-splash-logo" />
           <div className="guta-splash-meta">
@@ -193,10 +113,10 @@ export const AppContent: React.FC = () => {
   }
 
   // 1. Unauthenticated: Render Folio Landing Page (Exact Ruixen UI Design)
-  if (!localUser) {
+  if (!hasSession) {
     return (
       <>
-        <FolioLandingView onLogin={handleSelectRole} onNotify={addToast} />
+        <FolioLandingView onLogin={handleLogin} isAuthLoading={isLoading} onNotify={addToast} />
         <ToastContainer toasts={toasts} onDismiss={removeToast} />
       </>
     );
@@ -210,9 +130,9 @@ export const AppContent: React.FC = () => {
         <ChatPageView onSwitchTab={handleSwitchTab} onLogout={handleLogout} />
       ) : (
         <CrmDashboardView
-          userName={localUser.name}
-          userRole={localUser.role}
-          userScope={localUser.scope}
+          userName={user.role === 'Admin' ? 'Quản trị viên' : 'Nhân viên'}
+          userRole={user.role}
+          userScope="Phạm vi truy cập theo tài khoản"
           onLogout={handleLogout}
           onTelegramAlert={handleSendTelegramAlert}
           onSwitchTab={handleSwitchTab}

@@ -572,7 +572,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
     if (subtitle) subtitle.textContent = 'Hồ sơ nhân sự • Điều phối ca trực • Quỹ két ca • Trợ lý AI Copilot';
     const userInitials = root.querySelector('.size-8.rounded-full.bg-gradient-to-tr');
     if (userInitials) {
-      userInitials.textContent = userRole === 'SM' ? 'PA' : userRole === 'AOM' ? 'TT' : 'AD';
+      userInitials.textContent = userName.split(/\s+/).filter(Boolean).slice(-2).map((part) => part[0]).join('').toUpperCase();
     }
 
     const userNameEl = root.querySelector('.font-bold.text-foreground.text-xs');
