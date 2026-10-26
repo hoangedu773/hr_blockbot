@@ -31,9 +31,9 @@ export interface Attachment {
 export type ModelTier = 'low' | 'medium' | 'high';
 
 export const MODEL_TIER_CONFIG = {
-  low: { id: 'ag/gemini-3.8-flash-low', label: 'Low', desc: 'Tiết kiệm / Nhanh' },
-  medium: { id: 'ag/gemini-3.8-flash-medium', label: 'Medium', desc: 'Cân bằng' },
-  high: { id: 'ag/gemini-3.8-flash-high', label: 'High', desc: 'Phân tích sâu' },
+  low: { id: 'ag/gemini-3.1-flash-lite', label: 'Lite', modelName: 'Gemini 3.1 Flash Lite', desc: 'Tiết kiệm / Nhanh' },
+  medium: { id: 'ag/gemini-3.5-flash', label: 'Balanced', modelName: 'Gemini 3.5 Flash', desc: 'Cân bằng' },
+  high: { id: 'ag/gemini-3.8-flash', label: 'Ultra', modelName: 'Gemini 3.8 Flash', desc: 'Phân tích sâu' },
 } as const;
 
 export function getSafeModelTier(): ModelTier {
@@ -45,6 +45,371 @@ export function getSafeModelTier(): ModelTier {
     return 'medium';
   }
 }
+
+export interface ModelSliderProps {
+  tier: ModelTier;
+  onChange: (tier: ModelTier) => void;
+  className?: string;
+}
+
+export const ModelSlider: React.FC<ModelSliderProps> = ({ tier, onChange, className }) => {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const calculateTierFromPointer = (clientX: number): ModelTier => {
+    if (!trackRef.current) return tier;
+    const rect = trackRef.current.getBoundingClientRect();
+    if (rect.width <= 0) return tier;
+    const ratio = (clientX - rect.left) / rect.width;
+    if (ratio < 0.3) return 'low';
+    if (ratio > 0.7) return 'high';
+    return 'medium';
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    setIsDragging(true);
+    const newTier = calculateTierFromPointer(e.clientX);
+    if (newTier !== tier) {
+      onChange(newTier);
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    const newTier = calculateTierFromPointer(e.clientX);
+    if (newTier !== tier) {
+      onChange(newTier);
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    try {
+      e.currentTarget.releasePointerCapture?.(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (tier === 'high') onChange('medium');
+      else if (tier === 'medium') onChange('low');
+    } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (tier === 'low') onChange('medium');
+      else if (tier === 'medium') onChange('high');
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      onChange('low');
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      onChange('high');
+    }
+  };
+
+  const knobLeft = tier === 'low' ? '10px' : tier === 'medium' ? '50%' : 'calc(100% - 10px)';
+
+  return (
+    <div
+      className={className}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6px',
+        backgroundColor: '#0c0c0e',
+        backgroundImage: 'linear-gradient(180deg, rgba(28, 28, 35, 0.95) 0%, rgba(12, 12, 16, 0.98) 100%)',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        borderRadius: '16px',
+        padding: '6px 8px 8px 8px',
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08)',
+        boxSizing: 'border-box',
+        width: '100%',
+        maxWidth: '280px',
+        minWidth: '200px',
+        userSelect: 'none',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '4px',
+          width: '100%',
+        }}
+      >
+        <button
+          type="button"
+          aria-label="Chế độ xử lý nhanh AI"
+          title="Chế độ xử lý AI"
+          onClick={() => {
+            const nextTier: ModelTier = tier === 'low' ? 'medium' : tier === 'medium' ? 'high' : 'low';
+            onChange(nextTier);
+          }}
+          style={{
+            width: '44px',
+            height: '44px',
+            minWidth: '44px',
+            minHeight: '44px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'transparent',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            flexShrink: 0,
+            borderRadius: '10px',
+          }}
+        >
+          <div
+            style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '8px',
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#facc15',
+              boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 10px rgba(250, 204, 21, 0.2)',
+            }}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="#fbbf24"
+              stroke="#fbbf24"
+              strokeWidth="1"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+            </svg>
+          </div>
+        </button>
+
+        <div
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
+          }}
+        >
+          <div
+            style={{
+              fontSize: '15px',
+              fontWeight: 800,
+              lineHeight: 1.2,
+              letterSpacing: '-0.02em',
+              background: 'linear-gradient(135deg, #c084fc 0%, #e879f9 50%, #f472b6 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              filter: 'drop-shadow(0 0 10px rgba(192, 132, 252, 0.5))',
+              transition: 'all 200ms ease',
+            }}
+          >
+            {MODEL_TIER_CONFIG[tier].label}
+          </div>
+          <div
+            style={{
+              fontSize: '11px',
+              fontWeight: 500,
+              color: 'rgba(255, 255, 255, 0.6)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '3px',
+              lineHeight: 1.2,
+              marginTop: '2px',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              maxWidth: '100%',
+            }}
+          >
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{MODEL_TIER_CONFIG[tier].modelName}</span>
+            <span style={{ color: 'rgba(255, 255, 255, 0.4)', fontSize: '11px', flexShrink: 0 }}>›</span>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          aria-label="Khôi phục mặc định Balanced"
+          title="Khôi phục mặc định Balanced (50%)"
+          onClick={() => onChange('medium')}
+          style={{
+            width: '44px',
+            height: '44px',
+            minWidth: '44px',
+            minHeight: '44px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'transparent',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            flexShrink: 0,
+            borderRadius: '10px',
+          }}
+        >
+          <div
+            style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '8px',
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'rgba(255, 255, 255, 0.75)',
+              boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+              transition: 'transform 200ms ease, color 140ms ease',
+            }}
+          >
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
+            </svg>
+          </div>
+        </button>
+      </div>
+
+      <div
+        ref={trackRef}
+        className="guta-model-track"
+        style={{
+          position: 'relative',
+          width: '100%',
+          height: '32px',
+          display: 'flex',
+          alignItems: 'center',
+          cursor: 'pointer',
+          touchAction: 'none',
+          padding: '0 8px',
+          boxSizing: 'border-box',
+        }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+      >
+        <div
+          style={{
+            position: 'relative',
+            width: '100%',
+            height: '10px',
+            borderRadius: '9999px',
+            background: 'linear-gradient(90deg, #4f46e5 0%, #7c3aed 50%, #c084fc 100%)',
+            boxShadow: '0 0 12px rgba(124, 58, 237, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.35)',
+          }}
+        >
+          <div
+            className="guta-model-sparkle"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              borderRadius: '9999px',
+              overflow: 'hidden',
+              pointerEvents: 'none',
+            }}
+          >
+            <svg
+              width="100%"
+              height="100%"
+              viewBox="0 0 240 10"
+              preserveAspectRatio="none"
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+              aria-hidden="true"
+            >
+              <circle cx="24" cy="3" r="1" fill="#ffffff" opacity="0.8" />
+              <circle cx="48" cy="7" r="1.2" fill="#ffffff" opacity="0.9" />
+              <circle cx="70" cy="2" r="0.8" fill="#ffffff" opacity="0.7" />
+              <circle cx="95" cy="6" r="1.3" fill="#ffffff" opacity="0.95" />
+              <circle cx="120" cy="3" r="1" fill="#ffffff" opacity="0.8" />
+              <circle cx="145" cy="7" r="1.2" fill="#ffffff" opacity="0.85" />
+              <circle cx="170" cy="2" r="0.9" fill="#ffffff" opacity="0.75" />
+              <circle cx="195" cy="6" r="1.3" fill="#ffffff" opacity="0.9" />
+              <circle cx="216" cy="3" r="1" fill="#ffffff" opacity="0.8" />
+              <path d="M60,5 L61,3 L62,5 L64,5 L62,6 L63,8 L61,6 L59,8 L60,6 L58,5 Z" fill="#ffffff" opacity="0.85" transform="scale(0.7) translate(25, -1)" />
+              <path d="M160,5 L161,3 L162,5 L164,5 L162,6 L163,8 L161,6 L159,8 L160,6 L158,5 Z" fill="#ffffff" opacity="0.85" transform="scale(0.7) translate(65, 0)" />
+            </svg>
+          </div>
+
+          <span style={{ position: 'absolute', left: '6px', top: '50%', transform: 'translateY(-50%)', width: '3px', height: '3px', borderRadius: '50%', background: 'rgba(255, 255, 255, 0.6)', pointerEvents: 'none' }} />
+          <span style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: '3px', height: '3px', borderRadius: '50%', background: 'rgba(255, 255, 255, 0.6)', pointerEvents: 'none' }} />
+          <span style={{ position: 'absolute', right: '6px', top: '50%', transform: 'translateY(-50%)', width: '3px', height: '3px', borderRadius: '50%', background: 'rgba(255, 255, 255, 0.6)', pointerEvents: 'none' }} />
+
+          <div
+            role="slider"
+            tabIndex={0}
+            aria-valuemin={0}
+            aria-valuemax={2}
+            aria-valuenow={tier === 'low' ? 0 : tier === 'medium' ? 1 : 2}
+            aria-valuetext={MODEL_TIER_CONFIG[tier].label}
+            aria-label="Chọn chế độ Model AI"
+            onKeyDown={handleKeyDown}
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: knobLeft,
+              transform: 'translate(-50%, -50%)',
+              width: '18px',
+              height: '18px',
+              borderRadius: '9999px',
+              backgroundColor: '#ffffff',
+              boxShadow: '0 0 10px rgba(255, 255, 255, 0.9), 0 0 18px rgba(192, 132, 252, 0.65), 0 2px 6px rgba(0, 0, 0, 0.5)',
+              cursor: isDragging ? 'grabbing' : 'grab',
+              transition: isDragging ? 'none' : 'left 200ms cubic-bezier(0.25, 1, 0.5, 1)',
+              outline: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              touchAction: 'none',
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: '44px',
+                height: '44px',
+                minWidth: '44px',
+                minHeight: '44px',
+                pointerEvents: 'none',
+              }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export type UserRole = 'Employee' | 'SM' | 'AOM' | 'Admin';
 
@@ -80,23 +445,11 @@ export const ROLE_CONFIG: Record<
 
 export function getSafeUserRole(): UserRole {
   try {
-    const authUser = getAuthUser();
-    if (authUser?.role) {
-      const r = authUser.role.toLowerCase();
-      if (r === 'admin') return 'Admin';
-      if (r === 'aom') return 'AOM';
-      if (r === 'sm') return 'SM';
-    }
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('guta_chat_role');
-      if (saved && (saved === 'Employee' || saved === 'SM' || saved === 'AOM' || saved === 'Admin')) {
-        return saved;
-      }
-    }
+    const authUser = typeof getAuthUser === 'function' ? getAuthUser() : null;
+    return authUser?.role === 'Admin' ? 'Admin' : 'Employee';
   } catch {
-    // fallback
+    return 'Employee';
   }
-  return 'Employee';
 }
 
 export const ROLE_QUICK_REPLIES: Record<
@@ -281,7 +634,8 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
   const [inputText, setInputText] = useState('');
   const [modelTier, setModelTier] = useState<ModelTier>(getSafeModelTier);
-  const [role, setRole] = useState<UserRole>(getSafeUserRole);
+  const authUser = typeof getAuthUser === 'function' ? getAuthUser() : null;
+  const role: UserRole = authUser?.role === 'Admin' ? 'Admin' : 'Employee';
   const [isTyping, setIsTyping] = useState(false);
   const [toast, setToast] = useState('');
   const conversationId = useRef<string>();
@@ -463,7 +817,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
         .guta-chat-drawer button, .guta-chat-drawer input { min-width: 44px; min-height: 44px; }
         .guta-chat-drawer button { font-family: inherit; white-space: nowrap; }
         .guta-chat-drawer .guta-tier-btn { min-width: 0; min-height: 0; }
-        .guta-chat-drawer .guta-role-btn { min-width: 0; min-height: 0; }
+        .guta-chat-drawer .guta-verified-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 9999px; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--drawer-border); font-size: 11px; }
         .guta-chat-drawer button:disabled { opacity: .5; cursor: not-allowed; }
         .guta-chat-drawer button:active:not(:disabled) { transform: translateY(1px); }
         .guta-chat-drawer code { font-family: var(--mono); overflow-wrap: anywhere; }
@@ -494,6 +848,8 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
         @keyframes guta-step-cycle-1 { 0%, 28% { opacity: 1; transform: translateY(0); } 33.33%, 94% { opacity: 0; transform: translateY(-3px); } 95%, 100% { opacity: 1; transform: translateY(0); } }
         @keyframes guta-step-cycle-2 { 0%, 28% { opacity: 0; transform: translateY(3px); } 33.33%, 61% { opacity: 1; transform: translateY(0); } 66.66%, 100% { opacity: 0; transform: translateY(-3px); } }
         @keyframes guta-step-cycle-3 { 0%, 61% { opacity: 0; transform: translateY(3px); } 66.66%, 94% { opacity: 1; transform: translateY(0); } 98%, 100% { opacity: 0; transform: translateY(-3px); } }
+        @keyframes guta-sparkle-pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+        .guta-model-sparkle { animation: guta-sparkle-pulse 2.5s ease-in-out infinite; }
         @media (prefers-reduced-motion: reduce) {
           .guta-chat-drawer, .guta-chat-drawer * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
           .guta-chat-drawer button:active { transform: none !important; }
@@ -626,53 +982,20 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
             </div>
           </div>
 
-          <div style={{ order: 3, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, marginLeft: 'auto' }}>
-            <div
-              role="radiogroup"
-              aria-label="Chọn chế độ Model AI"
-              style={{
-                alignItems: 'center',
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '9999px',
-                padding: '2px',
-                gap: '2px',
+          <div style={{ order: 3, width: '100%', marginTop: '8px', display: 'flex', justifyContent: 'center' }}>
+            <ModelSlider
+              tier={modelTier}
+              onChange={(newTier) => {
+                setModelTier(newTier);
+                try { localStorage.setItem('guta_model_tier', newTier); } catch { /* ignore quota/private */ }
               }}
-            >
-              {(['low', 'medium', 'high'] as const).map((tier) => (
-                <button
-                  type="button"
-                  key={tier}
-                  role="radio"
-                  aria-checked={modelTier === tier}
-                  title={`${MODEL_TIER_CONFIG[tier].label} (${MODEL_TIER_CONFIG[tier].id}) - ${MODEL_TIER_CONFIG[tier].desc}`}
-                  onClick={() => {
-                    setModelTier(tier);
-                    try { localStorage.setItem('guta_model_tier', tier); } catch { /* ignore quota/private */ }
-                  }}
-                  className="guta-tier-btn"
-                  style={{
-                    border: 'none',
-                    borderRadius: '9999px',
-                    padding: '3px 7px',
-                    fontSize: '11px',
-                    fontWeight: modelTier === tier ? 700 : 500,
-                    backgroundColor: modelTier === tier ? '#ffffff' : 'transparent',
-                    color: modelTier === tier ? '#000000' : 'var(--drawer-muted)',
-                    cursor: 'pointer',
-                    transition: 'all 140ms ease',
-                  }}
-                >
-                  {MODEL_TIER_CONFIG[tier].label}
-                </button>
-              ))}
-            </div>
+            />
           </div>
 
 
         </div>
 
-        {/* Role Selector Toolbar */}
+        {/* Verified Session Role Badge */}
         <div
           style={{
             padding: '8px 14px',
@@ -687,51 +1010,25 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--drawer-muted)' }}>
-            <span>Vai trò:</span>
-            <span style={{ fontWeight: 700, color: 'var(--drawer-text)', backgroundColor: 'rgba(255, 255, 255, 0.08)', padding: '2px 6px', borderRadius: '4px' }}>
-              {ROLE_CONFIG[role].label}
-            </span>
+            <span>Phiên xác thực:</span>
           </div>
           <div
-            role="radiogroup"
-            aria-label="Chọn vai trò người dùng"
+            className="guta-verified-badge"
             style={{
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
+              gap: '6px',
+              padding: '4px 10px',
               borderRadius: '9999px',
-              padding: '2px',
-              gap: '2px',
+              background: 'rgba(255, 255, 255, 0.06)',
+              border: '1px solid var(--drawer-border, rgba(255, 255, 255, 0.1))',
+              fontSize: '11px',
             }}
           >
-            {(['Employee', 'SM', 'AOM', 'Admin'] as const).map((r) => (
-              <button
-                type="button"
-                key={r}
-                role="radio"
-                aria-checked={role === r}
-                title={`${ROLE_CONFIG[r].label} (${ROLE_CONFIG[r].badge}) - ${ROLE_CONFIG[r].desc}`}
-                onClick={() => {
-                  setRole(r);
-                  try { localStorage.setItem('guta_chat_role', r); } catch { /* ignore quota/private */ }
-                }}
-                className="guta-role-btn"
-                style={{
-                  border: 'none',
-                  borderRadius: '9999px',
-                  padding: '3px 7px',
-                  fontSize: '11px',
-                  fontWeight: role === r ? 700 : 500,
-                  backgroundColor: role === r ? '#ffffff' : 'transparent',
-                  color: role === r ? '#000000' : 'var(--drawer-muted)',
-                  cursor: 'pointer',
-                  transition: 'all 140ms ease',
-                }}
-              >
-                {ROLE_CONFIG[r].badge}
-              </button>
-            ))}
+            <span style={{ width: '6px', height: '6px', borderRadius: '9999px', backgroundColor: '#10b981' }} />
+            <span style={{ fontWeight: 600, color: 'var(--drawer-text, #f5f5f5)' }}>
+              {role === 'Admin' ? 'Quản trị viên (Admin)' : 'Nhân viên (Employee)'}
+            </span>
           </div>
         </div>
         {/* Message Log */}

@@ -1,31 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { apiFetch, API_BASE } from '../../services/auth';
 import {
   type Citation,
   type ProposedAction,
   type Attachment,
-  type UserRole,
+  type ModelTier,
+  MODEL_TIER_CONFIG,
+  getSafeModelTier,
   ROLE_CONFIG,
-  getSafeUserRole,
   ROLE_QUICK_REPLIES,
+  ModelSlider,
 } from './ChatDrawer';
-export type ModelTier = 'low' | 'medium' | 'high';
-
-export const MODEL_TIER_CONFIG = {
-  low: { id: 'ag/gemini-3.8-flash-low', label: 'Low', desc: 'Tiết kiệm / Nhanh' },
-  medium: { id: 'ag/gemini-3.8-flash-medium', label: 'Medium', desc: 'Cân bằng' },
-  high: { id: 'ag/gemini-3.8-flash-high', label: 'High', desc: 'Phân tích sâu' },
-} as const;
-
-export function getSafeModelTier(): ModelTier {
-  try {
-    if (typeof window === 'undefined') return 'medium';
-    const saved = localStorage.getItem('guta_model_tier');
-    return saved === 'low' || saved === 'medium' || saved === 'high' ? saved : 'medium';
-  } catch {
-    return 'medium';
-  }
-}
+export { type ModelTier, MODEL_TIER_CONFIG, getSafeModelTier };
 
 interface ChatPageViewProps {
   onSwitchTab: (tab: 'crm' | 'chat') => void;
@@ -39,7 +26,6 @@ interface Message {
   citations?: Citation[];
   attachments?: Attachment[];
   proposedAction?: ProposedAction | null;
-  demo?: boolean;
 }
 
 const TOPICS = [
@@ -110,51 +96,6 @@ function parseReply(value: unknown): Omit<Message, 'id' | 'sender'> & { conversa
   return { text: value.reply, citations, attachments, proposedAction, conversationId: value.conversationId as string | undefined };
 }
 
-function demoReply(text: string): Omit<Message, 'id' | 'sender'> {
-  const query = text.toLocaleLowerCase('vi-VN');
-  if (query.includes('bàn giao') || query.includes('biên bản') || query.includes('mẫu')) {
-    return {
-      text: 'Đây là các biểu mẫu biên bản bàn giao chuẩn của GUTA Cafe. Bạn có thể xem và tải bản PDF gốc đính kèm bên dưới:',
-      demo: true,
-      attachments: [
-        {
-          title: 'Biên bản bàn giao công việc GUTA',
-          type: 'pdf',
-          url: '/api/attachments/pdf/GUTA_Bien_ban_ban_giao_cong_viec.pdf',
-          fileName: 'GUTA_Bien_ban_ban_giao_cong_viec.pdf',
-        },
-        {
-          title: 'Biên bản bàn giao tài sản GUTA',
-          type: 'pdf',
-          url: '/api/attachments/pdf/GUTA_Bien_ban_ban_giao_tai_san.pdf',
-          fileName: 'GUTA_Bien_ban_ban_giao_tai_san.pdf',
-        },
-      ],
-    };
-  }
-  if (query.includes('thiếu người') || query.includes('điều động')) {
-    return {
-      text: 'Chưa có dữ liệu ca trực trực tiếp. Trong bản demo, bạn có thể xem trước đề xuất bổ sung Barista cho ca thiếu người. Cần kiểm tra lịch ca và sự đồng ý của quản lý trước khi điều động.',
-      demo: true,
-      proposedAction: { type: 'DISPATCH_BARISTA', preview: 'Minh họa đề xuất điều động Barista hỗ trợ ca thiếu người; chưa chọn nhân viên hoặc chi nhánh.', status: 'pending' },
-    };
-  }
-  if (query.includes('quy định') || query.includes('đi trễ') || query.includes('kỷ luật')) {
-    return {
-      text: 'Chưa truy xuất được chính sách đã xác thực. Không thể kết luận mức phạt hoặc trừ lương. Hãy đối chiếu quy định hiện hành với bộ phận nhân sự; nguồn dưới đây chỉ minh họa cách hiển thị trích dẫn.',
-      demo: true,
-      citations: [{ document: 'Tài liệu minh họa — không phải chính sách có hiệu lực', article: 'Giờ giấc và kỷ luật ca trực' }],
-    };
-  }
-  if (query.includes('doanh thu') || query.includes('két')) {
-    return {
-      text: 'Chưa kết nối được báo cáo két ca. Không có số doanh thu đã xác thực để tổng hợp. Hãy đối soát báo cáo POS và biên bản bàn giao ca trước khi chốt két.',
-      demo: true,
-      citations: [{ document: 'Tài liệu minh họa — không phải báo cáo thực tế', article: 'Đối soát doanh thu và bàn giao ca' }],
-    };
-  }
-  return { text: 'Chưa kết nối được dịch vụ AI. Đây là chế độ demo, không truy xuất hoặc thay đổi dữ liệu thật. Bạn có thể thử lại hoặc chọn một chủ đề mẫu.', demo: true };
-}
 
 const styles = `
 .guta-chat {
@@ -191,10 +132,7 @@ const styles = `
 .guta-chat-header strong { font-size: 16px; }
 .guta-chat-header span { font-size: 12px; color: var(--chat-muted); }
 .guta-chat-header-actions { display: flex; align-items: center; gap: 12px; }
-.guta-chat-role-picker { display: inline-flex; align-items: center; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--chat-border); border-radius: 9999px; padding: 3px; gap: 2px; }
-.guta-chat-role-btn { min-height: 28px !important; min-width: 44px !important; padding: 4px 10px !important; font-size: 12px !important; border-radius: 9999px !important; border: none !important; text-align: center !important; color: var(--chat-muted); transition: background-color 150ms ease, color 150ms ease; cursor: pointer; white-space: nowrap; }
-.guta-chat-role-btn:hover:not(:disabled) { color: var(--chat-text); background: var(--chat-hover); }
-.guta-chat-role-btn[data-active="true"] { background: var(--chat-accent) !important; color: #000000 !important; font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); }
+.guta-verified-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 9999px; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--chat-border); font-size: 11px; }
 .guta-chat-model-tier { display: inline-flex; align-items: center; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--chat-border); border-radius: 9999px; padding: 3px; gap: 2px; }
 .guta-chat-model-btn:hover:not(:disabled) { color: var(--chat-text); background: var(--chat-hover); }
 .guta-chat-model-btn[data-active="true"] { background: var(--chat-accent) !important; color: #000000 !important; font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); }
@@ -224,7 +162,6 @@ const styles = `
 .guta-chat-message > p { white-space: pre-wrap; margin: 8px 0 0; }
 .guta-chat-message[data-sender="user"] { margin-left: auto; padding: 16px 24px; border-radius: 24px; background: var(--chat-card); width: fit-content; max-width: 90%; }
 .guta-chat-message strong { font-size: 14px; }
-.guta-chat-demo { display: block; font-size: 12px; color: var(--chat-muted); margin-top: 8px; }
 .guta-chat-card { border: 1px solid var(--chat-border); border-radius: 16px; padding: 16px; margin-top: 16px; background: var(--chat-card); }
 .guta-chat-card p { margin: 8px 0; }
 .guta-chat-card ul { margin: 8px 0 0; padding-left: 24px; font-size: 14px; color: var(--chat-muted); }
@@ -255,6 +192,8 @@ const styles = `
 @keyframes guta-step-cycle-1 { 0%, 28% { opacity: 1; transform: translateY(0); } 33.33%, 94% { opacity: 0; transform: translateY(-3px); } 95%, 100% { opacity: 1; transform: translateY(0); } }
 @keyframes guta-step-cycle-2 { 0%, 28% { opacity: 0; transform: translateY(3px); } 33.33%, 61% { opacity: 1; transform: translateY(0); } 66.66%, 100% { opacity: 0; transform: translateY(-3px); } }
 @keyframes guta-step-cycle-3 { 0%, 61% { opacity: 0; transform: translateY(3px); } 66.66%, 94% { opacity: 1; transform: translateY(0); } 98%, 100% { opacity: 0; transform: translateY(-3px); } }
+@keyframes guta-sparkle-pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+.guta-model-sparkle { animation: guta-sparkle-pulse 2.5s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
   .guta-chat-status { animation: none !important; }
   .guta-thinking-avatar { animation: none !important; }
@@ -262,6 +201,7 @@ const styles = `
   .guta-thinking-shimmer-line { animation: none !important; display: none !important; }
   .guta-step-1 { animation: none !important; opacity: 1 !important; transform: none !important; position: static !important; }
   .guta-step-2, .guta-step-3 { display: none !important; }
+  .guta-model-sparkle { animation: none !important; }
 }
 .guta-chat-sidebar, .guta-chat-body, .guta-chat-empty, .guta-chat textarea { scrollbar-width: thin; scrollbar-color: var(--chat-border) transparent; }
 @media (hover: hover) and (pointer: fine) {
@@ -283,10 +223,11 @@ const styles = `
 `;
 
 export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogout }) => {
+  const { user } = useAuth();
+  const currentRole: 'Admin' | 'Employee' = user?.role === 'Admin' ? 'Admin' : 'Employee';
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [modelTier, setModelTier] = useState<ModelTier>(getSafeModelTier);
-  const [role, setRole] = useState<UserRole>(getSafeUserRole);
   const [isTyping, setIsTyping] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -360,17 +301,19 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
             conversationId: conversationId.current,
             modelTier,
             model: MODEL_TIER_CONFIG[modelTier].id,
-            role,
-            userContext: { role },
+            role: currentRole,
+            userContext: { role: currentRole },
           }),
           signal: controller.signal,
         });
         if (!response.ok) throw new Error(`Chat HTTP ${response.status}`);
         const data: unknown = await response.json();
         reply = parseReply(data);
-      } catch {
-        // Demo replies never impersonate live records, policies or executed writes.
-        reply = demoReply(text);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Lỗi kết nối máy chủ';
+        reply = {
+          text: `Không thể kết nối đến máy chủ AI hoặc hệ thống đang bận (${message}). Vui lòng kiểm tra đường truyền và thử lại.`,
+        };
       } finally {
         clearTimeout(timeout);
       }
@@ -419,8 +362,8 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
         <div className="guta-chat-brand"><img className="guta-chat-logo" src="/assets/logos/guta-mark-pure.svg" alt="" />HR-BlockBot Workspace</div>
         <button className="chat-new" type="button" onClick={newChat}>+ New Chat</button>
         <nav aria-label="Gợi ý theo vai trò">
-          <p>GỢI Ý · {ROLE_CONFIG[role].badge.toUpperCase()}</p>
-          {ROLE_QUICK_REPLIES[role].map((item) => (
+          <p>GỢI Ý · {ROLE_CONFIG[currentRole].badge.toUpperCase()}</p>
+          {ROLE_QUICK_REPLIES[currentRole].map((item) => (
             <button
               type="button"
               key={item.label}
@@ -431,7 +374,9 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
               {item.label}
             </button>
           ))}
-          <p style={{ marginTop: '16px' }}>CHỦ ĐỀ CHUNG</p>
+        </nav>
+        <nav aria-label="Chủ đề mẫu">
+          <p>CHỦ ĐỀ MẪU</p>
           {TOPICS.map((topic) => (
             <button type="button" key={topic.title} disabled={isTyping} onClick={() => send(topic.prompt)}>
               {topic.title}
@@ -449,48 +394,23 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
             <button className="chat-menu" type="button" aria-label="Menu Copilot" aria-expanded={sidebarOpen} aria-controls="copilot-sidebar" onClick={() => setSidebarOpen(!sidebarOpen)}><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg></button>
             <div className="guta-chat-header-title">
               <strong>HR-BlockBot AI Copilot</strong>
-              <span>{ROLE_CONFIG[role].label} · {MODEL_TIER_CONFIG[modelTier].desc}</span>
+              <span>{ROLE_CONFIG[currentRole].label} · {MODEL_TIER_CONFIG[modelTier].desc}</span>
             </div>
           </div>
           <div className="guta-chat-header-actions">
-            <div className="guta-chat-role-picker" role="radiogroup" aria-label="Chọn vai trò người dùng">
-              {(['Employee', 'SM', 'AOM', 'Admin'] as const).map((r) => (
-                <button
-                  type="button"
-                  key={r}
-                  role="radio"
-                  aria-checked={role === r}
-                  data-active={role === r}
-                  className="guta-chat-role-btn"
-                  title={`${ROLE_CONFIG[r].label} (${ROLE_CONFIG[r].badge}) - ${ROLE_CONFIG[r].desc}`}
-                  onClick={() => {
-                    setRole(r);
-                    try { localStorage.setItem('guta_chat_role', r); } catch { /* ignore quota/private */ }
-                  }}
-                >
-                  {ROLE_CONFIG[r].badge}
-                </button>
-              ))}
+            <div className="guta-verified-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', borderRadius: '9999px', background: 'rgba(255,255,255,0.06)', border: '1px solid var(--chat-border)', fontSize: '11px' }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '9999px', backgroundColor: '#10b981' }} />
+              <span style={{ fontWeight: 600, color: 'var(--chat-text)' }}>
+                {user?.role === 'Admin' ? 'Quản trị viên (Admin)' : 'Nhân viên (Employee)'}
+              </span>
             </div>
-            <div className="guta-chat-model-tier" role="radiogroup" aria-label="Chọn chế độ Model AI">
-              {(['low', 'medium', 'high'] as const).map((tier) => (
-                <button
-                  type="button"
-                  key={tier}
-                  role="radio"
-                  aria-checked={modelTier === tier}
-                  data-active={modelTier === tier}
-                  className="guta-chat-model-btn"
-                  title={`${MODEL_TIER_CONFIG[tier].label} (${MODEL_TIER_CONFIG[tier].id}) - ${MODEL_TIER_CONFIG[tier].desc}`}
-                  onClick={() => {
-                    setModelTier(tier);
-                    try { localStorage.setItem('guta_model_tier', tier); } catch { /* ignore quota/private */ }
-                  }}
-                >
-                  {MODEL_TIER_CONFIG[tier].label}
-                </button>
-              ))}
-            </div>
+            <ModelSlider
+              tier={modelTier}
+              onChange={(newTier) => {
+                setModelTier(newTier);
+                try { localStorage.setItem('guta_model_tier', newTier); } catch { /* ignore quota/private */ }
+              }}
+            />
             <button type="button" aria-label="Quay lại CRM" onClick={() => onSwitchTab('crm')}>CRM</button>
           </div>
         </header>
@@ -505,9 +425,9 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
               {composer}
               <div className="guta-chat-prompts" aria-label="Gợi ý hành động nhanh theo vai trò">
                 <div style={{ width: '100%', textAlign: 'center', marginBottom: '8px', fontSize: '11px', color: 'var(--chat-muted)', letterSpacing: '0.04em' }}>
-                  GỢI Ý NHANH CHO {ROLE_CONFIG[role].label.toUpperCase()} ({ROLE_CONFIG[role].badge}):
+                  GỢI Ý NHANH CHO {ROLE_CONFIG[currentRole].label.toUpperCase()} ({ROLE_CONFIG[currentRole].badge}):
                 </div>
-                {ROLE_QUICK_REPLIES[role].map((item) => (
+                {ROLE_QUICK_REPLIES[currentRole].map((item) => (
                   <button
                     type="button"
                     key={item.label}
@@ -527,7 +447,6 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
                 {messages.map((message) => (
                   <article className="guta-chat-message" data-sender={message.sender} key={message.id}>
                     <strong>{message.sender === 'user' ? 'Bạn' : 'Guta AI'}</strong>
-                    {message.demo && <span className="guta-chat-demo">Demo an toàn · Dịch vụ AI chưa khả dụng</span>}
                     <p>{message.text}</p>
                     {!!message.citations?.length && <section className="guta-chat-card" aria-label="Trích dẫn">
                       <strong>Căn cứ quy định (Citations)</strong>

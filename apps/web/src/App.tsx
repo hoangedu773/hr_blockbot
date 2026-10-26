@@ -37,7 +37,7 @@ export const AppContent: React.FC = () => {
     for (const storageName of ['sessionStorage', 'localStorage'] as const) {
       try {
         const storage = window[storageName];
-        for (const key of ['guta_user', 'auth_user', 'access_token']) storage.removeItem(key);
+        for (const key of ['guta_user', 'auth_user', 'access_token', 'guta_chat_role']) storage.removeItem(key);
       } catch { /* Storage may be blocked. */ }
     }
   }, []);
@@ -130,9 +130,9 @@ export const AppContent: React.FC = () => {
         <ChatPageView onSwitchTab={handleSwitchTab} onLogout={handleLogout} />
       ) : (
         <CrmDashboardView
-          userName={user.role === 'Admin' ? 'Quản trị viên' : 'Nhân viên'}
+          userName={('username' in user && typeof user.username === 'string' && user.username) || (user.role === 'Admin' ? 'Quản trị viên' : 'Nhân viên')}
           userRole={user.role}
-          userScope="Phạm vi truy cập theo tài khoản"
+          userScope={('departmentId' in user && typeof user.departmentId === 'string' && user.departmentId) ? 'Phòng ban ' + user.departmentId : 'Toàn chuỗi GUTA'}
           onLogout={handleLogout}
           onTelegramAlert={handleSendTelegramAlert}
           onSwitchTab={handleSwitchTab}

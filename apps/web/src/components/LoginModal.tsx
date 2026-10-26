@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { setAuthState } from '../services/auth';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -40,15 +39,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
       setPassword('emp123');
     }
     setError(null);
-  };
-
-  const handleOfflineDemoLogin = (role: 'Admin' | 'Employee') => {
-    // Cho phép preview/offline demo khi backend API chưa được bật
-    setAuthState('demo-in-memory-token-' + Date.now(), {
-      id: role === 'Admin' ? 'usr_admin_001' : 'usr_emp_002',
-      role,
-    });
-    if (onClose) onClose();
   };
 
   return (
@@ -256,43 +246,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
               {isSubmitting ? 'Đang xác thực...' : 'Đăng Nhập Qua API Chuẩn'}
             </button>
 
-            {/* Offline bypass for preview/testing when backend server is offline */}
-            <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-              <button
-                type="button"
-                onClick={() => handleOfflineDemoLogin('Admin')}
-                style={{
-                  flex: 1,
-                  padding: '6px',
-                  background: 'transparent',
-                  border: '1px dashed var(--border)',
-                  color: 'var(--text-faint)',
-                  borderRadius: '4px',
-                  fontSize: '10px',
-                  cursor: 'pointer',
-                }}
-                title="Sử dụng khi server backend localhost:3001 đang tắt"
-              >
-                Offline Demo Admin
-              </button>
-              <button
-                type="button"
-                onClick={() => handleOfflineDemoLogin('Employee')}
-                style={{
-                  flex: 1,
-                  padding: '6px',
-                  background: 'transparent',
-                  border: '1px dashed var(--border)',
-                  color: 'var(--text-faint)',
-                  borderRadius: '4px',
-                  fontSize: '10px',
-                  cursor: 'pointer',
-                }}
-                title="Sử dụng khi server backend localhost:3001 đang tắt"
-              >
-                Offline Demo Employee
-              </button>
-            </div>
           </div>
         </form>
       </div>

@@ -66,6 +66,16 @@
   scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
 .dark, [data-theme="dark"], :root:not(.light) {
   /* Surface Tokens - Dark Obsidian/Titanium */
   --bg-app: oklch(0.12 0.015 250);          /* #090d16 */

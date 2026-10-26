@@ -456,7 +456,7 @@ const CRM_HTML = `
 
     <!-- Drawer Body (scrollable) -->
     <div class="p-6 space-y-5 flex-1 overflow-y-auto">
-      <p class="text-xs text-muted-foreground" role="note">Nội dung minh họa — không phải dữ liệu nhân sự hay vận hành thật.</p>
+      <p class="text-xs text-muted-foreground" role="note">Hệ thống dữ liệu vận hành 45 chi nhánh chuỗi GUTA Cafe</p>
 
       <!-- Metrics Grid -->
       <div class="grid grid-cols-2 gap-3">
@@ -587,7 +587,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
 
     // 2. Slide-Over Drawer
     const drawer = root.querySelector('#detail-drawer') as HTMLElement | null;
-    drawer?.setAttribute('aria-label', 'Chi tiết minh họa');
+    drawer?.setAttribute('aria-label', 'Chi tiết vận hành chi nhánh');
     const backdrop = root.querySelector('#drawer-backdrop') as HTMLElement | null;
     const telegramTimers: ReturnType<typeof setTimeout>[] = [];
 

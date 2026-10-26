@@ -12,7 +12,7 @@ export class DemoErrorBoundary extends React.Component<
 
   render() {
     if (this.state.failed) {
-      return <div role="alert">Không thể hiển thị giao diện minh họa. Vui lòng tải lại trang.</div>;
+      return <div role="alert">Không thể tải giao diện làm việc. Vui lòng thử lại.</div>;
     }
     return this.props.children;
   }
