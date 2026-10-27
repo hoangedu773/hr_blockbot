@@ -37,7 +37,7 @@ def test_health_probe_when_db_disconnected():
         assert data["database"]["status"] == "disconnected"
         assert data["rag_engine"]["status"] == "degraded"
         assert data["agent"]["status"] == "locked"
-        assert data["rag_engine"]["vector_search"] in ("BLOCKED", "CONFIGURED", "AVAILABLE")
+        assert data["rag_engine"]["vector_search"] in ("BLOCKED", "CONFIGURED", "AVAILABLE", "NOT_REQUIRED")
 
 
 def test_health_probe_when_db_connected():

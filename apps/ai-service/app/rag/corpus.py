@@ -13,7 +13,9 @@ set and must be replaced by Phase 1 data before any reported metric.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, replace
+from pathlib import Path
 from typing import Any, Iterable
 
 SEED_POLICIES: list[dict[str, Any]] = [
@@ -253,8 +255,48 @@ def chunks_from_documents(documents: Iterable[dict[str, Any]]) -> list[PolicyChu
     return chunks
 
 
+def load_portal_knowledge_documents() -> list[dict[str, Any]]:
+    """Safely read Guta Portal knowledge documents from JSONL file if available."""
+    target_candidates = [
+        Path(__file__).resolve().parents[4] / "data" / "guta_portal" / "portal-knowledge.jsonl",
+        Path(__file__).resolve().parents[3] / "data" / "guta_portal" / "portal-knowledge.jsonl",
+        Path.cwd() / "data" / "guta_portal" / "portal-knowledge.jsonl",
+        Path("data/guta_portal/portal-knowledge.jsonl"),
+    ]
+    target_path: Path | None = None
+    for candidate in target_candidates:
+        try:
+            if candidate.is_file():
+                target_path = candidate
+                break
+        except Exception:
+            continue
+
+    if target_path is None:
+        return []
+
+    documents: list[dict[str, Any]] = []
+    try:
+        with open(target_path, "r", encoding="utf-8") as f:
+            for line in f:
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                try:
+                    documents.append(json.loads(stripped))
+                except Exception:
+                    continue
+    except (FileNotFoundError, OSError):
+        return []
+    return documents
+
+
 def seed_chunks() -> list[PolicyChunk]:
-    return chunks_from_documents(SEED_POLICIES)
+    chunks = chunks_from_documents(SEED_POLICIES)
+    portal_docs = load_portal_knowledge_documents()
+    if portal_docs:
+        chunks.extend(chunks_from_documents(portal_docs))
+    return chunks
 
 
 def load_db_chunks(collection: Any, limit: int = 100) -> list[PolicyChunk]:

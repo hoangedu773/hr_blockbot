@@ -10,7 +10,7 @@ import {
   getSafeModelTier,
   ROLE_CONFIG,
   ROLE_QUICK_REPLIES,
-  ModelSlider,
+  ModelPickerPopover,
 } from './ChatDrawer';
 export { type ModelTier, MODEL_TIER_CONFIG, getSafeModelTier };
 
@@ -23,9 +23,17 @@ interface ChatComposerProps {
   isTyping: boolean;
   onSend: (text: string) => void;
   inputRef?: React.RefObject<HTMLTextAreaElement>;
+  modelTier: ModelTier;
+  onModelTierChange: (tier: ModelTier) => void;
 }
 
-export const ChatComposer: React.FC<ChatComposerProps> = ({ isTyping, onSend, inputRef: externalRef }) => {
+export const ChatComposer: React.FC<ChatComposerProps> = ({
+  isTyping,
+  onSend,
+  inputRef: externalRef,
+  modelTier,
+  onModelTierChange,
+}) => {
   const [input, setInput] = useState('');
   const internalRef = useRef<HTMLTextAreaElement>(null);
   const textareaRef = externalRef || internalRef;
@@ -46,7 +54,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({ isTyping, onSend, in
   };
 
   return (
-    <div className="guta-chat-width">
+    <div className="guta-chat-width" style={{ position: 'relative' }}>
       <form className="guta-chat-composer" onSubmit={handleSubmit}>
         <label htmlFor="copilot-message" className="sr-only">Tin nhắn cho Guta AI</label>
         <button type="button" className="chat-attach-btn" aria-label="Thao tác bổ sung" title="Nhập câu hỏi cho Guta AI" onClick={() => textareaRef.current?.focus()}>
@@ -71,7 +79,10 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({ isTyping, onSend, in
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5m-6 6 6-6 6 6" /></svg>
         </button>
       </form>
-      <p className="guta-chat-note">AI có thể nhầm lẫn. Kiểm tra nguồn trước khi quyết định.</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px', padding: '0 4px', gap: '8px', flexWrap: 'wrap' }}>
+        <p className="guta-chat-note" style={{ margin: 0, textAlign: 'left' }}>AI có thể nhầm lẫn. Kiểm tra nguồn trước khi quyết định.</p>
+        <ModelPickerPopover tier={modelTier} onChange={onModelTierChange} />
+      </div>
     </div>
   );
 };
@@ -392,6 +403,11 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
       isTyping={isTyping}
       onSend={(text) => send(text)}
       inputRef={inputRef}
+      modelTier={modelTier}
+      onModelTierChange={(newTier) => {
+        setModelTier(newTier);
+        try { localStorage.setItem('guta_model_tier', newTier); } catch { /* ignore quota/private */ }
+      }}
     />
   );
 
@@ -444,13 +460,6 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
                 {user?.role === 'Admin' ? 'Quản trị viên (Admin)' : 'Nhân viên (Employee)'}
               </span>
             </div>
-            <ModelSlider
-              tier={modelTier}
-              onChange={(newTier) => {
-                setModelTier(newTier);
-                try { localStorage.setItem('guta_model_tier', newTier); } catch { /* ignore quota/private */ }
-              }}
-            />
             <button type="button" aria-label="Quay lại CRM" onClick={() => onSwitchTab('crm')}>CRM</button>
           </div>
         </header>

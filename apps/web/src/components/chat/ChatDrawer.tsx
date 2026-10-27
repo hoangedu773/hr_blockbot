@@ -35,6 +35,46 @@ export const MODEL_TIER_CONFIG = {
   medium: { id: 'ag/gemini-3.5-flash', label: 'Balanced', modelName: 'Gemini 3.5 Flash', desc: 'Cân bằng' },
   high: { id: 'ag/gemini-3.8-flash', label: 'Ultra', modelName: 'Gemini 3.8 Flash', desc: 'Phân tích sâu' },
 } as const;
+export const TIER_THEME: Record<
+  ModelTier,
+  {
+    labelGradient: string;
+    labelShadow: string;
+    trackGradient: string;
+    trackShadow: string;
+    glowColor: string;
+    accentColor: string;
+    sparkleOpacity: number;
+  }
+> = {
+  low: {
+    labelGradient: 'linear-gradient(135deg, #38bdf8 0%, #60a5fa 100%)',
+    labelShadow: 'drop-shadow(0 0 8px rgba(56, 189, 248, 0.45))',
+    trackGradient: 'linear-gradient(90deg, #0284c7 0%, #0ea5e9 50%, #38bdf8 100%)',
+    trackShadow: '0 0 12px rgba(14, 165, 233, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.35)',
+    glowColor: 'rgba(56, 189, 248, 0.6)',
+    accentColor: '#38bdf8',
+    sparkleOpacity: 0.3,
+  },
+  medium: {
+    labelGradient: 'linear-gradient(135deg, #c084fc 0%, #e879f9 50%, #f472b6 100%)',
+    labelShadow: 'drop-shadow(0 0 10px rgba(192, 132, 252, 0.5))',
+    trackGradient: 'linear-gradient(90deg, #4f46e5 0%, #7c3aed 50%, #c084fc 100%)',
+    trackShadow: '0 0 12px rgba(124, 58, 237, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.35)',
+    glowColor: 'rgba(192, 132, 252, 0.65)',
+    accentColor: '#c084fc',
+    sparkleOpacity: 0.8,
+  },
+  high: {
+    labelGradient: 'linear-gradient(135deg, #fb923c 0%, #f43f5e 50%, #ec4899 100%)',
+    labelShadow: 'drop-shadow(0 0 12px rgba(244, 63, 94, 0.55))',
+    trackGradient: 'linear-gradient(90deg, #ea580c 0%, #f43f5e 50%, #ec4899 100%)',
+    trackShadow: '0 0 14px rgba(244, 63, 94, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.35)',
+    glowColor: 'rgba(244, 63, 94, 0.7)',
+    accentColor: '#f43f5e',
+    sparkleOpacity: 1,
+  },
+};
 
 export function getSafeModelTier(): ModelTier {
   try {
@@ -111,6 +151,7 @@ export const ModelSlider: React.FC<ModelSliderProps> = ({ tier, onChange, classN
     }
   };
 
+  const currentTheme = TIER_THEME[tier];
   const knobLeft = tier === 'low' ? '10px' : tier === 'medium' ? '50%' : 'calc(100% - 10px)';
 
   return (
@@ -213,11 +254,11 @@ export const ModelSlider: React.FC<ModelSliderProps> = ({ tier, onChange, classN
               fontWeight: 800,
               lineHeight: 1.2,
               letterSpacing: '-0.02em',
-              background: 'linear-gradient(135deg, #c084fc 0%, #e879f9 50%, #f472b6 100%)',
+              background: currentTheme.labelGradient,
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
-              filter: 'drop-shadow(0 0 10px rgba(192, 132, 252, 0.5))',
-              transition: 'all 200ms ease',
+              filter: currentTheme.labelShadow,
+              transition: 'all 240ms cubic-bezier(0.23, 1, 0.32, 1)',
             }}
           >
             {MODEL_TIER_CONFIG[tier].label}
@@ -323,8 +364,9 @@ export const ModelSlider: React.FC<ModelSliderProps> = ({ tier, onChange, classN
             width: '100%',
             height: '10px',
             borderRadius: '9999px',
-            background: 'linear-gradient(90deg, #4f46e5 0%, #7c3aed 50%, #c084fc 100%)',
-            boxShadow: '0 0 12px rgba(124, 58, 237, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.35)',
+            background: currentTheme.trackGradient,
+            boxShadow: currentTheme.trackShadow,
+            transition: 'background 240ms ease, box-shadow 240ms ease',
           }}
         >
           <div
@@ -335,6 +377,8 @@ export const ModelSlider: React.FC<ModelSliderProps> = ({ tier, onChange, classN
               borderRadius: '9999px',
               overflow: 'hidden',
               pointerEvents: 'none',
+              opacity: currentTheme.sparkleOpacity,
+              transition: 'opacity 240ms ease',
             }}
           >
             <svg
@@ -381,9 +425,9 @@ export const ModelSlider: React.FC<ModelSliderProps> = ({ tier, onChange, classN
               height: '18px',
               borderRadius: '9999px',
               backgroundColor: '#ffffff',
-              boxShadow: '0 0 10px rgba(255, 255, 255, 0.9), 0 0 18px rgba(192, 132, 252, 0.65), 0 2px 6px rgba(0, 0, 0, 0.5)',
+              boxShadow: `0 0 10px rgba(255, 255, 255, 0.9), 0 0 18px ${currentTheme.glowColor}, 0 2px 6px rgba(0, 0, 0, 0.5)`,
               cursor: isDragging ? 'grabbing' : 'grab',
-              transition: isDragging ? 'none' : 'left 200ms cubic-bezier(0.25, 1, 0.5, 1)',
+              transition: isDragging ? 'none' : 'left 200ms cubic-bezier(0.25, 1, 0.5, 1), box-shadow 240ms ease',
               outline: 'none',
               display: 'flex',
               alignItems: 'center',
@@ -407,6 +451,109 @@ export const ModelSlider: React.FC<ModelSliderProps> = ({ tier, onChange, classN
           </div>
         </div>
       </div>
+    </div>
+  );
+};
+
+export interface ModelPickerPopoverProps {
+  tier: ModelTier;
+  onChange: (tier: ModelTier) => void;
+  className?: string;
+}
+
+export const ModelPickerPopover: React.FC<ModelPickerPopoverProps> = ({ tier, onChange, className }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const currentTheme = TIER_THEME[tier];
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('pointerdown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
+
+  return (
+    <div
+      ref={containerRef}
+      className={className}
+      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}
+    >
+      <button
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        aria-label={`Chọn model AI (hiện tại: ${MODEL_TIER_CONFIG[tier].label})`}
+        title={`Chế độ AI: ${MODEL_TIER_CONFIG[tier].label} - ${MODEL_TIER_CONFIG[tier].modelName}`}
+        onClick={() => setIsOpen((prev) => !prev)}
+        style={{
+          minHeight: '44px',
+          height: '44px',
+          minWidth: '44px',
+          padding: '0 12px',
+          borderRadius: '12px',
+          backgroundColor: isOpen ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.05)',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          color: 'var(--drawer-text, #f4f4f5)',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          cursor: 'pointer',
+          fontSize: '12px',
+          fontWeight: 600,
+          whiteSpace: 'nowrap',
+          transition: 'all 140ms ease',
+          outline: 'none',
+        }}
+      >
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: currentTheme.accentColor,
+            transition: 'color 200ms ease',
+          }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1" aria-hidden="true">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+          </svg>
+        </span>
+        <span style={{ color: currentTheme.accentColor, transition: 'color 200ms ease' }}>
+          {MODEL_TIER_CONFIG[tier].label}
+        </span>
+        <span style={{ color: 'rgba(255, 255, 255, 0.4)', fontSize: '10px' }}>
+          {isOpen ? '▴' : '▾'}
+        </span>
+      </button>
+
+      {isOpen && (
+        <div
+          role="dialog"
+          aria-label="Cài đặt Model AI"
+          style={{
+            position: 'absolute',
+            bottom: 'calc(100% + 8px)',
+            right: 0,
+            zIndex: 100,
+            boxShadow: '0 12px 36px rgba(0, 0, 0, 0.65)',
+            borderRadius: '16px',
+          }}
+        >
+          <ModelSlider tier={tier} onChange={onChange} />
+        </div>
+      )}
     </div>
   );
 };
@@ -982,16 +1129,6 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
             </div>
           </div>
 
-          <div style={{ order: 3, width: '100%', marginTop: '8px', display: 'flex', justifyContent: 'center' }}>
-            <ModelSlider
-              tier={modelTier}
-              onChange={(newTier) => {
-                setModelTier(newTier);
-                try { localStorage.setItem('guta_model_tier', newTier); } catch { /* ignore quota/private */ }
-              }}
-            />
-          </div>
-
 
         </div>
 
@@ -1486,6 +1623,13 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
             alignItems: 'center',
           }}
         >
+          <ModelPickerPopover
+            tier={modelTier}
+            onChange={(newTier) => {
+              setModelTier(newTier);
+              try { localStorage.setItem('guta_model_tier', newTier); } catch { /* ignore quota/private */ }
+            }}
+          />
           <input
             type="text"
             aria-label="Tin nhắn cho Guta AI"

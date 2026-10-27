@@ -1,6 +1,12 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { NotifyFn } from './Toast';
+import { AdminSettingsView } from './AdminSettingsView';
+import { EmployeeListView } from './EmployeeListView';
+import { ProjectListView } from './ProjectListView';
+import { RosterView } from './RosterView';
 
+export type ActiveCrmView = 'stores' | 'employees' | 'schedules' | 'projects' | 'settings';
 export interface CrmDashboardViewProps {
   userName: string;
   userRole: string;
@@ -59,11 +65,11 @@ const CRM_HTML = `
 
           <div class="px-2 pb-1 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Hệ Thống Vận Hành</div>
 
-          <button type="button" data-section="stores" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold bg-muted/60 text-foreground border border-border/80 text-left">Cửa hàng / Chi nhánh <span class="ml-auto">45</span></button>
-          <button type="button" data-section="employees" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Đội ngũ Barista &amp; SM</button>
-          <button type="button" data-section="schedules" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Lịch Phân Ca 24H</button>
-          <button type="button" data-section="attendance" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Chấm công &amp; Đi trễ</button>
-          <button type="button" data-section="cash" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Báo cáo Két ca</button>
+          <button type="button" data-section="stores" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold bg-muted/60 text-foreground border border-border/80 text-left">Chi nhánh / Cửa hàng <span class="ml-auto">45</span></button>
+          <button type="button" data-section="employees" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Nhân sự</button>
+          <button type="button" data-section="schedules" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Phân ca</button>
+          <button type="button" data-section="projects" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Đề tài / Báo cáo</button>
+          <button type="button" data-section="settings" id="crm-nav-settings" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Cài đặt LLM</button>
         </nav>
       </div>
 
@@ -115,6 +121,7 @@ const CRM_HTML = `
 
       <!-- DATA TABLE AREA -->
       <main class="flex-1 overflow-auto p-6">
+        <div id="crm-stores-container">
         <!-- KPI SUMMARY RIBBON (Frosted Muted Slate Gray) -->
         <div class="crm-kpi-grid">
           <div class="crm-kpi-card">
@@ -434,6 +441,7 @@ const CRM_HTML = `
             </tbody>
           </table>
         </div>
+        <div id="crm-custom-view-portal" class="space-y-6" style="display: none;"></div>
       </main>
 
     </div>
@@ -550,8 +558,14 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
   onTelegramAlert,
   onOpenAiCopilot,
   onSwitchTab,
+  onNotify,
 }) => {
+  const [activeView, setActiveView] = useState<ActiveCrmView>('stores');
+  const [portalEl, setPortalEl] = useState<HTMLElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const safeNotify: NotifyFn = onNotify || ((type, message) => {
+    console.log(`[Toast ${type}] ${message}`);
+  });
   const onTelegramAlertRef = useRef(onTelegramAlert);
   onTelegramAlertRef.current = onTelegramAlert;
   const onOpenAiCopilotRef = useRef(onOpenAiCopilot);
@@ -872,43 +886,31 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
       }
     });
 
-    const sections = ['stores', 'employees', 'schedules', 'attendance', 'cash'] as const;
-    const main = root.querySelector('main');
-    const storeNodes = main ? Array.from(main.childNodes) : [];
-    let activeSection: (typeof sections)[number] = 'stores';
-    const headings: Record<(typeof sections)[number], string> = { stores: 'Chi Nhánh Cà Phê Guta (Khu Vực TP.HCM)', employees: 'Đội ngũ Barista & SM', schedules: 'Lịch Phân Ca 24H', attendance: 'Chấm công & Đi trễ — ZKTeco', cash: 'Báo cáo Két ca' };
-    const columns: Record<Exclude<(typeof sections)[number], 'stores'>, string[]> = {
-      employees: ['Mã NV', 'Họ tên', 'Vị trí', 'Chi nhánh trực thuộc', 'Ca phụ trách', 'Trạng thái hoạt động'],
-      schedules: ['Chi nhánh', 'Ngày làm việc', 'Ca 1 (06:00-14:00)', 'Ca 2 (14:00-22:00)', 'Ca Đêm (22:00-06:00)', 'Trạng thái mở ca'],
-      attendance: ['Mã NV', 'Nhân sự', 'Giờ quẹt vào', 'Giờ quẹt ra', 'Đi trễ', 'Giải trình ca', 'Trạng thái đối soát'],
-      cash: ['Mã CH', 'Tiền đầu ca', 'Doanh thu POS', 'Tiền cuối ca', 'Chênh lệch', 'Trạng thái chốt két'],
-    };
-    const people = [
-      ['Trương Quốc Thái', 'Head Barista', 'GT-CH-06', 'Ca 1 (06:00-14:00)'], ['Đỗ Quỳnh Anh', 'Cửa hàng trưởng (SM)', 'GT-CH-02', 'Ca 1 (06:00-14:00)'], ['Lê Thị Kim Ngân', 'Thu ngân', 'GT-CH-01', 'Ca 1 (06:00-14:00)'], ['Nguyễn Văn Đạt', 'Barista', 'GT-CH-01', 'Ca 1 (06:00-14:00)'], ['Nguyễn Thị Phương Anh', 'Cửa hàng trưởng (SM)', 'GT-CH-01', 'Ca 1 (06:00-14:00)'], ['Nguyễn Lê Quang Trường', 'Cửa hàng trưởng (SM)', 'GT-CH-03', 'Ca 2 (14:00-22:00)'], ['Nguyễn Thị Thu Trúc', 'Cửa hàng trưởng (SM)', 'GT-CH-04', 'Ca 1 (06:00-14:00)'], ['Triệu Quang Nhân', 'Barista', 'GT-CH-05', 'Ca Đêm (22:00-06:00)'], ['Thái Thanh Lam', 'Barista', 'GT-CH-07', 'Ca 2 (14:00-22:00)'], ['Lại Ngọc Hoàng Nguyên', 'Barista', 'GT-CH-08', 'Ca 1 (06:00-14:00)'],
-    ];
-    const rowsFor = (section: Exclude<(typeof sections)[number], 'stores'>): string[][] => Array.from({ length: 10 }, (_, i) => {
-      const id = String(i + 1).padStart(2, '0');
-      if (section === 'employees') return [`NV-${id}`, ...people[i], 'Đang hoạt động'];
-      if (section === 'schedules') return [`GT-CH-${id}`, '25/10/2026', '06:00-14:00 · 3 NV', '14:00-22:00 · 3 NV', '22:00-06:00 · 2 NV', 'Đang mở ca'];
-      if (section === 'attendance') return [`NV-${id}`, people[i][0], '05:55', '14:02', i % 2 ? '5 phút' : '0 phút', 'Đủ ca', 'Đã đối soát'];
-      return [`GT-CH-${id}`, '2.000.000 ₫', '8.420.000 ₫', '10.420.000 ₫', '0 ₫', 'Đã chốt két'];
+    const navItems = root.querySelectorAll<HTMLButtonElement>('nav [data-section]');
+    const settingsNav = root.querySelector('#crm-nav-settings') as HTMLElement | null;
+    if (settingsNav && userRole !== 'Admin') {
+      settingsNav.style.display = 'none';
+    }
+
+    const portalContainer = root.querySelector('#crm-custom-view-portal') as HTMLElement | null;
+    if (portalContainer) {
+      setPortalEl(portalContainer);
+    }
+
+    navItems.forEach((button) => {
+      button.addEventListener('click', () => {
+        const section = button.dataset.section as ActiveCrmView;
+        if (!section) return;
+        if (section === 'settings' && userRole !== 'Admin') return;
+        setActiveView(section);
+        navItems.forEach((item) => {
+          item.classList.remove('bg-muted/60', 'text-foreground', 'border', 'border-border/80');
+          item.classList.add('text-zinc-400');
+        });
+        button.classList.add('bg-muted/60', 'text-foreground', 'border', 'border-border/80');
+        button.classList.remove('text-zinc-400');
+      }, { signal: listeners.signal });
     });
-    const renderSection = (section: (typeof sections)[number]) => {
-      if (!main) return;
-      if (activeSection === section) return;
-      activeSection = section;
-      if (section === 'stores') { main.replaceChildren(...storeNodes); return; }
-      const headers = columns[section];
-      const rows = rowsFor(section);
-      main.innerHTML = `<div class="crm-kpi-grid"><div class="crm-kpi-card"><div class="crm-kpi-title">${headings[section]}</div><div class="crm-kpi-value">${rows.length}<small> bản ghi</small></div></div><div class="crm-kpi-card"><div class="crm-kpi-title">Đang hoạt động</div><div class="crm-kpi-value text-emerald-400">${rows.length}</div></div><div class="crm-kpi-card"><div class="crm-kpi-title">Đối soát</div><div class="crm-kpi-value">100%</div></div></div><header class="mb-4"><h1 class="text-xl font-bold text-zinc-100">${headings[section]}</h1><p class="text-xs text-zinc-400 mt-1">Bảng quản lý vận hành Guta.</p></header><div class="crm-table-shell rounded-xl border border-white/[0.12] bg-white/[0.02] overflow-x-auto"><table class="w-full text-left text-xs border-collapse min-w-[900px]"><thead class="bg-white/[0.04]"><tr>${headers.map((h) => `<th class="py-3 px-3 text-zinc-400">${h}</th>`).join('')}</tr></thead><tbody class="divide-y divide-white/[0.08]">${rows.map((row) => `<tr class="table-row-hover">${row.map((cell) => `<td class="py-3 px-3 text-zinc-100">${cell}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
-    };
-    root.querySelectorAll<HTMLButtonElement>('nav [data-section]').forEach((button) => button.addEventListener('click', () => {
-      const section = button.dataset.section;
-      if (!sections.includes(section as (typeof sections)[number])) return;
-      renderSection(section as (typeof sections)[number]);
-      root.querySelectorAll('nav [data-section]').forEach((item) => item.classList.remove('bg-muted/60', 'text-foreground', 'border', 'border-border/80'));
-      button.classList.add('bg-muted/60', 'text-foreground', 'border', 'border-border/80');
-    }, { signal: listeners.signal }));
 
     return () => {
       listeners.abort();
@@ -930,11 +932,42 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
     };
   }, [userName, userRole, userScope]);
 
+  useEffect(() => {
+    const root = containerRef.current;
+    if (!root) return;
+    const storesContainer = root.querySelector('#crm-stores-container') as HTMLElement | null;
+    const portalContainer = root.querySelector('#crm-custom-view-portal') as HTMLElement | null;
+    if (storesContainer && portalContainer) {
+      if (activeView === 'stores') {
+        storesContainer.style.display = 'block';
+        portalContainer.style.display = 'none';
+      } else {
+        storesContainer.style.display = 'none';
+        portalContainer.style.display = 'block';
+      }
+    }
+  }, [activeView]);
+
   return (
-    <div
-      ref={containerRef}
-      className="min-h-full flex flex-col bg-background text-foreground antialiased"
-      dangerouslySetInnerHTML={{ __html: CRM_HTML }}
-    />
+    <>
+      <div
+        ref={containerRef}
+        className="min-h-full flex flex-col bg-background text-foreground antialiased"
+        dangerouslySetInnerHTML={{ __html: CRM_HTML }}
+      />
+      {portalEl &&
+        createPortal(
+          activeView === 'employees' ? (
+            <EmployeeListView />
+          ) : activeView === 'schedules' ? (
+            <RosterView onNotify={safeNotify} />
+          ) : activeView === 'projects' ? (
+            <ProjectListView onNotify={safeNotify} />
+          ) : activeView === 'settings' && userRole === 'Admin' ? (
+            <AdminSettingsView onNotify={safeNotify} />
+          ) : null,
+          portalEl
+        )}
+    </>
   );
 };
