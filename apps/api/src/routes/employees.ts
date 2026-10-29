@@ -16,7 +16,7 @@ function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// GET /api/employees - Admin only within assigned department scope
+// GET /api/employees - Admin only within assigned department scope (global admin: toàn bộ)
 router.get("/employees", authenticateToken, async (req: Request, res: Response) => {
   const user = req.user!;
 
@@ -30,7 +30,7 @@ router.get("/employees", authenticateToken, async (req: Request, res: Response) 
     return;
   }
 
-  if (!user.departmentId || user.departmentId.trim() === "") {
+  if (!user.isGlobalAdmin && (!user.departmentId || user.departmentId.trim() === "")) {
     res.status(403).json({
       error: {
         code: "RBAC_DENIED",
@@ -42,7 +42,7 @@ router.get("/employees", authenticateToken, async (req: Request, res: Response) 
 
   // Validate filter scope against Admin scope
   const requestedDept = (req.query.departmentId || req.query.department) as string | undefined;
-  if (requestedDept && requestedDept.trim() !== user.departmentId.trim()) {
+  if (!user.isGlobalAdmin && requestedDept && requestedDept.trim() !== user.departmentId!.trim()) {
     res.status(403).json({
       error: {
         code: "RBAC_DENIED",
@@ -58,16 +58,27 @@ router.get("/employees", authenticateToken, async (req: Request, res: Response) 
     : { page: 1, limit: 20 };
 
   try {
-    const adminDept = user.departmentId.trim();
+    const adminDept = user.departmentId?.trim() ?? "";
 
-    // Enforce server-injected scope: never trust client to bypass department filter
-    const query: Record<string, any> = {
-      $or: [
-        { departmentId: adminDept },
-        { department: adminDept },
-        { store_raw: adminDept },
-      ],
-    };
+    // Enforce server-injected scope: never trust client to bypass department filter.
+    // Global admin không có department scope -> đọc toàn bộ, vẫn lọc được theo query.
+    const query: Record<string, any> = user.isGlobalAdmin
+      ? {}
+      : {
+          $or: [
+            { departmentId: adminDept },
+            { department: adminDept },
+            { store_raw: adminDept },
+          ],
+        };
+
+    if (requestedDept && user.isGlobalAdmin) {
+      query.$or = [
+        { departmentId: requestedDept.trim() },
+        { department: requestedDept.trim() },
+        { store_raw: requestedDept.trim() },
+      ];
+    }
 
     if (req.query.level && typeof req.query.level === "string") {
       query.level = req.query.level;
@@ -267,9 +278,12 @@ router.get("/employees/:id", authenticateToken, async (req: Request, res: Respon
 // only the routes were missing, so the profile screen called a 404. Requests are
 // embedded in the employee document on purpose (ADR-018: no new collection).
 
-function canActOnEmployee(user: { role: string; employeeId?: string | null; departmentId?: string | null }, employee: any): boolean {
+function canActOnEmployee(user: { role: string; employeeId?: string | null; departmentId?: string | null; isGlobalAdmin?: boolean }, employee: any): boolean {
   if (user.role !== "Admin") {
     return Boolean(user.employeeId) && String(user.employeeId) === String(employee._id);
+  }
+  if (user.isGlobalAdmin === true) {
+    return true;
   }
   const employeeDept = employee.departmentId ? String(employee.departmentId) : "";
   return Boolean(user.departmentId) && user.departmentId === employeeDept;
@@ -367,13 +381,14 @@ router.get("/employees/:id/change-requests", authenticateToken, async (req: Requ
 });
 
 // GET /api/change-requests?status=PENDING - Admin approval queue, department-scoped
+// (global admin: toàn bộ hàng đợi của mọi phòng ban)
 router.get("/change-requests", authenticateToken, async (req: Request, res: Response) => {
   const user = req.user!;
   if (user.role !== "Admin") {
     res.status(403).json({ error: { code: "RBAC_DENIED", message: "Only Admin can list change requests" } });
     return;
   }
-  if (!user.departmentId) {
+  if (!user.isGlobalAdmin && !user.departmentId) {
     res.status(403).json({
       error: { code: "RBAC_DENIED", message: "Admin has no assigned department scope (unmapped)" },
     });
@@ -387,7 +402,8 @@ router.get("/change-requests", authenticateToken, async (req: Request, res: Resp
   }
 
   try {
-    const employees: any[] = await EmployeeModel.find({ departmentId: user.departmentId })
+    const scopeFilter = user.isGlobalAdmin ? {} : { departmentId: user.departmentId };
+    const employees: any[] = await EmployeeModel.find(scopeFilter)
       .select("fullName full_name profileChangeRequests")
       .lean();
 

@@ -3,6 +3,8 @@ export interface ActorContext {
   role: "Admin" | "Employee";
   employeeId?: string | null;
   departmentId?: string | null;
+  /** Admin không gắn hồ sơ nhân viên: toàn quyền, không giới hạn department scope. */
+  isGlobalAdmin?: boolean;
 }
 
 export interface ResourceTarget {
@@ -23,6 +25,8 @@ export class RbacDeniedError extends Error {
  * assertInScope: Scope Guard enforcing strict RBAC & Scope boundaries
  * - Employee: Strictly 'own' resource only. Cross-user access is denied with 403 RBAC_DENIED.
  * - Admin: Strictly within assigned departmentId scope. Unmapped or cross-scope access is denied with 403 RBAC_DENIED.
+ * - Global Admin (no employee record, `isGlobalAdmin: true`): toàn quyền, bỏ qua department scope.
+ *   Cờ này phải được set tường minh trên user — admin "quên gán department" vẫn fail-closed.
  */
 export function assertInScope(actor: ActorContext, resource: ResourceTarget): void {
   if (actor.role !== "Admin" && actor.role !== "Employee") {
@@ -49,6 +53,10 @@ export function assertInScope(actor: ActorContext, resource: ResourceTarget): vo
 
   // 2. Admin department scope check
   if (actor.role === "Admin") {
+    if (actor.isGlobalAdmin === true) {
+      return;
+    }
+
     if (!actor.departmentId || actor.departmentId.trim() === "") {
       throw new RbacDeniedError("Admin has no assigned department scope (unmapped)");
     }

@@ -65,9 +65,9 @@ def main() -> int:
 
     distribution: dict[str, int] = {}
     changes: list[tuple] = []
-    for emp in db_client.db.employees.find({}, {"job_title": 1}):
-        emp_id = str(emp["_id"])
-        role = derive_business_role(emp.get("job_title"), auth_roles.get(emp_id))
+    for emp in db_client.db.employees.find({}, {"job_title": 1, "businessRole": 1}):
+        emp_id = emp["_id"]  # giữ nguyên ObjectId: filter bằng str() sẽ không khớp
+        role = derive_business_role(emp.get("job_title"), auth_roles.get(str(emp_id)))
         distribution[role] = distribution.get(role, 0) + 1
         if emp.get("businessRole") != role:
             changes.append((emp_id, emp.get("job_title"), role))
@@ -83,10 +83,20 @@ def main() -> int:
 
     from pymongo import UpdateOne  # noqa: PLC0415
 
-    ops = [UpdateOne({"_id": emp_id}, {"$set": {"businessRole": role}}) for emp_id, _, role in changes]
-    if ops:
-        db_client.db.employees.bulk_write(ops, ordered=False)
-    print(f"\napplied: updated={len(ops)}")
+    updated = 0
+    for start in range(0, len(changes), 500):
+        batch = changes[start : start + 500]
+        ops = [UpdateOne({"_id": emp_id}, {"$set": {"businessRole": role}}) for emp_id, _, role in batch]
+        result = db_client.db.employees.bulk_write(ops, ordered=False)
+        updated += result.modified_count
+    print(f"\napplied: updated={updated}")
+
+    after: dict[str, int] = {}
+    for row in db_client.db.employees.aggregate(
+        [{"$group": {"_id": "$businessRole", "n": {"$sum": 1}}}, {"$sort": {"n": -1}}]
+    ):
+        after[str(row["_id"])] = row["n"]
+    print("phân bố sau khi ghi:", after)
     return 0
 
 
