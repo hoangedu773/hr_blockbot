@@ -32,6 +32,7 @@ dotenv.config({ path: path.join(REPO_ROOT, ".env") });
 dotenv.config({ path: path.join(API_DIR, ".env") });
 
 const { hashPassword } = await import("../dist/services/auth.service.js");
+const { derivePassword, describeRule } = await import("./lib/account-rule.mjs");
 const { UserModel } = await import("../dist/models/User.js");
 const { EmployeeModel } = await import("../dist/models/Employee.js");
 const { RefreshSessionModel } = await import("../dist/models/RefreshSession.js");
@@ -437,6 +438,104 @@ async function commandEmployees(db, flags) {
   console.log("[employees] Phát tay từng phiếu; KHÔNG gửi file này qua chat/email nhóm.");
 }
 
+
+// --- passwords (quy luật tất định) ----------------------------------------------
+
+async function commandPasswords(db, flags) {
+  const apply = flags.apply === true;
+  const secret = process.env.ACCOUNT_PASSWORD_SECRET;
+  const batchSize = flags.batch ? Number(flags.batch) : BATCH_SIZE;
+
+  console.log("[passwords] quy luật:");
+  for (const line of describeRule().split("\n")) console.log(`  ${line}`);
+
+  // Gọi trước khi in kế hoạch để thiếu secret là dừng ngay, không đụng dữ liệu.
+  const sample = derivePassword("gt-sample", secret);
+  console.log(`[passwords] mẫu cho username 'gt-sample': ${sample}`);
+
+  const includeAdmins = flags["include-admins"] === true;
+  const filter = includeAdmins ? {} : { role: "Employee" };
+  const users = await db
+    .collection("users")
+    .find(filter, { projection: { username: 1, employeeId: 1, role: 1 } })
+    .sort({ username: 1 })
+    .toArray();
+  const adminCount = users.filter((user) => user.role === "Admin").length;
+  console.log(
+    `[passwords] tài khoản sẽ đặt lại: ${users.length}` +
+      (includeAdmins ? ` (gồm ${adminCount} admin)` : " (chỉ Employee)")
+  );
+
+  if (!apply) {
+    console.log("[passwords] DRY RUN — thêm --apply để ghi đè mật khẩu toàn bộ.");
+    return;
+  }
+
+  const employees = await db
+    .collection("employees")
+    .find({}, { projection: { employee_code: 1, full_name: 1, store_raw: 1, businessRole: 1, status: 1 } })
+    .toArray();
+  const employeeByCode = new Map(
+    employees.map((employee) => [String(employee.employee_code ?? "").toLowerCase(), employee])
+  );
+
+  const slips = [];
+  let updated = 0;
+  const startedAt = Date.now();
+
+  for (let start = 0; start < users.length; start += batchSize) {
+    const batch = users.slice(start, start + batchSize);
+    const operations = [];
+    for (const user of batch) {
+      const password = derivePassword(user.username, secret);
+      const passwordHash = await hashPassword(password);
+      operations.push({
+        updateOne: {
+          filter: { _id: user._id },
+          update: {
+            $set: {
+              passwordHash,
+              mustChangePassword: true,
+              passwordChangedAt: null,
+              updatedAt: new Date(),
+            },
+          },
+        },
+      });
+      const employee = employeeByCode.get(String(user.username));
+      slips.push([
+        user.username,
+        password,
+        employee?.full_name ?? "",
+        employee?.store_raw ?? "",
+        employee?.businessRole ?? "",
+        employee?.status ?? "",
+      ]);
+    }
+    const result = await db.collection("users").bulkWrite(operations, { ordered: false });
+    updated += result.modifiedCount;
+    console.log(`[passwords] tiến độ: ${Math.min(start + batchSize, users.length)}/${users.length}`);
+  }
+
+  const userIds = users.map((user) => user._id);
+  const revoked = await db.collection("refresh_sessions").updateMany(
+    { userId: { $in: userIds }, revokedAt: null },
+    { $set: { revokedAt: new Date() } }
+  );
+
+  const file = path.join(REPO_ROOT, "data", "accounts", `employee-passwords-${timestamp()}.csv`);
+  writeCsv(
+    file,
+    ["username", "temp_password", "full_name", "store", "business_role", "status"],
+    slips
+  );
+
+  console.log(`[passwords] đã cập nhật ${updated} tài khoản trong ${Math.round((Date.now() - startedAt) / 1000)}s`);
+  console.log(`[passwords] thu hồi ${revoked.modifiedCount} phiên đăng nhập`);
+  console.log(`[passwords] phiếu mật khẩu -> ${path.relative(REPO_ROOT, file)}`);
+  console.log("[passwords] Phát tay từng phiếu; KHÔNG gửi file này qua chat/email nhóm.");
+}
+
 // --- report ---------------------------------------------------------------------
 
 async function commandReport(db) {
@@ -466,7 +565,7 @@ async function commandReport(db) {
 async function main() {
   const { command, flags } = parseArgs(process.argv.slice(2));
   if (!command) {
-    console.error("Thiếu lệnh: backup | admins | delete-legacy | indexes | employees | report");
+    console.error("Thiếu lệnh: backup | admins | delete-legacy | indexes | employees | passwords | report");
     process.exit(1);
   }
 
@@ -484,6 +583,9 @@ async function main() {
         break;
       case "indexes":
         await commandIndexes(db, flags);
+        break;
+      case "passwords":
+        await commandPasswords(db, flags);
         break;
       case "employees":
         await commandEmployees(db, flags);
