@@ -6,11 +6,15 @@ import {
 } from "@hr-blockbot/contracts";
 import { verifyAccessToken, TokenClaims } from "./services/auth.service.js";
 import { chatWithAiService } from "./services/ai-client.service.js";
+import { UserModel } from "./models/User.js";
+import { EmployeeModel } from "./models/Employee.js";
 
 let io: SocketIOServer | null = null;
 
 interface AuthenticatedSocket extends Socket {
   claims?: TokenClaims;
+  /** Resolved once per connection: the token has no employeeId/departmentId (P1-7). */
+  userScope?: { employeeId: string | null; departmentId: string | null };
 }
 
 export function initSocket(server: HttpServer): SocketIOServer {
@@ -75,9 +79,32 @@ export function initSocket(server: HttpServer): SocketIOServer {
       });
 
       try {
+        // P1-7: the token only carries `sub` + `role`. Without employeeId and
+        // departmentId the AI service cannot scope tool queries, so a shift query
+        // could return another store's data. Resolve them from the user record once
+        // per connection and cache on the socket.
+        if (!socket.userScope) {
+          const user = await UserModel.findById(socket.claims?.sub)
+            .select("employeeId role")
+            .lean() as { employeeId?: unknown } | null;
+          let departmentId: string | null = null;
+          if (user?.employeeId) {
+            const employee = await EmployeeModel.findById(user.employeeId)
+              .select("departmentId")
+              .lean() as { departmentId?: unknown } | null;
+            departmentId = employee?.departmentId ? String(employee.departmentId) : null;
+          }
+          socket.userScope = {
+            employeeId: user?.employeeId ? String(user.employeeId) : null,
+            departmentId,
+          };
+        }
+
         const userContext = {
           userId: socket.claims?.sub || null,
           role: (socket.claims?.role as "Admin" | "Employee") || "Employee",
+          employeeId: socket.userScope?.employeeId ?? null,
+          departmentId: socket.userScope?.departmentId ?? null,
         };
 
         if (payload.text) {

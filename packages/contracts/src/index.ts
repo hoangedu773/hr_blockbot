@@ -768,6 +768,12 @@ export const ChatDonePayloadSchema = z.object({
   clientMessageId: z.string().min(1),
   messageId: z.string().min(1),
   finishReason: ChatFinishReasonSchema,
+  // P1-9: the socket emits these; without them the schema rejected the real payload
+  // and a validating client would drop the answer text entirely.
+  reply: z.string().optional(),
+  proposedAction: z.record(z.unknown()).nullish(),
+  degraded: z.boolean().optional(),
+  decisionSource: z.string().optional(),
   citations: z.array(CitationSchema).optional(),
   card: z.record(z.unknown()).optional(),
   score: z.number().optional(),
