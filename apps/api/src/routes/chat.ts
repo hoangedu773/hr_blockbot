@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { z } from "zod";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
 import { chatWithAiService } from "../services/ai-client.service.js";
+import { resolveUserScope } from "../services/user-scope.service.js";
 
 const router = Router();
 const chatRequestSchema = z.object({
@@ -32,6 +33,15 @@ router.post("/chat", authenticateToken, async (req: Request, res: Response) => {
       employeeId: user.employeeId ?? null,
       departmentId: user.departmentId ?? null,
     };
+    // Business scope (store + manager tier) comes from the employee record, not the
+    // token: an SM logging in must get manager guidance, a barista must not.
+    const scope = await resolveUserScope(user.userId, user.role);
+    Object.assign(userContext, {
+      employeeId: scope.employeeId ?? userContext.employeeId,
+      departmentId: scope.departmentId ?? userContext.departmentId,
+      businessRole: scope.businessRole,
+      storeName: scope.storeName,
+    });
 
     const { message, conversationId, modelTier } = parsed.data;
     const result = await chatWithAiService(message, userContext, conversationId, { modelTier });

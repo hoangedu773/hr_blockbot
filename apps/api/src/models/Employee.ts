@@ -6,6 +6,28 @@ export interface IProfileChangeTargetFields {
   jobTitle?: string;
 }
 
+/**
+ * Business role derived from `job_title` (the ladder documented in
+ * `in_context_policy.py`: Nhan vien -> Ca truong -> SM -> AOM, plus office OD/OM).
+ * The auth `role` only knows Admin | Employee, so an SM logging in would be
+ * treated exactly like a barista; this tier carries manager authority.
+ */
+export type BusinessRole = "admin" | "aom" | "sm" | "am" | "ptch" | "staff";
+
+export function deriveBusinessRole(
+  jobTitle: string | null | undefined,
+  authRole?: string | null
+): BusinessRole {
+  if (authRole === "Admin") return "admin";
+  const title = (jobTitle ?? "").toUpperCase();
+  if (/\bAOM\b/.test(title)) return "aom";
+  if (/\bSM\b/.test(title) || title.includes("CỬA HÀNG TRƯỞNG")) return "sm";
+  if (/\bAM\b/.test(title)) return "am";
+  if (title.includes("PHỤ TRÁCH CỬA HÀNG") || /\bPTCH\b/.test(title)) return "ptch";
+  if (/\b(OD|OM)\b/.test(title)) return "admin";
+  return "staff";
+}
+
 export interface IProfileChangePreviousSnapshot {
   level?: string;
   hiredAt?: Date;
