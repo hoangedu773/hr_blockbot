@@ -6,7 +6,8 @@ Endpoints:
   degraded-structured when no provider config is supplied).
 - `POST /api/v1/chat` — Agent Loop (intent → tool/policy) used by `apps/api`.
 
-Internal auth: `x-ai-service-key` compared against `AI_SERVICE_API_KEY` when set.
+Internal auth: `x-ai-service-key` compared against `AI_SERVICE_API_KEY`. The
+service fails closed (503) when that variable is unset.
 The LLM provider config arrives per request (ADR-017) and is cached by
 `configVersion` for 60s; it is never logged or persisted.
 """
@@ -14,6 +15,7 @@ The LLM provider config arrives per request (ADR-017) and is cached by
 from __future__ import annotations
 
 import logging
+import os
 import secrets
 from typing import Any, Literal, Optional
 
@@ -44,9 +46,26 @@ app = FastAPI(
     version="2.0.0",
 )
 
+def _cors_origins() -> list[str]:
+    """Explicit allowlist. `*` with credentials lets any site replay a user's cookies.
+
+    The service is called server-to-server (`apps/api`), so a wide browser origin
+    list buys nothing; default to the local dev origins only.
+    """
+    raw = (os.getenv("CORS_ALLOW_ORIGINS") or "").strip()
+    if not raw:
+        return ["http://localhost:5173", "http://localhost:3001"]
+    origins = [item.strip() for item in raw.split(",") if item.strip()]
+    if "*" in origins:
+        raise RuntimeError(
+            "CORS_ALLOW_ORIGINS='*' is not allowed with credentials; list origins explicitly."
+        )
+    return origins
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -76,9 +95,16 @@ class RagQueryRequest(BaseModel):
 
 
 def _verify_service_key(x_ai_service_key: Optional[str]) -> None:
-    expected = settings.ai_service_api_key
-    if not expected:
-        return
+    expected = (settings.ai_service_api_key or "").strip()
+    if expected == "":
+        # Fail-closed: an unconfigured key must never mean "trust every caller".
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "SERVICE_KEY_NOT_CONFIGURED",
+                "message": "AI_SERVICE_API_KEY is not configured; refusing all requests",
+            },
+        )
     provided = (x_ai_service_key or "").strip()
     if not provided or not secrets.compare_digest(provided, expected):
         raise HTTPException(

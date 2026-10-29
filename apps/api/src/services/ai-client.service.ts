@@ -5,7 +5,10 @@ export const DEFAULT_GEMINI_PROVIDER: ActiveProviderConfig = {
   id: "gemini-3.8-flash-tunnel",
   name: "Gemini 3.8 Flash Proxy",
   type: "openai_compatible",
-  baseUrl: "https://rbnvqls.abc-tunnel.us/v1",
+  // J-5: no endpoint is baked into source. The old default pointed at a personal
+  // Cloudflare tunnel, so a deployment without AI_LLM_BASE_URL silently called an
+  // unreachable host and leaked private infra into a tracked file.
+  baseUrl: "",
   model: "ag/gemini-3.8-flash-low",
   apiKey: "",
   maxTokens: 1024,
@@ -38,6 +41,20 @@ export function getGeminiKeyPool(): string[] {
 }
 
 export const keyCooldownMap = new Map<string, number>();
+
+let hasWarnedMissingServiceKey = false;
+
+/**
+ * ai-service rejects every request with 503 when AI_SERVICE_API_KEY is unset,
+ * so surface the misconfiguration once instead of silently failing per call.
+ */
+function warnIfServiceKeyMissing(): void {
+  if (process.env.AI_SERVICE_API_KEY || hasWarnedMissingServiceKey) return;
+  hasWarnedMissingServiceKey = true;
+  console.warn(
+    "[AIClient] AI_SERVICE_API_KEY is not set; the ai-service will reject requests with 503 SERVICE_KEY_NOT_CONFIGURED"
+  );
+}
 
 export function markKeyRateLimited(apiKey: string, durationMs: number = 60_000): void {
   if (!apiKey) return;
@@ -160,6 +177,9 @@ const chatResultSchema = z.object({
   proposed_action: proposedActionSchema.nullish(),
   abstain: z.boolean().default(false),
   degraded: z.boolean().default(false),
+  // Provenance of the typed decision: jev_systemone | jev_usejevai | llm_fallback | rule.
+  // Kept so a demo/report can tell whether Jev actually ran (docs/21 §6.1.3).
+  decisionSource: z.string().optional(),
   conversationId: z.string().trim().min(1).max(200).optional(),
   attachments: z.array(attachmentSchema).default([]),
 });
@@ -175,6 +195,7 @@ export interface ChatResult {
   proposedAction: ProposedAction | null;
   abstain: boolean;
   degraded?: boolean;
+  decisionSource?: string;
   conversationId?: string;
   attachments: Attachment[];
 }
@@ -209,9 +230,18 @@ export async function chatWithAiService(
         const isMockTest = Boolean(envKey && !envKey.startsWith("AQ.") && !envKey.startsWith("AIzaSy"));
 
         if (isMockTest) {
+          const baseUrl = process.env.AI_LLM_BASE_URL?.trim() || DEFAULT_GEMINI_PROVIDER.baseUrl;
+          if (!baseUrl) {
+            // Fail closed: an OpenAI-compatible key without an endpoint used to fall
+            // through to a hardcoded tunnel. Better to say so than to call a host the
+            // operator never chose.
+            throw new Error(
+              "AI_LLM_BASE_URL is required for an OpenAI-compatible key (no endpoint is built into source)"
+            );
+          }
           activeProviders = [{
             ...DEFAULT_GEMINI_PROVIDER,
-            baseUrl: process.env.AI_LLM_BASE_URL?.trim() || DEFAULT_GEMINI_PROVIDER.baseUrl,
+            baseUrl,
             model: process.env.AI_LLM_MODEL?.trim() || DEFAULT_GEMINI_PROVIDER.model,
             apiKey: envKey!,
           }];
@@ -263,6 +293,7 @@ export async function chatWithAiService(
         "Connection": "keep-alive",
         "Keep-Alive": "timeout=15, max=1000",
       };
+      warnIfServiceKeyMissing();
       if (process.env.AI_SERVICE_API_KEY) {
         headers["x-ai-service-key"] = process.env.AI_SERVICE_API_KEY;
       }
@@ -310,6 +341,7 @@ export async function chatWithAiService(
         proposedAction: data.proposedAction ?? data.proposed_action ?? null,
         abstain: data.abstain,
         degraded: data.degraded,
+        decisionSource: data.decisionSource,
         conversationId: data.conversationId ?? conversationId,
         attachments: data.attachments ?? [],
       };

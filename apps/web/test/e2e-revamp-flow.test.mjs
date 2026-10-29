@@ -29,7 +29,8 @@ if (!chromium) {
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const distDir = path.resolve(__dirname, '../dist');
+// E2E_DIST_DIR lets a build be verified from a scratch outDir without replacing dist/.
+const distDir = path.resolve(__dirname, process.env.E2E_DIST_DIR ?? '../dist');
 
 describe('Guta UI Revamp E2E Flow (Playwright)', () => {
   let server;
@@ -115,6 +116,14 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     if (browser) await browser.close();
     if (server) server.close();
   });
+
+  // The workspace opens on the chat tab, so CRM-only steps must return first.
+  const returnToCrm = async () => {
+    if (await page.getByTestId('chat-page').count()) {
+      await page.getByRole('button', { name: 'Quay lại Vận Hành (CRM)', exact: true }).click();
+    }
+    await page.getByRole('table').waitFor({ state: 'visible' });
+  };
 
   it('Bước 1: Render Landing Page, tiêu đề chuẩn, logo marquee và 0 pixel màu vàng', async () => {
     // Kiểm tra headline
@@ -493,6 +502,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     };
     await page.route('**/api/chat', handler);
     try {
+      await returnToCrm();
       await page.locator('nav a').filter({ hasText: 'Copilot' }).click();
       const chat = page.getByTestId('chat-page');
       const input = chat.getByRole('textbox', { name: 'Tin nhắn cho Guta AI' });
@@ -551,6 +561,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       window.__restoreAbort = () => { window.fetch = originalFetch; };
     });
     try {
+      await returnToCrm();
       await page.locator('nav a').filter({ hasText: 'Copilot' }).click();
       await page.getByRole('textbox', { name: 'Tin nhắn cho Guta AI' }).fill('Kiểm tra fetch');
       await page.keyboard.press('Enter');
@@ -588,6 +599,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       }
       await page.getByRole('table').waitFor({ state: 'visible' });
     });
+    await returnToCrm();
     await page.locator('nav a').filter({ hasText: 'Copilot' }).click();
     await page.emulateMedia({ reducedMotion: 'reduce' });
     const chat = page.getByTestId('chat-page');
@@ -683,33 +695,42 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.deepEqual(consoleErrors, []);
   });
 
-  it('CRM sidebar chuyển đầy đủ 5 phân hệ hoạt động thật', async () => {
-    // 1. Phân hệ Đội ngũ Barista & SM
-    const employees = page.locator('nav [data-section="employees"]');
-    await employees.click();
-    await page.getByRole('heading', { name: 'Đội ngũ Barista & SM' }).waitFor({ state: 'visible' });
-    assert.equal(await page.getByRole('table').getByText('Trương Quốc Thái').isVisible(), true);
-    assert.equal(await page.locator('nav [data-entrypoint="coming-soon"]').count(), 0);
+  it('CRM sidebar chuyển phân hệ khớp nhãn với nội dung thật', async () => {
+    // The demo runs without a backend, so the employee endpoints are stubbed to keep
+    // the console clean and the assertions deterministic.
+    const employeesHandler = (route) => route.fulfill({ status: 200, json: {
+      items: [{ employeeId: 'EMP-001', fullName: 'Trương Quốc Thái', level: 'Senior', department: 'Guta Quận 1', skills: ['Barista'], status: 'active' }],
+      paging: { page: 1, limit: 20, totalItems: 1, totalPages: 1, hasNext: false, hasPrev: false },
+    } });
+    await page.route('**/api/employees**', employeesHandler);
+    try {
+      // 1. "Nhân sự" -> Danh Sách Nhân Sự Điểm Bán
+      await page.locator('nav [data-section="employees"]').click();
+      await page.getByRole('heading', { name: 'Danh Sách Nhân Sự Điểm Bán (Allowlist Only)' }).waitFor({ state: 'visible' });
+      const portal = page.locator('#crm-custom-view-portal');
+      assert.equal(await portal.getByText('Trương Quốc Thái').isVisible(), true);
+      assert.equal(await page.locator('nav [data-entrypoint="coming-soon"]').count(), 0);
 
-    // 2. Phân hệ Lịch Phân Ca 24H
-    await page.locator('nav [data-section="schedules"]').click();
-    await page.getByRole('heading', { name: 'Lịch Phân Ca 24H' }).waitFor({ state: 'visible' });
-    assert.equal(await page.getByRole('table').getByText('25/10/2026').first().isVisible(), true);
+      // 2. "Hồ sơ nhân sự" -> đúng heading RosterView, không còn nhãn "Phân ca" lệch nội dung
+      await page.locator('nav [data-section="schedules"]').click();
+      await page.getByRole('heading', { name: 'Hồ Sơ Nhân Sự (F1)' }).waitFor({ state: 'visible' });
+      assert.equal(await portal.getByText('Trương Quốc Thái').isVisible(), true);
+      assert.equal(await portal.getByRole('tab', { name: 'Hàng đợi duyệt' }).count(), 1);
 
-    // 3. Phân hệ Chấm công & Đi trễ
-    await page.locator('nav [data-section="attendance"]').click();
-    await page.getByRole('heading', { name: 'Chấm công & Đi trễ — ZKTeco' }).waitFor({ state: 'visible' });
-    assert.equal(await page.getByRole('table').getByText('05:55').first().isVisible(), true);
+      // 3. Nghiệp vụ đề tài khóa luận không còn trong nav demo
+      assert.equal(await page.locator('nav [data-section="projects"]').count(), 0);
+      assert.equal(await page.getByText('Vòng Đời Đề Tài (F2)').count(), 0);
 
-    // 4. Phân hệ Báo cáo Két ca
-    await page.locator('nav [data-section="cash"]').click();
-    await page.getByRole('heading', { name: 'Báo cáo Két ca' }).waitFor({ state: 'visible' });
-    assert.equal(await page.getByRole('table').getByText('0 ₫').first().isVisible(), true);
+      // 4. "Cài đặt LLM" chỉ hiện với Admin
+      assert.equal(await page.locator('nav [data-section="settings"]').isVisible(), false);
 
-    // 5. Quay lại Phân hệ Cửa hàng / Chi nhánh
-    await page.locator('nav [data-section="stores"]').click();
-    await page.getByRole('heading', { name: /Guta Workspace — Quản lý nhân sự & 45 chi nhánh|Chi Nhánh Cà Phê Guta/i }).waitFor({ state: 'visible' });
-    assert.equal(await page.getByRole('table').getByText('GT-CH-01').first().isVisible(), true);
+      // 5. Quay lại phân hệ Cửa hàng / Chi nhánh
+      await page.locator('nav [data-section="stores"]').click();
+      await page.getByRole('heading', { name: /Guta Workspace — Quản lý nhân sự & 45 chi nhánh|Chi Nhánh Cà Phê Guta/i }).waitFor({ state: 'visible' });
+      assert.equal(await page.getByRole('table').getByText('GT-CH-01').first().isVisible(), true);
+    } finally {
+      await page.unroute('**/api/employees**', employeesHandler);
+    }
 
     // Xác nhận không có toast coming soon / lộ trình phát triển nào xuất hiện
     assert.equal(await page.locator('#zkteco-sync-toast').count(), 0);

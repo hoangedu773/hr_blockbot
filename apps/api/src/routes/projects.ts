@@ -15,10 +15,48 @@ import {
   transitionProject,
   ProjectVersionConflictError,
   ProjectNotFoundError,
+  IllegalTransitionError,
+  ForbiddenTransitionError,
 } from "../models/Project.js";
-import { authenticateToken } from "../middlewares/auth.middleware.js";
+import { authenticateToken, AuthenticatedUser } from "../middlewares/auth.middleware.js";
+import {
+  assertInScope,
+  ActorContext,
+  ResourceTarget,
+  RbacDeniedError,
+} from "../services/rbac.service.js";
 
 const router = Router();
+
+/**
+ * 404 (not 403) on out-of-scope resources so their existence is not disclosed.
+ * Employees are additionally allowed to read projects of their own department,
+ * matching the visibility window of the list handler above.
+ */
+function assertProjectScope(user: AuthenticatedUser, project: Record<string, any>): void {
+  const actor: ActorContext = {
+    userId: user.userId,
+    role: user.role,
+    employeeId: user.employeeId ?? null,
+    departmentId: user.departmentId ?? null,
+  };
+  const target: ResourceTarget = {
+    employeeId: project.assigneeId ? project.assigneeId.toString() : null,
+    departmentId: project.departmentId ? project.departmentId.toString() : null,
+  };
+
+  try {
+    assertInScope(actor, target);
+    return;
+  } catch (err) {
+    if (!(err instanceof RbacDeniedError)) throw err;
+    const sameDepartment =
+      actor.role === "Employee" &&
+      Boolean(actor.departmentId) &&
+      target.departmentId === actor.departmentId;
+    if (!sameDepartment) throw err;
+  }
+}
 
 // GET /api/projects - Danh sách đề tài có filter và pagination
 router.get("/projects", authenticateToken, async (req: Request, res: Response) => {
@@ -149,6 +187,7 @@ router.post("/projects", authenticateToken, async (req: Request, res: Response) 
 
 // GET /api/projects/:id - Chi tiết đề tài
 router.get("/projects/:id", authenticateToken, async (req: Request, res: Response) => {
+  const user = req.user!;
   const { id } = req.params;
   if (!mongoose.Types.ObjectId.isValid(id)) {
     res.status(400).json({ error: { code: "VALIDATION_FAILED", message: "Invalid project ID format" } });
@@ -160,6 +199,16 @@ router.get("/projects/:id", authenticateToken, async (req: Request, res: Respons
     if (!p) {
       res.status(404).json({ error: { code: "RESOURCE_NOT_FOUND", message: "Project not found" } });
       return;
+    }
+
+    try {
+      assertProjectScope(user, p);
+    } catch (err) {
+      if (err instanceof RbacDeniedError) {
+        res.status(404).json({ error: { code: "RESOURCE_NOT_FOUND", message: "Project not found" } });
+        return;
+      }
+      throw err;
     }
 
     const projectData = ProjectSchema.parse({
@@ -212,12 +261,21 @@ router.post("/projects/:id/assign", authenticateToken, async (req: Request, res:
       expectedVersion: parsed.data.expectedVersion,
       newStatus: "ASSIGNED",
       changedBy: user.employeeId || user.userId,
+      actorRole: user.role,
       reason: "Admin assigned project",
       updates: { assigneeId: parsed.data.assigneeId },
     });
 
     res.status(200).json({ id: updated._id.toString(), status: updated.status, version: updated.version });
   } catch (err: any) {
+    if (err instanceof IllegalTransitionError) {
+      res.status(409).json({ error: { code: "ILLEGAL_STATE_TRANSITION", message: err.message } });
+      return;
+    }
+    if (err instanceof ForbiddenTransitionError) {
+      res.status(403).json({ error: { code: "FORBIDDEN_TRANSITION", message: err.message } });
+      return;
+    }
     if (err instanceof ProjectVersionConflictError) {
       res.status(409).json({ error: { code: "PROJECT_VERSION_CONFLICT", message: err.message, details: err.currentProject } });
       return;
@@ -261,11 +319,20 @@ router.post("/projects/:id/transition", authenticateToken, async (req: Request, 
       expectedVersion: parsed.data.expectedVersion,
       newStatus: parsed.data.targetStatus,
       changedBy: user.employeeId || user.userId,
+      actorRole: user.role,
       reason: parsed.data.reason,
     });
 
     res.status(200).json({ id: updated._id.toString(), status: updated.status, version: updated.version });
   } catch (err: any) {
+    if (err instanceof IllegalTransitionError) {
+      res.status(409).json({ error: { code: "ILLEGAL_STATE_TRANSITION", message: err.message } });
+      return;
+    }
+    if (err instanceof ForbiddenTransitionError) {
+      res.status(403).json({ error: { code: "FORBIDDEN_TRANSITION", message: err.message } });
+      return;
+    }
     if (err instanceof ProjectVersionConflictError) {
       res.status(409).json({ error: { code: "PROJECT_VERSION_CONFLICT", message: err.message, details: err.currentProject } });
       return;

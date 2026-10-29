@@ -11,6 +11,18 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+# J-4: load .env here, not only in start.py. `render.yaml` starts the service with
+# `uvicorn app.main:app`, which never imports start.py, so keys/env vars were
+# silently missing on that path and the gate fell back to the rule path.
+try:
+    from pathlib import Path as _Path
+
+    from dotenv import load_dotenv as _load_dotenv
+
+    _load_dotenv(_Path(__file__).resolve().parent.parent / ".env")
+except ImportError:  # python-dotenv is optional at runtime
+    pass
+
 
 def _env_str(name: str, default: str) -> str:
     value = os.getenv(name)
@@ -64,13 +76,23 @@ class Settings:
     provider_cache_ttl_seconds: float = 60.0
     provider_cache_max_versions: int = 8
 
-    # In-context generation and typed decisions. Secrets come from env/request only.
-    llm_base_url: str = "https://rbnvqls.abc-tunnel.us/v1"
+    # In-context generation and typed decisions. Secrets and endpoints come from
+    # env/request only; no provider URL is baked into source.
+    llm_base_url: str = ""
     llm_api_key: str = ""
     llm_model: str = "ag/gemini-3.8-flash-low"
     jev_api_key: str = ""
     jev_model: str = "typesafe/jev-1.14"
-    decision_timeout_ms: int = 5000
+    decision_timeout_ms: int = 8000
+
+    # UseJevAI trial accounts (queued run API, see app/agent/jev_usejevai.py).
+    # Comma-separated keys; rotation skips dead keys and cools down rate-limited ones.
+    jev_usejevai_keys: str = ""
+    jev_usejevai_base_url: str = "https://usejevai.com"
+    # J-1: apps/api aborts the whole ai-service call at 15s. The decision gate runs
+    # before generation, so its own budget must leave room for the LLM: 6s here.
+    jev_usejevai_timeout_ms: int = 6000
+    jev_usejevai_cooldown_seconds: float = 60.0
 
     # Transport / auth.
     ai_service_api_key: str = ""
@@ -78,7 +100,7 @@ class Settings:
 
 
 def load_settings() -> Settings:
-    return Settings(
+    resolved = Settings(
         top_k=_env_int("AI_TOP_K", 5),
         embedding_dim=_env_int("AI_EMBEDDING_DIM", 384),
         bm25_k1=_env_float("AI_BM25_K1", 1.5),
@@ -97,15 +119,27 @@ def load_settings() -> Settings:
         max_tool_result_items=_env_int("AI_MAX_TOOL_RESULT_ITEMS", 20),
         provider_cache_ttl_seconds=_env_float("AI_PROVIDER_CACHE_TTL_SECONDS", 60.0),
         provider_cache_max_versions=_env_int("AI_PROVIDER_CACHE_MAX_VERSIONS", 8),
-        llm_base_url=_env_str("AI_LLM_BASE_URL", "https://rbnvqls.abc-tunnel.us/v1"),
+        llm_base_url=_env_str("AI_LLM_BASE_URL", ""),
         llm_api_key=_env_str("AI_LLM_API_KEY", _env_str("OPENAI_API_KEY", "")),
         llm_model=_env_str("AI_LLM_MODEL", "ag/gemini-3.8-flash-low"),
         jev_api_key=_env_str("JEV_API_KEY", ""),
         jev_model=_env_str("JEV_MODEL", "typesafe/jev-1.14"),
-        decision_timeout_ms=_env_int("AI_DECISION_TIMEOUT_MS", 5000),
+        decision_timeout_ms=_env_int("AI_DECISION_TIMEOUT_MS", 8000),
+        jev_usejevai_keys=_env_str("JEV_USEJEVAI_KEYS", ""),
+        jev_usejevai_base_url=_env_str("JEV_USEJEVAI_BASE_URL", "https://usejevai.com"),
+        jev_usejevai_timeout_ms=_env_int("JEV_USEJEVAI_TIMEOUT_MS", 6000),
+        jev_usejevai_cooldown_seconds=_env_float("JEV_USEJEVAI_COOLDOWN_SECONDS", 60.0),
         ai_service_api_key=_env_str("AI_SERVICE_API_KEY", ""),
         request_max_chars=_env_int("AI_REQUEST_MAX_CHARS", 2000),
     )
+    # J-2: the pool budget must fit inside the decision budget. Without this check
+    # AI_DECISION_TIMEOUT_MS silently has no effect on the Jev path.
+    if resolved.jev_usejevai_timeout_ms > resolved.decision_timeout_ms:
+        raise ValueError(
+            "JEV_USEJEVAI_TIMEOUT_MS must not exceed AI_DECISION_TIMEOUT_MS "
+            f"({resolved.jev_usejevai_timeout_ms} > {resolved.decision_timeout_ms})"
+        )
+    return resolved
 
 
 settings = load_settings()

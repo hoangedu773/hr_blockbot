@@ -1,0 +1,55 @@
+[
+  {
+    "viewport": "375x812",
+    "screenshot": "C:\\work-space\\hr-blockbot\\previews\\dashboard-audit\\375x812.png",
+    "outline": [
+      "div.group/sidebar-wrapper.flex \"G GUTA F&B WORKSPACE Cửa hàn @ x0 y0 375x812",
+      "  aside.w-64.border-r \"G GUTA F&B WORKSPACE Cửa hàng • nhân sự @ x0 y0 56x812",
+      "    div.flex.flex-col \"G GUTA F&B WORKSPACE Cửa hàng • nhân sự \" @ x0 y0 56x691",
+      "      nav.px-2.py-3 \"NỀN TẢNG F&B AI INTELLIGENCE ✨\" @ x0 y239 56x452",
+      "  div.crm-shell.flex \"F&B Workspace / Vận hành / Cửa hàng PA C @ x56 y0 319x812",
+      "    header.crm-breadcrumbs.border-b \"F&B Workspace / Vận hành /  @ x56 y0 319x56",
+      "    main.crm-page.flex-1 \"Cửa hàng Quản lý điểm bán, nhân sự the @ x56 y56 319x756",
+      "      div.crm-page-heading \"Cửa hàng Quản lý điểm bán, nhân sự the @ x72 y72 287x131",
+      "      nav.crm-view-tabs \"Tất cả cửa hàng Đang hoạt động Cần chú ý\" @ x72 y223 287x45",
+      "      div.crm-list-toolbar \"Trạng thái ⌄ Khu vực ⌄\" @ x72 y288 287x152",
+      "      div.crm-table-wrap \"Mã CH Tên Cửa Hàng / Chi Nhánh Cửa Hàng  @ x72 y452 287x541"
+    ],
+    "findings": [],
+    "height": 812
+  },
+  {
+    "viewport": "768x1024",
+    "screenshot": "C:\\work-space\\hr-blockbot\\previews\\dashboard-audit\\768x1024.png",
+    "outline": [
+      "div.group/sidebar-wrapper.flex \"G GUTA F&B WORKSPACE Cửa hàn @ x0 y0 768x1024",
+      "  aside.w-64.border-r \"G GUTA F&B WORKSPACE Cửa hàng • nhân sự @ x0 y0 256x1024",
+      "    div.flex.flex-col \"G GUTA F&B WORKSPACE Cửa hàng • nhân sự \" @ x0 y0 256x537",
+      "      nav.px-2.py-3 \"NỀN TẢNG F&B Cửa hàng / Chi nhánh 45 Nhâ\" @ x0 y157 256x380",
+      "  div.crm-shell.flex \"F&B Workspace / Vận hành / Cửa hàng PA N @ x256 y0 512x1024",
+      "    main.crm-page.flex-1 \"Cửa hàng Quản lý điểm bán, nhân sự the @ x256 y56 512x968",
+      "      div.crm-page-heading \"Cửa hàng Quản lý điểm bán, nhân sự the @ x288 y88 448x75",
+      "      div.crm-list-toolbar \"Trạng thái ⌄ Khu vực ⌄ Bộ dữ liệu minh @ x288 y260 448x74",
+      "      div.crm-table-wrap \"Mã CH Tên Cửa Hàng / Chi Nhánh Cửa Hàng  @ x288 y346 448x541"
+    ],
+    "findings": [],
+    "height": 1024
+  },
+  {
+    "viewport": "1440x900",
+    "screenshot": "C:\\work-space\\hr-blockbot\\previews\\dashboard-audit\\1440x900.png",
+    "outline": [
+      "div.group/sidebar-wrapper.flex \"G GUTA F&B WORKSPACE Cửa hàn @ x0 y0 1440x900",
+      "  aside.w-64.border-r \"G GUTA F&B WORKSPACE Cửa hàng • nhân sự @ x0 y0 256x900",
+      "    div.flex.flex-col \"G GUTA F&B WORKSPACE Cửa hàng • nhân sự \" @ x0 y0 256x537",
+      "      nav.px-2.py-3 \"NỀN TẢNG F&B Cửa hàng / Chi nhánh 45 Nhâ\" @ x0 y157 256x380",
+      "  div.crm-shell.flex \"F&B Workspace / Vận hành / Cửa hàng PA N @ x256 y0 1184x900",
+      "    header.crm-breadcrumbs.border-b \"F&B Workspace / Vận hành /  @ x256 y0 1184x56",
+      "    main.crm-page.flex-1 \"Cửa hàng Quản lý điểm bán, nhân sự the @ x256 y56 1184x844",
+      "      div.crm-page-heading \"Cửa hàng Quản lý điểm bán, nhân sự the @ x288 y88 1120x55",
+      "      div.crm-table-wrap \"Mã CH Tên Cửa Hàng / Chi Nhánh Cửa Hàng  @ x288 y296 1120x541"
+    ],
+    "findings": [],
+    "height": 900
+  }
+]

@@ -1,0 +1,328 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "HR BlockBot - Chatbot & Agentic Architecture",
+    "subtitle": "3 Phân Tầng Không Gian: Tầng Trên (Sandbox & Memory) · Tầng Giữa (Realtime Core) · Tầng Dưới (Security & Persistence)",
+    "visual_preset": "signal-flow",
+    "theme": "dark",
+    "animation": "trace",
+    "views": [
+      {
+        "id": "c1",
+        "title": "1. Core Realtime Chat (Tầng Giữa - Live)",
+        "narrative": "Luồng tương tác chính ở Tầng Giữa: Web ChatDrawer gửi tin nhắn qua WebSocket đến Chat Gateway. Fast Rule Gate lọc lời chào <0.1ms. Jev AI Decision Gate chạy theo 3 đường có khai báo nguồn: key đồng bộ (~0,4s suy luận), pool trial xoay key (~2,5-3,7s end-to-end), fallback LLM/rule có degraded khi hết key. Agent Loop phối hợp In-Context Policy và Tool Runtime để sinh phản hồi an toàn qua Dynamic Provider Chain đến Gemini 3.8 Flash.",
+        "focus_nodes": [
+          "s-chat",
+          "s-gateway",
+          "s-filter",
+          "s-jev",
+          "s-policy",
+          "s-loop",
+          "s-tools",
+          "s-chain",
+          "s-llm"
+        ]
+      },
+      {
+        "id": "c2",
+        "title": "2. Autonomous Sandbox & Memory (Tầng Trên - Roadmap v2)",
+        "narrative": "Học hỏi từ kiến trúc Agentic Container: Tầng Trên bổ sung Omni Gateway (Zalo OA, Telegram Bot), Bộ nhớ dài hạn Episodic Memory (Qdrant vectors + SQLite audit), Headless Browser Agent (Chrome CDP) và Docker Sandbox Runner phân tích dữ liệu chuyên sâu.",
+        "focus_nodes": [
+          "s-omni",
+          "s-memory",
+          "s-browser",
+          "s-sandbox",
+          "s-loop"
+        ]
+      },
+      {
+        "id": "c3",
+        "title": "3. Security, Human Confirmation & Persistence (Tầng Dưới)",
+        "narrative": "Tầng Dưới kiểm soát an ninh nghiêm ngặt: Crypto Vault Service mã hóa secret keys AES-256-GCM zero-leak. Egress Proxy tráo token theo lượt (key-swap). Mọi hành động ghi dữ liệu nhân sự đều bị chặn bởi Action Executor 2-Step bắt buộc con người phê duyệt trước khi lưu vào MongoDB hr_bot.",
+        "focus_nodes": [
+          "s-admin",
+          "s-crypto",
+          "s-settings",
+          "s-conv",
+          "s-confirm",
+          "s-egress",
+          "s-db"
+        ]
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "lane-top",
+      "label": "TẦNG TRÊN: AUTONOMOUS SANDBOX & LONG-TERM MEMORY (ROADMAP)",
+      "role": "worker"
+    },
+    {
+      "id": "lane-mid",
+      "label": "TẦNG GIỮA: CORE REALTIME CHAT & AGENT EXECUTION LOOP (LIVE)",
+      "role": "orchestrator"
+    },
+    {
+      "id": "lane-bot",
+      "label": "TẦNG DƯỚI: SECURITY, HUMAN CONFIRMATION & ENTERPRISE PERSISTENCE",
+      "role": "approver"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s-omni",
+      "label": "Omni Gateway",
+      "description": "Zalo OA · Telegram Bot · Tailnet sidecar webhook ingress",
+      "lane": "lane-top",
+      "kind": "start"
+    },
+    {
+      "id": "s-memory",
+      "label": "Episodic Memory",
+      "description": "Qdrant vectors + SQLite markdown audit log (Roadmap v2)",
+      "lane": "lane-top",
+      "kind": "subprocess"
+    },
+    {
+      "id": "s-browser",
+      "label": "Agent Browser",
+      "description": "Chrome CDP + Xvnc portal automation & export (Roadmap v2)",
+      "lane": "lane-top",
+      "kind": "subprocess"
+    },
+    {
+      "id": "s-sandbox",
+      "label": "Sandbox Runner",
+      "description": "Docker container Python analytics & report runner (Roadmap v2)",
+      "lane": "lane-top",
+      "kind": "action"
+    },
+    {
+      "id": "s-chat",
+      "label": "Web Chat Drawer",
+      "description": "React 18 · Socket.IO client · 6 UI interactive states",
+      "lane": "lane-mid",
+      "kind": "start"
+    },
+    {
+      "id": "s-gateway",
+      "label": "Chat Gateway Service",
+      "description": "Express 3001 · JWT Auth & user scope enforcement",
+      "lane": "lane-mid",
+      "kind": "action"
+    },
+    {
+      "id": "s-filter",
+      "label": "Fast Rule Gate",
+      "description": "Regex & greeting word-set <0.1ms instant bypass",
+      "lane": "lane-mid",
+      "kind": "decision"
+    },
+    {
+      "id": "s-policy",
+      "label": "In-Context Policy Store",
+      "description": "Guta regulations prompt injection (ADR-019)",
+      "lane": "lane-mid",
+      "kind": "action"
+    },
+    {
+      "id": "s-jev",
+      "label": "Jev AI Decision Gate",
+      "description": "System One · sync key / trial key pool / degraded fallback",
+      "lane": "lane-mid",
+      "kind": "decision"
+    },
+    {
+      "id": "s-loop",
+      "label": "Agent Execution Loop",
+      "description": "Turn orchestrator · Max 5 steps safety guard loop",
+      "lane": "lane-mid",
+      "kind": "action"
+    },
+    {
+      "id": "s-tools",
+      "label": "Scoped Tool Runtime",
+      "description": "Read-only queries: shifts, punches, users, attendances",
+      "lane": "lane-mid",
+      "kind": "action"
+    },
+    {
+      "id": "s-chain",
+      "label": "Dynamic Provider Chain",
+      "description": "Priority failover · TTL 60s cache · Provider switching",
+      "lane": "lane-mid",
+      "kind": "action"
+    },
+    {
+      "id": "s-llm",
+      "label": "Gemini 3.8 Flash",
+      "description": "Primary 1M context LLM · Structured JSON & citations",
+      "lane": "lane-mid",
+      "kind": "terminal-success"
+    },
+    {
+      "id": "s-fallback",
+      "label": "Fallback Provider",
+      "description": "Auto failover resilience degraded mode (Fake/Local LLM)",
+      "lane": "lane-mid",
+      "kind": "terminal-failure"
+    },
+    {
+      "id": "s-admin",
+      "label": "Admin Provider UI",
+      "description": "Runtime settings · KeyHint safe priority UI management",
+      "lane": "lane-bot",
+      "kind": "start"
+    },
+    {
+      "id": "s-crypto",
+      "label": "Crypto & Vault Service",
+      "description": "AES-256-GCM secret keys & config version management",
+      "lane": "lane-bot",
+      "kind": "action"
+    },
+    {
+      "id": "s-conv",
+      "label": "MongoDB: conversations",
+      "description": "User session history capped at 50 messages per session",
+      "lane": "lane-bot",
+      "kind": "subprocess"
+    },
+    {
+      "id": "s-settings",
+      "label": "MongoDB: settings",
+      "description": "Encrypted provider credentials & active schema version",
+      "lane": "lane-bot",
+      "kind": "subprocess"
+    },
+    {
+      "id": "s-confirm",
+      "label": "Action Executor (2-Step)",
+      "description": "Human confirmation enforced · Writes to DB only on verdict",
+      "lane": "lane-bot",
+      "kind": "wait"
+    },
+    {
+      "id": "s-egress",
+      "label": "Egress Key Lease",
+      "description": "Zero-trust key lease & outbound key swap proxy (Roadmap v2)",
+      "lane": "lane-bot",
+      "kind": "action"
+    },
+    {
+      "id": "s-db",
+      "label": "MongoDB: hr_bot Data",
+      "description": "Operational collections: shifts, punches, users, attendances",
+      "lane": "lane-bot",
+      "kind": "subprocess"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "s-omni",
+      "to": "s-gateway",
+      "label": "Tailnet Ingress"
+    },
+    {
+      "from": "s-chat",
+      "to": "s-gateway",
+      "label": "WS chat:send"
+    },
+    {
+      "from": "s-gateway",
+      "to": "s-conv",
+      "label": "Save (≤50)"
+    },
+    {
+      "from": "s-gateway",
+      "to": "s-filter",
+      "label": "POST /chat"
+    },
+    {
+      "from": "s-filter",
+      "to": "s-jev",
+      "label": "Pass"
+    },
+    {
+      "from": "s-jev",
+      "to": "s-loop",
+      "label": "Typed Intent"
+    },
+    {
+      "from": "s-policy",
+      "to": "s-loop",
+      "label": "Inject Rules"
+    },
+    {
+      "from": "s-memory",
+      "to": "s-loop",
+      "label": "[Roadmap] Recall"
+    },
+    {
+      "from": "s-loop",
+      "to": "s-tools",
+      "label": "Tool Call"
+    },
+    {
+      "from": "s-loop",
+      "to": "s-browser",
+      "label": "[Roadmap] Portal"
+    },
+    {
+      "from": "s-loop",
+      "to": "s-sandbox",
+      "label": "[Roadmap] Script"
+    },
+    {
+      "from": "s-loop",
+      "to": "s-confirm",
+      "label": "Propose Draft"
+    },
+    {
+      "from": "s-tools",
+      "to": "s-db",
+      "label": "Read (No Write)"
+    },
+    {
+      "from": "s-confirm",
+      "to": "s-db",
+      "label": "Write after Confirm"
+    },
+    {
+      "from": "s-tools",
+      "to": "s-chain",
+      "label": "Generate Answer"
+    },
+    {
+      "from": "s-chain",
+      "to": "s-llm",
+      "label": "Direct Call (Live)"
+    },
+    {
+      "from": "s-chain",
+      "to": "s-egress",
+      "label": "[Roadmap] Lease"
+    },
+    {
+      "from": "s-egress",
+      "to": "s-llm",
+      "label": "[Roadmap] Swapped Key"
+    },
+    {
+      "from": "s-egress",
+      "to": "s-fallback",
+      "label": "[Roadmap] Fallback"
+    },
+    {
+      "from": "s-admin",
+      "to": "s-crypto",
+      "label": "Save Keys"
+    },
+    {
+      "from": "s-crypto",
+      "to": "s-settings",
+      "label": "Store AES"
+    }
+  ]
+}

@@ -1,4 +1,9 @@
-"""Live test probe: AgentLoop with real MongoDB Atlas DB and real LLM proxy."""
+"""Live test probe: AgentLoop with real MongoDB Atlas DB and real LLM proxy.
+
+LLM credentials (AI_LLM_BASE_URL / AI_LLM_API_KEY) must come from the
+environment. Never commit API keys or provider tunnel URLs to this file:
+the probe skips when either variable is unset.
+"""
 
 import os
 import sys
@@ -23,11 +28,25 @@ from app.rag.policy_engine import policy_engine
 import pytest
 
 
+def _read_llm_env():
+    """Return (base_url, api_key) from the environment, or None when unset."""
+    base_url = os.environ.get("AI_LLM_BASE_URL", "").strip()
+    api_key = os.environ.get("AI_LLM_API_KEY", "").strip()
+    if not base_url or not api_key:
+        return None
+    return base_url, api_key
+
+
 def test_live_db_chat_probe(monkeypatch):
     """Live probe only runs if RUN_LIVE_TESTS is explicitly set and DB is reachable."""
     monkeypatch.setenv("AI_AGENT_ENABLED", "true")
     if not os.getenv("RUN_LIVE_TESTS"):
         pytest.skip("Set RUN_LIVE_TESTS=1 to run live MongoDB Atlas & LLM probe")
+
+    llm_env = _read_llm_env()
+    if llm_env is None:
+        pytest.skip("AI_LLM_BASE_URL / AI_LLM_API_KEY not set; skipping live LLM probe")
+    base_url, api_key = llm_env
 
     db_wrapper = DatabaseClient()
     if not db_wrapper.ping() or db_wrapper.db is None:
@@ -37,8 +56,8 @@ def test_live_db_chat_probe(monkeypatch):
         id="gemini-live",
         type="openai_compatible",
         model=os.getenv("AI_LLM_MODEL", "ag/gemini-3.8-flash-low"),
-        base_url=os.getenv("AI_LLM_BASE_URL", "https://rbnvqls.abc-tunnel.us/v1"),
-        api_key=os.getenv("AI_LLM_API_KEY", "sk-6391717b21217848-40w3qp-d43413fb"),
+        base_url=base_url,
+        api_key=api_key,
         max_tokens=1024,
         timeout_ms=15000,
     )
@@ -77,6 +96,10 @@ def test_live_db_chat_probe(monkeypatch):
 
 if __name__ == "__main__":
     os.environ["AI_AGENT_ENABLED"] = "true"
+    llm_env = _read_llm_env()
+    if llm_env is None:
+        sys.exit("AI_LLM_BASE_URL / AI_LLM_API_KEY not set; refusing to run the live probe")
+    base_url, api_key = llm_env
     db_wrapper = DatabaseClient()
     print(f"MongoDB Ping: {db_wrapper.ping()} | DB Name: {db_wrapper.db.name if db_wrapper.db is not None else None}")
     if db_wrapper.ping() and db_wrapper.db is not None:
@@ -84,8 +107,8 @@ if __name__ == "__main__":
             id="gemini-live",
             type="openai_compatible",
             model=os.getenv("AI_LLM_MODEL", "ag/gemini-3.8-flash-low"),
-            base_url=os.getenv("AI_LLM_BASE_URL", "https://rbnvqls.abc-tunnel.us/v1"),
-            api_key=os.getenv("AI_LLM_API_KEY", "sk-6391717b21217848-40w3qp-d43413fb"),
+            base_url=base_url,
+            api_key=api_key,
             max_tokens=1024,
             timeout_ms=15000,
         )

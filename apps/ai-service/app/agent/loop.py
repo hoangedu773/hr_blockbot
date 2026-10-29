@@ -283,6 +283,8 @@ class AgentTurn:
     guard_exceeded: bool = False
     provider_id: str | None = None
     answer_source: str | None = None
+    # Which gate produced `intent`: jev_systemone | jev_usejevai | llm_fallback | rule.
+    decision_source: str | None = None
     error: dict[str, Any] | None = None
 
     def as_dict(self) -> dict[str, Any]:
@@ -301,6 +303,7 @@ class AgentTurn:
             "guardExceeded": self.guard_exceeded,
             "providerId": self.provider_id,
             "answerSource": self.answer_source,
+            "decisionSource": self.decision_source,
             "error": self.error,
         }
 
@@ -370,18 +373,30 @@ class AgentLoop:
                 return self._tool_turn(plan, text, user_ctx)
         try:
             plan = classify(text, role=getattr(user_ctx, "role", None))
-            active_jev_key = getattr(jgw_mod, "settings", settings).jev_api_key or settings.jev_api_key
-            if active_jev_key:
-                decision = self.gateway.decide(text)
+            jev_settings = getattr(jgw_mod, "settings", settings)
+            jev_configured = jev_settings.jev_api_key or jev_settings.jev_usejevai_keys
+            decision = None
+            jev_degraded = False
+            if jev_configured:
+                try:
+                    decision = self.gateway.decide(text)
+                except LLMUnavailable as exc:
+                    # Keys exhausted or Jev down: continue on the rule/LLM path but mark
+                    # the turn degraded, so the response never claims a Jev decision.
+                    jev_degraded = True
+                    logger.warning("jev decision unavailable, degrading: %s", exc)
+            if decision is not None:
                 if self.runtime is not None and plan.tool_name is not None and not plan.is_policy:
                     turn = self._tool_turn(plan, text, user_ctx)
                     turn.intent = decision.intent
                     turn.intent_id = decision.intent
+                    turn.decision_source = decision.source
                     return turn
                 if plan.dashboard_only:
                     return AgentTurn(
                         intent=decision.intent, intent_id=decision.intent,
                         reply=dashboard_reply(plan), steps=1,
+                        decision_source=decision.source,
                     )
                 role_guide = get_role_instructions(user_role)
                 pruned_sections = select_relevant_policies(text, role=user_role, top_k=4)
@@ -402,11 +417,12 @@ class AgentLoop:
                     turn = self._tool_turn(plan, text, user_ctx)
                     turn.intent = plan.intent
                     turn.intent_id = plan.intent_id
+                    turn.decision_source = "rule"
                     return turn
                 if plan.dashboard_only:
                     return AgentTurn(
                         intent=plan.intent, intent_id=plan.intent_id,
-                        reply=dashboard_reply(plan), steps=1,
+                        reply=dashboard_reply(plan), steps=1, decision_source="rule",
                     )
                 pruned_sections = select_relevant_policies(text, role=user_role, top_k=4)
                 policy_context = render_policy_sections(pruned_sections)
@@ -432,8 +448,10 @@ class AgentLoop:
                 else:
                     answer = GeneratedAnswer.model_validate(raw_obj)
                     raw_intent = raw_obj.get("intent")
+                    decision_source = "llm_fallback"
                     if not raw_intent:
                         raw_intent = plan.intent if plan.intent in ("policy_query", "shift_operation", "cash_audit", "general_chat") else "general_chat"
+                        decision_source = "rule"
                     needs_approval = raw_obj.get("needs_manager_approval")
                     if needs_approval is None:
                         needs_approval = 1.0 if (raw_intent == "shift_operation" or (answer.proposedAction is not None and answer.proposedAction.type == "request_shift_swap")) else 0.0
@@ -444,6 +462,7 @@ class AgentLoop:
                         "intent": raw_intent,
                         "needs_manager_approval": needs_approval,
                         "incident_urgency": incident_urgency,
+                        "source": decision_source,
                     })
                     steps = 1
             if not answer.reply.strip():
@@ -452,7 +471,15 @@ class AgentLoop:
             if answer.proposedAction is not None:
                 draft = answer.proposedAction
                 expected_intent = "shift_operation" if draft.type == "request_shift_swap" else "cash_audit"
-                if decision.intent != expected_intent:
+                # P1-14: the intent and the action both come from the same model, so
+                # comparing them proves nothing. Require the deterministic router to
+                # agree as well; disagreement means no action is proposed (fail-closed,
+                # the user can still ask again).
+                if decision.intent != expected_intent or plan.intent != expected_intent:
+                    logger.warning(
+                        "action/intent disagreement: llm_intent=%s router_intent=%s action=%s",
+                        decision.intent, plan.intent, draft.type,
+                    )
                     raise ValueError("Action does not match typed intent")
                 action = {
                     "type": draft.type,
@@ -478,11 +505,17 @@ class AgentLoop:
                 attachments=attachments,
                 proposed_action=action, steps=steps, provider_id=result.provider_id,
                 answer_source="in_context_policy" if citations else "llm",
+                decision_source=decision.source,
+                degraded=jev_degraded,
             )
-            QUERY_CACHE.set(text, user_role, turn)
+            # J-3: a degraded turn must never be cached. Otherwise a rule/fallback
+            # answer is replayed for the full TTL even after Jev recovers, and the
+            # gate is never consulted again for that message.
+            if not turn.degraded:
+                QUERY_CACHE.set(text, user_role, turn)
             return turn
-        except (LLMUnavailable, ProviderError, ValueError, TypeError, KeyError, AttributeError):
-            logger.warning("Agent provider or structured response unavailable")
+        except (LLMUnavailable, ProviderError):
+            logger.warning("Agent provider unavailable")
             if self.strict_provider:
                 raise LLMUnavailable([{"providerId": "agent", "code": "LLM_UNAVAILABLE"}]) from None
             fallback_attachments = resolve_attachments(text, [])
@@ -492,6 +525,20 @@ class AgentLoop:
                 degraded=True, answer_source="degraded_structured",
                 attachments=fallback_attachments,
                 error={"code": "LLM_UNAVAILABLE", "retryable": True},
+            )
+        except (ValueError, TypeError, KeyError, AttributeError) as exc:
+            # P2-7: a policy/validation bug is not an outage. Reporting it as
+            # LLM_UNAVAILABLE hid real defects behind "mất kết nối" and made them
+            # unretryable-to-diagnose. Keep it separate and non-retryable.
+            logger.exception("Agent logic/validation error: %s", type(exc).__name__)
+            if self.strict_provider:
+                raise
+            return AgentTurn(
+                intent="general_chat", intent_id="general_chat",
+                reply="Mình chưa xử lý được yêu cầu này. Bạn thử diễn đạt lại giúp mình nhé; chưa có hành động nào được thực hiện.",
+                degraded=True, answer_source="degraded_structured",
+                attachments=resolve_attachments(text, []),
+                error={"code": "AGENT_LOGIC_ERROR", "retryable": False},
             )
 
     # --- tool path (guard: maxSteps) --------------------------------------------

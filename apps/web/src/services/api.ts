@@ -334,16 +334,21 @@ export interface SubmitReportResult {
 }
 
 /**
- * Canonical report submit path from the Phase 2 contract: reports are nested
- * under their project (`POST /api/projects/:id/reports`).
+ * Server exposes a flat `POST /api/reports`; `projectId` travels in the body
+ * (`ReportSubmitSchema`), there is no nested `/projects/:id/reports` route.
  */
 export async function submitReport(
   projectId: string,
   payload: { content: string; attachments?: string[]; expectedVersion: number }
 ): Promise<SubmitReportResult> {
   return requestJson<SubmitReportResult>(
-    `/projects/${encodeURIComponent(projectId)}/reports`,
-    postJson({ ...payload, attachments: payload.attachments ?? [] })
+    '/reports',
+    postJson({
+      projectId,
+      content: payload.content,
+      attachments: payload.attachments ?? [],
+      expectedVersion: payload.expectedVersion,
+    })
   );
 }
 

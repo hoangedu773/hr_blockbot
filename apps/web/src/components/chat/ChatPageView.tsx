@@ -106,6 +106,38 @@ const TOPICS = [
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
+const SAFE_URL_PROTOCOLS = new Set(['http:', 'https:']);
+
+/**
+ * Server-provided URLs end up in href/src, so only plain web URLs and root-relative
+ * paths are allowed. Anything else (javascript:, data:, vbscript:, file:, protocol
+ * relative //host) returns null and the caller drops the attachment.
+ */
+function safeUrl(raw: string): string | null {
+  const value = raw.trim();
+  if (!value) return null;
+  if (value.startsWith('/') && !value.startsWith('//')) return value;
+  try {
+    const parsed = new URL(value);
+    return SAFE_URL_PROTOCOLS.has(parsed.protocol) ? parsed.href : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A reply the demo cannot render (network failure, timeout, 5xx or a payload that
+ * breaks the contract) means the AI pipeline is unusable, not that the user did
+ * something wrong. Only an explicit 4xx is treated as a request problem.
+ */
+function isServiceFault(error: unknown): boolean {
+  if (error instanceof TypeError) return true; // fetch() could not reach the server
+  if (error instanceof Error && error.name === 'AbortError') return true; // 20s timeout
+  const httpStatus = error instanceof Error ? /^Chat HTTP (\d{3})$/.exec(error.message) : null;
+  if (httpStatus) return Number(httpStatus[1]) >= 500;
+  return true; // invalid reply payload
+}
+
 function parseReply(value: unknown): Omit<Message, 'id' | 'sender'> & { conversationId?: string } {
   if (!isRecord(value) || typeof value.reply !== 'string' || !value.reply.trim()) {
     throw new Error('Invalid chat reply');
@@ -135,11 +167,13 @@ function parseReply(value: unknown): Omit<Message, 'id' | 'sender'> & { conversa
       if (!isRecord(item) || typeof item.title !== 'string' || typeof item.url !== 'string') {
         continue;
       }
+      const url = safeUrl(item.url);
+      if (!url) continue;
       attachments.push({
         title: item.title,
         type: item.type === 'image' ? 'image' : 'pdf',
-        url: item.url,
-        fileName: typeof item.fileName === 'string' && item.fileName ? item.fileName : item.url.split('/').pop() || 'document',
+        url,
+        fileName: typeof item.fileName === 'string' && item.fileName ? item.fileName : url.split('/').pop() || 'document',
       });
     }
   }
@@ -207,6 +241,9 @@ const styles = `
 .guta-chat-model-btn[data-active="true"] { background: var(--chat-accent) !important; color: #000000 !important; font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); }
 .guta-chat-header .chat-menu { display: none; }
 .guta-chat-body { flex: 1; min-height: 0; overflow-y: auto; padding: 24px; }
+.guta-chat-banner { margin: 0 24px 8px; padding: 12px 16px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.14); }
+.guta-chat-banner strong { display: block; font-size: 13px; font-weight: 600; color: var(--chat-text); }
+.guta-chat-banner p { margin: 4px 0 0; font-size: 12px; color: var(--chat-muted); }
 .guta-chat-width { width: 100%; max-width: 768px; margin: 0 auto; }
 .guta-chat-empty { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; justify-content: center; padding: 24px; }
 .guta-chat-hero { text-align: center; margin-bottom: 32px; }
@@ -284,6 +321,7 @@ const styles = `
   .guta-chat-header { padding: 8px 16px; }
   .guta-chat-header .chat-menu { display: block; }
   .guta-chat-header-title span { display: none; }
+  .guta-chat-banner { margin: 0 16px 8px; }
   .guta-chat-body, .guta-chat-empty { padding: 16px; }
   .guta-chat-empty { justify-content: safe center; }
   .guta-chat-bottom { padding: 8px 16px max(16px, env(safe-area-inset-bottom)); }
@@ -304,6 +342,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   const [messages, setMessages] = useState<Message[]>([]);
   const [modelTier, setModelTier] = useState<ModelTier>(getSafeModelTier);
   const [isTyping, setIsTyping] = useState(false);
+  const [serviceUnavailable, setServiceUnavailable] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<AbortController | null>(null);
@@ -359,6 +398,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
       timer.current = null;
       const timeout = setTimeout(() => controller.abort(), 20000);
       let reply: ReturnType<typeof parseReply>;
+      let unavailable = false;
       try {
         const response = await apiFetch(`${API_BASE}/chat`, {
           method: 'POST',
@@ -378,6 +418,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
         reply = parseReply(data);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Lỗi kết nối máy chủ';
+        unavailable = isServiceFault(err);
         reply = {
           text: `Không thể kết nối đến máy chủ AI hoặc hệ thống đang bận (${message}). Vui lòng kiểm tra đường truyền và thử lại.`,
         };
@@ -387,6 +428,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
       if (pending.current !== controller) return;
       pending.current = null;
       if (reply.conversationId) conversationId.current = reply.conversationId;
+      setServiceUnavailable(unavailable);
       setMessages((previous) => [...previous, { ...reply, id: ++nextId.current, sender: 'assistant' }]);
       setIsTyping(false);
     }, 600);
@@ -463,6 +505,12 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
             <button type="button" aria-label="Quay lại CRM" onClick={() => onSwitchTab('crm')}>CRM</button>
           </div>
         </header>
+        {serviceUnavailable && (
+          <div className="guta-chat-banner" data-testid="chat-service-unavailable">
+            <strong>Demo an toàn · Dịch vụ AI chưa khả dụng</strong>
+            <p>Bạn vẫn xem được dữ liệu CRM; phần trả lời AI cần backend.</p>
+          </div>
+        )}
         {messages.length === 0 ? (
           <section className="guta-chat-empty" aria-label="Bắt đầu hội thoại">
             <div className="guta-chat-width">

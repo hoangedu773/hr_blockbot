@@ -1,8 +1,9 @@
 """Provider chain with priority fallback and a 60s config cache (ADR-017).
 
 `apps/api` decrypts the Admin-configured providers and passes them per request,
-tagged with `configVersion`. The cache key is that version, so a settings change
-invalidates instantly; every entry also expires after
+tagged with `configVersion`. The cache key is a hash of the whole payload (with
+`configVersion` as a readable prefix), so any settings change invalidates
+instantly; every entry also expires after
 `AI_PROVIDER_CACHE_TTL_SECONDS` (default 60) to bound key material in memory.
 
 Exhausting the chain is reported as `LLMUnavailable` (HTTP 503 at the boundary) or,
@@ -77,9 +78,16 @@ def build_chain(payload: dict[str, Any] | list[dict[str, Any]] | None) -> "Provi
 
 
 def payload_version(payload: dict[str, Any] | None) -> str:
-    if isinstance(payload, dict) and payload.get("configVersion") is not None:
-        return f"v{payload['configVersion']}"
+    """Cache key for a provider payload.
+
+    The digest always covers the whole payload, so two payloads that share a
+    `configVersion` but differ in `baseUrl`/`model`/`apiKey` can never collide.
+    `configVersion` is kept as a readable prefix only.
+    """
     digest = hashlib.sha1(json.dumps(payload, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+    version = payload.get("configVersion") if isinstance(payload, dict) else None
+    if version is not None:
+        return f"v{version}-h{digest[:16]}"
     return f"h{digest[:16]}"
 
 

@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
+import { authenticateToken } from "../middlewares/auth.middleware.js";
 
 const router = Router();
 
@@ -55,7 +56,7 @@ const CATEGORY_DIRS: Record<Category, string> = {
   images: path.resolve(DATA_ROOT, "guta_bo_du_lieu_chatbot", "anh_tham_chieu"),
 };
 
-router.get("/attachments/:category/:filename", (req: Request, res: Response): void => {
+router.get("/attachments/:category/:filename", authenticateToken, (req: Request, res: Response): void => {
   const { category, filename } = req.params;
 
   if (!category || !ALLOWED_CATEGORIES.includes(category as Category)) {

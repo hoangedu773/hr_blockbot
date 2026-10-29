@@ -1,0 +1,517 @@
+{
+  "meta": {
+    "repo": "C:/work-space/hr-blockbot",
+    "head": "4b1d209",
+    "branch": "integration/full-delivery",
+    "generated": "2026-10-27T18:20:00+07:00",
+    "auditor": "workbuddy-lead + 4 subagents",
+    "purpose": "Machine-checkable claim set. Any agent (or CI) can re-verify each claim without trusting the prose report.",
+    "how_to_read": "Mỗi claim có files[].line = dòng kỳ vọng, files[].anchor = chuỗi đặc trưng phải xuất hiện ở dòng đó (window ±3). Không thấy anchor ở đúng dòng => DRIFT; không thấy trong file => FAIL."
+  },
+  "claims": [
+    {
+      "id": "P0-1",
+      "severity": "P0",
+      "kind": "secret",
+      "claim": "API key LLM that bi hardcode lam fallback trong file duoc git track",
+      "files": [
+        {
+          "file": "apps/ai-service/tests/test_live_db_chat.py",
+          "line": 41,
+          "anchor": "AI_LLM_API_KEY"
+        }
+      ]
+    },
+    {
+      "id": "P0-2",
+      "severity": "P0",
+      "kind": "secret",
+      "claim": "JWT secret co hang so fallback hardcode trong repo",
+      "files": [
+        {
+          "file": "apps/api/src/services/auth.service.ts",
+          "line": 15,
+          "anchor": "DEFAULT_JWT_SECRET"
+        }
+      ]
+    },
+    {
+      "id": "P0-3",
+      "severity": "P0",
+      "kind": "authz",
+      "claim": "Xac thuc api->ai-service fail-open khi thieu key (return thay vi tu choi)",
+      "files": [
+        {
+          "file": "apps/ai-service/app/main.py",
+          "line": 80,
+          "anchor": "if not expected:"
+        }
+      ]
+    },
+    {
+      "id": "P0-4",
+      "severity": "P0",
+      "kind": "cache",
+      "claim": "Cache key provider chi dua vao configVersion, khong hash baseUrl/apiKey",
+      "files": [
+        {
+          "file": "apps/ai-service/app/llm/chain.py",
+          "line": 80,
+          "anchor": "configVersion"
+        }
+      ]
+    },
+    {
+      "id": "P0-5",
+      "severity": "P0",
+      "kind": "authz",
+      "claim": "Chi nhanh IN_PROGRESS moi kiem tra quyen; Employee set COMPLETED duoc",
+      "files": [
+        {
+          "file": "apps/api/src/routes/projects.ts",
+          "line": 251,
+          "anchor": "targetStatus === \"IN_PROGRESS\" && user.role === \"Employee\""
+        }
+      ]
+    },
+    {
+      "id": "P0-6",
+      "severity": "P0",
+      "kind": "contract",
+      "claim": "Frontend goi POST /projects/:id/reports nhung server chi co POST /reports",
+      "files": [
+        {
+          "file": "apps/web/src/services/api.ts",
+          "line": 345,
+          "anchor": "/reports"
+        },
+        {
+          "file": "apps/api/src/routes/reports.ts",
+          "line": 14,
+          "anchor": "router.post(\"/reports\""
+        }
+      ]
+    },
+    {
+      "id": "P0-7",
+      "severity": "P0",
+      "kind": "logic",
+      "claim": "Payload luu provider duoc dung lai qua toFormState (apiKey luon rong) nen key bi mat",
+      "files": [
+        {
+          "file": "apps/web/src/components/AdminSettingsView.tsx",
+          "line": 139,
+          "anchor": "toFormState"
+        },
+        {
+          "file": "apps/web/src/components/AdminSettingsView.tsx",
+          "line": 58,
+          "anchor": "apiKey: ''"
+        }
+      ]
+    },
+    {
+      "id": "P1-1",
+      "severity": "P1",
+      "kind": "idor",
+      "claim": "GET report detail khong kiem tra scope, tra nguyen document",
+      "files": [
+        {
+          "file": "apps/api/src/routes/reports.ts",
+          "line": 79,
+          "anchor": "findById(id).lean()"
+        }
+      ]
+    },
+    {
+      "id": "P1-2",
+      "severity": "P1",
+      "kind": "idor",
+      "claim": "GET project detail khong kiem tra department scope",
+      "files": [
+        {
+          "file": "apps/api/src/routes/projects.ts",
+          "line": 159,
+          "anchor": "ProjectModel.findById(id).lean()"
+        }
+      ]
+    },
+    {
+      "id": "P1-3",
+      "severity": "P1",
+      "kind": "authz",
+      "claim": "Route tai attachment khong gan authenticateToken",
+      "files": [
+        {
+          "file": "apps/api/src/routes/attachments.ts",
+          "line": 58,
+          "anchor": "router.get(\"/attachments/:category/:filename\""
+        }
+      ]
+    },
+    {
+      "id": "P1-4",
+      "severity": "P1",
+      "kind": "authn",
+      "claim": "Login khong rate limit; nhanh khong co user tra ngay gay timing enumeration",
+      "files": [
+        {
+          "file": "apps/api/src/routes/auth.ts",
+          "line": 38,
+          "anchor": "email: email.toLowerCase()"
+        }
+      ]
+    },
+    {
+      "id": "P1-5",
+      "severity": "P1",
+      "kind": "atomicity",
+      "claim": "Tao report truoc khi transition project, khong transaction",
+      "files": [
+        {
+          "file": "apps/api/src/routes/reports.ts",
+          "line": 37,
+          "anchor": "ReportModel.create({"
+        }
+      ]
+    },
+    {
+      "id": "P1-6",
+      "severity": "P1",
+      "kind": "deceptive",
+      "claim": "chat:confirm bao da thuc thi nhung khong goi service nao",
+      "files": [
+        {
+          "file": "apps/api/src/socket.ts",
+          "line": 144,
+          "anchor": "xác nhận thực thi an toàn"
+        }
+      ]
+    },
+    {
+      "id": "P1-7",
+      "severity": "P1",
+      "kind": "scope",
+      "claim": "userContext qua socket thieu employeeId/departmentId",
+      "files": [
+        {
+          "file": "apps/api/src/socket.ts",
+          "line": 79,
+          "anchor": "userId: socket.claims?.sub || null"
+        }
+      ]
+    },
+    {
+      "id": "P1-8",
+      "severity": "P1",
+      "kind": "contract",
+      "claim": "Frontend goi endpoint change-requests khong ton tai o API",
+      "files": [
+        {
+          "file": "apps/web/src/services/api.ts",
+          "line": 218,
+          "anchor": "change-requests"
+        }
+      ]
+    },
+    {
+      "id": "P1-9",
+      "severity": "P1",
+      "kind": "contract",
+      "claim": "chat:done phat field reply nam ngoai ChatDonePayloadSchema",
+      "files": [
+        {
+          "file": "apps/api/src/socket.ts",
+          "line": 89,
+          "anchor": "reply: result.reply"
+        }
+      ]
+    },
+    {
+      "id": "P1-10",
+      "severity": "P1",
+      "kind": "build",
+      "claim": "Test contracts import tu ../dist trong khi dist bi gitignore",
+      "files": [
+        {
+          "file": "packages/contracts/test/contracts.test.mjs",
+          "line": 47,
+          "anchor": "../dist/index.js"
+        }
+      ]
+    },
+    {
+      "id": "P1-11",
+      "severity": "P1",
+      "kind": "ci",
+      "claim": "Script test cua api chi liet ke 2 file, bo 4 file con lai",
+      "files": [
+        {
+          "file": "apps/api/package.json",
+          "line": 10,
+          "anchor": "test/auth.test.mjs"
+        }
+      ]
+    },
+    {
+      "id": "P1-12",
+      "severity": "P1",
+      "kind": "ssrf",
+      "claim": "baseUrl lay tu request, khong allowlist host",
+      "files": [
+        {
+          "file": "apps/ai-service/app/llm/openai_compatible.py",
+          "line": 37,
+          "anchor": "self._base_url = config.base_url"
+        }
+      ]
+    },
+    {
+      "id": "P1-13",
+      "severity": "P1",
+      "kind": "cors",
+      "claim": "CORS allow_origins * kem allow_credentials True",
+      "files": [
+        {
+          "file": "apps/ai-service/app/main.py",
+          "line": 49,
+          "anchor": "allow_origins=[\"*\"]"
+        }
+      ]
+    },
+    {
+      "id": "P1-14",
+      "severity": "P1",
+      "kind": "policy",
+      "claim": "Gate intent/action tu xac nhan vong tron (cung do LLM sinh)",
+      "files": [
+        {
+          "file": "apps/ai-service/app/agent/loop.py",
+          "line": 456,
+          "anchor": "Action does not match typed intent"
+        }
+      ]
+    },
+    {
+      "id": "P1-15",
+      "severity": "P1",
+      "kind": "runtime",
+      "claim": "Module fake monkey-patch AgentLoop.run luc import, boc except pass",
+      "files": [
+        {
+          "file": "apps/ai-service/app/llm/fake.py",
+          "line": 191,
+          "anchor": "_patch_agent_loop_hardening"
+        }
+      ]
+    },
+    {
+      "id": "P1-16",
+      "severity": "P1",
+      "kind": "react",
+      "claim": "load phu thuoc onNotify khong memo gay refetch vo han",
+      "files": [
+        {
+          "file": "apps/web/src/components/ProjectListView.tsx",
+          "line": 108,
+          "anchor": "onNotify]"
+        }
+      ]
+    },
+    {
+      "id": "P1-17",
+      "severity": "P1",
+      "kind": "deadcode",
+      "claim": "EmployeeProfileView khong duoc mount trong dashboard",
+      "files": [
+        {
+          "file": "apps/web/src/components/CrmDashboardView.tsx",
+          "line": 961,
+          "anchor": "EmployeeListView"
+        }
+      ]
+    },
+    {
+      "id": "P2-1",
+      "severity": "P2",
+      "kind": "authz",
+      "claim": "Admin duyet report khong kiem tra department scope",
+      "files": [
+        {
+          "file": "apps/api/src/routes/reports.ts",
+          "line": 115,
+          "anchor": "parsed.data.action === \"APPROVE\""
+        }
+      ]
+    },
+    {
+      "id": "P2-2",
+      "severity": "P2",
+      "kind": "race",
+      "claim": "Update progress read-then-write, khong expectedVersion",
+      "files": [
+        {
+          "file": "apps/api/src/routes/projects.ts",
+          "line": 299,
+          "anchor": "project.progress = parsed.data.progress"
+        }
+      ]
+    },
+    {
+      "id": "P2-3",
+      "severity": "P2",
+      "kind": "deceptive-test",
+      "claim": "Test race co assert luon dung voi moi to hop status",
+      "files": [
+        {
+          "file": "apps/api/test/auth.test.mjs",
+          "line": 411,
+          "anchor": "statuses.includes(200)"
+        }
+      ]
+    },
+    {
+      "id": "P2-4",
+      "severity": "P2",
+      "kind": "timeout",
+      "claim": "Timeout tool vo hieu vi ThreadPoolExecutor shutdown wait=True",
+      "files": [
+        {
+          "file": "apps/ai-service/app/agent/tools.py",
+          "line": 579,
+          "anchor": "_call_with_timeout"
+        }
+      ]
+    },
+    {
+      "id": "P2-5",
+      "severity": "P2",
+      "kind": "rag",
+      "claim": "Fallback hashing embedder sai chieu so voi vector da luu",
+      "files": [
+        {
+          "file": "apps/ai-service/app/main.py",
+          "line": 136,
+          "anchor": "falling back to hashing embedder"
+        }
+      ]
+    },
+    {
+      "id": "P2-6",
+      "severity": "P2",
+      "kind": "rag",
+      "claim": "Chunk khong co department_ids duoc coi la cong khai",
+      "files": [
+        {
+          "file": "apps/ai-service/app/rag/retrieval.py",
+          "line": 89,
+          "anchor": "if not scope or not chunk.department_ids"
+        }
+      ]
+    },
+    {
+      "id": "P2-7",
+      "severity": "P2",
+      "kind": "error-handling",
+      "claim": "except bat ca ValueError/KeyError lam loi policy thanh LLM_UNAVAILABLE",
+      "files": [
+        {
+          "file": "apps/ai-service/app/agent/loop.py",
+          "line": 484,
+          "anchor": "except (LLMUnavailable"
+        }
+      ]
+    },
+    {
+      "id": "P2-8",
+      "severity": "P2",
+      "kind": "deps",
+      "claim": "requirements.txt khong pin version",
+      "files": [
+        {
+          "file": "apps/ai-service/requirements.txt",
+          "line": 1,
+          "anchor": "fastapi>="
+        }
+      ]
+    },
+    {
+      "id": "P2-9",
+      "severity": "P2",
+      "kind": "contract",
+      "claim": "chatSocket.ts khai lai payload WS thay vi import contracts",
+      "files": [
+        {
+          "file": "apps/web/src/services/chatSocket.ts",
+          "line": 25,
+          "anchor": "export interface ChatSendPayload"
+        }
+      ]
+    },
+    {
+      "id": "P2-10",
+      "severity": "P2",
+      "kind": "contract",
+      "claim": "Schema request chat khai lai trong api, lech RagQueryRequest",
+      "files": [
+        {
+          "file": "apps/api/src/routes/chat.ts",
+          "line": 7,
+          "anchor": "const chatRequestSchema = z.object"
+        }
+      ]
+    },
+    {
+      "id": "P2-11",
+      "severity": "P2",
+      "kind": "react",
+      "claim": "Search khong debounce, khong abort",
+      "files": [
+        {
+          "file": "apps/web/src/components/EmployeeListView.tsx",
+          "line": 27,
+          "anchor": "[searchTerm]"
+        }
+      ]
+    },
+    {
+      "id": "P2-12",
+      "severity": "P2",
+      "kind": "race",
+      "claim": "openDetail khong so id, response cu ghi de chi tiet moi",
+      "files": [
+        {
+          "file": "apps/web/src/components/RosterView.tsx",
+          "line": 104,
+          "anchor": "const openDetail"
+        }
+      ]
+    },
+    {
+      "id": "P2-13",
+      "severity": "P2",
+      "kind": "xss",
+      "claim": "url tu server dua thang vao href/src, chi check typeof string",
+      "files": [
+        {
+          "file": "apps/web/src/components/chat/ChatPageView.tsx",
+          "line": 135,
+          "anchor": "typeof item.url !== 'string'"
+        }
+      ]
+    },
+    {
+      "id": "P2-14",
+      "severity": "P2",
+      "kind": "deceptive-test",
+      "claim": "Test integration chi grep chuoi trong source",
+      "files": [
+        {
+          "file": "apps/web/test/web-integration.test.mjs",
+          "line": 109,
+          "anchor": "ChatPanel"
+        }
+      ]
+    }
+  ]
+}

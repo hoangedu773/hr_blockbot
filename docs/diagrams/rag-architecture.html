@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HR BlockBot - Scalable Production RAG Architecture</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 24px;
+      background: #05070c;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      box-sizing: border-box;
+    }
+  </style>
+</head>
+<body>
+  <div class="ak-diagram-root" data-instance-id="1b54d8a8" data-preset="signal-flow" data-theme="dark" data-animation="trace">
+    <style>/* AgentKit Diagram Reader Styles & Presets (Archify-informed) */
+
+.ak-diagram-root {
+  --ak-bg: #ffffff;
+  --ak-surface: #f8fafc;
+  --ak-surface-border: #e2e8f0;
+  --ak-text-primary: #0f172a;
+  --ak-text-secondary: #475569;
+  --ak-text-muted: #94a3b8;
+  --ak-accent: #2563eb;
+  --ak-accent-light: #dbeafe;
+  --ak-node-bg: #ffffff;
+  --ak-node-border: #cbd5e1;
+  --ak-edge-stroke: #64748b;
+  --ak-edge-active: #2563eb;
+  --ak-badge-bg: #f1f5f9;
+  --ak-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --ak-font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --ak-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  
+  font-family: var(--ak-font-sans);
+  background-color: var(--ak-bg);
+  color: var(--ak-text-primary);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--ak-surface-border);
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+  box-sizing: border-box;
+}
+
+/* Preset: Classic (Light / Dark) */
+.ak-diagram-root[data-preset="classic"][data-theme="light"],
+.ak-diagram-root[data-preset="classic"]:not([data-theme="dark"]) {
+  --ak-bg: #ffffff;
+  --ak-surface: #f8fafc;
+  --ak-surface-border: #e2e8f0;
+  --ak-text-primary: #0f172a;
+  --ak-text-secondary: #475569;
+  --ak-node-bg: #ffffff;
+  --ak-node-border: #cbd5e1;
+  --ak-edge-stroke: #64748b;
+  --ak-edge-active: #2563eb;
+}
+.ak-diagram-root[data-preset="classic"][data-theme="dark"] {
+  --ak-bg: #090d16;
+  --ak-surface: #0f172a;
+  --ak-surface-border: #1e293b;
+  --ak-text-primary: #f8fafc;
+  --ak-text-secondary: #94a3b8;
+  --ak-node-bg: #0f172a;
+  --ak-node-border: #334155;
+  --ak-edge-stroke: #475569;
+  --ak-edge-active: #38bdf8;
+}
+
+/* Preset: Signal Flow (Light / Dark) */
+.ak-diagram-root[data-preset="signal-flow"][data-theme="light"],
+.ak-diagram-root[data-preset="signal-flow"]:not([data-theme="dark"]) {
+  --ak-bg: #f0fdf4;
+  --ak-surface: #dcfce7;
+  --ak-surface-border: #86efac;
+  --ak-text-primary: #14532d;
+  --ak-text-secondary: #166534;
+  --ak-accent: #059669;
+  --ak-node-bg: #ffffff;
+  --ak-node-border: #10b981;
+  --ak-edge-stroke: #059669;
+  --ak-edge-active: #047857;
+}
+.ak-diagram-root[data-preset="signal-flow"][data-theme="dark"] {
+  --ak-bg: #031c18;
+  --ak-surface: #064e3b;
+  --ak-surface-border: #047857;
+  --ak-text-primary: #ecfdf5;
+  --ak-text-secondary: #a7f3d0;
+  --ak-accent: #34d399;
+  --ak-node-bg: #064e3b;
+  --ak-node-border: #10b981;
+  --ak-edge-stroke: #34d399;
+  --ak-edge-active: #6ee7b7;
+}
+
+/* Preset: Blueprint (Light / Dark) */
+.ak-diagram-root[data-preset="blueprint"][data-theme="light"],
+.ak-diagram-root[data-preset="blueprint"]:not([data-theme="dark"]) {
+  --ak-bg: #f0f9ff;
+  --ak-surface: #e0f2fe;
+  --ak-surface-border: #7dd3fc;
+  --ak-text-primary: #0369a1;
+  --ak-text-secondary: #0284c7;
+  --ak-accent: #0284c7;
+  --ak-node-bg: #ffffff;
+  --ak-node-border: #0ea5e9;
+  --ak-edge-stroke: #0284c7;
+  --ak-edge-active: #0369a1;
+  --ak-font-sans: var(--ak-font-mono);
+}
+.ak-diagram-root[data-preset="blueprint"][data-theme="dark"] {
+  --ak-bg: #081d33;
+  --ak-surface: #0c2a4a;
+  --ak-surface-border: #1e4976;
+  --ak-text-primary: #e0f2fe;
+  --ak-text-secondary: #bae6fd;
+  --ak-accent: #38bdf8;
+  --ak-node-bg: #0c213a;
+  --ak-node-border: #38bdf8;
+  --ak-edge-stroke: #7dd3fc;
+  --ak-edge-active: #38bdf8;
+  --ak-font-sans: var(--ak-font-mono);
+}
+
+/* Preset: Editorial (Light / Dark) */
+.ak-diagram-root[data-preset="editorial"][data-theme="light"],
+.ak-diagram-root[data-preset="editorial"]:not([data-theme="dark"]) {
+  --ak-bg: #faf8f5;
+  --ak-surface: #f3efe6;
+  --ak-surface-border: #e2dacb;
+  --ak-text-primary: #1c1917;
+  --ak-text-secondary: #57534e;
+  --ak-accent: #991b1b;
+  --ak-node-bg: #ffffff;
+  --ak-node-border: #d6cfc4;
+  --ak-edge-stroke: #78716c;
+  --ak-edge-active: #991b1b;
+}
+.ak-diagram-root[data-preset="editorial"][data-theme="dark"] {
+  --ak-bg: #1c1917;
+  --ak-surface: #292524;
+  --ak-surface-border: #44403c;
+  --ak-text-primary: #fafaf9;
+  --ak-text-secondary: #d6d3d1;
+  --ak-accent: #ef4444;
+  --ak-node-bg: #292524;
+  --ak-node-border: #78716c;
+  --ak-edge-stroke: #a8a29e;
+  --ak-edge-active: #f87171;
+}
+
+/* Toolbar & Reader Controls */
+.ak-diagram-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background-color: var(--ak-surface);
+  border-bottom: 1px solid var(--ak-surface-border);
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ak-diagram-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ak-text-primary);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ak-diagram-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ak-chapter-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--ak-bg);
+  border: 1px solid var(--ak-surface-border);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+.ak-chapter-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ak-text-secondary);
+}
+
+.ak-diagram-btn {
+  background: var(--ak-bg);
+  border: 1px solid var(--ak-surface-border);
+  color: var(--ak-text-primary);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+.ak-diagram-btn:hover {
+  background-color: var(--ak-surface);
+  border-color: var(--ak-accent);
+}
+.ak-diagram-btn:focus-visible {
+  outline: 2px solid var(--ak-accent);
+  outline-offset: 1px;
+}
+
+.ak-diagram-search-input {
+  background: var(--ak-bg);
+  border: 1px solid var(--ak-surface-border);
+  color: var(--ak-text-primary);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  width: 140px;
+}
+.ak-diagram-search-input:focus {
+  outline: 2px solid var(--ak-accent);
+  border-color: transparent;
+}
+
+/* Main Viewport */
+.ak-diagram-viewport {
+  position: relative;
+  overflow: auto;
+  min-height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: var(--ak-bg);
+}
+
+.ak-diagram-svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Node, Boundary & Edge Styling */
+.ak-node {
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.2s ease;
+}
+.ak-node:hover {
+  transform: translateY(-2px);
+}
+.ak-node.is-dimmed {
+  opacity: 0.25;
+}
+.ak-node.is-focused rect,
+.ak-node.is-focused circle {
+  stroke: var(--ak-accent) !important;
+  stroke-width: 3px !important;
+}
+
+.ak-edge path,
+.ak-edge line,
+.ak-edge polyline {
+  transition: stroke 0.2s ease, opacity 0.2s ease;
+}
+.ak-edge.is-dimmed {
+  opacity: 0.15;
+}
+.ak-edge.is-highlighted path,
+.ak-edge.is-highlighted line,
+.ak-edge.is-highlighted polyline {
+  stroke: var(--ak-edge-active) !important;
+  stroke-width: 2.5px !important;
+}
+.ak-edge text {
+  stroke: none !important;
+  stroke-width: 0 !important;
+  stroke-dasharray: none !important;
+  animation: none !important;
+  fill: var(--ak-text-secondary);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Trace Motion Animation (Finite, <= 8s) */
+@keyframes ak-trace-stroke {
+  from {
+    stroke-dashoffset: 200;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.ak-diagram-root[data-animation="trace"] .ak-edge.is-active-trace path,
+.ak-diagram-root[data-animation="trace"] .ak-edge.is-active-trace line,
+.ak-diagram-root[data-animation="trace"] .ak-edge.is-active-trace polyline {
+  stroke-dasharray: 6 4;
+  animation: ak-trace-stroke 2.5s ease-in-out forwards;
+}
+
+/* Presentation Stage (F) */
+.ak-diagram-root.is-presentation {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  border-radius: 0;
+  border: none;
+  height: 100vh;
+  width: 100vw;
+}
+.ak-diagram-root.is-presentation .ak-diagram-viewport {
+  height: calc(100vh - 48px);
+}
+
+/* Reduced Motion Override */
+@media (prefers-reduced-motion: reduce) {
+  .ak-node, .ak-edge, .ak-diagram-btn {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+.ak-diagram-root,svg.ak-diagram-svg{--ak-role-client-stroke:#0e7490;--ak-role-client-fill:rgba(14,116,144,0.1);--ak-role-service-stroke:#4f46e5;--ak-role-service-fill:rgba(79,70,229,0.1);--ak-role-data-stroke:#b45309;--ak-role-data-fill:rgba(180,83,9,0.1);--ak-role-queue-stroke:#7c3aed;--ak-role-queue-fill:rgba(124,58,237,0.1);--ak-role-cache-stroke:#c2410c;--ak-role-cache-fill:rgba(194,65,12,0.1);--ak-role-gateway-stroke:#0369a1;--ak-role-gateway-fill:rgba(3,105,161,0.1);--ak-role-security-stroke:#be123c;--ak-role-security-fill:rgba(190,18,60,0.1);--ak-role-external-stroke:#475569;--ak-role-external-fill:rgba(71,85,105,0.1);--ak-role-worker-stroke:#0f766e;--ak-role-worker-fill:rgba(15,118,110,0.1);--ak-role-start-stroke:#047857;--ak-role-start-fill:rgba(4,120,87,0.1);--ak-role-success-stroke:#059669;--ak-role-success-fill:rgba(5,150,105,0.1);--ak-role-failure-stroke:#b91c1c;--ak-role-failure-fill:rgba(185,28,28,0.1);--ak-role-waiting-stroke:#a16207;--ak-role-waiting-fill:rgba(161,98,7,0.1);--ak-role-decision-stroke:#a21caf;--ak-role-decision-fill:rgba(162,28,175,0.1);--ak-role-process-stroke:#1d4ed8;--ak-role-process-fill:rgba(29,78,216,0.1);--ak-role-governance-stroke:#6d28d9;--ak-role-governance-fill:rgba(109,40,217,0.1);--ak-role-transform-stroke:#4338ca;--ak-role-transform-fill:rgba(67,56,202,0.1);--ak-role-filter-stroke:#4d7c0f;--ak-role-filter-fill:rgba(77,124,15,0.1);}
+.ak-diagram-root[data-theme="dark"],svg.ak-diagram-svg[data-theme="dark"]{--ak-role-client-stroke:#22d3ee;--ak-role-client-fill:rgba(34,211,238,0.16);--ak-role-service-stroke:#818cf8;--ak-role-service-fill:rgba(129,140,248,0.16);--ak-role-data-stroke:#fbbf24;--ak-role-data-fill:rgba(251,191,36,0.16);--ak-role-queue-stroke:#a78bfa;--ak-role-queue-fill:rgba(167,139,250,0.16);--ak-role-cache-stroke:#fb923c;--ak-role-cache-fill:rgba(251,146,60,0.16);--ak-role-gateway-stroke:#38bdf8;--ak-role-gateway-fill:rgba(56,189,248,0.16);--ak-role-security-stroke:#fb7185;--ak-role-security-fill:rgba(251,113,133,0.16);--ak-role-external-stroke:#94a3b8;--ak-role-external-fill:rgba(148,163,184,0.16);--ak-role-worker-stroke:#2dd4bf;--ak-role-worker-fill:rgba(45,212,191,0.16);--ak-role-start-stroke:#34d399;--ak-role-start-fill:rgba(52,211,153,0.16);--ak-role-success-stroke:#34d399;--ak-role-success-fill:rgba(52,211,153,0.16);--ak-role-failure-stroke:#f87171;--ak-role-failure-fill:rgba(248,113,113,0.16);--ak-role-waiting-stroke:#facc15;--ak-role-waiting-fill:rgba(250,204,21,0.16);--ak-role-decision-stroke:#e879f9;--ak-role-decision-fill:rgba(232,121,249,0.16);--ak-role-process-stroke:#60a5fa;--ak-role-process-fill:rgba(96,165,250,0.16);--ak-role-governance-stroke:#c4b5fd;--ak-role-governance-fill:rgba(196,181,253,0.16);--ak-role-transform-stroke:#a5b4fc;--ak-role-transform-fill:rgba(165,180,252,0.16);--ak-role-filter-stroke:#a3e635;--ak-role-filter-fill:rgba(163,230,53,0.16);}
+.ak-node[data-family="client"]{--ak-node-stroke:var(--ak-role-client-stroke);--ak-node-fill:var(--ak-role-client-fill);}.ak-legend-item[data-family="client"] .ak-legend-swatch{fill:var(--ak-role-client-fill);stroke:var(--ak-role-client-stroke);}
+.ak-node[data-family="service"]{--ak-node-stroke:var(--ak-role-service-stroke);--ak-node-fill:var(--ak-role-service-fill);}.ak-legend-item[data-family="service"] .ak-legend-swatch{fill:var(--ak-role-service-fill);stroke:var(--ak-role-service-stroke);}
+.ak-node[data-family="data"]{--ak-node-stroke:var(--ak-role-data-stroke);--ak-node-fill:var(--ak-role-data-fill);}.ak-legend-item[data-family="data"] .ak-legend-swatch{fill:var(--ak-role-data-fill);stroke:var(--ak-role-data-stroke);}
+.ak-node[data-family="queue"]{--ak-node-stroke:var(--ak-role-queue-stroke);--ak-node-fill:var(--ak-role-queue-fill);}.ak-legend-item[data-family="queue"] .ak-legend-swatch{fill:var(--ak-role-queue-fill);stroke:var(--ak-role-queue-stroke);}
+.ak-node[data-family="cache"]{--ak-node-stroke:var(--ak-role-cache-stroke);--ak-node-fill:var(--ak-role-cache-fill);}.ak-legend-item[data-family="cache"] .ak-legend-swatch{fill:var(--ak-role-cache-fill);stroke:var(--ak-role-cache-stroke);}
+.ak-node[data-family="gateway"]{--ak-node-stroke:var(--ak-role-gateway-stroke);--ak-node-fill:var(--ak-role-gateway-fill);}.ak-legend-item[data-family="gateway"] .ak-legend-swatch{fill:var(--ak-role-gateway-fill);stroke:var(--ak-role-gateway-stroke);}
+.ak-node[data-family="security"]{--ak-node-stroke:var(--ak-role-security-stroke);--ak-node-fill:var(--ak-role-security-fill);}.ak-legend-item[data-family="security"] .ak-legend-swatch{fill:var(--ak-role-security-fill);stroke:var(--ak-role-security-stroke);}
+.ak-node[data-family="external"]{--ak-node-stroke:var(--ak-role-external-stroke);--ak-node-fill:var(--ak-role-external-fill);}.ak-legend-item[data-family="external"] .ak-legend-swatch{fill:var(--ak-role-external-fill);stroke:var(--ak-role-external-stroke);}
+.ak-node[data-family="worker"]{--ak-node-stroke:var(--ak-role-worker-stroke);--ak-node-fill:var(--ak-role-worker-fill);}.ak-legend-item[data-family="worker"] .ak-legend-swatch{fill:var(--ak-role-worker-fill);stroke:var(--ak-role-worker-stroke);}
+.ak-node[data-family="start"]{--ak-node-stroke:var(--ak-role-start-stroke);--ak-node-fill:var(--ak-role-start-fill);}.ak-legend-item[data-family="start"] .ak-legend-swatch{fill:var(--ak-role-start-fill);stroke:var(--ak-role-start-stroke);}
+.ak-node[data-family="success"]{--ak-node-stroke:var(--ak-role-success-stroke);--ak-node-fill:var(--ak-role-success-fill);}.ak-legend-item[data-family="success"] .ak-legend-swatch{fill:var(--ak-role-success-fill);stroke:var(--ak-role-success-stroke);}
+.ak-node[data-family="failure"]{--ak-node-stroke:var(--ak-role-failure-stroke);--ak-node-fill:var(--ak-role-failure-fill);}.ak-legend-item[data-family="failure"] .ak-legend-swatch{fill:var(--ak-role-failure-fill);stroke:var(--ak-role-failure-stroke);}
+.ak-node[data-family="waiting"]{--ak-node-stroke:var(--ak-role-waiting-stroke);--ak-node-fill:var(--ak-role-waiting-fill);}.ak-legend-item[data-family="waiting"] .ak-legend-swatch{fill:var(--ak-role-waiting-fill);stroke:var(--ak-role-waiting-stroke);}
+.ak-node[data-family="decision"]{--ak-node-stroke:var(--ak-role-decision-stroke);--ak-node-fill:var(--ak-role-decision-fill);}.ak-legend-item[data-family="decision"] .ak-legend-swatch{fill:var(--ak-role-decision-fill);stroke:var(--ak-role-decision-stroke);}
+.ak-node[data-family="process"]{--ak-node-stroke:var(--ak-role-process-stroke);--ak-node-fill:var(--ak-role-process-fill);}.ak-legend-item[data-family="process"] .ak-legend-swatch{fill:var(--ak-role-process-fill);stroke:var(--ak-role-process-stroke);}
+.ak-node[data-family="governance"]{--ak-node-stroke:var(--ak-role-governance-stroke);--ak-node-fill:var(--ak-role-governance-fill);}.ak-legend-item[data-family="governance"] .ak-legend-swatch{fill:var(--ak-role-governance-fill);stroke:var(--ak-role-governance-stroke);}
+.ak-node[data-family="transform"]{--ak-node-stroke:var(--ak-role-transform-stroke);--ak-node-fill:var(--ak-role-transform-fill);}.ak-legend-item[data-family="transform"] .ak-legend-swatch{fill:var(--ak-role-transform-fill);stroke:var(--ak-role-transform-stroke);}
+.ak-node[data-family="filter"]{--ak-node-stroke:var(--ak-role-filter-stroke);--ak-node-fill:var(--ak-role-filter-fill);}.ak-legend-item[data-family="filter"] .ak-legend-swatch{fill:var(--ak-role-filter-fill);stroke:var(--ak-role-filter-stroke);}
+/* ak:diagram core SVG styles: shared by the reader fragment and standalone SVG.
+   Colour comes from --ak-* palette variables and --ak-role-* family tokens. */
+
+.ak-diagram-svg { font-family: var(--ak-font-sans); display: block; }
+.ak-diagram-svg text { user-select: none; }
+
+.ak-canvas { fill: var(--ak-bg); }
+.ak-grid-dot { fill: var(--ak-text-muted); opacity: 0.28; }
+
+.ak-title { font-size: 16px; font-weight: 700; fill: var(--ak-text-primary); letter-spacing: -0.01em; }
+.ak-subtitle { font-size: 11px; font-weight: 500; fill: var(--ak-text-secondary); }
+
+/* Frames: boundaries, lanes, stages */
+.ak-frame { fill: var(--ak-surface); stroke: var(--ak-surface-border); stroke-width: 1; }
+.ak-frame-boundary { fill: transparent; stroke-dasharray: 6 4; stroke-width: 1.5; }
+.ak-frame-stage { stroke-dasharray: 4 3; }
+.ak-frame-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; fill: var(--ak-text-secondary); }
+.ak-frame-role { font-size: 10px; fill: var(--ak-text-muted); }
+
+/* Nodes */
+.ak-node { cursor: pointer; }
+.ak-node-mask { fill: var(--ak-node-bg); }
+.ak-node-card { fill: var(--ak-node-fill, var(--ak-node-bg)); stroke: var(--ak-node-stroke, var(--ak-node-border)); stroke-width: 1.5; transition: stroke-width 160ms ease; }
+.ak-node[data-shape="notch"] .ak-node-card { stroke-width: 2; }
+.ak-node-accent { fill: var(--ak-node-stroke, var(--ak-accent)); }
+.ak-sigil path { fill: none; stroke: var(--ak-node-stroke, var(--ak-accent)); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.ak-node-label { font-size: 13px; font-weight: 600; fill: var(--ak-text-primary); }
+.ak-node-sub { font-size: 9.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; fill: var(--ak-text-muted); }
+.ak-node:hover .ak-node-card, .ak-node:focus-visible .ak-node-card { stroke-width: 2.5; }
+.ak-node:focus-visible { outline: none; }
+
+/* Edges */
+.ak-edge-path { fill: none; stroke: var(--ak-edge-stroke); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; transition: stroke 160ms ease, stroke-width 160ms ease; }
+.ak-edge-dashed { stroke-dasharray: 5 4; }
+.ak-edge[data-tone="failure"] .ak-edge-path { stroke: var(--ak-role-failure-stroke); }
+.ak-edge[data-tone="decision"] .ak-edge-path { stroke: var(--ak-role-decision-stroke); }
+.ak-edge-flow { fill: none; stroke: var(--ak-edge-active); stroke-width: 2.25; stroke-linecap: round; opacity: 0; pointer-events: none; }
+.ak-edge-label-mask { fill: var(--ak-bg); stroke: var(--ak-surface-border); stroke-width: 1; }
+.ak-edge-label text { font-size: 10.5px; font-weight: 500; fill: var(--ak-text-secondary); }
+.ak-arrowhead { fill: var(--ak-edge-stroke); }
+.ak-arrowhead-open { fill: none; stroke: var(--ak-edge-stroke); stroke-width: 1.25; }
+
+/* Sequence extras */
+.ak-lifeline { stroke: var(--ak-edge-stroke); stroke-width: 1.25; stroke-dasharray: 4 4; opacity: 0.55; }
+.ak-activation { fill: var(--ak-accent-light); stroke: var(--ak-accent); stroke-width: 1; }
+
+/* Legend */
+.ak-legend-swatch { stroke-width: 1.5; }
+.ak-legend-item text { font-size: 10.5px; font-weight: 500; fill: var(--ak-text-secondary); }
+
+/* Motion: staggered entrance, edge draw, optional finite trace pass.
+   Total budget stays under 8 s because --step is capped at 40 by the compiler. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-motion="play"] [data-animate="node"] {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: ak-node-in 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    animation-delay: calc(var(--step, 0) * 110ms);
+  }
+  [data-motion="play"] [data-animate="edge"] .ak-edge-path {
+    stroke-dasharray: 100;
+    stroke-dashoffset: 100;
+    animation: ak-edge-draw 0.7s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    animation-delay: calc(var(--step, 0) * 110ms + 140ms);
+  }
+  [data-motion="play"] [data-animate="edge"] .ak-edge-dashed {
+    animation-name: ak-edge-draw-dashed;
+  }
+  [data-motion="play"] [data-animate="edge"] .ak-edge-label {
+    opacity: 0;
+    animation: ak-fade-in 0.4s ease forwards;
+    animation-delay: calc(var(--step, 0) * 110ms + 520ms);
+  }
+  [data-motion="play"] [data-animate="frame"] {
+    opacity: 0;
+    animation: ak-fade-in 0.5s ease forwards;
+  }
+  [data-motion="play"][data-animation="trace"] [data-animate="edge"] .ak-edge-flow,
+  [data-motion="play"] [data-animation="trace"] [data-animate="edge"] .ak-edge-flow {
+    stroke-dasharray: 5 9;
+    animation: ak-edge-flow 1.3s linear 3;
+    animation-delay: calc(var(--step, 0) * 110ms + 900ms);
+  }
+  [data-motion="play"][data-animation="trace"] [data-animate="node"] .ak-node-card,
+  [data-motion="play"] [data-animation="trace"] [data-animate="node"] .ak-node-card {
+    animation: ak-node-pulse 1.6s ease-in-out 1;
+    animation-delay: calc(var(--step, 0) * 110ms + 900ms);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ak-diagram-svg *, .ak-diagram-svg { animation: none !important; transition: none !important; }
+}
+
+@keyframes ak-node-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes ak-edge-draw {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes ak-edge-draw-dashed {
+  to { stroke-dashoffset: 0; stroke-dasharray: 5 4; }
+}
+@keyframes ak-fade-in {
+  to { opacity: 1; }
+}
+@keyframes ak-edge-flow {
+  0% { stroke-dashoffset: 28; opacity: 0; }
+  15% { opacity: 0.9; }
+  85% { opacity: 0.9; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+@keyframes ak-node-pulse {
+  0%, 100% { stroke-width: 1.5; }
+  50% { stroke-width: 3; }
+}
+</style>
+    <div class="ak-diagram-toolbar">
+      <h4 class="ak-diagram-title"><span>&#128202;</span> HR BlockBot - Scalable Production RAG Architecture</h4>
+      <div class="ak-diagram-controls">
+        <input type="text" class="ak-diagram-search-input" placeholder="Search (/) ..." aria-label="Search diagram nodes and descriptions" />
+        <button type="button" class="ak-diagram-btn ak-btn-reach-down" title="Downstream Reach">&#8595; Reach</button>
+        <button type="button" class="ak-diagram-btn ak-btn-reach-up" title="Upstream Reach">&#8593; Reach</button>
+        <button type="button" class="ak-diagram-btn ak-btn-route" title="Route Inspection (R)">&#128205; Route</button>
+        <button type="button" class="ak-diagram-btn ak-btn-lens" title="Role Lens (L)">&#128269; Lens</button>
+        <div class="ak-chapter-controls">
+    <button type="button" class="ak-diagram-btn ak-btn-prev-chapter" title="Previous Chapter ([)">&#8249;</button>
+    <span class="ak-chapter-label">1/4</span>
+    <button type="button" class="ak-diagram-btn ak-btn-next-chapter" title="Next Chapter (])">&#8250;</button>
+  </div>
+        <button type="button" class="ak-diagram-btn ak-btn-motion" title="Replay motion (M)">&#9654; Replay</button>
+        <button type="button" class="ak-diagram-btn ak-btn-theme" title="Toggle Light/Dark">&#9728;&#65039;</button>
+        <button type="button" class="ak-diagram-btn ak-btn-present" title="Presentation Stage (F)">&#9974;</button>
+        <button type="button" class="ak-diagram-btn ak-btn-share" title="Export 1200x630 Share Card">&#128228; Card</button>
+      </div>
+    </div>
+    <div class="ak-diagram-viewport">
+      <svg class="ak-diagram-svg" viewBox="0 0 2926 638" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="HR BlockBot - Scalable Production RAG Architecture" data-diagram-type="architecture" data-preset="signal-flow" data-theme="dark" data-animation="trace" data-motion="play"><title>HR BlockBot - Scalable Production RAG Architecture</title><defs><marker id="ak-arrowhead-1b54d8a8" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><path class="ak-arrowhead" d="M0 0L9 3.5L0 7z"/></marker><marker id="ak-arrowhead-open-1b54d8a8" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><path class="ak-arrowhead-open" d="M0 0L8 3.5L0 7"/></marker><pattern id="ak-grid-1b54d8a8" width="24" height="24" patternUnits="userSpaceOnUse"><circle class="ak-grid-dot" cx="1" cy="1" r="1"/></pattern></defs><rect class="ak-canvas" x="0" y="0" width="2926" height="638"/><rect class="ak-canvas-grid" x="0" y="0" width="2926" height="638" fill="url(#ak-grid-1b54d8a8)"/><g class="ak-header"><text class="ak-title" x="40" y="34">HR BlockBot - Scalable Production RAG Architecture</text></g><g class="ak-boundary" data-boundary-id="bnd-client" data-animate="frame"><rect class="ak-frame ak-frame-boundary" x="84" y="205" width="282" height="216" rx="12"/><text class="ak-frame-label" x="98" y="226">Client Tier (Web Browser)</text><text class="ak-frame-role" x="293" y="226">external-zone</text></g><g class="ak-boundary" data-boundary-id="bnd-api" data-animate="frame"><rect class="ak-frame ak-frame-boundary" x="494" y="205" width="282" height="216" rx="12"/><text class="ak-frame-label" x="508" y="226">API Backend Gateway (Express Port 3001)</text><text class="ak-frame-role" x="807" y="226">trust-boundary</text></g><g class="ak-boundary" data-boundary-id="bnd-ai" data-animate="frame"><rect class="ak-frame ak-frame-boundary" x="904" y="205" width="1102" height="216" rx="12"/><text class="ak-frame-label" x="918" y="226">AI Sidecar Service (FastAPI Port 8000)</text><text class="ak-frame-role" x="1194.5" y="226">cluster</text></g><g class="ak-boundary" data-boundary-id="bnd-db" data-animate="frame"><rect class="ak-frame ak-frame-boundary" x="2134" y="148" width="282" height="330" rx="12"/><text class="ak-frame-label" x="2148" y="169">Data Tier (MongoDB Atlas Cloud)</text><text class="ak-frame-role" x="2389.9" y="169">cloud</text></g><g class="ak-boundary" data-boundary-id="bnd-ext" data-animate="frame"><rect class="ak-frame ak-frame-boundary" x="2544" y="262" width="282" height="102" rx="12"/><text class="ak-frame-label" x="2558" y="283">External Inference (Cloud LLM)</text><text class="ak-frame-role" x="2795.8" y="283">external-zone</text></g><g class="ak-edge" data-from="web-chat" data-to="api-gateway" data-edge-id="e0" data-kind="forward" data-animate="edge" data-route="350,264 436,264 436,257 510,257" style="--step:1"><path class="ak-edge-path" d="M350 264 L432.5 264 Q436 264 436 260.5 L436 260.5 Q436 257 439.5 257 L510 257" pathLength="100" marker-end="url(#ak-arrowhead-1b54d8a8)"/><path class="ak-edge-flow" d="M350 264 L432.5 264 Q436 264 436 260.5 L436 260.5 Q436 257 439.5 257 L510 257" pathLength="100"/><g class="ak-edge-label"><rect class="ak-edge-label-mask" x="337.1" y="243" width="111.9" height="18" rx="9"/><text x="393" y="255.5" text-anchor="middle">chat:send (WS/SSE)</text></g></g><g class="ak-edge" data-from="web-admin" data-to="api-crypto" data-edge-id="e1" data-kind="forward" data-animate="edge" data-route="350,378 510,378" style="--step:1"><path class="ak-edge-path" d="M350 378 L510 378" pathLength="100" marker-end="url(#ak-arrowhead-1b54d8a8)"/><path class="ak-edge-flow" d="M350 378 L510 378" pathLength="100"/><g class="ak-edge-label"><rect class="ak-edge-label-mask" x="368.5" y="357" width="123" height="18" rx="9"/><text x="430" y="369.5" text-anchor="middle">Save Providers (REST)</text></g></g><g class="ak-edge" data-from="api-crypto" data-to="db-settings" data-edge-id="e2" data-kind="forward" data-animate="edge" data-route="760,378 852,378 852,433 2088,433 2088,435 2150,435" style="--step:2"><path class="ak-edge-path" d="M760 378 L842 378 Q852 378 852 388 L852 423 Q852 433 862 433 L2087 433 Q2088 433 2088 434 L2088 434 Q2088 435 2089 435 L2150 435" pathLength="100" marker-end="url(#ak-arrowhead-1b54d8a8)"/><path class="ak-edge-flow" d="M760 378 L842 378 Q852 378 852 388 L852 423 Q852 433 862 433 L2087 433 Q2088 433 2088 434 L2088 434 Q2088 435 2089 435 L2150 435" pathLength="100"/><g class="ak-edge-label"><rect class="ak-edge-label-mask" x="1410.4" y="412" width="119.2" height="18" rx="9"/><text x="1470" y="424.5" text-anchor="middle">Persist Encrypted Key</text></g></g><g class="ak-edge" data-from="api-gateway" data-to="db-conversations" data-edge-id="e3" data-kind="forward" data-animate="edge" data-route="760,257 828,257 828,197 2052,197 2052,321 2150,321" style="--step:2"><path class="ak-edge-path" d="M760 257 L818 257 Q828 257 828 247 L828 207 Q828 197 838 197 L2042 197 Q2052 197 2052 207 L2052 311 Q2052 321 2062 321 L2150 321" pathLength="100" marker-end="url(#ak-arrowhead-1b54d8a8)"/><path class="ak-edge-flow" d="M760 257 L818 257 Q828 257 828 247 L828 207 Q828 197 838 197 L2042 197 Q2052 197 2052 207 L2052 311 Q2052 321 2062 321 L2150 321" pathLength="100"/><g class="ak-edge-label"><rect class="ak-edge-label-mask" x="1374.7" y="176" width="130.6" height="18" rx="9"/><text x="1440" y="188.5" text-anchor="middle">Append History (Max 50)</text></g></g><g class="ak-edge" data-from="api-gateway" data-to="ai-router" data-edge-id="e4" data-kind="forward" data-animate="edge" data-route="760,271 840,271 840,321 920,321" style="--step:2"><path class="ak-edge-path" d="M760 271 L830 271 Q840 271 840 281 L840 311 Q840 321 850 321 L920 321" pathLength="100" marker-end="url(#ak-arrowhead-1b54d8a8)"/><path class="ak-edge-flow" d="M760 271 L830 271 Q840 271 840 281 L840 311 Q840 321 850 321 L920 321" pathLength="100"/><g class="ak-edge-label"><rect class="ak-edge-label-mask" x="739.7" y="250" width="120.7" height="18" rx="9"/><text x="800" y="262.5" text-anchor="middle">Forward Query (HTTP)</text></g></g><g class="ak-edge" data-from="ai-router" data-to="ai-retrieval" data-edge-id="e5" data-kind="forward" data-animate="edge" data-route="1170,314 1250,314 1250,264 1330,264" style="--step:3"><path class="ak-edge-path" d="M1170 314 L1240 314 Q1250 314 1250 304 L1250 274 Q1250 264 1260 264 L1330 264" pathLength="100" marker-end="url(#ak-arrowhead-1b54d8a8)"/><path class="ak-edge-flow" d="M1170 314 L1240 314 Q1250 314 1250 304 L1250 274 Q1250 264 1260 264 L1330 264" pathLength="100"/><g class="ak-edge-label"><rect class="ak-edge-label-mask" x="1159.5" y="293" width="100.9" height="18" rx="9"/><text x="1210" y="305.5" text-anchor="middle">Intent: Policy RAG</text></g></g><g class="ak-edge" data-from="ai-router" data-to="ai-loop" data-edge-id="e6" data-kind="forward" data-animate="edge" data-route="1170,328 1672,328 1672,378 1740,378" style="--step:3"><path class="ak-edge-path" d="M1170 328 L1662 328 Q1672 328 1672 338 L1672 368 Q1672 378 1682 378 L1740 378" pathLength="100" marker-end="url(#ak-arrowhead-1b54d8a8)"/><path class="ak-edge-flow" d="M1170 328 L1662 328 Q1672 328 1672 338 L1672 368 Q1672 378 1682 378 L1740 378" pathLength="100"/><g class="ak-edge-label"><rect class="ak-edge-label-mask" x="1361.9" y="307" width="118.2" height="18" rx="9"/><text x="1421" y="319.5" text-anchor="middle">Intent: Action / Match</text></g></g><g class="ak-edge" data-from="ai-retrieval" data-to="ai-embedder" data-edge-id="e7" data-kind="same" data-animate="edge" data-route="1455,293 1455,349" style="--step:4"><path class="ak-edge-path" d="M1455 293 L1455 349" pathLength="100" marker-end="url(#ak-arrowhead-1b54d8a8)"/><path class="ak-edge-flow" d="M1455 293 L1455 349" pathLength="100"/><g class="ak-edge-label"><rect class="ak-edge-label-mask" x="1463" y="334" width="119.2" height="18" rx="9"/><text x="1522.6" y="346.5" text-anchor="middle">Generate Query Vector</text></g></g><g class="ak-edge" data-from="ai-retrieval" data-to="db-policies" data-edge-id="e8" data-kind="forward" data-animate="edge" data-route="1580,257 1648,257 1648,209 2064,209 2064,207 2150,207" style="--step:4"><path class="ak-edge-path" d="M1580 257 L1638 257 Q1648 257 1648 247 L1648 219 Q1648 209 1658 209 L2063 209 Q2064 209 2064 208 L2064 208 Q2064 207 2065 207 L2150 207" pathLength="100" marker-end="url(#ak-arrowhead-1b54d8a8)"/><path class="ak-edge-flow" d="M1580 257 L1638 257 Q1648 257 1648 247 L1648 219 Q1648 209 1658 209 L2063 209 Q2064 209 2064 208 L2064 208 Q2064 207 2065 207 L2150 207" pathLength="100"/><g class="ak-edge-label"><rect class="ak-edge-label-mask" x="1797.3" y="188" width="117.3" height="18" rx="9"/><text x="1856" y="200.5" text-anchor="middle">Hybrid Vector + BM25</text></g></g><g class="ak-edge" data-from="ai-retrieval" data-to="ai-answer" data-edge-id="e9" data-kind="forward" data-animate="edge" data-route="1580,271 1660,271 1660,264 1740,264" style="--step:4"><path class="ak-edge-path" d="M1580 271 L1656.5 271 Q1660 271 1660 267.5 L1660 267.5 Q1660 264 1663.5 264 L1740 264" pathLength="100" marker-end="url(#ak-arrowhead-1b54d8a8)"/><path class="ak-edge-flow" d="M1580 271 L1656.5 271 Q1660 271 1660 267.5 L1660 267.5 Q1660 264 1663.5 264 L1740 264" pathLength="100"/><g class="ak-edge-label"><rect class="ak-edge-label-mask" x="1559.5" y="250" width="121.1" height="18" rx="9"/><text x="1620" y="262.5" text-anchor="middle">Pass Chunks &amp; Scores</text></g></g><g class="ak-edge" data-from="ai-answer" data-to="ext-llm" data-edge-id="e10" data-kind="forward" data-animate="edge" data-route="1990,271 2474,271 2474,314 2560,314" style="--step:5"><path class="ak-edge-path" d="M1990 271 L2464 271 Q2474 271 2474 281 L2474 304 Q2474 314 2484 314 L2560 314" pathLength="100" marker-end="url(#ak-arrowhead-1b54d8a8)"/><path class="ak-edge-flow" d="M1990 271 L2464 271 Q2474 271 2474 281 L2474 304 Q2474 314 2484 314 L2560 314" pathLength="100"/><g class="ak-edge-label"><rect class="ak-edge-label-mask" x="2178.6" y="250" width="106.8" height="18" rx="9"/><text x="2232" y="262.5" text-anchor="middle">Prompt + Grounding</text></g></g><g class="ak-edge" data-from="ai-loop" data-to="ext-llm" data-edge-id="e11" data-kind="forward" data-animate="edge" data-route="1990,378 2486,378 2486,328 2560,328" style="--step:5"><path class="ak-edge-path" d="M1990 378 L2476 378 Q2486 378 2486 368 L2486 338 Q2486 328 2496 328 L2560 328" pathLength="100" marker-end="url(#ak-arrowhead-1b54d8a8)"/><path class="ak-edge-flow" d="M1990 378 L2476 378 Q2486 378 2486 368 L2486 338 Q2486 328 2496 328 L2560 328" pathLength="100"/><g class="ak-edge-label"><rect class="ak-edge-label-mask" x="2191.9" y="357" width="92.1" height="18" rx="9"/><text x="2238" y="369.5" text-anchor="middle">Function Calling</text></g></g><g class="ak-edge" data-from="ai-answer" data-to="api-gateway" data-edge-id="e12" data-kind="back" data-animate="edge" data-route="1990,257 2076,257 2076,209 424,209 424,271 510,271" style="--step:5"><path class="ak-edge-path" d="M1990 257 L2066 257 Q2076 257 2076 247 L2076 219 Q2076 209 2066 209 L434 209 Q424 209 424 219 L424 261 Q424 271 434 271 L510 271" pathLength="100" marker-end="url(#ak-arrowhead-1b54d8a8)"/><path class="ak-edge-flow" d="M1990 257 L2066 257 Q2076 257 2076 247 L2076 219 Q2076 209 2066 209 L434 209 Q424 209 424 219 L424 261 Q424 271 434 271 L510 271" pathLength="100"/><g class="ak-edge-label"><rect class="ak-edge-label-mask" x="1185.3" y="188" width="129.5" height="18" rx="9"/><text x="1250" y="200.5" text-anchor="middle">Stream Delta &amp; Citations</text></g></g><g class="ak-node" data-node-id="web-chat" data-label="Web ChatPanel
+(React 18 · 6 UI States · SSE/WS)" data-role="frontend" data-desc="" data-family="client" data-shape="card" tabindex="0" data-animate="node" style="--step:0"><rect class="ak-node-mask" x="100" y="235" width="250" height="58" rx="10"/><rect class="ak-node-card" x="100" y="235" width="250" height="58" rx="10"/><rect class="ak-node-accent" x="101" y="245" width="3" height="38" rx="1.5"/><g class="ak-sigil" transform="translate(114 256)"><path d="M2 3h12v8H2zM6 14h4M8 11v3"/></g><text class="ak-node-label" x="140" y="262">Web ChatPanel
+(React 18 · 6…</text><text class="ak-node-sub" x="140" y="277">Client</text></g><g class="ak-node" data-node-id="web-admin" data-label="Admin Settings UI
+(Provider Switch · Zero-Leak)" data-role="frontend" data-desc="" data-family="client" data-shape="card" tabindex="0" data-animate="node" style="--step:0"><rect class="ak-node-mask" x="100" y="349" width="250" height="58" rx="10"/><rect class="ak-node-card" x="100" y="349" width="250" height="58" rx="10"/><rect class="ak-node-accent" x="101" y="359" width="3" height="38" rx="1.5"/><g class="ak-sigil" transform="translate(114 370)"><path d="M2 3h12v8H2zM6 14h4M8 11v3"/></g><text class="ak-node-label" x="140" y="376">Admin Settings UI
+(Provider S…</text><text class="ak-node-sub" x="140" y="391">Client</text></g><g class="ak-node" data-node-id="api-gateway" data-label="Socket.IO Gateway
+(Express 3001 · JWT Auth · Events)" data-role="gateway" data-desc="" data-family="gateway" data-shape="card" tabindex="0" data-animate="node" style="--step:1"><rect class="ak-node-mask" x="510" y="235" width="250" height="58" rx="10"/><rect class="ak-node-card" x="510" y="235" width="250" height="58" rx="10"/><rect class="ak-node-accent" x="511" y="245" width="3" height="38" rx="1.5"/><g class="ak-sigil" transform="translate(524 256)"><path d="M8 2v12M3 6l5-4 5 4M3 10l5 4 5-4"/></g><text class="ak-node-label" x="550" y="262">Socket.IO Gateway
+(Express…</text><text class="ak-node-sub" x="550" y="277">Gateway</text></g><g class="ak-node" data-node-id="api-crypto" data-label="Crypto &amp; Config Service
+(AES-256-GCM · KeyHint Safe)" data-role="auth" data-desc="" data-family="security" data-shape="card" tabindex="0" data-animate="node" style="--step:1"><rect class="ak-node-mask" x="510" y="349" width="250" height="58" rx="10"/><rect class="ak-node-card" x="510" y="349" width="250" height="58" rx="10"/><rect class="ak-node-accent" x="511" y="359" width="3" height="38" rx="1.5"/><g class="ak-sigil" transform="translate(524 370)"><path d="M8 2l5 2v4c0 3-2 5-5 6-3-1-5-3-5-6V4zM5.5 8l2 2 3-3"/></g><text class="ak-node-label" x="550" y="376">Crypto &amp; Config Service
+(AES…</text><text class="ak-node-sub" x="550" y="391">Auth / security</text></g><g class="ak-node" data-node-id="ai-router" data-label="Intent Router
+(FastAPI 8000 · Policy vs Agent)" data-role="worker" data-desc="" data-family="worker" data-shape="card" tabindex="0" data-animate="node" style="--step:2"><rect class="ak-node-mask" x="920" y="292" width="250" height="58" rx="10"/><rect class="ak-node-card" x="920" y="292" width="250" height="58" rx="10"/><rect class="ak-node-accent" x="921" y="302" width="3" height="38" rx="1.5"/><g class="ak-sigil" transform="translate(934 313)"><path d="M3 13l4-4M6 3l7 7-2 2-7-7zM10 4l2 2"/></g><text class="ak-node-label" x="960" y="319">Intent Router
+(FastAPI 8000 ·…</text><text class="ak-node-sub" x="960" y="334">Worker</text></g><g class="ak-node" data-node-id="ai-retrieval" data-label="Hybrid Retrieval
+(Dense Vector + BM25 Lexical)" data-role="backend" data-desc="" data-family="service" data-shape="card" tabindex="0" data-animate="node" style="--step:3"><rect class="ak-node-mask" x="1330" y="235" width="250" height="58" rx="10"/><rect class="ak-node-card" x="1330" y="235" width="250" height="58" rx="10"/><rect class="ak-node-accent" x="1331" y="245" width="3" height="38" rx="1.5"/><g class="ak-sigil" transform="translate(1344 256)"><path d="M3 3h10v10H3zM6 6h4M6 8h4M6 10h2"/></g><text class="ak-node-label" x="1370" y="262">Hybrid Retrieval
+(Dense Vecto…</text><text class="ak-node-sub" x="1370" y="277">Service</text></g><g class="ak-node" data-node-id="ai-embedder" data-label="Embedder Engine
+(OpenAI / Gemini / Hashing)" data-role="backend" data-desc="" data-family="service" data-shape="card" tabindex="0" data-animate="node" style="--step:3"><rect class="ak-node-mask" x="1330" y="349" width="250" height="58" rx="10"/><rect class="ak-node-card" x="1330" y="349" width="250" height="58" rx="10"/><rect class="ak-node-accent" x="1331" y="359" width="3" height="38" rx="1.5"/><g class="ak-sigil" transform="translate(1344 370)"><path d="M3 3h10v10H3zM6 6h4M6 8h4M6 10h2"/></g><text class="ak-node-label" x="1370" y="376">Embedder Engine
+(OpenAI / G…</text><text class="ak-node-sub" x="1370" y="391">Service</text></g><g class="ak-node" data-node-id="ai-answer" data-label="Grounded Generator
+(Citations · Strict Abstain)" data-role="backend" data-desc="" data-family="service" data-shape="card" tabindex="0" data-animate="node" style="--step:4"><rect class="ak-node-mask" x="1740" y="235" width="250" height="58" rx="10"/><rect class="ak-node-card" x="1740" y="235" width="250" height="58" rx="10"/><rect class="ak-node-accent" x="1741" y="245" width="3" height="38" rx="1.5"/><g class="ak-sigil" transform="translate(1754 256)"><path d="M3 3h10v10H3zM6 6h4M6 8h4M6 10h2"/></g><text class="ak-node-label" x="1780" y="262">Grounded Generator
+(Citations…</text><text class="ak-node-sub" x="1780" y="277">Service</text></g><g class="ak-node" data-node-id="ai-loop" data-label="Agent Execution Loop
+(Read-only Tools · Action Propose)" data-role="worker" data-desc="" data-family="worker" data-shape="card" tabindex="0" data-animate="node" style="--step:4"><rect class="ak-node-mask" x="1740" y="349" width="250" height="58" rx="10"/><rect class="ak-node-card" x="1740" y="349" width="250" height="58" rx="10"/><rect class="ak-node-accent" x="1741" y="359" width="3" height="38" rx="1.5"/><g class="ak-sigil" transform="translate(1754 370)"><path d="M3 13l4-4M6 3l7 7-2 2-7-7zM10 4l2 2"/></g><text class="ak-node-label" x="1780" y="376">Agent Execution Loop
+(Read-…</text><text class="ak-node-sub" x="1780" y="391">Worker</text></g><g class="ak-node" data-node-id="db-policies" data-label="Atlas: policies
+(50 Chunks GUTA · Vector Index)" data-role="database" data-desc="" data-family="data" data-shape="card" tabindex="0" data-animate="node" style="--step:5"><rect class="ak-node-mask" x="2150" y="178" width="250" height="58" rx="10"/><rect class="ak-node-card" x="2150" y="178" width="250" height="58" rx="10"/><rect class="ak-node-accent" x="2151" y="188" width="3" height="38" rx="1.5"/><g class="ak-sigil" transform="translate(2164 199)"><path d="M3 4c0-1.5 10-1.5 10 0v8c0 1.5-10 1.5-10 0zM3 4c0 1.5 10 1.5 10 0M3 8c0 1.5 10 1.5 10 0"/></g><text class="ak-node-label" x="2190" y="205">Atlas: policies
+(50 Chunks GU…</text><text class="ak-node-sub" x="2190" y="220">Data store</text></g><g class="ak-node" data-node-id="db-conversations" data-label="Atlas: conversations
+(Cap 50 Msgs · ContextSummary)" data-role="database" data-desc="" data-family="data" data-shape="card" tabindex="0" data-animate="node" style="--step:5"><rect class="ak-node-mask" x="2150" y="292" width="250" height="58" rx="10"/><rect class="ak-node-card" x="2150" y="292" width="250" height="58" rx="10"/><rect class="ak-node-accent" x="2151" y="302" width="3" height="38" rx="1.5"/><g class="ak-sigil" transform="translate(2164 313)"><path d="M3 4c0-1.5 10-1.5 10 0v8c0 1.5-10 1.5-10 0zM3 4c0 1.5 10 1.5 10 0M3 8c0 1.5 10 1.5 10 0"/></g><text class="ak-node-label" x="2190" y="319">Atlas: conversations
+(Cap 50…</text><text class="ak-node-sub" x="2190" y="334">Data store</text></g><g class="ak-node" data-node-id="db-settings" data-label="Atlas: settings
+(Encrypted Provider Credentials)" data-role="database" data-desc="" data-family="data" data-shape="card" tabindex="0" data-animate="node" style="--step:5"><rect class="ak-node-mask" x="2150" y="406" width="250" height="58" rx="10"/><rect class="ak-node-card" x="2150" y="406" width="250" height="58" rx="10"/><rect class="ak-node-accent" x="2151" y="416" width="3" height="38" rx="1.5"/><g class="ak-sigil" transform="translate(2164 427)"><path d="M3 4c0-1.5 10-1.5 10 0v8c0 1.5-10 1.5-10 0zM3 4c0 1.5 10 1.5 10 0M3 8c0 1.5 10 1.5 10 0"/></g><text class="ak-node-label" x="2190" y="433">Atlas: settings
+(Encrypted Pro…</text><text class="ak-node-sub" x="2190" y="448">Data store</text></g><g class="ak-node" data-node-id="ext-llm" data-label="Cloud LLM APIs
+(OpenAI / Gemini / Compatible)" data-role="external" data-desc="" data-family="external" data-shape="card" tabindex="0" data-animate="node" style="--step:6"><rect class="ak-node-mask" x="2560" y="292" width="250" height="58" rx="10"/><rect class="ak-node-card" x="2560" y="292" width="250" height="58" rx="10"/><rect class="ak-node-accent" x="2561" y="302" width="3" height="38" rx="1.5"/><g class="ak-sigil" transform="translate(2574 313)"><path d="M3 8a5 5 0 0 1 10 0 5 5 0 0 1-10 0zM3 8h10M8 3c-2 2-2 8 0 10M8 3c2 2 2 8 0 10"/></g><text class="ak-node-label" x="2600" y="319">Cloud LLM APIs
+(OpenAI / G…</text><text class="ak-node-sub" x="2600" y="334">External</text></g><g class="ak-legend"><g class="ak-legend-item" data-family="client"><rect class="ak-legend-swatch" x="40" y="562" width="12" height="12" rx="3"/><text x="58" y="572">Client</text></g><g class="ak-legend-item" data-family="service"><rect class="ak-legend-swatch" x="107.7" y="562" width="12" height="12" rx="3"/><text x="125.7" y="572">Service</text></g><g class="ak-legend-item" data-family="data"><rect class="ak-legend-swatch" x="183.6" y="562" width="12" height="12" rx="3"/><text x="201.6" y="572">Data store</text></g><g class="ak-legend-item" data-family="gateway"><rect class="ak-legend-swatch" x="271.5" y="562" width="12" height="12" rx="3"/><text x="289.5" y="572">Gateway</text></g><g class="ak-legend-item" data-family="security"><rect class="ak-legend-swatch" x="353.3" y="562" width="12" height="12" rx="3"/><text x="371.3" y="572">Auth / security</text></g><g class="ak-legend-item" data-family="external"><rect class="ak-legend-swatch" x="464.5" y="562" width="12" height="12" rx="3"/><text x="482.5" y="572">External</text></g><g class="ak-legend-item" data-family="worker"><rect class="ak-legend-swatch" x="543.6" y="562" width="12" height="12" rx="3"/><text x="561.6" y="572">Worker</text></g></g></svg>
+    </div>
+    <script type="application/json" class="ak-diagram-data">{"schema_version":1,"diagram_type":"architecture","meta":{"title":"HR BlockBot - Scalable Production RAG Architecture","visual_preset":"signal-flow","theme":"dark","animation":"trace","views":[{"id":"chap-1","title":"1. Ingress \u0026 Realtime WebSocket Interface","narrative":"Nhân viên gửi tin nhắn qua React ChatPanel (6 trạng thái). Express API quản lý xác thực JWT, kết nối Socket.IO thời gian thực.","focus_nodes":["web-chat","api-gateway"]},{"id":"chap-2","title":"2. Intent Routing \u0026 Hybrid Retrieval","narrative":"FastAPI sidecar điều hướng ý định: hỏi chính sách chuyển tới Hybrid Retrieval (Atlas Vector Search kết hợp BM25 Lexical fallback).","focus_nodes":["ai-router","ai-retrieval","ai-embedder","db-policies"]},{"id":"chap-3","title":"3. Grounded Generation \u0026 Citation Guardrails","narrative":"Sinh câu trả lời có trích dẫn điều khoản cụ thể. Tự động từ chối (Abstain) khi tài liệu không đủ bằng chứng tin cậy.","focus_nodes":["ai-answer","ext-llm","api-gateway","web-chat"]},{"id":"chap-4","title":"4. Runtime Provider Switching \u0026 Storage","narrative":"Admin cấu hình provider qua giao diện, mã hóa AES-256-GCM zero-leak. Lịch sử chat lưu trữ trong MongoDB với trần 50 tin.","focus_nodes":["web-admin","api-crypto","db-settings","db-conversations"]}]},"boundaries":[{"id":"bnd-client","label":"Client Tier (Web Browser)","role":"external-zone","components":["web-chat","web-admin"]},{"id":"bnd-api","label":"API Backend Gateway (Express Port 3001)","role":"trust-boundary","components":["api-gateway","api-crypto"]},{"id":"bnd-ai","label":"AI Sidecar Service (FastAPI Port 8000)","role":"cluster","components":["ai-router","ai-retrieval","ai-embedder","ai-answer","ai-loop"]},{"id":"bnd-db","label":"Data Tier (MongoDB Atlas Cloud)","role":"cloud","components":["db-policies","db-conversations","db-settings"]},{"id":"bnd-ext","label":"External Inference (Cloud LLM)","role":"external-zone","components":["ext-llm"]}],"components":[{"id":"web-chat","label":"Web ChatPanel\n(React 18 · 6 UI States · SSE/WS)","role":"frontend","layer":0},{"id":"web-admin","label":"Admin Settings UI\n(Provider Switch · Zero-Leak)","role":"frontend","layer":0},{"id":"api-gateway","label":"Socket.IO Gateway\n(Express 3001 · JWT Auth · Events)","role":"gateway","layer":1},{"id":"api-crypto","label":"Crypto \u0026 Config Service\n(AES-256-GCM · KeyHint Safe)","role":"auth","layer":1},{"id":"ai-router","label":"Intent Router\n(FastAPI 8000 · Policy vs Agent)","role":"worker","layer":2},{"id":"ai-retrieval","label":"Hybrid Retrieval\n(Dense Vector + BM25 Lexical)","role":"backend","layer":3},{"id":"ai-embedder","label":"Embedder Engine\n(OpenAI / Gemini / Hashing)","role":"backend","layer":3},{"id":"ai-answer","label":"Grounded Generator\n(Citations · Strict Abstain)","role":"backend","layer":4},{"id":"ai-loop","label":"Agent Execution Loop\n(Read-only Tools · Action Propose)","role":"worker","layer":4},{"id":"db-policies","label":"Atlas: policies\n(50 Chunks GUTA · Vector Index)","role":"database","layer":5},{"id":"db-conversations","label":"Atlas: conversations\n(Cap 50 Msgs · ContextSummary)","role":"database","layer":5},{"id":"db-settings","label":"Atlas: settings\n(Encrypted Provider Credentials)","role":"database","layer":5},{"id":"ext-llm","label":"Cloud LLM APIs\n(OpenAI / Gemini / Compatible)","role":"external","layer":6}],"connections":[{"from":"web-chat","to":"api-gateway","label":"chat:send (WS/SSE)","kind":"stream"},{"from":"web-admin","to":"api-crypto","label":"Save Providers (REST)","kind":"sync"},{"from":"api-crypto","to":"db-settings","label":"Persist Encrypted Key","kind":"sync"},{"from":"api-gateway","to":"db-conversations","label":"Append History (Max 50)","kind":"sync"},{"from":"api-gateway","to":"ai-router","label":"Forward Query (HTTP)","kind":"sync"},{"from":"ai-router","to":"ai-retrieval","label":"Intent: Policy RAG","kind":"sync"},{"from":"ai-router","to":"ai-loop","label":"Intent: Action / Match","kind":"sync"},{"from":"ai-retrieval","to":"ai-embedder","label":"Generate Query Vector","kind":"sync"},{"from":"ai-retrieval","to":"db-policies","label":"Hybrid Vector + BM25","kind":"sync"},{"from":"ai-retrieval","to":"ai-answer","label":"Pass Chunks \u0026 Scores","kind":"sync"},{"from":"ai-answer","to":"ext-llm","label":"Prompt + Grounding","kind":"sync"},{"from":"ai-loop","to":"ext-llm","label":"Function Calling","kind":"sync"},{"from":"ai-answer","to":"api-gateway","label":"Stream Delta \u0026 Citations","kind":"stream"}]}</script>
+    <script>/**
+ * AgentKit Diagram Reader Runtime (Archify-informed)
+ * Pure vanilla JavaScript, zero runtime dependencies.
+ */
+(function() {
+  function escapeXml(unsafe) {
+    if (typeof unsafe !== 'string') return '';
+    return unsafe
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  }
+
+  function initDiagram(container) {
+    if (!container || container.__ak_initialized) return;
+    container.__ak_initialized = true;
+
+    const dataEl = container.querySelector('script[type="application/json"].ak-diagram-data');
+    if (!dataEl) return;
+
+    let irData;
+    try {
+      irData = JSON.parse(dataEl.textContent);
+    } catch (e) {
+      console.error('Failed to parse diagram data:', e);
+      return;
+    }
+
+    const state = {
+      focusedNodeId: null,
+      activeReach: null, // 'upstream' | 'downstream'
+      activeRoute: null,
+      activeLensIndex: -1,
+      currentChapterIndex: 0,
+      isPresentation: false
+    };
+
+    // DOM Elements
+    const root = container;
+    const searchInput = container.querySelector('.ak-diagram-search-input');
+    const nodes = Array.from(container.querySelectorAll('.ak-node'));
+    const edges = Array.from(container.querySelectorAll('.ak-edge'));
+    const themeBtn = container.querySelector('.ak-btn-theme');
+    const presentBtn = container.querySelector('.ak-btn-present');
+    const shareBtn = container.querySelector('.ak-btn-share');
+    const reachDownBtn = container.querySelector('.ak-btn-reach-down');
+    const reachUpBtn = container.querySelector('.ak-btn-reach-up');
+    const routeBtn = container.querySelector('.ak-btn-route');
+    const lensBtn = container.querySelector('.ak-btn-lens');
+    const chapterPrevBtn = container.querySelector('.ak-btn-prev-chapter');
+    const chapterNextBtn = container.querySelector('.ak-btn-next-chapter');
+    const chapterLabel = container.querySelector('.ak-chapter-label');
+    const motionBtn = container.querySelector('.ak-btn-motion');
+    const svgEl = container.querySelector('.ak-diagram-svg');
+
+    // Replay the finite entrance/trace motion by re-arming data-motion on the svg.
+    function replayMotion() {
+      if (!svgEl) return;
+      svgEl.removeAttribute('data-motion');
+      void svgEl.getBoundingClientRect();
+      svgEl.setAttribute('data-motion', 'play');
+    }
+    if (motionBtn) motionBtn.addEventListener('click', replayMotion);
+
+    // Build Graph Adjacency & Distinct Roles
+    const outgoing = new Map();
+    const incoming = new Map();
+    const allRoles = new Set();
+
+    nodes.forEach(n => {
+      const role = n.getAttribute('data-role');
+      if (role) allRoles.add(role);
+    });
+    const rolesList = Array.from(allRoles).sort();
+
+    edges.forEach(edgeEl => {
+      const from = edgeEl.getAttribute('data-from');
+      const to = edgeEl.getAttribute('data-to');
+      const edgeId = edgeEl.getAttribute('data-edge-id') || `${from}->${to}`;
+      if (from && to) {
+        if (!outgoing.has(from)) outgoing.set(from, []);
+        outgoing.get(from).push({ to, edgeEl, edgeId });
+
+        if (!incoming.has(to)) incoming.set(to, []);
+        incoming.get(to).push({ from, edgeEl, edgeId });
+      }
+    });
+
+    function clearHighlights() {
+      nodes.forEach(n => {
+        n.classList.remove('is-focused', 'is-dimmed');
+      });
+      edges.forEach(e => {
+        e.classList.remove('is-highlighted', 'is-dimmed', 'is-active-trace');
+      });
+      state.focusedNodeId = null;
+      state.activeReach = null;
+      state.activeRoute = null;
+    }
+
+    function focusNodes(nodeIds) {
+      const ids = (nodeIds || []).filter(Boolean);
+      clearHighlights();
+      if (ids.length === 0) {
+        state.focusedNodeId = null;
+        return;
+      }
+      state.focusedNodeId = ids[0];
+
+      const focusSet = new Set(ids);
+      const connectedNodeIds = new Set(ids);
+      ids.forEach(id => {
+        (outgoing.get(id) || []).forEach(e => connectedNodeIds.add(e.to));
+        (incoming.get(id) || []).forEach(e => connectedNodeIds.add(e.from));
+      });
+
+      nodes.forEach(n => {
+        const id = n.getAttribute('data-node-id');
+        if (focusSet.has(id)) {
+          n.classList.add('is-focused');
+        } else if (!connectedNodeIds.has(id)) {
+          n.classList.add('is-dimmed');
+        }
+      });
+
+      edges.forEach(e => {
+        const from = e.getAttribute('data-from');
+        const to = e.getAttribute('data-to');
+        if (focusSet.has(from) || focusSet.has(to)) {
+          e.classList.add('is-highlighted');
+        } else {
+          e.classList.add('is-dimmed');
+        }
+      });
+    }
+
+    function focusNode(nodeId) {
+      focusNodes(nodeId ? [nodeId] : []);
+    }
+
+    function traceReach(nodeId, direction) {
+      const targetId = nodeId || state.focusedNodeId || (nodes[0] ? nodes[0].getAttribute('data-node-id') : null);
+      if (!targetId) return;
+      clearHighlights();
+      state.focusedNodeId = targetId;
+      state.activeReach = direction;
+
+      const reachedNodes = new Set([targetId]);
+      const reachedEdges = new Set();
+      const queue = [targetId];
+
+      while (queue.length > 0) {
+        const current = queue.shift();
+        const neighbors = (direction === 'downstream') ? (outgoing.get(current) || []) : (incoming.get(current) || []);
+        neighbors.forEach(item => {
+          const nextNode = (direction === 'downstream') ? item.to : item.from;
+          reachedEdges.add(item.edgeEl);
+          if (!reachedNodes.has(nextNode)) {
+            reachedNodes.add(nextNode);
+            queue.push(nextNode);
+          }
+        });
+      }
+
+      nodes.forEach(n => {
+        const id = n.getAttribute('data-node-id');
+        if (id === targetId) {
+          n.classList.add('is-focused');
+        } else if (!reachedNodes.has(id)) {
+          n.classList.add('is-dimmed');
+        }
+      });
+
+      edges.forEach(e => {
+        if (reachedEdges.has(e)) {
+          e.classList.add('is-highlighted', 'is-active-trace');
+        } else {
+          e.classList.add('is-dimmed');
+        }
+      });
+    }
+
+    function traceShortestRoute(sourceId, targetId) {
+      if (!sourceId || !targetId || sourceId === targetId) return;
+      clearHighlights();
+
+      const queue = [[sourceId]];
+      const visited = new Set([sourceId]);
+      let shortestPath = null;
+
+      while (queue.length > 0) {
+        const path = queue.shift();
+        const current = path[path.length - 1];
+        if (current === targetId) {
+          shortestPath = path;
+          break;
+        }
+        const neighbors = outgoing.get(current) || [];
+        const sorted = [...neighbors].sort((a, b) => a.to.localeCompare(b.to));
+        for (const item of sorted) {
+          if (!visited.has(item.to)) {
+            visited.add(item.to);
+            queue.push([...path, item.to]);
+          }
+        }
+      }
+
+      if (!shortestPath) return;
+
+      const pathNodes = new Set(shortestPath);
+      const pathEdges = new Set();
+
+      for (let i = 0; i < shortestPath.length - 1; i++) {
+        const u = shortestPath[i];
+        const v = shortestPath[i + 1];
+        const edgeObj = (outgoing.get(u) || []).find(e => e.to === v);
+        if (edgeObj) pathEdges.add(edgeObj.edgeEl);
+      }
+
+      nodes.forEach(n => {
+        const id = n.getAttribute('data-node-id');
+        if (!pathNodes.has(id)) n.classList.add('is-dimmed');
+        else if (id === sourceId || id === targetId) n.classList.add('is-focused');
+      });
+
+      edges.forEach(e => {
+        if (pathEdges.has(e)) e.classList.add('is-highlighted', 'is-active-trace');
+        else e.classList.add('is-dimmed');
+      });
+    }
+
+    function cycleRoleLens() {
+      if (rolesList.length === 0) return;
+      state.activeLensIndex = (state.activeLensIndex + 1) % (rolesList.length + 1);
+
+      if (state.activeLensIndex === rolesList.length) {
+        clearHighlights();
+        state.activeLens = null;
+        return;
+      }
+
+      const roleName = rolesList[state.activeLensIndex];
+      clearHighlights();
+      state.activeLens = roleName;
+
+      nodes.forEach(n => {
+        const role = n.getAttribute('data-role');
+        if (role !== roleName) {
+          n.classList.add('is-dimmed');
+        } else {
+          n.classList.add('is-focused');
+        }
+      });
+    }
+
+    function cycleRoute() {
+      if (nodes.length < 2) return;
+      const src = nodes[0].getAttribute('data-node-id');
+      const dst = nodes[nodes.length - 1].getAttribute('data-node-id');
+      traceShortestRoute(src, dst);
+    }
+
+    function togglePresentation() {
+      state.isPresentation = !state.isPresentation;
+      root.classList.toggle('is-presentation', state.isPresentation);
+    }
+
+    function setChapter(index) {
+      const views = (irData.meta && irData.meta.views) || [];
+      if (views.length === 0) return;
+      if (index < 0) index = 0;
+      if (index >= views.length) index = views.length - 1;
+      state.currentChapterIndex = index;
+      const chapter = views[index];
+
+      if (chapterLabel) {
+        chapterLabel.textContent = `${index + 1}/${views.length}: ${chapter.title || chapter.id}`;
+      }
+
+      clearHighlights();
+      if (chapter.focus_nodes && chapter.focus_nodes.length > 0) {
+        focusNodes(chapter.focus_nodes);
+      } else if (chapter.highlight_route && chapter.highlight_route.length >= 2) {
+        traceShortestRoute(chapter.highlight_route[0], chapter.highlight_route[chapter.highlight_route.length - 1]);
+      }
+    }
+    const PRESET_THEME_PALETTES = {
+      'classic:light': {
+        '--ak-bg': '#ffffff', '--ak-surface': '#f8fafc', '--ak-surface-border': '#e2e8f0',
+        '--ak-text-primary': '#0f172a', '--ak-text-secondary': '#475569', '--ak-text-muted': '#94a3b8',
+        '--ak-accent': '#2563eb', '--ak-accent-light': '#dbeafe',
+        '--ak-node-bg': '#ffffff', '--ak-node-border': '#cbd5e1',
+        '--ak-edge-stroke': '#64748b', '--ak-edge-active': '#2563eb',
+        '--ak-badge-bg': '#f1f5f9', '--ak-font-sans': 'system-ui, -apple-system, sans-serif',
+        '--ak-font-mono': 'ui-monospace, monospace'
+      },
+      'classic:dark': {
+        '--ak-bg': '#090d16', '--ak-surface': '#0f172a', '--ak-surface-border': '#1e293b',
+        '--ak-text-primary': '#f8fafc', '--ak-text-secondary': '#94a3b8', '--ak-text-muted': '#64748b',
+        '--ak-accent': '#38bdf8', '--ak-accent-light': '#0369a1',
+        '--ak-node-bg': '#0f172a', '--ak-node-border': '#334155',
+        '--ak-edge-stroke': '#475569', '--ak-edge-active': '#38bdf8',
+        '--ak-badge-bg': '#1e293b', '--ak-font-sans': 'system-ui, -apple-system, sans-serif',
+        '--ak-font-mono': 'ui-monospace, monospace'
+      },
+      'signal-flow:light': {
+        '--ak-bg': '#f0fdf4', '--ak-surface': '#dcfce7', '--ak-surface-border': '#86efac',
+        '--ak-text-primary': '#14532d', '--ak-text-secondary': '#166534', '--ak-text-muted': '#4ade80',
+        '--ak-accent': '#059669', '--ak-accent-light': '#d1fae5',
+        '--ak-node-bg': '#ffffff', '--ak-node-border': '#10b981',
+        '--ak-edge-stroke': '#059669', '--ak-edge-active': '#047857',
+        '--ak-badge-bg': '#dcfce7', '--ak-font-sans': 'system-ui, -apple-system, sans-serif',
+        '--ak-font-mono': 'ui-monospace, monospace'
+      },
+      'signal-flow:dark': {
+        '--ak-bg': '#031c18', '--ak-surface': '#064e3b', '--ak-surface-border': '#047857',
+        '--ak-text-primary': '#ecfdf5', '--ak-text-secondary': '#a7f3d0', '--ak-text-muted': '#34d399',
+        '--ak-accent': '#34d399', '--ak-accent-light': '#065f46',
+        '--ak-node-bg': '#064e3b', '--ak-node-border': '#10b981',
+        '--ak-edge-stroke': '#34d399', '--ak-edge-active': '#6ee7b7',
+        '--ak-badge-bg': '#064e3b', '--ak-font-sans': 'system-ui, -apple-system, sans-serif',
+        '--ak-font-mono': 'ui-monospace, monospace'
+      },
+      'blueprint:light': {
+        '--ak-bg': '#f0f9ff', '--ak-surface': '#e0f2fe', '--ak-surface-border': '#7dd3fc',
+        '--ak-text-primary': '#0369a1', '--ak-text-secondary': '#0284c7', '--ak-text-muted': '#38bdf8',
+        '--ak-accent': '#0284c7', '--ak-accent-light': '#bae6fd',
+        '--ak-node-bg': '#ffffff', '--ak-node-border': '#0ea5e9',
+        '--ak-edge-stroke': '#0284c7', '--ak-edge-active': '#0369a1',
+        '--ak-badge-bg': '#e0f2fe', '--ak-font-sans': 'ui-monospace, monospace',
+        '--ak-font-mono': 'ui-monospace, monospace'
+      },
+      'blueprint:dark': {
+        '--ak-bg': '#081d33', '--ak-surface': '#0c2a4a', '--ak-surface-border': '#1e4976',
+        '--ak-text-primary': '#e0f2fe', '--ak-text-secondary': '#bae6fd', '--ak-text-muted': '#38bdf8',
+        '--ak-accent': '#38bdf8', '--ak-accent-light': '#0369a1',
+        '--ak-node-bg': '#0c213a', '--ak-node-border': '#38bdf8',
+        '--ak-edge-stroke': '#7dd3fc', '--ak-edge-active': '#38bdf8',
+        '--ak-badge-bg': '#0c213a', '--ak-font-sans': 'ui-monospace, monospace',
+        '--ak-font-mono': 'ui-monospace, monospace'
+      },
+      'editorial:light': {
+        '--ak-bg': '#faf8f5', '--ak-surface': '#f3efe6', '--ak-surface-border': '#e2dacb',
+        '--ak-text-primary': '#1c1917', '--ak-text-secondary': '#57534e', '--ak-text-muted': '#a8a29e',
+        '--ak-accent': '#991b1b', '--ak-accent-light': '#fecaca',
+        '--ak-node-bg': '#ffffff', '--ak-node-border': '#d6cfc4',
+        '--ak-edge-stroke': '#78716c', '--ak-edge-active': '#991b1b',
+        '--ak-badge-bg': '#f3efe6', '--ak-font-sans': 'system-ui, serif',
+        '--ak-font-mono': 'ui-monospace, monospace'
+      },
+      'editorial:dark': {
+        '--ak-bg': '#1c1917', '--ak-surface': '#292524', '--ak-surface-border': '#44403c',
+        '--ak-text-primary': '#fafaf9', '--ak-text-secondary': '#d6d3d1', '--ak-text-muted': '#78716c',
+        '--ak-accent': '#ef4444', '--ak-accent-light': '#7f1d1d',
+        '--ak-node-bg': '#292524', '--ak-node-border': '#78716c',
+        '--ak-edge-stroke': '#a8a29e', '--ak-edge-active': '#f87171',
+        '--ak-badge-bg': '#292524', '--ak-font-sans': 'system-ui, serif',
+        '--ak-font-mono': 'ui-monospace, monospace'
+      }
+    };
+
+    function exportShareCard() {
+      const svg = root.querySelector('.ak-diagram-svg');
+      if (!svg) return;
+
+      const title = (irData.meta && irData.meta.title) || 'AgentKit System Map';
+      const preset = root.getAttribute('data-preset') || 'classic';
+      const theme = root.getAttribute('data-theme') || 'light';
+
+      const VAR_WHITELIST = [
+        '--ak-bg', '--ak-surface', '--ak-surface-border',
+        '--ak-text-primary', '--ak-text-secondary', '--ak-text-muted',
+        '--ak-accent', '--ak-accent-light',
+        '--ak-node-bg', '--ak-node-border',
+        '--ak-edge-stroke', '--ak-edge-active',
+        '--ak-badge-bg', '--ak-font-sans', '--ak-font-mono'
+      ];
+
+      const paletteKey = `${preset}:${theme}`;
+      const fallbackPalette = PRESET_THEME_PALETTES[paletteKey] || PRESET_THEME_PALETTES['classic:light'];
+
+      let computed = null;
+      if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+        try { computed = window.getComputedStyle(root); } catch (e) { computed = null; }
+      }
+
+      const resolvedVars = {};
+      VAR_WHITELIST.forEach(varName => {
+        let val = '';
+        if (computed && typeof computed.getPropertyValue === 'function') {
+          val = computed.getPropertyValue(varName);
+        }
+        resolvedVars[varName] = (val && val.trim()) ? val.trim() : (fallbackPalette[varName] || '#000000');
+      });
+
+      const cardBg = resolvedVars['--ak-bg'];
+      const cardSurface = resolvedVars['--ak-surface'];
+      const cardBorder = resolvedVars['--ak-surface-border'];
+      const textPrimary = resolvedVars['--ak-text-primary'];
+      const textMuted = resolvedVars['--ak-text-muted'];
+      const accent = resolvedVars['--ak-accent'];
+
+      const cssDeclarations = Object.entries(resolvedVars)
+        .map(([k, v]) => `${k}: ${v};`)
+        .join(' ');
+
+      const styleBlock = `<style>
+        svg {
+          ${cssDeclarations}
+          font-family: var(--ak-font-sans);
+        }
+      </style>`;
+
+      // Construct canonical 1200x630 Share Card SVG with self-contained resolved variables
+      const shareCardSvg = `<svg viewBox="0 0 1200 630" width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          ${styleBlock}
+        </defs>
+        <rect width="1200" height="630" fill="${cardBg}" rx="12" stroke="${cardBorder}" stroke-width="2"/>
+        <g transform="translate(48, 56)">
+          <text x="0" y="0" font-family="system-ui, sans-serif" font-size="28" font-weight="700" fill="${textPrimary}">${escapeXml(title)}</text>
+          <text x="0" y="28" font-family="system-ui, sans-serif" font-size="14" fill="${textMuted}">AgentKit System Map • Preset: ${escapeXml(preset)} • Theme: ${escapeXml(theme)}</text>
+        </g>
+        <g transform="translate(48, 120)">
+          <rect width="1104" height="450" fill="${cardSurface}" rx="8" stroke="${cardBorder}" stroke-width="1.5"/>
+          <svg x="20" y="20" width="1064" height="410" viewBox="${svg.getAttribute('viewBox') || '0 0 1000 600'}">
+            ${svg.innerHTML}
+          </svg>
+        </g>
+        <g transform="translate(1050, 595)">
+          <text x="0" y="0" font-family="system-ui, sans-serif" font-size="12" font-weight="600" fill="${accent}">AgentKit • Archify v2.16</text>
+        </g>
+      </svg>`;
+
+      const blob = new Blob([shareCardSvg], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-share-card-1200x630.svg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Attach Node Click Handlers
+    nodes.forEach(nodeEl => {
+      nodeEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = nodeEl.getAttribute('data-node-id');
+        if (state.focusedNodeId === id) {
+          clearHighlights();
+        } else {
+          focusNode(id);
+        }
+      });
+    });
+
+    const viewport = container.querySelector('.ak-diagram-viewport');
+    if (viewport) {
+      viewport.addEventListener('click', () => {
+        clearHighlights();
+      });
+    }
+
+    // Search Input (Searches Label, ID, Description, Role)
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        const q = e.target.value.trim().toLowerCase();
+        if (!q) {
+          clearHighlights();
+          return;
+        }
+        clearHighlights();
+        nodes.forEach(n => {
+          const label = (n.getAttribute('data-label') || '').toLowerCase();
+          const id = (n.getAttribute('data-node-id') || '').toLowerCase();
+          const desc = (n.getAttribute('data-desc') || '').toLowerCase();
+          const role = (n.getAttribute('data-role') || '').toLowerCase();
+          if (label.includes(q) || id.includes(q) || desc.includes(q) || role.includes(q)) {
+            n.classList.remove('is-dimmed');
+            n.classList.add('is-focused');
+          } else {
+            n.classList.add('is-dimmed');
+          }
+        });
+      });
+    }
+
+    // Control Buttons
+    if (themeBtn) {
+      themeBtn.addEventListener('click', () => {
+        const currentTheme = root.getAttribute('data-theme') || 'light';
+        const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-theme', nextTheme);
+        themeBtn.textContent = nextTheme === 'dark' ? '☀️' : '🌙';
+      });
+    }
+
+    if (presentBtn) presentBtn.addEventListener('click', togglePresentation);
+    if (shareBtn) shareBtn.addEventListener('click', exportShareCard);
+    if (reachDownBtn) reachDownBtn.addEventListener('click', () => traceReach(null, 'downstream'));
+    if (reachUpBtn) reachUpBtn.addEventListener('click', () => traceReach(null, 'upstream'));
+    if (routeBtn) routeBtn.addEventListener('click', cycleRoute);
+    if (lensBtn) lensBtn.addEventListener('click', cycleRoleLens);
+
+    if (chapterPrevBtn) {
+      chapterPrevBtn.addEventListener('click', () => setChapter(state.currentChapterIndex - 1));
+    }
+    if (chapterNextBtn) {
+      chapterNextBtn.addEventListener('click', () => setChapter(state.currentChapterIndex + 1));
+    }
+
+    // Global Scoped Keyboard Shortcuts
+    document.addEventListener('keydown', (e) => {
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+        if (e.key === 'Escape') activeEl.blur();
+        return;
+      }
+
+      if (e.key === '/') {
+        if (searchInput) {
+          e.preventDefault();
+          searchInput.focus();
+        }
+      } else if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        togglePresentation();
+      } else if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        cycleRoute();
+      } else if (e.key === 'l' || e.key === 'L') {
+        e.preventDefault();
+        cycleRoleLens();
+      } else if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        replayMotion();
+      } else if (e.key === '[') {
+        e.preventDefault();
+        setChapter(state.currentChapterIndex - 1);
+      } else if (e.key === ']') {
+        e.preventDefault();
+        setChapter(state.currentChapterIndex + 1);
+      } else if (e.key === 'Escape') {
+        if (state.isPresentation) {
+          togglePresentation();
+        } else {
+          clearHighlights();
+        }
+      }
+    });
+
+    if (irData.meta && irData.meta.views && irData.meta.views.length > 0) {
+      setChapter(0);
+    }
+  }
+
+  if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.ak-diagram-root').forEach(initDiagram);
+      });
+    } else {
+      document.querySelectorAll('.ak-diagram-root').forEach(initDiagram);
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.AgentKitDiagram = { init: initDiagram };
+  }
+})();
+</script>
+  </div>
+</body>
+</html>

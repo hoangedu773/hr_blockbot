@@ -1,0 +1,228 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "HR BlockBot - Scalable Production RAG Architecture",
+    "visual_preset": "signal-flow",
+    "theme": "dark",
+    "animation": "trace",
+    "views": [
+      {
+        "id": "chap-1",
+        "title": "1. Ingress & Realtime WebSocket Interface",
+        "narrative": "Nhân viên gửi tin nhắn qua React ChatPanel (6 trạng thái). Express API quản lý xác thực JWT, kết nối Socket.IO thời gian thực.",
+        "focus_nodes": ["web-chat", "api-gateway"]
+      },
+      {
+        "id": "chap-2",
+        "title": "2. Intent Routing & Hybrid Retrieval",
+        "narrative": "FastAPI sidecar điều hướng ý định: hỏi chính sách chuyển tới Hybrid Retrieval (Atlas Vector Search kết hợp BM25 Lexical fallback).",
+        "focus_nodes": ["ai-router", "ai-retrieval", "ai-embedder", "db-policies"]
+      },
+      {
+        "id": "chap-3",
+        "title": "3. Grounded Generation & Citation Guardrails",
+        "narrative": "Sinh câu trả lời có trích dẫn điều khoản cụ thể. Tự động từ chối (Abstain) khi tài liệu không đủ bằng chứng tin cậy.",
+        "focus_nodes": ["ai-answer", "ext-llm", "api-gateway", "web-chat"]
+      },
+      {
+        "id": "chap-4",
+        "title": "4. Runtime Provider Switching & Storage",
+        "narrative": "Admin cấu hình provider qua giao diện, mã hóa AES-256-GCM zero-leak. Lịch sử chat lưu trữ trong MongoDB với trần 50 tin.",
+        "focus_nodes": ["web-admin", "api-crypto", "db-settings", "db-conversations"]
+      }
+    ]
+  },
+  "boundaries": [
+    {
+      "id": "bnd-client",
+      "label": "Client Tier (Web Browser)",
+      "role": "external-zone",
+      "components": ["web-chat", "web-admin"]
+    },
+    {
+      "id": "bnd-api",
+      "label": "API Backend Gateway (Express Port 3001)",
+      "role": "trust-boundary",
+      "components": ["api-gateway", "api-crypto"]
+    },
+    {
+      "id": "bnd-ai",
+      "label": "AI Sidecar Service (FastAPI Port 8000)",
+      "role": "cluster",
+      "components": ["ai-router", "ai-retrieval", "ai-embedder", "ai-answer", "ai-loop"]
+    },
+    {
+      "id": "bnd-db",
+      "label": "Data Tier (MongoDB Atlas Cloud)",
+      "role": "cloud",
+      "components": ["db-policies", "db-conversations", "db-settings"]
+    },
+    {
+      "id": "bnd-ext",
+      "label": "External Inference (Cloud LLM)",
+      "role": "external-zone",
+      "components": ["ext-llm"]
+    }
+  ],
+  "components": [
+    {
+      "id": "web-chat",
+      "label": "Web ChatPanel\n(React 18 · 6 UI States · SSE/WS)",
+      "role": "frontend",
+      "layer": 0
+    },
+    {
+      "id": "web-admin",
+      "label": "Admin Settings UI\n(Provider Switch · Zero-Leak)",
+      "role": "frontend",
+      "layer": 0
+    },
+    {
+      "id": "api-gateway",
+      "label": "Socket.IO Gateway\n(Express 3001 · JWT Auth · Events)",
+      "role": "gateway",
+      "layer": 1
+    },
+    {
+      "id": "api-crypto",
+      "label": "Crypto & Config Service\n(AES-256-GCM · KeyHint Safe)",
+      "role": "auth",
+      "layer": 1
+    },
+    {
+      "id": "ai-router",
+      "label": "Intent Router\n(FastAPI 8000 · Policy vs Agent)",
+      "role": "worker",
+      "layer": 2
+    },
+    {
+      "id": "ai-retrieval",
+      "label": "Hybrid Retrieval\n(Dense Vector + BM25 Lexical)",
+      "role": "backend",
+      "layer": 3
+    },
+    {
+      "id": "ai-embedder",
+      "label": "Embedder Engine\n(OpenAI / Gemini / Hashing)",
+      "role": "backend",
+      "layer": 3
+    },
+    {
+      "id": "ai-answer",
+      "label": "Grounded Generator\n(Citations · Strict Abstain)",
+      "role": "backend",
+      "layer": 4
+    },
+    {
+      "id": "ai-loop",
+      "label": "Agent Execution Loop\n(Read-only Tools · Action Propose)",
+      "role": "worker",
+      "layer": 4
+    },
+    {
+      "id": "db-policies",
+      "label": "Atlas: policies\n(50 Chunks GUTA · Vector Index)",
+      "role": "database",
+      "layer": 5
+    },
+    {
+      "id": "db-conversations",
+      "label": "Atlas: conversations\n(Cap 50 Msgs · ContextSummary)",
+      "role": "database",
+      "layer": 5
+    },
+    {
+      "id": "db-settings",
+      "label": "Atlas: settings\n(Encrypted Provider Credentials)",
+      "role": "database",
+      "layer": 5
+    },
+    {
+      "id": "ext-llm",
+      "label": "Cloud LLM APIs\n(OpenAI / Gemini / Compatible)",
+      "role": "external",
+      "layer": 6
+    }
+  ],
+  "connections": [
+    {
+      "from": "web-chat",
+      "to": "api-gateway",
+      "label": "chat:send (WS/SSE)",
+      "kind": "stream"
+    },
+    {
+      "from": "web-admin",
+      "to": "api-crypto",
+      "label": "Save Providers (REST)",
+      "kind": "sync"
+    },
+    {
+      "from": "api-crypto",
+      "to": "db-settings",
+      "label": "Persist Encrypted Key",
+      "kind": "sync"
+    },
+    {
+      "from": "api-gateway",
+      "to": "db-conversations",
+      "label": "Append History (Max 50)",
+      "kind": "sync"
+    },
+    {
+      "from": "api-gateway",
+      "to": "ai-router",
+      "label": "Forward Query (HTTP)",
+      "kind": "sync"
+    },
+    {
+      "from": "ai-router",
+      "to": "ai-retrieval",
+      "label": "Intent: Policy RAG",
+      "kind": "sync"
+    },
+    {
+      "from": "ai-router",
+      "to": "ai-loop",
+      "label": "Intent: Action / Match",
+      "kind": "sync"
+    },
+    {
+      "from": "ai-retrieval",
+      "to": "ai-embedder",
+      "label": "Generate Query Vector",
+      "kind": "sync"
+    },
+    {
+      "from": "ai-retrieval",
+      "to": "db-policies",
+      "label": "Hybrid Vector + BM25",
+      "kind": "sync"
+    },
+    {
+      "from": "ai-retrieval",
+      "to": "ai-answer",
+      "label": "Pass Chunks & Scores",
+      "kind": "sync"
+    },
+    {
+      "from": "ai-answer",
+      "to": "ext-llm",
+      "label": "Prompt + Grounding",
+      "kind": "sync"
+    },
+    {
+      "from": "ai-loop",
+      "to": "ext-llm",
+      "label": "Function Calling",
+      "kind": "sync"
+    },
+    {
+      "from": "ai-answer",
+      "to": "api-gateway",
+      "label": "Stream Delta & Citations",
+      "kind": "stream"
+    }
+  ]
+}

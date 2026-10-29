@@ -25,6 +25,7 @@ from app.llm.base import (
     ProviderTimeout,
     ToolCall,
 )
+from app.llm.url_guard import validate_base_url
 
 logger = logging.getLogger("ai.llm.openai_compatible")
 
@@ -34,7 +35,7 @@ class OpenAICompatibleProvider(LLMProvider):
         super().__init__(config)
         if not config.base_url:
             raise ProviderInvalidConfig("baseUrl is required", provider_id=config.id)
-        self._base_url = config.base_url.rstrip("/")
+        self._base_url = validate_base_url(config.base_url, provider_id=config.id).rstrip("/")
         self._client = client or httpx.Client(timeout=self.timeout)
 
     def _url(self, suffix: str) -> str:

@@ -67,8 +67,7 @@ const CRM_HTML = `
 
           <button type="button" data-section="stores" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold bg-muted/60 text-foreground border border-border/80 text-left">Chi nhánh / Cửa hàng <span class="ml-auto">45</span></button>
           <button type="button" data-section="employees" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Nhân sự</button>
-          <button type="button" data-section="schedules" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Phân ca</button>
-          <button type="button" data-section="projects" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Đề tài / Báo cáo</button>
+          <button type="button" data-section="schedules" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Hồ sơ nhân sự</button>
           <button type="button" data-section="settings" id="crm-nav-settings" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Cài đặt LLM</button>
         </nav>
       </div>

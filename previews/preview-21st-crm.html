@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="vi" class="h-full antialiased font-sans dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>F&B Workspace — Tổng Quan Vận Hành</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&display=swap" />
+  <link rel="stylesheet" href="assets/crm/2voh1gse7971r.css" />
+  <link rel="stylesheet" href="assets/crm/2e445toz63gzv.css" />
+  <style>
+    :root {
+      --font-geist-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-geist-mono: "Geist Mono", "Courier New", monospace;
+      --font-editorial: "Tiempos Headline", "Newsreader", Georgia, "Times New Roman", serif;
+    }
+    body {
+      font-family: var(--font-geist-sans) !important;
+      background-color: var(--color-background, #fff);
+      color: var(--color-foreground, #0f172a);
+    }
+    button, input, select, textarea { font-family: var(--font-geist-sans); }
+    code, pre, kbd, .font-mono { font-family: var(--font-geist-mono) !important; }
+    h1, h2 { font-family: var(--font-editorial); }
+    .table-row-hover {
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+    }
+    .table-row-hover:hover {
+      background-color: rgba(37, 99, 235, 0.04) !important;
+    }
+    #detail-drawer {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      right: 0;
+      width: 440px;
+      max-width: 90vw;
+      background: #ffffff;
+      border-left: 1px solid rgba(226, 232, 240, 0.8);
+      box-shadow: -12px 0 36px -4px rgba(15, 23, 42, 0.12), -4px 0 12px -2px rgba(15, 23, 42, 0.08);
+      z-index: 50;
+      transform: translateX(100%);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+      visibility: hidden;
+    }
+    #detail-drawer.drawer-open {
+      transform: translateX(0) !important;
+      pointer-events: auto !important;
+      visibility: visible !important;
+    }
+    #drawer-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.4);
+      backdrop-filter: blur(3px);
+      z-index: 40;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+    #drawer-backdrop.backdrop-open {
+      opacity: 1 !important;
+      pointer-events: auto !important;
+    }
+    :root {
+      color-scheme: light;
+      --crm-bg: #ffffff;
+      --crm-surface: #f7f7f7;
+      --crm-raised: #eeeeee;
+      --crm-border: #e2e2e2;
+      --crm-text: #111111;
+      --crm-muted: #646464;
+      --crm-accent: #111111;
+      --crm-accent-fg: #ffffff;
+      --crm-shadow: rgba(0, 0, 0, 0.05) 0px 1px 2px 0px;
+    }
+    html.dark {
+      color-scheme: dark;
+      --crm-bg: #0f0f10;
+      --crm-surface: #1d1d1e;
+      --crm-raised: #29292a;
+      --crm-border: #353536;
+      --crm-text: #f5f5f5;
+      --crm-muted: #9e9e9e;
+      --crm-accent: #818181;
+      --crm-accent-fg: #0b0b0c;
+      --crm-shadow: rgba(0, 0, 0, 0.3) 0px 1px 2px 0px;
+    }
+    body, [data-slot="sidebar-wrapper"] { background: var(--crm-bg); color: var(--crm-text); }
+    [data-slot="sidebar-wrapper"] aside, .crm-shell > header, .bg-card, .bg-sidebar { background-color: var(--crm-surface) !important; }
+    .border-border, .border-border\/80 { border-color: var(--crm-border) !important; }
+    .bg-muted, .bg-muted\/40, .bg-muted\/20, .bg-muted\/10 { background-color: var(--crm-raised) !important; }
+    .text-foreground { color: var(--crm-text) !important; }
+    .text-muted-foreground { color: var(--crm-muted) !important; }
+    .crm-page { background: var(--crm-bg); color: var(--crm-text); }
+    .crm-page-heading p, .crm-view-tabs button:not([aria-current="page"]), .crm-list-toolbar > span { color: var(--crm-muted); }
+    .crm-search, .crm-filter, .crm-table-wrap { background: var(--crm-surface); color: var(--crm-text); border-color: var(--crm-border); }
+    .crm-table th { background: var(--crm-surface); color: var(--crm-muted); }
+    .crm-table td { border-color: var(--crm-border); }
+    .crm-table tbody tr:hover { background: var(--crm-raised); }
+    .crm-view-tabs button[aria-current="page"] { color: var(--crm-text); border-bottom-color: var(--crm-accent); }
+    .crm-add-store { background: var(--crm-accent); color: var(--crm-accent-fg); border-color: var(--crm-accent); }
+    .crm-table-wrap { box-shadow: var(--crm-shadow); }
+    .crm-theme-toggle { display:inline-flex; align-items:center; justify-content:center; height:44px; width:84px; min-width:84px; padding:6px 10px; gap:4px; background:var(--crm-raised); border:1px solid var(--crm-border); border-radius:9999px; box-sizing:border-box; }
+    .crm-theme-toggle button { display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; min-width:44px; min-height:44px; padding:0; border-radius:9999px; color:var(--crm-muted); opacity:.55; cursor:pointer; background:transparent; border:0; transition:background-color .15s ease,color .15s ease,opacity .15s ease,box-shadow .15s ease; }
+    .crm-theme-toggle button svg { pointer-events:none; }
+    .crm-theme-toggle button:focus-visible { outline:2px solid var(--crm-accent); outline-offset:2px; }
+    .crm-theme-toggle button svg { width:14px; height:14px; display:block; fill:none; stroke:currentColor; stroke-width:2; }
+    html.dark .crm-theme-toggle button[aria-label="Dark theme"], html:not(.dark) .crm-theme-toggle button[aria-label="Light theme"] { background:var(--crm-surface); color:var(--crm-text); opacity:1; box-shadow:var(--crm-shadow); }
+    :focus-visible { outline: 2px solid var(--crm-accent); outline-offset: 2px; }
+    [data-slot="sidebar-wrapper"] nav a, [data-slot="sidebar-wrapper"] aside > div:last-child a { min-height: 44px; }
+    [data-slot="sidebar-wrapper"] aside > div:last-child a { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; }
+    [data-slot="sidebar-wrapper"] > aside > div:first-child > div:first-child > a { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+    @media (max-width: 760px) { [data-slot="sidebar-wrapper"] > aside { width: 3.5rem; } [data-slot="sidebar-wrapper"] > aside > div:first-child > div:first-child > div:last-child, [data-slot="sidebar-wrapper"] nav span:not(.size-4) { display: none; } [data-slot="sidebar-wrapper"] main { padding: 1rem !important; } }
+    .crm-shell { --crm-gutter: 2rem; }
+    .crm-breadcrumbs { height: 3.5rem; padding-inline: var(--crm-gutter); justify-content: flex-start; }
+    .crm-topbar-right { margin-left: auto; display: flex; align-items: center; gap: 1rem; }
+    .crm-account { display: flex; align-items: center; gap: .75rem; padding-left: 1rem; border-left: 1px solid var(--crm-border); }
+    .crm-avatar { width: 2rem; height: 2rem; display: grid; place-items: center; border-radius: 50%; background: var(--crm-raised); color: var(--crm-text); font-size: .75rem; font-weight: 600; }
+    .crm-topbar-right > [data-theme-toggle] { margin-right: .25rem; }
+    .crm-filter-panel { position: absolute; z-index: 20; top: calc(100% + .5rem); right: 0; width: 15rem; padding: .5rem; border: 1px solid var(--crm-border); border-radius: .625rem; background: var(--crm-surface); box-shadow: var(--crm-shadow); }
+    .crm-filter-option { display: flex; align-items: center; gap: .625rem; min-height: 2.75rem; padding-inline: .75rem; border-radius: .375rem; color: var(--crm-text); cursor: pointer; }
+    .crm-filter-panel :focus-visible { outline-offset: -2px; }
+    .crm-filter-option:hover { background: var(--crm-raised); }
+    .crm-filter-option input { accent-color: var(--crm-accent); }
+    .crm-filter-anchor { position: relative; }
+    .crm-filter[aria-expanded="true"] { border-color: var(--crm-accent); }
+    .crm-filter-summary { color: var(--crm-muted); font-size: .75rem; }
+    .crm-filter-clear { border: 0; background: transparent; color: var(--crm-accent); cursor: pointer; font: inherit; font-size: .75rem; text-decoration: underline; min-height: 44px; }
+    .crm-filter-summary { margin-left: auto; }
+    .crm-add-store { background: var(--crm-accent); color: var(--crm-accent-fg); border-color: var(--crm-accent); }
+    .crm-filter-option input { width: 1rem; height: 1rem; }
+    .crm-empty { padding: 2.5rem 1rem; text-align: center; color: var(--crm-muted); }
+    .crm-empty h2 { color: var(--crm-text); font-weight: 600; margin-bottom: .35rem; }
+    .crm-empty button { min-height: 44px; margin-top: .75rem; border: 1px solid var(--crm-border); border-radius: .5rem; background: var(--crm-surface); color: var(--crm-text); padding-inline: .875rem; }
+    .crm-table-wrap.has-empty tbody { display: none; }
+    .crm-table-wrap.has-empty .crm-empty { display: block; }
+    @media (hover:hover) and (pointer:fine) { .crm-filter:hover { background-color: var(--crm-raised); } .crm-add-store:hover { background-color: var(--crm-text); } }
+    .crm-theme-toggle button:active, .crm-filter:active { transform: translateY(1px); }
+    .crm-theme-toggle button:focus-visible, .crm-filter:focus-visible, .crm-view-tabs button:focus-visible, .crm-filter-option input:focus-visible { outline: 2px solid var(--crm-accent); outline-offset: 2px; }
+    @media (max-width:760px) { .crm-topbar-right { gap: .5rem; } .crm-account { padding-left: .5rem; gap: .35rem; } .crm-user { display:none; } .crm-filter-summary { display:none; } .crm-list-toolbar { display:grid; grid-template-columns: 1fr 1fr; } .crm-search { grid-column: 1 / -1; } .crm-page-heading { align-items: stretch; } .crm-add-store { align-self:flex-start; } }
+    .crm-empty[hidden], .crm-filter-panel[hidden] { display: none; }
+    .crm-page { width: 100%; margin-inline: 0; padding: 2rem var(--crm-gutter); }
+    .crm-page-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 2rem; }
+    .crm-page-heading h1 { font-size: 1.5rem; line-height: 1.25; font-weight: 600; letter-spacing: -0.025em; }
+    .crm-page-heading p { margin-top: .35rem; color: var(--crm-muted); font-size: .8125rem; }
+    .crm-view-tabs { display: flex; gap: 1.5rem; border-bottom: 1px solid var(--crm-border); margin-bottom: 1.25rem; }
+    .crm-view-tabs button { min-height: 2.75rem; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--crm-muted); font: inherit; font-size: .8125rem; padding: 0 .25rem; }
+    .crm-list-toolbar > button, .crm-filter-anchor > button { min-height: 44px; }
+    .crm-account { margin-left: .5rem; }
+    .crm-view-tabs button[aria-current="page"] { border-color: var(--crm-accent); color: var(--crm-text); font-weight: 600; }
+    .crm-list-toolbar { display: flex; justify-content: space-between; gap: .75rem; margin-bottom: .75rem; }
+    .crm-search { min-height: 2.5rem; width: min(100%, 24rem); border: 1px solid var(--crm-border); border-radius: .5rem; background: var(--crm-surface); color: var(--crm-text); padding: 0 .75rem; font: inherit; }
+    .crm-filter { min-height: 2.5rem; border: 1px solid var(--crm-border); border-radius: .5rem; background: var(--crm-surface); color: var(--crm-text); padding: 0 .75rem; font: inherit; }
+    .crm-table-wrap { overflow: auto; border: 1px solid var(--crm-border); border-radius: .625rem; background: var(--crm-surface); }
+    .crm-table { min-width: 58rem; }
+    .crm-table caption { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+    @media (max-width: 760px) { .crm-user { display: none; } }
+    .crm-table th { position: sticky; top: 0; z-index: 1; background: var(--crm-surface); text-align: left; font-size: .75rem; font-weight: 500; color: var(--crm-muted); }
+    .crm-table td, .crm-table th { padding: .75rem 1rem; border-bottom: 1px solid var(--crm-border); white-space: nowrap; }
+    .crm-table tbody tr:last-child td { border-bottom: 0; }
+    .crm-table tbody tr:hover { background: var(--crm-raised); }
+    .crm-table td:nth-last-child(2), .crm-table th:nth-last-child(2) { text-align: right; font-variant-numeric: tabular-nums; }
+    .crm-page .legacy-status, .crm-page > .mb-4 { display: none; }
+    @media (max-width: 760px) { .crm-breadcrumbs { padding-inline: 1rem; } .crm-page { padding: 1.5rem 1rem; } .crm-page-heading { flex-direction: column; margin-bottom: 1.25rem; } .crm-list-toolbar { flex-direction: column; } .crm-search { width: 100%; } }
+  </style>
+</head>
+<body class="min-h-full flex flex-col bg-background text-foreground antialiased">
+  <div data-slot="sidebar-wrapper" style="--sidebar-width:16.5rem;--sidebar-width-icon:3.5rem" class="group/sidebar-wrapper flex min-h-svh w-full h-svh overflow-hidden">
+    
+    <!-- SIDEBAR -->
+    <aside class="w-64 border-r border-border bg-sidebar flex flex-col justify-between shrink-0 select-none">
+      <div class="flex flex-col">
+        <!-- Brand Header -->
+        <div class="p-4 border-b border-border/80 flex items-center justify-between">
+          <div class="flex items-center gap-2.5">
+            <div class="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-zinc-900 to-zinc-800 dark:from-zinc-100 dark:to-zinc-200 dark:text-zinc-900 text-white font-black text-sm shadow-sm">G</div>
+            <div class="flex flex-col">
+              <div class="flex items-center gap-1.5 leading-none">
+                <span class="font-black tracking-wider text-foreground text-sm">GUTA</span>
+                <span class="font-semibold tracking-tight text-foreground text-sm">F&B WORKSPACE</span>
+              </div>
+              <span class="text-[10px] text-muted-foreground mt-0.5 font-medium">Cửa hàng • nhân sự • ca làm • doanh thu</span>
+            </div>
+          </div>
+          <a href="preview-folio-intelligence.html" title="Trở về Trang Chủ" class="text-xs text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted transition">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          </a>
+        </div>
+
+        <!-- Search Bar Trigger -->
+        <div class="px-3 pt-3">
+          <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-border/80 bg-background/60 text-xs text-muted-foreground shadow-xs cursor-pointer hover:border-blue-500/50 transition">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <span class="flex-1">Tìm chi nhánh, mã NV...</span>
+            <kbd class="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono border border-border">⌘K</kbd>
+          </div>
+        </div>
+
+        <!-- Navigation Menu -->
+        <nav class="px-2 py-3 space-y-1">
+          <div class="px-2 pb-1 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Nền Tảng F&B</div>
+          
+          <a href="#" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <span>Cửa hàng / Chi nhánh</span>
+            <span class="ml-auto rounded-full bg-primary/20 px-1.5 py-0.2 text-[10px] font-bold text-primary">45</span>
+          </a>
+
+          <a href="#" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span>Nhân sự & Đội ngũ</span>
+            <span class="ml-auto text-[10px] text-muted-foreground">348</span>
+          </a>
+
+          <a href="#" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+            <span>Lịch Phân Ca 24H</span>
+            <span class="ml-auto rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.2 text-[10px] font-semibold">Realtime</span>
+          </a>
+
+          <a href="#" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <span>Chấm công & Đi trễ</span>
+          </a>
+
+          <a href="#" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            <span>Báo cáo Két ca</span>
+          </a>
+
+          <div class="pt-4 px-2 pb-1 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">AI Intelligence</div>
+
+          <a href="#" class="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition">
+            <div class="size-4 rounded bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-[10px] text-white">✨</div>
+            <span>F&B Ops Copilot</span>
+            <span class="ml-auto text-[10px] bg-indigo-500/10 text-indigo-500 px-1.5 py-0.5 rounded font-mono">Chat</span>
+          </a>
+        </nav>
+      </div>
+
+      <!-- User Profile at bottom -->
+      <div class="p-3 border-t border-border bg-sidebar/50">
+        <div class="flex items-center gap-3 p-2 rounded-xl border border-border/60 bg-background/80 shadow-xs">
+          <div class="crm-avatar" aria-hidden="true">PA</div>
+          <div class="flex-1 min-w-0">
+            <div class="text-xs font-semibold text-foreground truncate">Nguyễn Thị Phương Anh</div>
+            <div class="text-[10px] text-muted-foreground truncate">Cửa hàng trưởng (SM)</div>
+          </div>
+          <a href="preview-folio-intelligence.html" title="Đăng xuất" class="text-muted-foreground hover:text-destructive p-1 transition">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          </a>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT INSET -->
+    <div class="crm-shell flex flex-col flex-1 h-svh overflow-hidden bg-background">
+      <header class="crm-breadcrumbs border-b border-border bg-background flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2 text-xs text-muted-foreground">
+          <span class="text-foreground font-medium">F&B Workspace</span><span>/</span><span>Vận hành</span><span>/</span><span class="text-foreground">Cửa hàng</span>
+        </div>
+        <div class="crm-topbar-right">
+          <div class="crm-theme-toggle" data-theme-toggle aria-label="Toggle Theme">
+            <button type="button" aria-label="Light theme" title="Chuyển chế độ sáng"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41m14.14-14.14-1.41 1.41"></path></svg></button>
+            <button type="button" aria-label="Dark theme" title="Chuyển chế độ tối"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5 8.5 8.5 0 1 0 20.5 14.5Z"></path></svg></button>
+          </div>
+          <div class="crm-account">
+            <span class="crm-avatar" aria-hidden="true">PA</span>
+            <span class="crm-user text-xs text-muted-foreground">Nguyễn Thị Phương Anh</span>
+          </div>
+        </div>
+      </header>
+      <main class="crm-page flex-1 overflow-auto">
+        <div class="crm-page-heading">
+          <div><h1>Cửa hàng</h1><p>Quản lý điểm bán, nhân sự theo ca và hoạt động vận hành F&B.</p></div>
+          <button class="crm-filter crm-add-store" type="button">+ Thêm cửa hàng</button>
+        </div>
+        <nav class="crm-view-tabs" aria-label="Các danh sách cửa hàng">
+          <button type="button" aria-current="page">Tất cả cửa hàng <span>45</span></button>
+          <button type="button" data-status-tab="OPEN">Đang hoạt động</button>
+          <button type="button" data-status-tab="ATTENTION">Cần chú ý <span>3</span></button>
+        </nav>
+        <div class="crm-list-toolbar">
+          <input class="crm-search" type="search" placeholder="Tìm cửa hàng, quản lý hoặc khu vực..." aria-label="Tìm cửa hàng, quản lý hoặc khu vực" />
+          <div class="crm-filter-anchor">
+            <button class="crm-filter" id="status-filter-trigger" type="button" aria-expanded="false" aria-controls="status-filter-panel">Trạng thái <span aria-hidden="true">⌄</span></button>
+            <div class="crm-filter-panel" id="status-filter-panel" role="group" aria-label="Lọc theo trạng thái" hidden>
+              <label class="crm-filter-option"><input type="checkbox" value="OPEN" data-status-filter /> Đang mở ca</label>
+              <label class="crm-filter-option"><input type="checkbox" value="HANDOVER" data-status-filter /> Bàn giao ca</label>
+              <label class="crm-filter-option"><input type="checkbox" value="CLOSED" data-status-filter /> Đã đóng</label>
+            </div>
+          </div>
+          <div class="crm-filter-anchor">
+            <button class="crm-filter" id="area-filter-trigger" type="button" aria-expanded="false" aria-controls="area-filter-panel">Khu vực <span aria-hidden="true">⌄</span></button>
+            <div class="crm-filter-panel" id="area-filter-panel" role="group" aria-label="Lọc theo khu vực" hidden>
+              <label class="crm-filter-option"><input type="checkbox" value="Quận 1" data-area-filter /> Quận 1</label>
+              <label class="crm-filter-option"><input type="checkbox" value="Quận 3" data-area-filter /> Quận 3</label>
+              <label class="crm-filter-option"><input type="checkbox" value="Quận 10" data-area-filter /> Quận 10</label>
+              <label class="crm-filter-option"><input type="checkbox" value="Bình Thạnh" data-area-filter /> Bình Thạnh</label>
+              <label class="crm-filter-option"><input type="checkbox" value="Gò Vấp" data-area-filter /> Gò Vấp</label>
+              <label class="crm-filter-option"><input type="checkbox" value="Tân Bình" data-area-filter /> Tân Bình</label>
+            </div>
+          </div>
+          <button class="crm-filter-clear" type="button" hidden>Xóa lọc</button>
+          <span class="crm-filter-summary" aria-live="polite">Bộ dữ liệu minh họa: Guta Cafe · 45 địa điểm</span>
+        </div>
+        <div class="crm-table-wrap">
+          <table class="crm-table w-full text-left text-xs border-collapse">
+            <caption aria-label="Danh sách điểm bán và thông tin vận hành theo ca"></caption>
+            <thead>
+              <tr class="border-b border-border bg-muted/40 font-semibold text-muted-foreground">
+                <th class="py-3 px-4">Mã CH</th>
+                <th class="py-3 px-4">Tên Cửa Hàng / Chi Nhánh</th>
+                <th class="py-3 px-4">Cửa Hàng Trưởng (SM)</th>
+                <th class="py-3 px-4">Quận</th>
+                <th class="py-3 px-4 text-center">Số Barista</th>
+                <th class="py-3 px-4">Ca Hiện Tại</th>
+                <th class="py-3 px-4 text-right">Doanh Thu Két</th>
+                <th class="py-3 px-4 text-center">Đúng Giờ</th>
+                <th class="py-3 px-4 text-center">Trạng Thái</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-border font-medium">
+              
+              <tr class="table-row-hover" onclick="openDrawer('GT-CH-01', 'GUTA CAFE - Tân Bình - 02 Đặng Văn Sâm', 'Nguyễn Thị Phương Anh', 'Tân Bình', 46, 'Ca 1 (06:00 - 14:00)', '8.420.000 ₫', '100%')">
+                <td class="py-3 px-4 font-mono text-[11px] text-muted-foreground">GT-CH-01</td>
+                <td class="py-3 px-4 font-semibold text-foreground flex items-center gap-2">
+                  <div class="size-6 rounded bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-[10px]">☕</div>
+                  <span>GUTA CAFE - Tân Bình - 02 Đặng Văn Sâm</span>
+                </td>
+                <td class="py-3 px-4 text-foreground/90">Nguyễn Thị Phương Anh</td>
+                <td class="py-3 px-4">
+                  <span class="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Tân Bình</span>
+                </td>
+                <td class="py-3 px-4 text-center font-semibold text-foreground">46</td>
+                <td class="py-3 px-4 text-foreground/80 font-mono text-[11px]">Ca 1 (06:00 - 14:00)</td>
+                <td class="py-3 px-4 text-right font-mono font-semibold text-foreground">8.420.000 ₫</td>
+                <td class="py-3 px-4 text-center font-mono text-emerald-600 dark:text-emerald-400">100%</td>
+                <td class="py-3 px-4 text-center">
+                  <span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                    <span class="size-1 rounded-full bg-emerald-500"></span>
+                    Đang mở ca
+                  </span>
+                </td>
+              </tr>
+              
+              <tr class="table-row-hover" onclick="openDrawer('GT-CH-02', 'GUTA CAFE - Quận 10 - 581 Sư Vạn Hạnh', 'Đỗ Quỳnh Anh', 'Quận 10', 56, 'Ca 1 (06:00 - 14:00)', '12.150.000 ₫', '98%')">
+                <td class="py-3 px-4 font-mono text-[11px] text-muted-foreground">GT-CH-02</td>
+                <td class="py-3 px-4 font-semibold text-foreground flex items-center gap-2">
+                  <div class="size-6 rounded bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-[10px]">☕</div>
+                  <span>GUTA CAFE - Quận 10 - 581 Sư Vạn Hạnh</span>
+                </td>
+                <td class="py-3 px-4 text-foreground/90">Đỗ Quỳnh Anh</td>
+                <td class="py-3 px-4">
+                  <span class="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Quận 10</span>
+                </td>
+                <td class="py-3 px-4 text-center font-semibold text-foreground">56</td>
+                <td class="py-3 px-4 text-foreground/80 font-mono text-[11px]">Ca 1 (06:00 - 14:00)</td>
+                <td class="py-3 px-4 text-right font-mono font-semibold text-foreground">12.150.000 ₫</td>
+                <td class="py-3 px-4 text-center font-mono text-emerald-600 dark:text-emerald-400">98%</td>
+                <td class="py-3 px-4 text-center">
+                  <span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                    <span class="size-1 rounded-full bg-emerald-500"></span>
+                    Đang mở ca
+                  </span>
+                </td>
+              </tr>
+              
+              <tr class="table-row-hover" onclick="openDrawer('GT-CH-03', 'GUTA CAFE - Bình Thạnh - 18 Nguyễn Cửu Vân', 'Nguyễn Lê Quang Trường', 'Bình Thạnh', 47, 'Ca 1 (06:00 - 14:00)', '7.890.000 ₫', '95%')">
+                <td class="py-3 px-4 font-mono text-[11px] text-muted-foreground">GT-CH-03</td>
+                <td class="py-3 px-4 font-semibold text-foreground flex items-center gap-2">
+                  <div class="size-6 rounded bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-[10px]">☕</div>
+                  <span>GUTA CAFE - Bình Thạnh - 18 Nguyễn Cửu Vân</span>
+                </td>
+                <td class="py-3 px-4 text-foreground/90">Nguyễn Lê Quang Trường</td>
+                <td class="py-3 px-4">
+                  <span class="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Bình Thạnh</span>
+                </td>
+                <td class="py-3 px-4 text-center font-semibold text-foreground">47</td>
+                <td class="py-3 px-4 text-foreground/80 font-mono text-[11px]">Ca 1 (06:00 - 14:00)</td>
+                <td class="py-3 px-4 text-right font-mono font-semibold text-foreground">7.890.000 ₫</td>
+                <td class="py-3 px-4 text-center font-mono text-emerald-600 dark:text-emerald-400">95%</td>
+                <td class="py-3 px-4 text-center">
+                  <span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                    <span class="size-1 rounded-full bg-emerald-500"></span>
+                    Đang mở ca
+                  </span>
+                </td>
+              </tr>
+              
+              <tr class="table-row-hover" onclick="openDrawer('GT-CH-04', 'GUTA CAFE - Quận 3 - 100 Nguyễn Thị Minh Khai', 'Nguyễn Thị Thu Trúc', 'Quận 3', 45, 'Ca 1 (06:00 - 14:00)', '9.340.000 ₫', '100%')">
+                <td class="py-3 px-4 font-mono text-[11px] text-muted-foreground">GT-CH-04</td>
+                <td class="py-3 px-4 font-semibold text-foreground flex items-center gap-2">
+                  <div class="size-6 rounded bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-[10px]">☕</div>
+                  <span>GUTA CAFE - Quận 3 - 100 Nguyễn Thị Minh Khai</span>
+                </td>
+                <td class="py-3 px-4 text-foreground/90">Nguyễn Thị Thu Trúc</td>
+                <td class="py-3 px-4">
+                  <span class="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Quận 3</span>
+                </td>
+                <td class="py-3 px-4 text-center font-semibold text-foreground">45</td>
+                <td class="py-3 px-4 text-foreground/80 font-mono text-[11px]">Ca 1 (06:00 - 14:00)</td>
+                <td class="py-3 px-4 text-right font-mono font-semibold text-foreground">9.340.000 ₫</td>
+                <td class="py-3 px-4 text-center font-mono text-emerald-600 dark:text-emerald-400">100%</td>
+                <td class="py-3 px-4 text-center">
+                  <span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                    <span class="size-1 rounded-full bg-emerald-500"></span>
+                    Đang mở ca
+                  </span>
+                </td>
+              </tr>
+              
+              <tr class="table-row-hover" onclick="openDrawer('GT-CH-05', 'GUTA CAFE - Quận 3 - 41 Trần Cao Vân', 'Triệu Quang Nhân', 'Quận 3', 45, 'Ca 1 (06:00 - 14:00)', '8.120.000 ₫', '96%')">
+                <td class="py-3 px-4 font-mono text-[11px] text-muted-foreground">GT-CH-05</td>
+                <td class="py-3 px-4 font-semibold text-foreground flex items-center gap-2">
+                  <div class="size-6 rounded bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-[10px]">☕</div>
+                  <span>GUTA CAFE - Quận 3 - 41 Trần Cao Vân</span>
+                </td>
+                <td class="py-3 px-4 text-foreground/90">Triệu Quang Nhân</td>
+                <td class="py-3 px-4">
+                  <span class="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Quận 3</span>
+                </td>
+                <td class="py-3 px-4 text-center font-semibold text-foreground">45</td>
+                <td class="py-3 px-4 text-foreground/80 font-mono text-[11px]">Ca 1 (06:00 - 14:00)</td>
+                <td class="py-3 px-4 text-right font-mono font-semibold text-foreground">8.120.000 ₫</td>
+                <td class="py-3 px-4 text-center font-mono text-emerald-600 dark:text-emerald-400">96%</td>
+                <td class="py-3 px-4 text-center">
+                  <span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                    <span class="size-1 rounded-full bg-emerald-500"></span>
+                    Đang mở ca
+                  </span>
+                </td>
+              </tr>
+              
+              <tr class="table-row-hover" onclick="openDrawer('GT-CH-06', 'GUTA CAFE - Quận 1 - 146 Nguyễn Văn Thủ', 'Trương Quốc Thái', 'Quận 1', 43, 'Ca 1 (06:00 - 14:00)', '6.950.000 ₫', '94%')">
+                <td class="py-3 px-4 font-mono text-[11px] text-muted-foreground">GT-CH-06</td>
+                <td class="py-3 px-4 font-semibold text-foreground flex items-center gap-2">
+                  <div class="size-6 rounded bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-[10px]">☕</div>
+                  <span>GUTA CAFE - Quận 1 - 146 Nguyễn Văn Thủ</span>
+                </td>
+                <td class="py-3 px-4 text-foreground/90">Trương Quốc Thái</td>
+                <td class="py-3 px-4">
+                  <span class="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Quận 1</span>
+                </td>
+                <td class="py-3 px-4 text-center font-semibold text-foreground">43</td>
+                <td class="py-3 px-4 text-foreground/80 font-mono text-[11px]">Ca 1 (06:00 - 14:00)</td>
+                <td class="py-3 px-4 text-right font-mono font-semibold text-foreground">6.950.000 ₫</td>
+                <td class="py-3 px-4 text-center font-mono text-emerald-600 dark:text-emerald-400">94%</td>
+                <td class="py-3 px-4 text-center">
+                  <span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                    <span class="size-1 rounded-full bg-emerald-500"></span>
+                    Đang mở ca
+                  </span>
+                </td>
+              </tr>
+              
+              <tr class="table-row-hover" onclick="openDrawer('GT-CH-07', 'GUTA CAFE - Gò Vấp - 1B Nguyễn Kiệm', 'Thái Thanh Lam', 'Gò Vấp', 42, 'Ca 1 (06:00 - 14:00)', '7.200.000 ₫', '97%')">
+                <td class="py-3 px-4 font-mono text-[11px] text-muted-foreground">GT-CH-07</td>
+                <td class="py-3 px-4 font-semibold text-foreground flex items-center gap-2">
+                  <div class="size-6 rounded bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-[10px]">☕</div>
+                  <span>GUTA CAFE - Gò Vấp - 1B Nguyễn Kiệm</span>
+                </td>
+                <td class="py-3 px-4 text-foreground/90">Thái Thanh Lam</td>
+                <td class="py-3 px-4">
+                  <span class="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Gò Vấp</span>
+                </td>
+                <td class="py-3 px-4 text-center font-semibold text-foreground">42</td>
+                <td class="py-3 px-4 text-foreground/80 font-mono text-[11px]">Ca 1 (06:00 - 14:00)</td>
+                <td class="py-3 px-4 text-right font-mono font-semibold text-foreground">7.200.000 ₫</td>
+                <td class="py-3 px-4 text-center font-mono text-emerald-600 dark:text-emerald-400">97%</td>
+                <td class="py-3 px-4 text-center">
+                  <span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                    <span class="size-1 rounded-full bg-emerald-500"></span>
+                    Đang mở ca
+                  </span>
+                </td>
+              </tr>
+              
+              <tr class="table-row-hover" onclick="openDrawer('GT-CH-08', 'GUTA CAFE - Gò Vấp - 30 Phạm Văn Đồng', 'Lại Ngọc Hoàng Nguyên', 'Gò Vấp', 42, 'Ca 1 (06:00 - 14:00)', '7.600.000 ₫', '99%')">
+                <td class="py-3 px-4 font-mono text-[11px] text-muted-foreground">GT-CH-08</td>
+                <td class="py-3 px-4 font-semibold text-foreground flex items-center gap-2">
+                  <div class="size-6 rounded bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-[10px]">☕</div>
+                  <span>GUTA CAFE - Gò Vấp - 30 Phạm Văn Đồng</span>
+                </td>
+                <td class="py-3 px-4 text-foreground/90">Lại Ngọc Hoàng Nguyên</td>
+                <td class="py-3 px-4">
+                  <span class="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Gò Vấp</span>
+                </td>
+                <td class="py-3 px-4 text-center font-semibold text-foreground">42</td>
+                <td class="py-3 px-4 text-foreground/80 font-mono text-[11px]">Ca 1 (06:00 - 14:00)</td>
+                <td class="py-3 px-4 text-right font-mono font-semibold text-foreground">7.600.000 ₫</td>
+                <td class="py-3 px-4 text-center font-mono text-emerald-600 dark:text-emerald-400">99%</td>
+                <td class="py-3 px-4 text-center">
+                  <span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                    <span class="size-1 rounded-full bg-emerald-500"></span>
+                    Đang mở ca
+                  </span>
+                </td>
+              </tr>
+              
+              <tr class="table-row-hover" onclick="openDrawer('GT-CH-09', 'GUTA CAFE - Bình Thạnh - 193F Điện Biên Phủ', 'Nguyễn Cao Thanh Hằng', 'Bình Thạnh', 39, 'Ca 1 (06:00 - 14:00)', '6.450.000 ₫', '95%')">
+                <td class="py-3 px-4 font-mono text-[11px] text-muted-foreground">GT-CH-09</td>
+                <td class="py-3 px-4 font-semibold text-foreground flex items-center gap-2">
+                  <div class="size-6 rounded bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-[10px]">☕</div>
+                  <span>GUTA CAFE - Bình Thạnh - 193F Điện Biên Phủ</span>
+                </td>
+                <td class="py-3 px-4 text-foreground/90">Nguyễn Cao Thanh Hằng</td>
+                <td class="py-3 px-4">
+                  <span class="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Bình Thạnh</span>
+                </td>
+                <td class="py-3 px-4 text-center font-semibold text-foreground">39</td>
+                <td class="py-3 px-4 text-foreground/80 font-mono text-[11px]">Ca 1 (06:00 - 14:00)</td>
+                <td class="py-3 px-4 text-right font-mono font-semibold text-foreground">6.450.000 ₫</td>
+                <td class="py-3 px-4 text-center font-mono text-emerald-600 dark:text-emerald-400">95%</td>
+                <td class="py-3 px-4 text-center">
+                  <span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                    <span class="size-1 rounded-full bg-emerald-500"></span>
+                    Đang mở ca
+                  </span>
+                </td>
+              </tr>
+              
+              <tr class="table-row-hover" onclick="openDrawer('GT-CH-10', 'GUTA CAFE - Quận 3 - 206 Pasteur', 'Lê Ngọc Bảo Trân', 'Quận 3', 38, 'Ca 1 (06:00 - 14:00)', '8.870.000 ₫', '100%')">
+                <td class="py-3 px-4 font-mono text-[11px] text-muted-foreground">GT-CH-10</td>
+                <td class="py-3 px-4 font-semibold text-foreground flex items-center gap-2">
+                  <div class="size-6 rounded bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-[10px]">☕</div>
+                  <span>GUTA CAFE - Quận 3 - 206 Pasteur</span>
+                </td>
+                <td class="py-3 px-4 text-foreground/90">Lê Ngọc Bảo Trân</td>
+                <td class="py-3 px-4">
+                  <span class="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Quận 3</span>
+                </td>
+                <td class="py-3 px-4 text-center font-semibold text-foreground">38</td>
+                <td class="py-3 px-4 text-foreground/80 font-mono text-[11px]">Ca 1 (06:00 - 14:00)</td>
+                <td class="py-3 px-4 text-right font-mono font-semibold text-foreground">8.870.000 ₫</td>
+                <td class="py-3 px-4 text-center font-mono text-emerald-600 dark:text-emerald-400">100%</td>
+                <td class="py-3 px-4 text-center">
+                  <span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                    <span class="size-1 rounded-full bg-emerald-500"></span>
+                    Đang mở ca
+                  </span>
+                </td>
+              </tr>
+              
+            </tbody>
+          </table>
+          <section class="crm-empty" hidden aria-live="polite">
+            <h2>Không tìm thấy cửa hàng</h2>
+            <p>Thử đổi từ khóa hoặc bỏ bộ lọc hiện tại.</p>
+            <button type="button" class="crm-empty-reset">Xóa bộ lọc</button>
+          </section>
+        </div>
+      </main>
+
+    </div>
+  </div>
+
+  <!-- SLIDE-OVER DETAIL DRAWER -->
+  <div id="drawer-backdrop" class="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs transition-opacity duration-300 opacity-0 pointer-events-none" onclick="closeDrawer()"></div>
+  <aside id="detail-drawer" class="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-card border-l border-border shadow-2xl flex flex-col justify-between transform translate-x-full transition-transform duration-300 ease-in-out">
+    <div>
+      <!-- Drawer Header -->
+      <div class="p-6 border-b border-border flex items-start justify-between bg-muted/20">
+        <div>
+          <span class="rounded bg-blue-500/10 text-foreground px-2 py-0.5 text-[10px] font-bold font-mono uppercase" id="d-id">GT-CH-01</span>
+          <h2 class="text-base font-bold text-foreground mt-1.5" id="d-name">GUTA CAFE - Tân Bình - 02 Đặng Văn Sâm</h2>
+          <p class="text-xs text-muted-foreground mt-0.5" id="d-district">Quận: Tân Bình • Cửa hàng trưởng: Nguyễn Thị Phương Anh</p>
+        </div>
+        <button type="button" onclick="closeDrawer()" class="size-8 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground flex items-center justify-center transition">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Drawer Body -->
+      <div class="p-6 space-y-6 overflow-y-auto max-h-[calc(100vh-210px)]">
+        
+        <!-- Metrics Grid -->
+        <div class="grid grid-cols-2 gap-3">
+          <div class="p-3.5 rounded-xl border border-border bg-background">
+            <span class="text-[10px] font-medium text-muted-foreground uppercase">Doanh Thu Két Hiện Tại</span>
+            <div class="text-base font-bold font-mono text-blue-600 dark:text-blue-400 mt-0.5" id="d-rev">8.420.000 ₫</div>
+            <span class="text-[10px] text-emerald-500 font-medium">↑ +14% so với ca hôm qua</span>
+          </div>
+          <div class="p-3.5 rounded-xl border border-border bg-background">
+            <span class="text-[10px] font-medium text-muted-foreground uppercase">Tổng Nhân Sự Barista</span>
+            <div class="text-base font-bold font-mono text-foreground mt-0.5" id="d-staff">46 người</div>
+            <span class="text-[10px] text-muted-foreground font-medium" id="d-ontime">Đúng giờ: 100%</span>
+          </div>
+        </div>
+
+        <!-- Shift Live Roster -->
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-xs font-bold text-foreground uppercase tracking-wider">Barista Đang Làm Ca Hiện Tại</h3>
+            <span class="text-[10px] font-semibold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full">Đủ 3 người</span>
+          </div>
+
+          <div class="space-y-2">
+            <div class="flex items-center justify-between p-2.5 rounded-lg border border-border bg-background">
+              <div class="flex items-center gap-2.5">
+                <div class="size-7 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs">QT</div>
+                <div>
+                  <div class="text-xs font-semibold text-foreground">Trương Quốc Thái</div>
+                  <div class="text-[10px] text-muted-foreground">Pha chế chính (Barista) • Check-in: 05:55</div>
+                </div>
+              </div>
+              <span class="text-[10px] font-semibold text-emerald-600 bg-emerald-500/15 px-2 py-0.5 rounded">Đúng ca</span>
+            </div>
+
+            <div class="flex items-center justify-between p-2.5 rounded-lg border border-border bg-background">
+              <div class="flex items-center gap-2.5">
+                <div class="size-7 rounded-full bg-blue-500/15 text-blue-500 flex items-center justify-center font-bold text-xs">KN</div>
+                <div>
+                  <div class="text-xs font-semibold text-foreground">Lê Thị Kim Ngân</div>
+                  <div class="text-[10px] text-muted-foreground">Thu ngân / Order • Check-in: 06:01</div>
+                </div>
+              </div>
+              <span class="text-[10px] font-semibold text-emerald-600 bg-emerald-500/15 px-2 py-0.5 rounded">Đúng ca</span>
+            </div>
+
+            <div class="flex items-center justify-between p-2.5 rounded-lg border border-border bg-background">
+              <div class="flex items-center gap-2.5">
+                <div class="size-7 rounded-full bg-purple-500/15 text-purple-500 flex items-center justify-center font-bold text-xs">VD</div>
+                <div>
+                  <div class="text-xs font-semibold text-foreground">Nguyễn Văn Đạt</div>
+                  <div class="text-[10px] text-muted-foreground">Phụ ca / Rửa dụng cụ • Check-in: 06:00</div>
+                </div>
+              </div>
+              <span class="text-[10px] font-semibold text-emerald-600 bg-emerald-500/15 px-2 py-0.5 rounded">Đúng ca</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI Assistant Recommendation -->
+        <div class="p-3.5 rounded-xl border border-indigo-500/20 bg-indigo-500/5">
+          <div class="flex items-center gap-2 text-indigo-500 text-xs font-bold mb-1">
+            <span>✨ Trợ lý ca Guta AI</span>
+          </div>
+          <p class="text-[11px] text-foreground/80 leading-relaxed">
+            Dự báo lượng khách giờ trưa (11:30 - 13:00) tại chi nhánh này tăng 35% do khu vực văn phòng. Khuyến nghị điều chuyển thêm 1 Barista Part-time hỗ trợ order máy cà phê.
+          </p>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Drawer Footer Actions -->
+    <div class="p-4 border-t border-border bg-muted/10 flex items-center gap-2">
+      <button type="button" onclick="alert('Đã gửi thông báo phân ca tới Bot Telegram của Quản lý chi nhánh!')" class="flex-1 py-2 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 dark:text-zinc-900 text-white font-semibold text-xs transition shadow-sm text-center">
+        Gửi Cảnh Báo Telegram
+      </button>
+      <button type="button" onclick="closeDrawer()" class="py-2 px-3 rounded-lg border border-border bg-background hover:bg-muted text-xs font-medium text-foreground transition">
+        Đóng
+      </button>
+    </div>
+  </aside>
+
+  <script>
+    const themeRoot = document.documentElement;
+    const setTheme = (theme) => {
+      themeRoot.classList.toggle('dark', theme === 'dark');
+      themeRoot.classList.toggle('light', theme === 'light');
+    };
+    document.querySelector('[data-theme-toggle] button[aria-label="Light theme"]')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      setTheme('light');
+    });
+    document.querySelector('[data-theme-toggle] button[aria-label="Dark theme"]')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      setTheme('dark');
+    });
+    const tableRows = [...document.querySelectorAll('.crm-table tbody tr')];
+    const tableWrap = document.querySelector('.crm-table-wrap');
+    const emptyState = document.querySelector('.crm-empty');
+    const clearFilters = document.querySelector('.crm-filter-clear');
+    const filterTriggers = [
+      ['status-filter-trigger', 'status-filter-panel'],
+      ['area-filter-trigger', 'area-filter-panel'],
+    ];
+    const updateRows = () => {
+      const query = document.querySelector('.crm-search').value.toLocaleLowerCase('vi');
+      const statuses = [...document.querySelectorAll('[data-status-filter]:checked')].map((input) => input.value);
+      const areas = [...document.querySelectorAll('[data-area-filter]:checked')].map((input) => input.value);
+      let visible = 0;
+      tableRows.forEach((row) => {
+        const text = row.textContent.toLocaleLowerCase('vi');
+        const matches = text.includes(query) && (!areas.length || areas.some((area) => text.includes(area.toLocaleLowerCase('vi')))) && (!statuses.length || (statuses.includes('OPEN') && text.includes('đang mở ca')) || (statuses.includes('HANDOVER') && text.includes('bàn giao')) || (statuses.includes('CLOSED') && text.includes('đã đóng')));
+        row.hidden = !matches;
+        if (matches) visible += 1;
+      });
+      emptyState.hidden = visible > 0;
+      tableWrap.classList.toggle('has-empty', visible === 0);
+      clearFilters.hidden = !query && !statuses.length && !areas.length;
+      document.querySelector('.crm-filter-summary').textContent = `${visible} cửa hàng hiển thị`;
+    };
+    document.querySelector('.crm-search')?.addEventListener('input', updateRows);
+    document.querySelectorAll('[data-status-filter], [data-area-filter]').forEach((input) => input.addEventListener('change', updateRows));
+    filterTriggers.forEach(([triggerId, panelId]) => {
+      const trigger = document.getElementById(triggerId);
+      const panel = document.getElementById(panelId);
+      trigger.addEventListener('click', () => {
+        const open = trigger.getAttribute('aria-expanded') !== 'true';
+        filterTriggers.forEach(([otherTrigger, otherPanel]) => {
+          document.getElementById(otherTrigger).setAttribute('aria-expanded', 'false');
+          document.getElementById(otherPanel).hidden = true;
+        });
+        trigger.setAttribute('aria-expanded', String(open));
+        panel.hidden = !open;
+      });
+    });
+    clearFilters.addEventListener('click', () => {
+      document.querySelector('.crm-search').value = '';
+      document.querySelectorAll('[data-status-filter], [data-area-filter]').forEach((input) => { input.checked = false; });
+      document.querySelectorAll('.crm-view-tabs button').forEach((tab) => tab.removeAttribute('aria-current'));
+      document.querySelector('.crm-view-tabs button').setAttribute('aria-current', 'page');
+      updateRows();
+    });
+    document.querySelector('.crm-empty-reset')?.addEventListener('click', () => clearFilters.click());
+    document.querySelectorAll('.crm-view-tabs button').forEach((tab) => tab.addEventListener('click', () => {
+      document.querySelectorAll('.crm-view-tabs button').forEach((item) => item.removeAttribute('aria-current'));
+      tab.setAttribute('aria-current', 'page');
+      document.querySelectorAll('[data-status-filter]').forEach((input) => { input.checked = false; });
+      if (tab.dataset.statusTab) document.querySelector(`[data-status-filter="${tab.dataset.statusTab}"]`).checked = true;
+      updateRows();
+    }));
+
+    function openDrawer(id, name, sm, district, staff, shift, rev, onTime) {
+      document.getElementById('d-id').innerText = id;
+      document.getElementById('d-name').innerText = name;
+      document.getElementById('d-district').innerText = 'Quận: ' + district + ' • Cửa hàng trưởng: ' + sm;
+      document.getElementById('d-rev').innerText = rev;
+      document.getElementById('d-staff').innerText = staff + ' người';
+      document.getElementById('d-ontime').innerText = 'Đúng giờ: ' + onTime;
+
+      document.getElementById('detail-drawer').classList.add('drawer-open');
+      document.getElementById('drawer-backdrop').classList.add('backdrop-open');
+    }
+
+    function closeDrawer() {
+      document.getElementById('detail-drawer').classList.remove('drawer-open');
+      document.getElementById('drawer-backdrop').classList.remove('backdrop-open');
+    }
+  </script>
+</body>
+</html>

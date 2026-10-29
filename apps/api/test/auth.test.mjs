@@ -407,8 +407,13 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
       ]);
 
       const statuses = [resA.status, resB.status];
-      // Một request có thể thắng (200) và một bị reject (401), hoặc nếu phát hiện replay thì family bị thu hồi
-      assert.ok(statuses.includes(200) || statuses.every((s) => s === 401));
+      // RTR invariant: rotation is single-use, so at most one request may win.
+      // The loser must be rejected with 401 (replay/family revocation); two
+      // successes would mean the same refresh token was consumed twice.
+      const successes = statuses.filter((s) => s === 200).length;
+      const rejections = statuses.filter((s) => s === 401).length;
+      assert.ok(successes <= 1, `RTR violated: both concurrent refreshes succeeded (${statuses})`);
+      assert.equal(successes + rejections, 2, `unexpected refresh statuses: ${statuses}`);
     });
 
     test("POST /api/auth/logout - thu hồi toàn bộ session family và xóa cookie", async () => {

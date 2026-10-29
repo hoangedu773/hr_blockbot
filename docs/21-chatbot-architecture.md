@@ -12,7 +12,7 @@
 
 | # | Quyết định | Lý do | Hệ quả nếu sai |
 |---|---|---|---|
-| D-21.1 | **Pure LLM + Jev AI Decision Gate** (Bỏ PhoBERT + BM25 local), In-Context Policy Store | Loại bỏ gánh nặng PyTorch / vector index 400MB; tận dụng context window 1M tokens của Gemini 3.8/1.5 Flash. Jev AI (TypeSafe System One) đảm nhiệm phân luồng Typed Decision (Choice, Noul, Score) trong ~100ms. | Tăng token đầu vào LLM; bù lại setup siêu nhẹ, zero-cold-start trên Render, đàm thoại tự nhiên 100%. |
+| D-21.1 | **Pure LLM + Jev AI Decision Gate** (Bỏ PhoBERT + BM25 local), In-Context Policy Store | Loại bỏ gánh nặng PyTorch / vector index 400MB; tận dụng context window 1M tokens của Gemini 3.8/1.5 Flash. Jev AI (TypeSafe System One) đảm nhiệm phân luồng Typed Decision (Choice, Noul, Score) qua **ba đường gọi có khai báo nguồn** (§6.1): key đồng bộ (~0,4s suy luận), pool trial xoay key (~2,5–3,7s end-to-end), fallback LLM/rule có `degraded`. | Tăng token đầu vào LLM; bù lại setup siêu nhẹ, zero-cold-start trên Render, đàm thoại tự nhiên 100%. |
 | D-21.2 | **Agent loop ở `ai-service`, nhưng `ai-service` không ghi DB** | Giữ ranh giới một chiều `api → ai-service` (`02 §5`); giải điểm treo #4 `02 §12`; RBAC enforce ở nơi có JWT | Nếu đặt ở `api` thì phải nhân đôi logic tool + guard |
 | D-21.3 | **Lưu hội thoại: 1 collection `conversations`, `messages[]` embed, trần 50** | Đúng 1 collection mới, đủ dữ liệu eval; thay cho D-08 "không lưu gì" | Nếu GVHD không duyệt → rơi về phương án C (không lưu), ghi rõ giới hạn |
 | D-21.4 | **Transport = WebSocket** `chat:*`, không SSE | FR-020 cần confirm hai chiều giữa stream; ADR-010 đã chốt Socket.IO | SSE sẽ phải thêm kênh phụ cho confirm |
@@ -141,8 +141,23 @@ Tool hiện tại (`get_my_schedule`, `get_shift_coworkers`, `submit_attendance_
 
 Thay thế hoàn toàn cụm PhoBERT + BM25 bằng mô hình phân định Typed Decision của **Jev AI (TypeSafe System One)** kết hợp **In-Context Policy Prompting**:
 
-### 6.1. Jev AI Decision Gateway (~100ms)
-Trước khi gọi LLM sinh văn bản, request đi qua Jev AI Decision Model để đưa ra các quyết định có kiểu tĩnh (Typed Decisions):
+### 6.1. Jev AI Decision Gateway — ba đường gọi, không phải một
+
+Trước khi gọi LLM sinh văn bản, request đi qua `JevGateway.decide()` để lấy quyết định có kiểu tĩnh. Gateway
+chọn **một trong ba đường** theo credential đang có; thứ tự ưu tiên cố định trong code, không cấu hình được
+ngoài thứ tự đó:
+
+| # | `TypedDecision.source` | Điều kiện | Wire format | Thời gian |
+|---|---|---|---|---|
+| 1 | `jev_systemone` | có `JEV_API_KEY` | `POST thejevai.com/v1/systemone`; `questions` = **object + `criteria`**; đồng bộ, 1 request | ~0,4s suy luận (số của server) |
+| 2 | `jev_usejevai` | có `JEV_USEJEVAI_KEYS` (pool trial) | `POST usejevai.com/api/v1/runs` (202) → poll `GET /runs/{id}`; `questions` = **array + `options`** | **2,5–3,7s** end-to-end (§6.1.4) |
+| 3 | `llm_fallback` / `rule` | không có credential nào, **hoặc** Jev lỗi/hết key | LLM ép JSON 3 khoá, hoặc `classify()` rule | <100ms (rule) |
+
+Ba đường **không tương thích key**: key của Vercel AI Gateway hay UseJevAI không dùng được cho
+`thejevai.com` và ngược lại. Chọn đường nào thì lấy key ở đúng host đó.
+
+#### 6.1.1. Ba primitive (Typed Decision)
+
 1. **Choice (Phân loại Intent):**
    - `policy_query`: Hỏi quy chế, nội quy, kiểm quỹ, đi trễ, nghỉ phép.
    - `shift_operation`: Tra cứu ca, đổi ca, xin vắng ca.
@@ -152,6 +167,30 @@ Trước khi gọi LLM sinh văn bản, request đi qua Jev AI Decision Model đ
    - Đánh giá xem hành động người dùng yêu cầu có vượt thẩm quyền hay cần Manager (SM/AOM) duyệt không (`needs_approval`).
 3. **Score (Urgency 0.0 - 1.0):**
    - Chấm điểm mức độ khẩn cấp (sự cố mất quỹ, thiếu nhân sự ca gấp, tai nạn cửa hàng).
+
+`TypedDecision` **giữ lại xác suất** (`intent_probabilities`, `intent_confidence`) chứ không chỉ nhãn top-1 —
+đây là nguyên liệu để đo calibration ở `09-ai-evaluation.md` §6.5.
+
+#### 6.1.2. Xoay key (chỉ đường 2)
+
+- Round-robin trên `JEV_USEJEVAI_KEYS`; `401` hoặc hết quota → **disable key đó vĩnh viễn trong phiên**;
+  `429` → cooldown 60s rồi dùng lại; hết key dùng được → `NO_KEY_AVAILABLE`.
+- Giới hạn trial: **3 run song song, 20 attempt/phút mỗi tài khoản, 10.000 input token/run**, và dùng chung
+  ngân sách toàn site → 4 key ≈ 12 run song song, 80 attempt/phút.
+
+#### 6.1.3. Suy giảm có khai báo (không "giả làm Jev")
+
+Khi `NO_KEY_AVAILABLE` hoặc Jev lỗi, Agent Loop **không** trả 503: nó rơi về đường 3, đặt `degraded=True`
+và `decisionSource="llm_fallback"` hoặc `"rule"`. Response của `/api/v1/chat` mang cả hai trường này, nên
+báo cáo và demo phải đọc chúng — **cấm** nói "hệ thống dùng Jev" khi `decisionSource` không bắt đầu bằng `jev_`.
+
+#### 6.1.4. Số đo (2026-10-28, lệnh `python scripts/jev_gateway_live_check.py`)
+
+- 4 key trial, 4 mẫu tiếng Việt: **4/4 intent đúng**, mỗi key được dùng đúng 1 lần (rotation đúng).
+- Model `typesafe/jev-1.13-20260917`, 474 input token, **$0,0000199/lần**, server 423ms.
+- End-to-end qua pool trial: **2,44–3,66s**. Giảm `poll_interval` 1,2s → 0,5s **không** cải thiện → nghẽn ở
+  hàng đợi phía server, không phải vòng poll.
+- **Không trích "~100ms"**: đó là thời gian suy luận, không phải thời gian một lượt chat.
 
 ### 6.2. In-Context Policy Injection (Zero-Vector, Zero-PyTorch)
 - Do Gemini 3.8/1.5 Flash có context window cực lớn (1M tokens) và chi phí xử lý trên proxy tối ưu, toàn bộ 10 quy chế cốt lõi của Guta Cafe (chấm công, kiểm quỹ, nội quy lao động, kỷ luật) được nạp trực tiếp vào System Prompt / Dynamic Context.

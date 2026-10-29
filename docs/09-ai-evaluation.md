@@ -490,6 +490,31 @@ Bảng phải nộp khi có số (`TBD — chưa đo` toàn bộ):
 Cột cuối là chỗ S2 chứng minh nó **giúp** chứ không chỉ **làm chậm**: abstention chỉ có giá trị nếu phần lớn
 ca hỏi rồi thì trả lời đúng.
 
+### 6.5 Cổng quyết định Jev (áp dụng cùng bộ ECE/Brier)
+
+`TypedDecision` (`apps/ai-service/app/agent/jev_gateway.py`) giữ `intent_probabilities` (vector đầy đủ),
+`intent_confidence`, và `source` (`jev_systemone` | `jev_usejevai` | `llm_fallback` | `rule`). Ba hệ quả bắt
+buộc khi đo:
+
+1. **Brier/ECE cho `choice` tính trên vector xác suất**, không trên nhãn top-1 — Jev trả cả phân bố.
+2. **`intent_confidence` bão hoà**: quan sát 2026-10-28 trên **N = 4** mẫu tiếng Việt
+   (`python scripts/jev_gateway_live_check.py`), cả 4 trả `confidence = 1.00`. Dùng riêng `confidence` sẽ cho
+   ECE vô nghĩa (mọi dự đoán đều "chắc chắn 100%"); phải dùng `intent_probabilities`.
+3. **`score` cần MAE**, hiện chưa có trong §4.2 — bổ sung: `MAE = (1/N) Σ |score_i − y_i|`, hướng thấp,
+   báo cùng Brier của `noul`.
+
+| Đại lượng | Primitive | Công thức | Trạng thái |
+|---|---|---|---|
+| top-label ECE | `choice` | §6.3 | `TBD — chưa đo` |
+| Brier đa lớp | `choice` | `(1/N) Σ_i Σ_c (p_ic − y_ic)²` | `TBD — chưa đo` |
+| Brier | `noul` | §6.3 | `TBD — chưa đo` |
+| MAE | `score` | ở trên | `TBD — chưa đo` |
+| tỉ lệ dòng suy giảm | — | số dòng có `source ∈ {llm_fallback, rule}` ÷ tổng dòng | `TBD — chưa đo` |
+
+Mỗi dòng kết quả gate phải kèm `source`, `decisionSource`, ngày, commit, `N` (luật sắt §0). Dòng
+`llm_fallback`/`rule` **không được gộp** với dòng `jev_*` trong cùng một bảng: chúng đo hai hệ thống khác
+nhau, gộp lại là báo cáo sai.
+
 ---
 
 ## 7. Bias probe cho F5 (S12)

@@ -1,19 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import type {
-  EmployeeDetail,
-  EmployeeLevel,
-  EmployeeSummary,
-  ReviewProfileChangeRequest,
-} from '@hr-blockbot/contracts';
-import {
-  ApiError,
-  fetchEmployeeById,
-  fetchEmployees,
-  fetchPendingProfileChangeRequests,
-  isEmployeeDetail,
-  reviewProfileChangeRequest,
-  type PendingChangeRequestItem,
-} from '../services/api';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { EmployeeDetail, EmployeeLevel, EmployeeSummary } from '@hr-blockbot/contracts';
+import { ApiError, fetchEmployeeById, fetchEmployees, isEmployeeDetail } from '../services/api';
 import type { NotifyFn } from './Toast';
 
 interface RosterViewProps {
@@ -24,15 +11,10 @@ type Tab = 'roster' | 'queue';
 
 const LEVELS: EmployeeLevel[] = ['Intern', 'Junior', 'Middle', 'Senior', 'Lead'];
 
-interface ReviewDraft {
-  employeeId: string;
-  requestId: string;
-  action: 'APPROVE' | 'REJECT';
-  reason: string;
-}
-
 export const RosterView: React.FC<RosterViewProps> = ({ onNotify }) => {
   const [tab, setTab] = useState<Tab>('roster');
+  // Guards against out-of-order detail responses (P2-12).
+  const detailRequestId = useRef<string | null>(null);
 
   const [query, setQuery] = useState<string>('');
   const [appliedQuery, setAppliedQuery] = useState<string>('');
@@ -49,12 +31,6 @@ export const RosterView: React.FC<RosterViewProps> = ({ onNotify }) => {
   const [detail, setDetail] = useState<EmployeeDetail | EmployeeSummary | null>(null);
   const [detailLoading, setDetailLoading] = useState<boolean>(false);
   const [detailError, setDetailError] = useState<string>('');
-
-  const [requests, setRequests] = useState<PendingChangeRequestItem[]>([]);
-  const [queueLoading, setQueueLoading] = useState<boolean>(false);
-  const [queueError, setQueueError] = useState<string>('');
-  const [reviewDraft, setReviewDraft] = useState<ReviewDraft | null>(null);
-  const [reviewBusy, setReviewBusy] = useState<boolean>(false);
 
   const loadEmployees = useCallback(async () => {
     setIsLoading(true);
@@ -83,64 +59,23 @@ export const RosterView: React.FC<RosterViewProps> = ({ onNotify }) => {
     void loadEmployees();
   }, [loadEmployees]);
 
-  const loadQueue = useCallback(async () => {
-    setQueueLoading(true);
-    setQueueError('');
-    try {
-      const result = await fetchPendingProfileChangeRequests();
-      setRequests(result);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Lỗi tải hàng đợi duyệt';
-      setQueueError(message);
-    } finally {
-      setQueueLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (tab === 'queue') void loadQueue();
-  }, [tab, loadQueue]);
-
   const openDetail = async (employeeId: string) => {
+    detailRequestId.current = employeeId;
     setDetailLoading(true);
     setDetailError('');
     setDetail(null);
     try {
       const result = await fetchEmployeeById(employeeId);
+      // P2-12: a slow response for employee A must not overwrite the detail panel
+      // the user has since opened for employee B.
+      if (detailRequestId.current !== employeeId) return;
       setDetail(result);
     } catch (err: unknown) {
+      if (detailRequestId.current !== employeeId) return;
       const message = err instanceof Error ? err.message : 'Lỗi tải hồ sơ nhân sự';
       setDetailError(message);
     } finally {
-      setDetailLoading(false);
-    }
-  };
-
-  const submitReview = async () => {
-    if (!reviewDraft) return;
-    if (reviewDraft.action === 'REJECT' && reviewDraft.reason.trim().length === 0) {
-      onNotify('Bắt buộc nhập lý do khi từ chối yêu cầu.', 'warning', 'Thiếu lý do');
-      return;
-    }
-    setReviewBusy(true);
-    try {
-      const payload: ReviewProfileChangeRequest = {
-        action: reviewDraft.action,
-        ...(reviewDraft.reason.trim() ? { reason: reviewDraft.reason.trim() } : {}),
-      };
-      await reviewProfileChangeRequest(reviewDraft.employeeId, reviewDraft.requestId, payload);
-      onNotify(
-        reviewDraft.action === 'APPROVE' ? 'Đã duyệt yêu cầu thay đổi.' : 'Đã từ chối yêu cầu thay đổi.',
-        'success',
-        'Duyệt hồ sơ'
-      );
-      setReviewDraft(null);
-      await loadQueue();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Không duyệt được yêu cầu';
-      onNotify(message, 'error', 'Lỗi duyệt yêu cầu');
-    } finally {
-      setReviewBusy(false);
+      if (detailRequestId.current === employeeId) setDetailLoading(false);
     }
   };
 
@@ -348,101 +283,15 @@ export const RosterView: React.FC<RosterViewProps> = ({ onNotify }) => {
       )}
 
       {tab === 'queue' && (
-        <>
-          {queueLoading && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {[0, 1, 2].map((row) => (
-                <div key={row} className="skeleton" style={{ height: '56px' }} />
-              ))}
-            </div>
-          )}
-
-          {!queueLoading && queueError && (
-            <div className="banner banner--error" role="alert">
-              <span>
-                Không tải được hàng đợi duyệt: {queueError}
-                <br />
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                  Endpoint danh sách yêu cầu PENDING chưa được chốt trong phase-02 — lỗi này là lỗi thật của API, không phải
-                  dữ liệu giả.
-                </span>
-              </span>
-              <button type="button" className="btn btn--sm" onClick={() => void loadQueue()}>
-                Thử lại
-              </button>
-            </div>
-          )}
-
-          {!queueLoading && !queueError && requests.length === 0 && (
-            <div className="empty">
-              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>Không có yêu cầu chờ duyệt</div>
-              <p>Hàng đợi PENDING rỗng tại thời điểm tải.</p>
-            </div>
-          )}
-
-          {!queueLoading && !queueError && requests.length > 0 && (
-            <div className="card table-wrap" style={{ overflow: 'hidden' }}>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Yêu cầu</th>
-                    <th>Người tạo (employeeId)</th>
-                    <th>Trường cần đổi</th>
-                    <th>Thời điểm</th>
-                    <th style={{ textAlign: 'right' }}>Duyệt</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {requests.map((item) => (
-                    <tr key={item.request.id}>
-                      <td>
-                        <div style={{ fontWeight: 600, color: '#f8fafc' }}>{item.employeeName}</div>
-                        <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
-                          {item.employeeId} · request {item.request.id}
-                        </div>
-                      </td>
-                      <td style={{ fontFamily: 'var(--mono)', fontSize: '11px' }}>{item.request.requestedBy}</td>
-                      <td>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                          {Object.entries(item.request.targetFields).map(([field, value]) => (
-                            <span key={field} className="chip chip--warn">
-                              {field}: {String(value)}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                      <td style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
-                        {new Date(item.request.requestedAt).toLocaleString('vi-VN')}
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                          <button
-                            type="button"
-                            className="btn btn--sm btn--primary"
-                            onClick={() =>
-                              setReviewDraft({ employeeId: item.employeeId, requestId: item.request.id, action: 'APPROVE', reason: '' })
-                            }
-                          >
-                            Duyệt
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn--sm btn--danger"
-                            onClick={() =>
-                              setReviewDraft({ employeeId: item.employeeId, requestId: item.request.id, action: 'REJECT', reason: '' })
-                            }
-                          >
-                            Từ chối
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
+        <div className="empty">
+          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
+            Hàng đợi duyệt hồ sơ đang trong giai đoạn tích hợp — chưa khả dụng ở bản demo.
+          </div>
+          <p>
+            Máy chủ chưa mở endpoint danh sách yêu cầu thay đổi hồ sơ, nên màn hình này không gọi mạng và không hiển thị dữ
+            liệu giả.
+          </p>
+        </div>
       )}
 
       {detailLoading && (
@@ -500,49 +349,6 @@ export const RosterView: React.FC<RosterViewProps> = ({ onNotify }) => {
               Admin chỉ nhận allowlist EmployeeSummary. Trường nhạy cảm (CCCD, tài khoản ngân hàng, lương, lý do nghỉ) không
               nằm trong DTO nên không thể hiển thị.
             </p>
-          </div>
-        </div>
-      )}
-
-      {reviewDraft && (
-        <div className="overlay" role="dialog" aria-modal="true" aria-label="Duyệt yêu cầu thay đổi" onClick={() => setReviewDraft(null)}>
-          <div className="sheet" onClick={(event) => event.stopPropagation()}>
-            <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#f8fafc' }}>
-              {reviewDraft.action === 'APPROVE' ? 'Duyệt yêu cầu thay đổi' : 'Từ chối yêu cầu thay đổi'}
-            </h3>
-            <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--mono)', marginTop: '4px' }}>
-              employeeId {reviewDraft.employeeId} · request {reviewDraft.requestId}
-            </p>
-            <div className="field" style={{ marginTop: '12px' }}>
-              <label className="field__label" htmlFor="review-reason">
-                {reviewDraft.action === 'REJECT' ? 'Lý do từ chối (bắt buộc)' : 'Ghi chú (tuỳ chọn)'}
-              </label>
-              <textarea
-                id="review-reason"
-                className="textarea"
-                value={reviewDraft.reason}
-                aria-invalid={reviewDraft.action === 'REJECT' && reviewDraft.reason.trim().length === 0}
-                onChange={(event) => setReviewDraft({ ...reviewDraft, reason: event.target.value })}
-              />
-              {reviewDraft.action === 'REJECT' && reviewDraft.reason.trim().length === 0 && (
-                <span className="field__error">Bắt buộc nhập lý do khi từ chối.</span>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
-              <button type="button" className="btn btn--ghost" onClick={() => setReviewDraft(null)} disabled={reviewBusy}>
-                Huỷ
-              </button>
-              <button
-                type="button"
-                className={`btn ${reviewDraft.action === 'REJECT' ? 'btn--danger' : 'btn--primary'}`}
-                onClick={() => void submitReview()}
-                disabled={reviewBusy || (reviewDraft.action === 'REJECT' && reviewDraft.reason.trim().length === 0)}
-                aria-busy={reviewBusy}
-              >
-                {reviewBusy ? <span className="spinner" /> : null}
-                {reviewDraft.action === 'REJECT' ? 'Xác nhận từ chối' : 'Xác nhận duyệt'}
-              </button>
-            </div>
           </div>
         </div>
       )}

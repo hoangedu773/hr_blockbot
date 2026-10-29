@@ -21,6 +21,7 @@ from app.llm.base import (
     ProviderTimeout,
     ToolCall,
 )
+from app.llm.url_guard import validate_base_url
 
 DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 
@@ -30,7 +31,9 @@ class GeminiProvider(LLMProvider):
         super().__init__(config)
         if not config.api_key:
             raise ProviderInvalidConfig("apiKey is required for gemini", provider_id=config.id)
-        self._base_url = (config.base_url or DEFAULT_BASE_URL).rstrip("/")
+        self._base_url = validate_base_url(
+            config.base_url or DEFAULT_BASE_URL, provider_id=config.id
+        ).rstrip("/")
         self._client = client or httpx.Client(timeout=self.timeout)
 
     def _headers(self) -> dict[str, str]:

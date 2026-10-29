@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { LLMProvider, LLMProviderInput, LLMProviderType, ProviderTestResult } from '@hr-blockbot/contracts';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -97,6 +97,27 @@ function toProviderInput(form: ProviderFormState, existing?: LLMProvider): LLMPr
   return input;
 }
 
+/**
+ * Builds the PUT payload for the whole provider list. `apiKeyById` only holds
+ * keys typed in the current form session (keys are write-only and never
+ * prefilled), so a provider with no entry is sent without `apiKey` and the
+ * server keeps the stored key. Never logs the key.
+ */
+export function buildProviderPayload(
+  nextProviders: LLMProvider[],
+  apiKeyById: Record<string, string>
+): LLMProviderInput[] {
+  return nextProviders.map((provider) => {
+    const input = toProviderInput(toFormState(provider), provider);
+    if (!input) {
+      throw new ApiError(`Provider "${provider.name}" có trường không hợp lệ`, 400, 'VALIDATION_FAILED');
+    }
+    const apiKey = apiKeyById[provider.id];
+    if (apiKey) input.apiKey = apiKey;
+    return input;
+  });
+}
+
 export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({ onNotify }) => {
   const { user } = useAuth();
   const [providers, setProviders] = useState<LLMProvider[]>([]);
@@ -109,6 +130,8 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({ onNotify }
   const [testingId, setTestingId] = useState<string>('');
   const [testResults, setTestResults] = useState<Record<string, ProviderTestResult>>({});
   const [pendingDeleteId, setPendingDeleteId] = useState<string>('');
+  // Keys typed in this session only; cleared per provider once the PUT succeeds.
+  const apiKeyByIdRef = useRef<Record<string, string>>({});
 
   const isAdmin = user?.role === 'Admin';
 
@@ -131,20 +154,22 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({ onNotify }
     void load();
   }, [isAdmin, load]);
 
-  const persist = async (nextProviders: LLMProvider[], successMessage: string) => {
+  const persist = async (
+    nextProviders: LLMProvider[],
+    apiKeyById: Record<string, string>,
+    successMessage: string
+  ) => {
     setIsSaving(true);
     setFormError('');
     try {
-      const payload = nextProviders.map((provider) => {
-        const input = toProviderInput(toFormState(provider), provider);
-        if (!input) {
-          throw new ApiError(`Provider "${provider.name}" có trường không hợp lệ`, 400, 'VALIDATION_FAILED');
-        }
-        return input;
-      });
+      const payload = buildProviderPayload(nextProviders, apiKeyById);
       const saved = await saveLLMProviders({ providers: payload });
       setProviders(saved.providers);
       setConfigVersion(saved.configVersion);
+      // Keys were sent with this PUT; do not keep them around after success.
+      nextProviders.forEach((provider) => {
+        delete apiKeyById[provider.id];
+      });
       setForm(null);
       onNotify(successMessage, 'success', 'Đã lưu cấu hình');
     } catch (err: unknown) {
@@ -188,8 +213,13 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({ onNotify }
       ? providers.map((provider) => (provider.id === existing.id ? optimistic : provider))
       : [...providers, optimistic];
 
+    // Carry the key the Admin just typed into the payload; an empty field means
+    // "keep the stored key" and must not send `apiKey` at all.
+    const typedKey = form.apiKey.trim();
+    if (typedKey.length > 0) apiKeyByIdRef.current[input.id] = typedKey;
+
     setProviders(nextProviders);
-    await persist(nextProviders, existing ? 'Đã cập nhật provider.' : 'Đã thêm provider mới.');
+    await persist(nextProviders, apiKeyByIdRef.current, existing ? 'Đã cập nhật provider.' : 'Đã thêm provider mới.');
   };
 
   const handleDelete = async (provider: LLMProvider) => {
@@ -200,7 +230,7 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({ onNotify }
     setPendingDeleteId('');
     const nextProviders = providers.filter((item) => item.id !== provider.id);
     setProviders(nextProviders);
-    await persist(nextProviders, `Đã xoá provider "${provider.name}".`);
+    await persist(nextProviders, apiKeyByIdRef.current, `Đã xoá provider "${provider.name}".`);
   };
 
   const handleTest = async (provider: LLMProvider) => {

@@ -52,6 +52,61 @@ export class ProjectNotFoundError extends Error {
   }
 }
 
+export type TransitionActorRole = "Admin" | "Employee";
+
+/**
+ * (from -> to) pairs are the only legal moves; the value lists the roles
+ * allowed to make that move. Anything not listed here is rejected.
+ */
+export const PROJECT_TRANSITIONS: Record<
+  ProjectStatus,
+  Partial<Record<ProjectStatus, ReadonlyArray<TransitionActorRole>>>
+> = {
+  DRAFT: { ASSIGNED: ["Admin"], IN_PROGRESS: ["Admin"] },
+  ASSIGNED: { IN_PROGRESS: ["Admin", "Employee"] },
+  IN_PROGRESS: { PENDING_REVIEW: ["Admin", "Employee"] },
+  PENDING_REVIEW: { COMPLETED: ["Admin"], IN_PROGRESS: ["Admin"] },
+  COMPLETED: {},
+};
+
+export class IllegalTransitionError extends Error {
+  code = "ILLEGAL_STATE_TRANSITION";
+  status = 409;
+
+  constructor(from: ProjectStatus, to: ProjectStatus) {
+    super(`Illegal project transition: ${from} -> ${to}`);
+    this.name = "IllegalTransitionError";
+  }
+}
+
+export class ForbiddenTransitionError extends Error {
+  code = "FORBIDDEN_TRANSITION";
+  status = 403;
+
+  constructor(from: ProjectStatus, to: ProjectStatus, role: TransitionActorRole) {
+    super(`Role ${role} is not allowed to move a project from ${from} to ${to}`);
+    this.name = "ForbiddenTransitionError";
+  }
+}
+
+/**
+ * Reject a transition that is not in the whitelist (409) or whose role is not
+ * permitted for that pair (403). Every entrypoint goes through here.
+ */
+export function assertTransitionAllowed(
+  from: ProjectStatus,
+  to: ProjectStatus,
+  actorRole: TransitionActorRole
+): void {
+  const allowedRoles = PROJECT_TRANSITIONS[from]?.[to];
+  if (!allowedRoles) {
+    throw new IllegalTransitionError(from, to);
+  }
+  if (!allowedRoles.includes(actorRole)) {
+    throw new ForbiddenTransitionError(from, to, actorRole);
+  }
+}
+
 const StatusHistorySchema = new Schema<IProjectStatusHistory>(
   {
     from: {
@@ -118,6 +173,7 @@ export interface TransitionProjectOptions {
   expectedVersion: number;
   newStatus: ProjectStatus;
   changedBy: string;
+  actorRole: TransitionActorRole;
   reason?: string;
   updates?: {
     progress?: number;
@@ -134,9 +190,12 @@ export async function transitionProject({
   expectedVersion,
   newStatus,
   changedBy,
+  actorRole,
   reason,
   updates = {},
 }: TransitionProjectOptions): Promise<IProject> {
+  assertTransitionAllowed(expectedStatus, newStatus, actorRole);
+
   const historyEntry: IProjectStatusHistory = {
     from: expectedStatus,
     to: newStatus,

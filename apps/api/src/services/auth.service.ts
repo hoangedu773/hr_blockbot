@@ -12,10 +12,44 @@ export const ARGON2_CONFIG: argon2.Options = {
   parallelism: 1,    // 1 thread
 };
 
-const DEFAULT_JWT_SECRET = "hr-blockbot-super-secret-jwt-key-minimum-32-chars-long";
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || DEFAULT_JWT_SECRET
-);
+const JWT_SECRET_MIN_LENGTH = 32;
+let ephemeralDevSecret: Uint8Array | null = null;
+
+/**
+ * Resolve the JWT signing secret at call time (never at module scope) so the
+ * value reflects the environment after dotenv has loaded.
+ *
+ * Fail-closed everywhere: a missing secret is an error, never a built-in
+ * constant. A constant in a public repo is a published signing key — anyone
+ * could mint an Admin token for any deployment that forgot to set the env var,
+ * and `NODE_ENV` is not a reliable guard because it is often unset on hosts.
+ *
+ * For local development set `ALLOW_DEV_JWT_SECRET=1`: a random per-process
+ * secret is generated instead (tokens die on restart, which is fine locally).
+ */
+export function getJwtSecret(): Uint8Array {
+  const configured = process.env.JWT_SECRET?.trim();
+  if (configured) {
+    if (configured.length < JWT_SECRET_MIN_LENGTH) {
+      throw new Error(`JWT_SECRET must be at least ${JWT_SECRET_MIN_LENGTH} characters`);
+    }
+    return new TextEncoder().encode(configured);
+  }
+
+  if (process.env.ALLOW_DEV_JWT_SECRET === "1") {
+    if (ephemeralDevSecret === null) {
+      ephemeralDevSecret = crypto.randomBytes(48);
+      console.warn(
+        "[auth] JWT_SECRET is not set; using an ephemeral per-process secret (ALLOW_DEV_JWT_SECRET=1). Tokens will not survive a restart."
+      );
+    }
+    return ephemeralDevSecret;
+  }
+
+  throw new Error(
+    "JWT_SECRET is not configured. Set it (>= 32 chars) or set ALLOW_DEV_JWT_SECRET=1 for local development."
+  );
+}
 
 export const ACCESS_TOKEN_TTL = process.env.ACCESS_TOKEN_TTL || "15m";
 export const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -51,14 +85,14 @@ export async function signAccessToken(claims: TokenClaims): Promise<string> {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(ACCESS_TOKEN_TTL)
-    .sign(JWT_SECRET);
+    .sign(getJwtSecret());
 }
 
 /**
  * Verify Access Token using jose
  */
 export async function verifyAccessToken(token: string): Promise<TokenClaims> {
-  const { payload } = await jwtVerify(token, JWT_SECRET, {
+  const { payload } = await jwtVerify(token, getJwtSecret(), {
     algorithms: ["HS256"],
   });
 

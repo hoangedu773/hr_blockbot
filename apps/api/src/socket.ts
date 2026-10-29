@@ -89,6 +89,8 @@ export function initSocket(server: HttpServer): SocketIOServer {
             reply: result.reply,
             citations: result.citations,
             proposedAction: result.proposedAction,
+            degraded: result.degraded,
+            decisionSource: result.decisionSource,
             card: result.proposedAction ? (result.proposedAction as Record<string, unknown>) : undefined,
           });
         } else if (payload.confirm) {
@@ -136,12 +138,16 @@ export function initSocket(server: HttpServer): SocketIOServer {
         acceptedAt: new Date().toISOString(),
       });
 
+      // P1-6: nothing here executes the action yet — no service is called and no
+      // document is written. The reply must say exactly that; claiming "đã thực thi"
+      // is a false statement to the user (and to the thesis report).
+      // TODO(hr): wire the real executor, then change this message.
       socket.emit("chat:done", {
         clientMessageId: payload.clientMessageId,
         messageId,
         finishReason: "TOOL_RESULT",
         reply: payload.approve
-          ? `Hành động [${payload.actionId}] đã được ghi nhận và xác nhận thực thi an toàn vào hệ thống.`
+          ? `Đã ghi nhận xác nhận của bạn cho hành động [${payload.actionId}]. Chưa có thay đổi dữ liệu nào được thực hiện.`
           : `Đã hủy bỏ thực hiện hành động [${payload.actionId}]. Không có dữ liệu nào bị thay đổi.`,
         citations: [],
         proposedAction: null,

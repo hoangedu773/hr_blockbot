@@ -44,6 +44,7 @@ router.post("/chat", authenticateToken, async (req: Request, res: Response) => {
       proposedAction: result.proposedAction,
       abstain: result.abstain,
       degraded: result.degraded,
+      decisionSource: result.decisionSource,
       conversationId: result.conversationId,
       attachments: result.attachments,
     });
