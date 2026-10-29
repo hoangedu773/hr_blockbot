@@ -578,12 +578,17 @@ class ToolRuntime:
 
     def _call_with_timeout(self, spec: ToolSpec, args: BaseModel, user_ctx: UserContext) -> dict[str, Any]:
         timeout = max(settings.tool_timeout_ms, 1) / 1000.0
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(spec.handler, self, args, user_ctx)
-            try:
-                return future.result(timeout=timeout)
-            except FutureTimeout as exc:
-                raise ToolTimeoutError(spec.name) from exc
+        # P2-4: the `with ThreadPoolExecutor(...)` form calls shutdown(wait=True) on
+        # exit, which blocked until the tool finished — so the timeout never fired.
+        # A Python thread cannot be killed; stop waiting for it and let it drain.
+        executor = ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(spec.handler, self, args, user_ctx)
+        try:
+            return future.result(timeout=timeout)
+        except FutureTimeout as exc:
+            raise ToolTimeoutError(spec.name) from exc
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
 
     def _cap_result(self, result: dict[str, Any]) -> dict[str, Any]:
         """Truncate oversized list payloads instead of overflowing the prompt/context."""

@@ -31,7 +31,7 @@ from app.agent.tools import TOOL_SPECS, ToolRuntime, UserContext, is_agent_enabl
 from app.config import settings
 from app.db import db_client
 from app.llm.base import LLMUnavailable
-from app.llm.chain import ProviderChain, provider_cache
+from app.llm.chain import ProviderChain, build_chain, provider_cache
 from app.llm.fake import hashing_embed
 from app.rag.answer import answer_policy
 from app.rag.corpus import load_db_chunks
@@ -134,6 +134,38 @@ def _llm_unavailable_response(exc: LLMUnavailable) -> JSONResponse:
     )
 
 
+def _embedding_chain(llm_chain: ProviderChain) -> ProviderChain:
+    """Dedicated chain for embeddings, using an embedding model — never a text model.
+
+    `default_chain()` configures a text model (e.g. `gemini-3.5-flash`); calling
+    `batchEmbedContents` with it returns HTTP 400. Google-format keys
+    (`AQ.`/`AIzaSy`) get one `gemini-embedding-001` provider per key so a dead or
+    rate-limited key falls through to the next. An OpenAI-compatible provider is
+    assumed to expose embeddings on its own endpoint.
+    """
+    from app.agent.jev_gateway import _llm_keys  # noqa: PLC0415 - avoids import cycle at module load
+
+    keys = _llm_keys()
+    if keys and keys[0].startswith(("AQ.", "AIzaSy")):
+        return build_chain(
+            {
+                "providers": [
+                    {
+                        "id": f"google-embed-{index}",
+                        "type": "gemini",
+                        "baseUrl": "https://generativelanguage.googleapis.com/v1beta",
+                        "apiKey": key,
+                        "model": settings.embedding_model,
+                        "timeoutMs": settings.llm_timeout_ms,
+                        "maxTokens": 1024,
+                    }
+                    for index, key in enumerate(keys, start=1)
+                ]
+            }
+        )
+    return llm_chain
+
+
 def _build_policy_engine(kind: str, chain: ProviderChain | None) -> PolicyEngine:
     """Fresh engine per request; reads `policies` read-only and never writes it.
 
@@ -155,12 +187,21 @@ def _build_policy_engine(kind: str, chain: ProviderChain | None) -> PolicyEngine
             effective_kind = "lexical"
     embedder = None
     if chain is not None and chain and effective_kind in ("dense", "hybrid"):
+        embed_chain = _embedding_chain(chain)
+
         def safe_embed(texts: list[str]) -> list[list[float]]:
             try:
-                return chain.embed(texts).vectors
+                return embed_chain.embed(texts).vectors
             except Exception as exc:
-                logger.warning("Embedding provider call failed (%s); falling back to hashing embedder", exc)
-                return [hashing_embed(t, settings.embedding_dim) for t in texts]
+                # P2-5: never fabricate embeddings. A hashing vector has nothing to do
+                # with the model that produced the stored vectors, so every cosine
+                # score becomes meaningless while still looking plausible. Fail loudly
+                # so the caller abstains instead of answering from noise.
+                logger.error(
+                    "Embedding provider unavailable (%s); refusing to fabricate vectors",
+                    type(exc).__name__,
+                )
+                raise
 
         embedder = safe_embed
     engine = PolicyEngine(chunks=chunks or None, retriever_kind=effective_kind, embedder=embedder)

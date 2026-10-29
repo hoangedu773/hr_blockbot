@@ -54,6 +54,8 @@ class Settings:
     # Retrieval (assumed defaults — calibrate with eval/ before publication).
     top_k: int = 5
     embedding_dim: int = 384
+    # Model used ONLY for embeddings (`_embedding_chain`); text generation uses llm_model.
+    embedding_model: str = "gemini-embedding-001"
     bm25_k1: float = 1.5
     bm25_b: float = 0.75
     min_evidence_dense: float = 0.30
@@ -103,6 +105,7 @@ def load_settings() -> Settings:
     resolved = Settings(
         top_k=_env_int("AI_TOP_K", 5),
         embedding_dim=_env_int("AI_EMBEDDING_DIM", 384),
+        embedding_model=_env_str("AI_EMBEDDING_MODEL", "gemini-embedding-001"),
         bm25_k1=_env_float("AI_BM25_K1", 1.5),
         bm25_b=_env_float("AI_BM25_B", 0.75),
         min_evidence_dense=_env_float("AI_MIN_EVIDENCE_DENSE", 0.30),

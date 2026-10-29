@@ -16,6 +16,7 @@ and are labelled assumptions until calibrated (docs/08-algorithms.md §7.3).
 
 from __future__ import annotations
 
+import logging
 import math
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Protocol
@@ -25,6 +26,8 @@ from app.rag.corpus import PolicyChunk
 from app.text_utils import tokenize
 
 Embedder = Callable[[list[str]], list[list[float]]]
+
+logger = logging.getLogger("ai.rag.retrieval")
 
 
 @dataclass(frozen=True)
@@ -461,8 +464,21 @@ def build_retriever(
     collection: Any = None,
     index_name: str | None = None,
 ) -> Retriever:
-    """Factory used by the API layer and the eval harness."""
+    """Factory used by the API layer and the eval harness.
+
+    Real Atlas data can carry policy chunks with no stored embeddings (the seeded
+    corpus does not). `hybrid` then used to raise at construction time, which broke
+    the default chat path on production data. Falling back to lexical keeps answers
+    possible and is logged, so the degradation is visible instead of fatal.
+    """
     if kind == "lexical":
+        return LexicalRetriever(chunks)
+    has_vectors = any(chunk.embedding for chunk in chunks)
+    if kind in ("dense", "hybrid") and not has_vectors and embedder is None and collection is None:
+        logger.warning(
+            "retriever=%s but no chunk has an embedding and no embedder is configured; using lexical",
+            kind,
+        )
         return LexicalRetriever(chunks)
     dense = DenseRetriever(
         chunks,

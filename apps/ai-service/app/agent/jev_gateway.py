@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Literal
 
 import httpx
@@ -49,24 +50,52 @@ INTENT_CRITERIA = {
 }
 
 
+def _llm_keys() -> list[str]:
+    """Key pool for Google-format keys. `AI_LLM_API_KEYS` wins over the single key."""
+    pool = (os.getenv("AI_LLM_API_KEYS") or "").strip()
+    keys = [item.strip() for item in pool.split(",") if item.strip()]
+    if not keys:
+        single = (os.getenv("AI_LLM_API_KEY") or os.getenv("OPENAI_API_KEY") or "").strip()
+        keys = [single] if single else []
+    return keys
+
+
 def default_chain() -> ProviderChain:
-    """No credentials in source; request-scoped providers take precedence elsewhere."""
-    if not settings.llm_api_key:
+    """No credentials in source; request-scoped providers take precedence elsewhere.
+
+    Google-format keys (`AQ.`/`AIzaSy`) build one gemini-direct provider per key so
+    a dead or rate-limited key falls through to the next (chain order = priority).
+    A non-Google key keeps the previous single openai_compatible behaviour.
+    """
+    keys = _llm_keys()
+    if not keys:
         return ProviderChain([])
-    key = settings.llm_api_key.strip()
+    key = keys[0]
     is_gemini_direct = key.startswith("AQ.") or key.startswith("AIzaSy")
-    provider_type = "gemini" if is_gemini_direct else "openai_compatible"
-    base_url = "https://generativelanguage.googleapis.com/v1beta" if is_gemini_direct else settings.llm_base_url
-    model = "gemini-3.5-flash" if is_gemini_direct else settings.llm_model
-    return build_chain({"providers": [{
-        "id": "google-gemini-direct" if is_gemini_direct else "gemini-flash-proxy",
-        "type": provider_type,
-        "baseUrl": base_url,
-        "apiKey": key,
-        "model": model,
-        "timeoutMs": settings.llm_timeout_ms,
-        "maxTokens": 2048 if is_gemini_direct else 1200,
-    }]})
+    if not is_gemini_direct:
+        return build_chain({"providers": [{
+            "id": "gemini-flash-proxy",
+            "type": "openai_compatible",
+            "baseUrl": settings.llm_base_url,
+            "apiKey": key,
+            "model": settings.llm_model,
+            "timeoutMs": settings.llm_timeout_ms,
+            "maxTokens": 1200,
+        }]})
+    providers = [
+        {
+            "id": f"google-gemini-{index}",
+            "type": "gemini",
+            "baseUrl": "https://generativelanguage.googleapis.com/v1beta",
+            "apiKey": item,
+            # Direct Google API needs a real Google model name, not the proxy alias.
+            "model": "gemini-3.5-flash",
+            "timeoutMs": settings.llm_timeout_ms,
+            "maxTokens": 2048,
+        }
+        for index, item in enumerate(keys, start=1)
+    ]
+    return build_chain({"providers": providers})
 
 _POOLS: dict[str, UseJevKeyPool] = {}
 
