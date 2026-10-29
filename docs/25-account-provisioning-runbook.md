@@ -13,7 +13,37 @@
   `employeeId` unique **partial** (`$type: "objectId"` — admin để `employeeId: null` nên
   sparse thường sẽ chặn tài khoản admin thứ hai).
 
-## 2. Phân quyền
+## 2. Quy luật cấp tài khoản (nguồn: `apps/api/scripts/lib/account-rule.mjs`)
+
+```
+username = mã nhân viên, viết thường          GT-CH18030009 -> gt-ch18030009
+password = "Guta@" + 8 ký tự lấy từ HMAC-SHA256(ACCOUNT_PASSWORD_SECRET, username)
+           bảng ký tự ABCDEFGHJKLMNPQRSTUVWXYZ23456789 (bỏ I/O/0/1)  -> vd Guta@N67S8EZB
+```
+
+- **Tất định**: cùng secret + cùng username luôn ra cùng mật khẩu. Không cần giữ file
+  2.439 mật khẩu làm nguồn sự thật — in lại phiếu lúc nào cũng được.
+- **Không đoán được**: thiếu `ACCOUNT_PASSWORD_SECRET` (≥ 32 ký tự, trong `.env`, không
+  commit) thì không suy ra được mật khẩu của người khác. Đây là lý do **không** dùng luật
+  `Guta@<mã nhân viên>`: mã nhân viên nằm trên bảng lương, sổ ca, bảng chấm công — đồng
+  nghiệp biết mã của nhau, nên luật đó cho phép đăng nhập chéo cho tới lần đổi đầu tiên.
+- 8 ký tự = 40 bit; `mustChangePassword = true` buộc đổi ngay lần đầu nên đây chỉ là
+  mật khẩu tạm, không phải mật khẩu dài hạn.
+- Mất secret = phải cấp lại toàn bộ (giống mất file mật khẩu). Secret hiện có trong `.env`
+  máy chạy cấp phát; khi deploy phải đặt cùng biến đó trong env của Render.
+
+Lệnh:
+
+```bash
+node scripts/provision-accounts.mjs passwords                 # dry run, in quy luật + số tài khoản
+node scripts/provision-accounts.mjs passwords --apply         # chỉ Employee
+node scripts/provision-accounts.mjs passwords --include-admins --apply   # cả 3 admin
+```
+
+Script ghi `data/accounts/employee-passwords-<ts>.csv` (username, mật khẩu tạm, họ tên,
+cửa hàng, bậc, trạng thái) và thu hồi mọi refresh session của các tài khoản bị đổi.
+
+## 3. Phân quyền
 
 | Loại | `role` | `businessRole` | `employeeId` | `isGlobalAdmin` |
 |---|---|---|---|---|
@@ -24,7 +54,7 @@
 toàn bộ nhân sự và toàn bộ hàng đợi duyệt. Admin có hồ sơ vẫn bị giới hạn theo
 `departmentId`; admin "quên gán phòng ban" vẫn fail-closed (403).
 
-## 3. Lệnh cấp phát
+## 4. Lệnh cấp phát
 
 Chạy từ `apps/api` sau `npm run build` (script đọc model từ `dist/`):
 
@@ -48,7 +78,7 @@ không in ra stdout, không gửi qua chat/email nhóm.
 python scripts/seed/10-backfill-business-role.py --apply
 ```
 
-## 4. Kết quả lần chạy 2026-10-29
+## 5. Kết quả lần chạy 2026-10-29
 
 - Backup: 5 user + 18 refresh session (`data/backups/users-20261029-120856.json`).
 - 3 admin tạo mới, đăng nhập + `/auth/me` + hàng đợi duyệt + cài đặt LLM + danh sách
@@ -61,7 +91,7 @@ python scripts/seed/10-backfill-business-role.py --apply
   quyết định "mỗi nhân viên 1 tài khoản". Cột `status` có trong file CSV để quản lý
   quyết định phát hay không.
 
-## 5. Quản trị tài khoản sau khi cấp phát (API + UI)
+## 6. Quản trị tài khoản sau khi cấp phát (API + UI)
 
 Admin **toàn quyền** (`isGlobalAdmin = true`) quản lý tài khoản trực tiếp, không cần script:
 
@@ -86,7 +116,7 @@ Chốt an toàn đã cài (đều có test trong `apps/api/test/admin-users.test
 - Đổi role thu hồi toàn bộ refresh session. Access token cũ vẫn còn hạn nhưng middleware đọc
   `role` từ DB nên mất quyền ngay ở request kế tiếp (đã kiểm bằng HTTP thật).
 
-## 6. Việc còn lại trước khi ra mắt thật
+## 7. Việc còn lại trước khi ra mắt thật
 
 - **Jev**: pool 10 key trial ~1.000 gọi/ngày không đủ cho 2.442 người dùng; cần key trả
   phí hoặc chấp nhận rule-fallback khi hết quota.

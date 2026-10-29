@@ -157,3 +157,25 @@ Trước đó quyền này chỉ tồn tại dưới dạng script CLI, không c
   đặt lại mật khẩu, xoá, và chọn hồ sơ nhân viên khi tạo.
 - Kiểm chứng: `admin-users.test.mjs` 14 test; chạy thật trên Atlas với `hoang`
   (liệt kê 2.442 tài khoản, tạo → đăng nhập → hạ role → mất quyền ngay → đặt lại MK → xoá).
+
+---
+
+## Bổ sung: quy luật cấp tài khoản (2026-10-29 14:12)
+
+Chủ nhiệm yêu cầu một quy luật cố định thay cho mật khẩu ngẫu nhiên rải trong CSV.
+Chốt quy luật (nguồn: `apps/api/scripts/lib/account-rule.mjs`):
+
+```
+username = mã nhân viên viết thường                       GT-CH18030009 -> gt-ch18030009
+password = "Guta@" + 8 ký tự HMAC-SHA256(secret, username)   vd Guta@N67S8EZB
+```
+
+- **Không** dùng `Guta@<mã nhân viên>`: mã nhân viên có trên bảng lương / sổ ca / chấm công,
+  đồng nghiệp biết mã của nhau → ai cũng đăng nhập được tài khoản người khác cho tới lần
+  đổi đầu tiên. HMAC giữ tính tất định (in lại phiếu được) mà không đoán được khi thiếu secret.
+- Secret `ACCOUNT_PASSWORD_SECRET` (≥ 32 ký tự) nằm trong `.env`, không commit; mất secret =
+  phải cấp lại toàn bộ. Đã ghi vào `apps/api/.env.example`.
+- Lệnh: `node scripts/provision-accounts.mjs passwords [--include-admins] --apply`.
+- Đã áp cho **2.442 tài khoản** (2.439 nhân viên + 3 admin), `mustChangePassword = true`,
+  thu hồi toàn bộ refresh session, phiếu mới ở `data/accounts/employee-passwords-<ts>.csv`.
+- File `employees-20261029-121538.csv` (mật khẩu ngẫu nhiên cũ) **hết hiệu lực** từ lần chạy này.
