@@ -22,6 +22,8 @@ export interface IUser extends Document {
   mustChangePassword: boolean;
   passwordChangedAt?: Date | null;
   createdAt: Date;
+  /** Lần cuối bị quản trị viên sửa (role, liên kết hồ sơ, đặt lại mật khẩu). */
+  updatedAt?: Date | null;
 }
 
 const UserSchema = new Schema<IUser>(
@@ -53,6 +55,7 @@ const UserSchema = new Schema<IUser>(
     mustChangePassword: { type: Boolean, default: false },
     passwordChangedAt: { type: Date, default: null },
     createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: null },
   },
   {
     collection: "users",

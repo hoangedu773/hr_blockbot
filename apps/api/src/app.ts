@@ -9,6 +9,7 @@ import employeesRouter from "./routes/employees.js";
 import projectsRouter from "./routes/projects.js";
 import reportsRouter from "./routes/reports.js";
 import adminSettingsRouter from "./routes/admin-settings.js";
+import adminUsersRouter from "./routes/admin-users.js";
 import chatRouter from "./routes/chat.js";
 import attachmentsRouter from "./routes/attachments.js";
 
@@ -45,6 +46,7 @@ export function createApp(): Express {
   app.use("/api", projectsRouter);
   app.use("/api", reportsRouter);
   app.use("/api", adminSettingsRouter);
+  app.use("/api", adminUsersRouter);
   app.use("/api", chatRouter);
   app.use("/api", attachmentsRouter);
 

@@ -78,9 +78,82 @@ export const MeResponseSchema = z.object({
 export type MeResponse = z.infer<typeof MeResponseSchema>;
 
 // ============================================================================
-// 2. Department Schemas (F1)
+// 1b. Admin User Management (CRUD tài khoản + hạ/nâng role)
 // ============================================================================
 
+/**
+ * Bậc nghiệp vụ đi kèm hồ sơ nhân viên. `admin` dành cho Ban điều hành (không có
+ * hồ sơ); nhân viên nhận một trong 5 bậc còn lại.
+ */
+export const BusinessRoleSchema = z.enum(["admin", "aom", "sm", "am", "ptch", "staff"]);
+export type BusinessRoleName = z.infer<typeof BusinessRoleSchema>;
+
+/** DTO tài khoản cho màn hình quản trị. TUYỆT ĐỐI không chứa passwordHash. */
+export const AdminUserSchema = z.object({
+  id: z.string(),
+  username: z.string(),
+  email: z.string().nullable().optional(),
+  role: UserRoleSchema,
+  businessRole: BusinessRoleSchema.nullable().optional(),
+  employeeId: z.string().nullable().optional(),
+  employeeName: z.string().nullable().optional(),
+  isGlobalAdmin: z.boolean(),
+  mustChangePassword: z.boolean(),
+  createdAt: z.string().nullable().optional(),
+  updatedAt: z.string().nullable().optional(),
+});
+export type AdminUser = z.infer<typeof AdminUserSchema>;
+
+/** Tên đăng nhập cấp sẵn: chữ, số, dấu chấm/gạch — không khoảng trắng, không email. */
+export const UsernameSchema = z
+  .string()
+  .trim()
+  .min(3)
+  .max(64)
+  .regex(/^[a-zA-Z0-9._-]+$/, "Tên đăng nhập chỉ gồm chữ, số, dấu chấm, gạch ngang hoặc gạch dưới");
+
+export const CreateAdminUserSchema = z.object({
+  username: UsernameSchema,
+  /** Bỏ trống thì server sinh mật khẩu tạm và trả về đúng một lần. */
+  password: z.string().min(8).max(128).optional(),
+  role: UserRoleSchema.default("Employee"),
+  businessRole: BusinessRoleSchema.optional(),
+  employeeId: z.string().optional(),
+  isGlobalAdmin: z.boolean().optional(),
+});
+export type CreateAdminUser = z.infer<typeof CreateAdminUserSchema>;
+
+export const UpdateAdminUserSchema = z
+  .object({
+    role: UserRoleSchema.optional(),
+    businessRole: BusinessRoleSchema.optional(),
+    isGlobalAdmin: z.boolean().optional(),
+    email: z.string().email().nullable().optional(),
+    employeeId: z.string().nullable().optional(),
+    mustChangePassword: z.boolean().optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, {
+    message: "Phải cung cấp ít nhất một trường cần cập nhật",
+  });
+export type UpdateAdminUser = z.infer<typeof UpdateAdminUserSchema>;
+
+/** Trả về đúng một lần khi tạo tài khoản hoặc đặt lại mật khẩu. */
+export const AdminUserWithPasswordSchema = AdminUserSchema.extend({
+  temporaryPassword: z.string().optional(),
+});
+export type AdminUserWithPassword = z.infer<typeof AdminUserWithPasswordSchema>;
+
+export const ResetPasswordResponseSchema = z.object({
+  id: z.string(),
+  username: z.string(),
+  temporaryPassword: z.string(),
+  mustChangePassword: z.literal(true),
+});
+export type ResetPasswordResponse = z.infer<typeof ResetPasswordResponseSchema>;
+
+// ============================================================================
+// 2. Department Schemas (F1)
+// ============================================================================
 export const DepartmentSchema = z.object({
   id: z.string(),
   name: z.string().min(1),
@@ -339,6 +412,12 @@ export const PaginatedProjectsResponseSchema = z.object({
   paging: PaginationMetaSchema,
 });
 export type PaginatedProjectsResponse = z.infer<typeof PaginatedProjectsResponseSchema>;
+
+export const AdminUserListResponseSchema = z.object({
+  items: z.array(AdminUserSchema),
+  paging: PaginationMetaSchema,
+});
+export type AdminUserListResponse = z.infer<typeof AdminUserListResponseSchema>;
 
 // ============================================================================
 // 7. Standard Error Catalog & Envelope

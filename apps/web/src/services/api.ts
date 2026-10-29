@@ -1,6 +1,12 @@
 import type {
+  AdminUser,
+  AdminUserListResponse,
+  AdminUserWithPassword,
   AttendanceCorrection,
   CashCount,
+  CreateAdminUser,
+  ResetPasswordResponse,
+  UpdateAdminUser,
   Conversation,
   CreateProfileChangeRequest,
   EmployeeDetail,
@@ -432,3 +438,55 @@ export type {
   LLMProviderInput,
   UpdateLLMProvidersRequest,
 };
+
+// ---------------------------------------------------------------------------
+// Admin - account management (CRUD + hạ/nâng role)
+// ---------------------------------------------------------------------------
+
+export interface AdminUserListParams {
+  q?: string;
+  role?: 'Admin' | 'Employee';
+  businessRole?: string;
+  page?: number;
+  limit?: number;
+}
+
+export async function fetchAdminUsers(
+  params?: AdminUserListParams
+): Promise<AdminUserListResponse> {
+  const query = new URLSearchParams();
+  if (params?.q) query.set('q', params.q);
+  if (params?.role) query.set('role', params.role);
+  if (params?.businessRole) query.set('businessRole', params.businessRole);
+  if (params?.page) query.set('page', String(params.page));
+  query.set('limit', String(params?.limit ?? 50));
+  const suffix = query.toString();
+  return requestJson<AdminUserListResponse>(`/admin/users?${suffix}`);
+}
+
+/** Trả về `temporaryPassword` đúng một lần khi server tự sinh mật khẩu. */
+export async function createAdminUser(
+  payload: CreateAdminUser
+): Promise<AdminUserWithPassword> {
+  return requestJson<AdminUserWithPassword>('/admin/users', postJson(payload));
+}
+
+export async function updateAdminUser(
+  userId: string,
+  payload: UpdateAdminUser
+): Promise<AdminUser> {
+  return requestJson<AdminUser>(`/admin/users/${encodeURIComponent(userId)}`, patchJson(payload));
+}
+
+export async function resetAdminUserPassword(userId: string): Promise<ResetPasswordResponse> {
+  return requestJson<ResetPasswordResponse>(
+    `/admin/users/${encodeURIComponent(userId)}/reset-password`,
+    postJson({})
+  );
+}
+
+export async function deleteAdminUser(userId: string): Promise<void> {
+  await requestJson<void>(`/admin/users/${encodeURIComponent(userId)}`, { method: 'DELETE' });
+}
+
+export type { AdminUser, AdminUserWithPassword, CreateAdminUser, ResetPasswordResponse, UpdateAdminUser };

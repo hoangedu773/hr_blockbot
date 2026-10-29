@@ -2,12 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { NotifyFn } from './Toast';
 import { AdminSettingsView } from './AdminSettingsView';
+import { UserAccountsView } from './UserAccountsView';
 import { EmployeeListView } from './EmployeeListView';
 import { EmployeeProfileView } from './EmployeeProfileView';
 import { ProjectListView } from './ProjectListView';
 import { RosterView } from './RosterView';
 
-export type ActiveCrmView = 'stores' | 'employees' | 'profile' | 'schedules' | 'projects' | 'settings';
+export type ActiveCrmView = 'stores' | 'employees' | 'profile' | 'schedules' | 'projects' | 'settings' | 'accounts';
 export interface CrmDashboardViewProps {
   userName: string;
   userRole: string;
@@ -70,6 +71,7 @@ const CRM_HTML = `
           <button type="button" data-section="employees" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Nhân sự</button>
           <button type="button" data-section="profile" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Hồ sơ của tôi</button>
           <button type="button" data-section="schedules" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Hồ sơ nhân sự</button>
+          <button type="button" data-section="accounts" id="crm-nav-accounts" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Tài khoản</button>
           <button type="button" data-section="settings" id="crm-nav-settings" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Cài đặt LLM</button>
         </nav>
       </div>
@@ -892,6 +894,10 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
     if (settingsNav && userRole !== 'Admin') {
       settingsNav.style.display = 'none';
     }
+    const accountsNav = root.querySelector('#crm-nav-accounts') as HTMLElement | null;
+    if (accountsNav && userRole !== 'Admin') {
+      accountsNav.style.display = 'none';
+    }
 
     const portalContainer = root.querySelector('#crm-custom-view-portal') as HTMLElement | null;
     if (portalContainer) {
@@ -903,6 +909,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
         const section = button.dataset.section as ActiveCrmView;
         if (!section) return;
         if (section === 'settings' && userRole !== 'Admin') return;
+        if (section === 'accounts' && userRole !== 'Admin') return;
         setActiveView(section);
         navItems.forEach((item) => {
           item.classList.remove('bg-muted/60', 'text-foreground', 'border', 'border-border/80');
@@ -968,6 +975,8 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
             <ProjectListView onNotify={safeNotify} />
           ) : activeView === 'settings' && userRole === 'Admin' ? (
             <AdminSettingsView onNotify={safeNotify} />
+          ) : activeView === 'accounts' && userRole === 'Admin' ? (
+            <UserAccountsView onNotify={safeNotify} />
           ) : null,
           portalEl
         )}

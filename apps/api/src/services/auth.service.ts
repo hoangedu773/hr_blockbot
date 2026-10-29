@@ -77,6 +77,18 @@ export async function verifyPassword(hash: string, plain: string): Promise<boole
   }
 }
 
+// Bỏ các ký tự dễ đọc nhầm khi in phiếu mật khẩu (0/O, 1/l/I).
+const TEMP_PASSWORD_ALPHABET = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+/** Mật khẩu tạm do quản trị viên phát tay; người dùng buộc đổi ở lần đăng nhập đầu. */
+export function generateTemporaryPassword(length = 12): string {
+  let out = "";
+  for (let i = 0; i < length; i += 1) {
+    out += TEMP_PASSWORD_ALPHABET[crypto.randomInt(TEMP_PASSWORD_ALPHABET.length)];
+  }
+  return out;
+}
+
 /**
  * Sign Access Token using jose (memory-only on client)
  */
