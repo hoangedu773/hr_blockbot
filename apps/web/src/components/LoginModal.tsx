@@ -8,8 +8,8 @@ interface LoginModalProps {
 
 export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
   const { login } = useAuth();
-  const [email, setEmail] = useState('admin@gutacafe.vn');
-  const [password, setPassword] = useState('admin123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -20,7 +20,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
     setError(null);
     setIsSubmitting(true);
     try {
-      await login({ email, password });
+      await login({ username, password });
       if (onClose) onClose();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Đăng nhập không thành công';
@@ -28,17 +28,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const setPreset = (role: 'Admin' | 'Employee') => {
-    if (role === 'Admin') {
-      setEmail('admin@gutacafe.vn');
-      setPassword('admin123');
-    } else {
-      setEmail('employee@gutacafe.vn');
-      setPassword('emp123');
-    }
-    setError(null);
   };
 
   return (
@@ -130,18 +119,20 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
 
           <div>
             <label
-              htmlFor="login-email"
+              htmlFor="login-username"
               style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', fontWeight: 600 }}
             >
-              Email Đăng Nhập:
+              Tên đăng nhập:
             </label>
             <input
-              id="login-email"
-              type="email"
+              id="login-username"
+              name="username"
+              type="text"
               required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="ten@gutacafe.vn"
+              autoComplete="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="mã nhân viên"
               style={{
                 width: '100%',
                 background: '#161d2b',
@@ -182,48 +173,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
             />
           </div>
 
-          {/* Quick preset selector */}
-          <div>
-            <div style={{ fontSize: '11px', color: 'var(--text-faint)', marginBottom: '6px', fontWeight: 600 }}>
-              Chọn tài khoản kiểm thử chuẩn:
-            </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                type="button"
-                onClick={() => setPreset('Admin')}
-                style={{
-                  flex: 1,
-                  padding: '6px 10px',
-                  borderRadius: '6px',
-                  background: email.includes('admin') ? 'rgba(37, 99, 235, 0.15)' : 'var(--surface)',
-                  color: email.includes('admin') ? 'var(--accent-primary)' : 'var(--text-muted)',
-                  border: `1px solid ${email.includes('admin') ? 'rgba(37, 99, 235, 0.4)' : 'var(--border)'}`,
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                👑 Admin (Toàn quyền)
-              </button>
-              <button
-                type="button"
-                onClick={() => setPreset('Employee')}
-                style={{
-                  flex: 1,
-                  padding: '6px 10px',
-                  borderRadius: '6px',
-                  background: email.includes('employee') ? 'rgba(56, 189, 248, 0.15)' : 'var(--surface)',
-                  color: email.includes('employee') ? '#38bdf8' : 'var(--text-muted)',
-                  border: `1px solid ${email.includes('employee') ? 'rgba(56, 189, 248, 0.4)' : 'var(--border)'}`,
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                👤 Employee (Chỉ own)
-              </button>
-            </div>
-          </div>
+          {/* Tài khoản do quản lý phát: không còn nút chọn sẵn tài khoản demo. */}
 
           <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <button

@@ -5,8 +5,10 @@ import {
   LoginResponseSchema,
   RefreshResponseSchema,
   MeResponseSchema,
+  ChangePasswordRequestSchema,
 } from "@hr-blockbot/contracts";
 import { UserModel } from "../models/User.js";
+import { RefreshSessionModel } from "../models/RefreshSession.js";
 import {
   verifyPassword,
   hashPassword,
@@ -21,14 +23,14 @@ import { authenticateToken } from "../middlewares/auth.middleware.js";
 const router = Router();
 
 // P1-4: login had no rate limit (unlimited password guessing) and returned early for
-// unknown emails (timing oracle for user enumeration). Both are handled here.
+// unknown accounts (timing oracle for user enumeration). Both are handled here.
 // In-memory is a deliberate limit of this single-instance deployment (ADR-010).
 const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS = 5 * 60 * 1000;
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 
-function loginAttemptKey(req: Request, email: string): string {
-  return `${req.ip || "unknown"}|${email.toLowerCase()}`;
+function loginAttemptKey(req: Request, username: string): string {
+  return `${req.ip || "unknown"}|${username.toLowerCase()}`;
 }
 
 function registerLoginAttempt(key: string): boolean {
@@ -69,8 +71,9 @@ router.post("/auth/login", async (req: Request, res: Response) => {
     return;
   }
 
-  const { email, password } = parseResult.data;
-  const attemptKey = loginAttemptKey(req, email);
+  const { username, password } = parseResult.data;
+  const normalizedUsername = username.toLowerCase();
+  const attemptKey = loginAttemptKey(req, normalizedUsername);
 
   if (registerLoginAttempt(attemptKey)) {
     res.status(429).json({
@@ -83,15 +86,15 @@ router.post("/auth/login", async (req: Request, res: Response) => {
   }
 
   try {
-    const user = await UserModel.findOne({ email: email.toLowerCase() });
+    const user = await UserModel.findOne({ username: normalizedUsername });
     if (!user) {
-      // P1-4: burn comparable CPU on a dummy hash so "unknown email" and "wrong
+      // P1-4: burn comparable CPU on a dummy hash so "unknown username" and "wrong
       // password" take the same time. Response body stays identical either way.
       await verifyPassword(await dummyHash(), password).catch(() => false);
       res.status(401).json({
         error: {
           code: "UNAUTHENTICATED",
-          message: "Invalid email or password",
+          message: "Invalid username or password",
         },
       });
       return;
@@ -103,7 +106,7 @@ router.post("/auth/login", async (req: Request, res: Response) => {
       res.status(401).json({
         error: {
           code: "UNAUTHENTICATED",
-          message: "Invalid email or password",
+          message: "Invalid username or password",
         },
       });
       return;
@@ -126,6 +129,8 @@ router.post("/auth/login", async (req: Request, res: Response) => {
       user: {
         id: user._id.toString(),
         role: user.role,
+        username: user.username,
+        mustChangePassword: user.mustChangePassword === true,
       },
     });
 
@@ -215,9 +220,70 @@ router.get("/auth/me", authenticateToken, (req: Request, res: Response) => {
     departmentId: user.departmentId ?? null,
     level: user.level ?? null,
     skills: user.skills,
+    username: user.username,
+    mustChangePassword: user.mustChangePassword,
   });
 
   res.status(200).json(meData);
+});
+
+// POST /api/auth/change-password - bắt buộc với mật khẩu tạm do quản lý phát
+router.post("/auth/change-password", authenticateToken, async (req: Request, res: Response) => {
+  const parsed = ChangePasswordRequestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({
+      error: {
+        code: "VALIDATION_FAILED",
+        message: "Invalid change-password payload",
+        details: parsed.error.flatten(),
+      },
+    });
+    return;
+  }
+
+  const { currentPassword, newPassword } = parsed.data;
+
+  try {
+    const user = await UserModel.findById(req.user!.userId);
+    if (!user) {
+      res.status(401).json({
+        error: { code: "UNAUTHENTICATED", message: "User not found or deactivated" },
+      });
+      return;
+    }
+
+    const isValid = await verifyPassword(user.passwordHash, currentPassword);
+    if (!isValid) {
+      res.status(401).json({
+        error: { code: "UNAUTHENTICATED", message: "Current password is incorrect" },
+      });
+      return;
+    }
+
+    user.passwordHash = await hashPassword(newPassword);
+    user.mustChangePassword = false;
+    user.passwordChangedAt = new Date();
+    await user.save();
+
+    // Mọi Refresh Token cũ bị thu hồi: mật khẩu đổi thì phiên cũ không được sống tiếp.
+    await RefreshSessionModel.updateMany(
+      { userId: user._id, revokedAt: null },
+      { $set: { revokedAt: new Date() } }
+    );
+
+    res.status(204).send();
+  } catch (err) {
+    console.error(
+      "[Auth] Change password error:",
+      err instanceof Error ? err.message : "internal error"
+    );
+    res.status(500).json({
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "An internal server error occurred while changing the password",
+      },
+    });
+  }
 });
 
 export default router;

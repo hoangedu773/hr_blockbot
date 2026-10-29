@@ -5,11 +5,18 @@ import { EmployeeModel } from "../models/Employee.js";
 
 export interface AuthenticatedUser {
   userId: string;
+  username: string;
   role: "Admin" | "Employee";
   employeeId?: string | null;
   departmentId?: string | null;
   level?: "Intern" | "Junior" | "Middle" | "Senior" | "Lead" | null;
   skills: string[];
+  mustChangePassword: boolean;
+  /**
+   * Admin không gắn hồ sơ nhân viên -> toàn quyền hệ thống (không giới hạn theo
+   * department scope). Admin có hồ sơ vẫn bị giới hạn như cũ.
+   */
+  isGlobalAdmin: boolean;
 }
 
 declare global {
@@ -67,11 +74,14 @@ export async function authenticateToken(
 
     req.user = {
       userId: user._id.toString(),
+      username: user.username,
       role: user.role,
       employeeId: employee?._id?.toString() || null,
       departmentId: deptId,
       level: employee?.level || null,
       skills: Array.isArray(employee?.skills) ? employee.skills : [],
+      mustChangePassword: user.mustChangePassword === true,
+      isGlobalAdmin: user.isGlobalAdmin === true,
     };
 
     next();
@@ -119,11 +129,14 @@ export async function optionalAuthenticateToken(
 
     req.user = {
       userId: user._id.toString(),
+      username: user.username,
       role: user.role,
       employeeId: employee?._id?.toString() || null,
       departmentId: deptId,
       level: employee?.level || null,
       skills: Array.isArray(employee?.skills) ? employee.skills : [],
+      mustChangePassword: user.mustChangePassword === true,
+      isGlobalAdmin: user.isGlobalAdmin === true,
     };
   } catch {
     // Invalid or expired token: gracefully proceed as unauthenticated guest

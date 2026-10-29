@@ -10,14 +10,37 @@ export type UserRole = z.infer<typeof UserRoleSchema>;
 export const AuthUserSchema = z.object({
   id: z.string(),
   role: UserRoleSchema,
+  /** Tên đăng nhập cấp sẵn (mã nhân viên). Optional để token cũ vẫn parse được. */
+  username: z.string().optional(),
+  /** True khi mật khẩu còn là mật khẩu tạm do quản lý phát. */
+  mustChangePassword: z.boolean().optional(),
 });
 export type AuthUser = z.infer<typeof AuthUserSchema>;
 
+/**
+ * Đăng nhập bằng TÊN ĐĂNG NHẬP cấp sẵn (mã nhân viên), KHÔNG dùng email:
+ * 2.439 nhân viên không có email và không cần thu thập email của ai.
+ */
 export const LoginRequestSchema = z.object({
-  email: z.string().email(),
+  username: z.string().trim().min(3).max(64),
   password: z.string().min(1),
 });
 export type LoginRequest = z.infer<typeof LoginRequestSchema>;
+
+/**
+ * Đổi mật khẩu lần đầu (mật khẩu tạm do quản lý phát) hoặc đổi định kỳ.
+ * Yêu cầu Access Token hợp lệ; server luôn xác minh mật khẩu hiện tại.
+ */
+export const ChangePasswordRequestSchema = z
+  .object({
+    currentPassword: z.string().min(1),
+    newPassword: z.string().min(8).max(128),
+  })
+  .refine((data) => data.currentPassword !== data.newPassword, {
+    message: "Mật khẩu mới phải khác mật khẩu hiện tại",
+    path: ["newPassword"],
+  });
+export type ChangePasswordRequest = z.infer<typeof ChangePasswordRequestSchema>;
 
 /**
  * Login response body - chứa Access Token và user identity.
@@ -49,6 +72,8 @@ export const MeResponseSchema = z.object({
   departmentId: z.string().nullable().optional(),
   level: EmployeeLevelSchema.nullable().optional(),
   skills: z.array(z.string()).default([]),
+  username: z.string().optional(),
+  mustChangePassword: z.boolean().optional(),
 });
 export type MeResponse = z.infer<typeof MeResponseSchema>;
 

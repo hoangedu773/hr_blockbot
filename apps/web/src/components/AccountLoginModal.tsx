@@ -12,7 +12,7 @@ export const AccountLoginModal: React.FC<AccountLoginModalProps> = ({
   isOpen, isRestoringSession = false, onClose, onLogin,
 }) => {
   const dialogRef = useRef<HTMLDivElement>(null);
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -28,7 +28,7 @@ export const AccountLoginModal: React.FC<AccountLoginModalProps> = ({
     const previousFocus = document.activeElement as HTMLElement | null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    dialogRef.current?.querySelector<HTMLInputElement>('input[type="email"]')?.focus();
+    dialogRef.current?.querySelector<HTMLInputElement>('input[name="username"]')?.focus();
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !submittingRef.current) onClose();
       if (event.key !== 'Tab') return;
@@ -63,7 +63,7 @@ export const AccountLoginModal: React.FC<AccountLoginModalProps> = ({
     setIsSubmitting(true);
     setError('');
     try {
-      await onLogin({ email: email.trim(), password });
+      await onLogin({ username: username.trim(), password });
       setPassword('');
       onClose();
     } catch (err) {
@@ -91,12 +91,12 @@ export const AccountLoginModal: React.FC<AccountLoginModalProps> = ({
           <button type="button" aria-label="Đóng đăng nhập" disabled={isSubmitting} onClick={onClose} style={{ background: 'transparent', color: '#b4b4b4', border: 0, padding: 8, minHeight: 44, cursor: 'pointer', fontSize: 13 }}>Đóng</button>
         </div>
         <h2 id="auth-modal-title" style={{ margin: '20px 0 8px', fontSize: 24, fontWeight: 600, color: '#f5f5f5' }}>Đăng nhập Guta Workspace</h2>
-        <p style={{ margin: '0 0 24px', fontSize: 14, lineHeight: 1.6, color: '#b4b4b4' }}>Sử dụng tài khoản được cấp để truy cập không gian làm việc.</p>
+        <p style={{ margin: '0 0 24px', fontSize: 14, lineHeight: 1.6, color: '#b4b4b4' }}>Dùng tên đăng nhập (mã nhân viên) và mật khẩu do quản lý cấp.</p>
         <form onSubmit={handleSubmit} aria-busy={busy} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           {error && <div id="login-error" role="alert" style={{ padding: 12, borderRadius: 10, color: '#fecaca', background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.3)', fontSize: 14 }}>{error}</div>}
           <div>
-            <label htmlFor="login-email" style={{ display: 'block', fontSize: 14, marginBottom: 8 }}>Email</label>
-            <input id="login-email" name="email" type="email" required autoComplete="username" maxLength={254} disabled={busy} value={email} onChange={(event) => { setEmail(event.target.value); setError(''); }} aria-describedby={error ? 'login-error' : undefined} style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #404040', borderRadius: 10, padding: '12px 14px', color: '#f5f5f5', background: '#111', fontSize: 16 }} />
+            <label htmlFor="login-username" style={{ display: 'block', fontSize: 14, marginBottom: 8 }}>Tên đăng nhập</label>
+            <input id="login-username" name="username" type="text" required autoComplete="username" autoCapitalize="none" spellCheck={false} maxLength={64} disabled={busy} value={username} onChange={(event) => { setUsername(event.target.value); setError(''); }} aria-describedby={error ? 'login-error' : undefined} style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #404040', borderRadius: 10, padding: '12px 14px', color: '#f5f5f5', background: '#111', fontSize: 16 }} />
           </div>
           <div>
             <label htmlFor="login-password" style={{ display: 'block', fontSize: 14, marginBottom: 8 }}>Mật khẩu</label>
@@ -108,8 +108,7 @@ export const AccountLoginModal: React.FC<AccountLoginModalProps> = ({
           <button type="submit" disabled={busy} style={{ width: '100%', padding: '13px 16px', border: 0, borderRadius: 10, color: '#171717', background: '#f5f5f5', fontWeight: 600, fontSize: 15, opacity: busy ? .65 : 1, cursor: busy ? 'wait' : 'pointer' }}>
             {isRestoringSession ? 'Đang kiểm tra phiên…' : isSubmitting ? 'Đang đăng nhập…' : 'Đăng nhập'}
           </button>
-          <p style={{ margin: 0, color: '#b4b4b4', fontSize: 12, lineHeight: 1.6 }}>Nếu chưa có tài khoản hoặc quên mật khẩu, vui lòng liên hệ quản trị viên.</p>
-        </form>
+          <p style={{ margin: 0, color: '#b4b4b4', fontSize: 12, lineHeight: 1.6 }}>Nếu chưa có tài khoản hoặc quên mật khẩu, vui lòng liên hệ quản trị viên.</p>        </form>
       </div>
     </div>
   );

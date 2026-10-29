@@ -115,7 +115,12 @@ export async function refreshAccessToken(): Promise<string | null> {
       if (revision !== authRevision) return null;
 
       inMemoryAccessToken = data.accessToken;
-      inMemoryUser = { id: me.userId, role: me.role };
+      inMemoryUser = {
+        id: me.userId,
+        role: me.role,
+        username: me.username,
+        mustChangePassword: me.mustChangePassword,
+      };
       authChangeListeners.forEach((listener) => listener(inMemoryUser, inMemoryAccessToken));
       return data.accessToken;
     } catch {
@@ -140,14 +145,17 @@ export async function login(credentials: LoginRequest): Promise<LoginResponse> {
     },
     credentials: 'include',
     signal: AbortSignal.timeout(15000),
-    body: JSON.stringify({ email: credentials.email.trim().toLowerCase(), password: credentials.password }),
+    body: JSON.stringify({
+      username: credentials.username.trim().toLowerCase(),
+      password: credentials.password,
+    }),
   }).catch(() => {
     throw new Error('Không thể kết nối máy chủ. Vui lòng thử lại.');
   });
 
   if (!res.ok) {
     throw new Error(res.status === 401
-      ? 'Email hoặc mật khẩu không đúng.'
+      ? 'Tên đăng nhập hoặc mật khẩu không đúng.'
       : res.status === 429
       ? 'Bạn đã thử quá nhiều lần. Vui lòng thử lại sau.'
       : 'Chưa thể đăng nhập lúc này. Vui lòng thử lại.');
@@ -161,6 +169,34 @@ export async function login(credentials: LoginRequest): Promise<LoginResponse> {
   if (revision !== authRevision) throw new Error('Yêu cầu đăng nhập đã bị hủy.');
   setAuthState(data.accessToken, data.user);
   return data;
+}
+
+/**
+ * Đổi mật khẩu (bắt buộc ở lần đăng nhập đầu với mật khẩu tạm do quản lý phát).
+ * Server thu hồi toàn bộ Refresh Token cũ; access token trong bộ nhớ vẫn dùng được
+ * tới khi hết hạn, sau đó người dùng đăng nhập lại bằng mật khẩu mới.
+ */
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/auth/change-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  }).catch(() => {
+    throw new Error('Không thể kết nối máy chủ. Vui lòng thử lại.');
+  });
+
+  if (!res.ok) {
+    if (res.status === 401) throw new Error('Mật khẩu hiện tại không đúng.');
+    if (res.status === 400) {
+      throw new Error('Mật khẩu mới phải có ít nhất 8 ký tự và khác mật khẩu hiện tại.');
+    }
+    throw new Error('Chưa đổi được mật khẩu. Vui lòng thử lại.');
+  }
+
+  if (inMemoryUser) {
+    inMemoryUser = { ...inMemoryUser, mustChangePassword: false };
+    authChangeListeners.forEach((listener) => listener(inMemoryUser, inMemoryAccessToken));
+  }
 }
 
 export function logout(): Promise<void> {
@@ -226,7 +262,10 @@ export async function apiFetch(
         : input.url;
 
     const isAuthEndpoint =
-      urlStr.includes('/auth/login') || urlStr.includes('/auth/refresh');
+      urlStr.includes('/auth/login') ||
+      urlStr.includes('/auth/refresh') ||
+      // 401 ở đây nghĩa là "mật khẩu hiện tại sai", không phải phiên hết hạn.
+      urlStr.includes('/auth/change-password');
 
     if (isAuthEndpoint || isRetry) {
       if (!isAuthEndpoint) {

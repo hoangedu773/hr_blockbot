@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   UserRoleSchema,
   LoginRequestSchema,
+  ChangePasswordRequestSchema,
   LoginResponseSchema,
   RefreshResponseSchema,
   MeResponseSchema,
@@ -74,25 +75,43 @@ describe("Contracts: Auth & RBAC Schemas", () => {
     }
   });
 
-  it("LoginRequestSchema yêu cầu email hợp lệ và password không rỗng", () => {
+  it("LoginRequestSchema đăng nhập bằng username (≥3 ký tự) thay email; ChangePasswordSchema chặn mật khẩu mới trùng/ngắn", () => {
     const valid = LoginRequestSchema.parse({
-      email: "test.admin@guta.vn",
+      username: "GT-CH18030009",
       password: "secure_password_123",
     });
-    assert.equal(valid.email, "test.admin@guta.vn");
+    assert.equal(valid.username, "GT-CH18030009");
+    // Không còn bắt buộc email: payload đăng nhập không có email vẫn hợp lệ.
+    assert.equal("email" in valid, false);
 
     assert.throws(() =>
       LoginRequestSchema.parse({
-        email: "not-an-email",
+        username: "ab",
         password: "pass",
       })
     );
 
     assert.throws(() =>
       LoginRequestSchema.parse({
-        email: "valid@guta.vn",
+        username: "  nv001  ",
         password: "",
       })
+    );
+
+    // Username được trim trước khi kiểm độ dài.
+    assert.equal(LoginRequestSchema.parse({ username: "  nv001  ", password: "x" }).username, "nv001");
+
+    const change = ChangePasswordRequestSchema.parse({
+      currentPassword: "temp-pass-1",
+      newPassword: "mat-khau-rieng-9",
+    });
+    assert.equal(change.newPassword, "mat-khau-rieng-9");
+
+    assert.throws(() =>
+      ChangePasswordRequestSchema.parse({ currentPassword: "same-pass", newPassword: "same-pass" })
+    );
+    assert.throws(() =>
+      ChangePasswordRequestSchema.parse({ currentPassword: "temp-pass-1", newPassword: "short" })
     );
   });
 

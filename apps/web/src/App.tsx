@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import type { LoginRequest } from '@hr-blockbot/contracts';
 import { useAuth } from './context/AuthContext';
 import { ToastContainer, type ToastMessage, type NotifyFn } from './components/Toast';
+import { ChangePasswordModal } from './components/ChangePasswordModal';
 const FolioLandingView = React.lazy(() =>
   import('./components/FolioLandingView').then((m) => ({ default: m.FolioLandingView }))
 );
@@ -14,7 +15,7 @@ const ChatPageView = React.lazy(() =>
 import { DemoErrorBoundary } from './components/DemoErrorBoundary';
 
 export const AppContent: React.FC = () => {
-  const { user, isAuthenticated, isLoading, login, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, login, logout, changePassword } = useAuth();
   const hasSession = isAuthenticated && user !== null;
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isSplashFading, setIsSplashFading] = useState(false);
@@ -159,6 +160,13 @@ export const AppContent: React.FC = () => {
           )}
         </React.Suspense>
       </DemoErrorBoundary>
+      {user?.mustChangePassword === true && (
+        <ChangePasswordModal
+          username={user.username}
+          onSubmit={changePassword}
+          onLogout={handleLogout}
+        />
+      )}
       <ToastContainer toasts={toasts} onDismiss={removeToast} />
     </>
   );

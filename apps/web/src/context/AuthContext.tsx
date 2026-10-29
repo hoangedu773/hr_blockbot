@@ -5,6 +5,7 @@ import {
   getAuthUser,
   login as authLogin,
   logout as authLogout,
+  changePassword as authChangePassword,
   refreshAccessToken,
   onAuthStateChange,
   onAuthFailure,
@@ -17,6 +18,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (credentials: LoginRequest) => Promise<void>;
   logout: () => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -107,6 +109,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     writeSessionHint(false);
   };
 
+  const handleChangePassword = async (currentPassword: string, newPassword: string) => {
+    await authChangePassword(currentPassword, newPassword);
+    const current = getAuthUser();
+    if (current) setUser(current);
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -116,6 +124,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         login: handleLogin,
         logout: handleLogout,
+        changePassword: handleChangePassword,
       }}
     >
       {children}
