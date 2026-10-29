@@ -61,7 +61,32 @@ python scripts/seed/10-backfill-business-role.py --apply
   quyết định "mỗi nhân viên 1 tài khoản". Cột `status` có trong file CSV để quản lý
   quyết định phát hay không.
 
-## 5. Việc còn lại trước khi ra mắt thật
+## 5. Quản trị tài khoản sau khi cấp phát (API + UI)
+
+Admin **toàn quyền** (`isGlobalAdmin = true`) quản lý tài khoản trực tiếp, không cần script:
+
+| Việc | Endpoint | Ghi chú |
+|---|---|---|
+| Danh sách + tìm | `GET /api/admin/users?q=&role=&businessRole=&page=&limit=` | Không bao giờ trả `passwordHash` |
+| Tạo | `POST /api/admin/users` | Bỏ trống `password` → server sinh mật khẩu tạm, trả về **một lần** |
+| Đổi role / hạ quyền | `PATCH /api/admin/users/:id` | `role`, `businessRole`, `isGlobalAdmin`, `employeeId`, `email`, `mustChangePassword` |
+| Đặt lại mật khẩu | `POST /api/admin/users/:id/reset-password` | Trả mật khẩu tạm một lần, thu hồi mọi phiên |
+| Xoá | `DELETE /api/admin/users/:id` | Thu hồi phiên + bỏ liên kết `employees.userId` |
+
+UI: CRM → mục **Tài khoản** (chỉ hiện với `role = Admin`), có tìm kiếm, đổi role bằng
+dropdown, bật/tắt quyền toàn hệ thống, đặt lại mật khẩu và xoá.
+
+Chốt an toàn đã cài (đều có test trong `apps/api/test/admin-users.test.mjs`):
+
+- Chỉ Admin **toàn quyền** gọi được; Admin bị giới hạn phòng ban và Employee đều 403.
+- Không tự hạ quyền / tự bỏ cờ toàn quyền / tự xoá tài khoản đang đăng nhập.
+- Hệ thống luôn phải còn ít nhất một Admin toàn quyền.
+- `role = Employee` không được mang `businessRole = admin`; nâng lên Admin thì bậc tự thành `admin`,
+  hạ xuống Employee thì lấy lại bậc từ hồ sơ (không có hồ sơ → `staff`).
+- Đổi role thu hồi toàn bộ refresh session. Access token cũ vẫn còn hạn nhưng middleware đọc
+  `role` từ DB nên mất quyền ngay ở request kế tiếp (đã kiểm bằng HTTP thật).
+
+## 6. Việc còn lại trước khi ra mắt thật
 
 - **Jev**: pool 10 key trial ~1.000 gọi/ngày không đủ cho 2.442 người dùng; cần key trả
   phí hoặc chấp nhận rule-fallback khi hết quota.

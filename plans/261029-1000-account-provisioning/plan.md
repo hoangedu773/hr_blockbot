@@ -139,3 +139,21 @@ Runbook thao tác: `docs/25-account-provisioning-runbook.md`. Số liệu đo tr
   `JEV_USEJEVAI_KEYS`), nên endpoint trả lời thay vì 503. Không liên quan tới thay đổi ngưỡng.
 - Chưa có luồng "quên mật khẩu" cho nhân viên; chưa có màn hình quản trị người dùng.
 
+
+---
+
+## Bổ sung sau khi chạy: quyền CRUD tài khoản (2026-10-29 14:00)
+
+Chủ nhiệm chốt: Admin là quyền cao nhất và phải tự quản lý được tài khoản, gồm cả **hạ role**.
+Trước đó quyền này chỉ tồn tại dưới dạng script CLI, không có API/UI.
+
+- `apps/api/src/routes/admin-users.ts`: `GET/POST /api/admin/users`, `PATCH/DELETE /api/admin/users/:id`,
+  `POST /api/admin/users/:id/reset-password`.
+- Chỉ `role = Admin` **và** `isGlobalAdmin = true`; Admin theo phòng ban và Employee đều 403.
+- Chặn tự hạ quyền / tự xoá mình, chặn xoá hoặc hạ Admin toàn quyền cuối cùng.
+- `Employee` không mang `businessRole = admin`; hạ role lấy lại bậc từ hồ sơ, nâng lên Admin thì bậc = `admin`.
+- Đổi role thu hồi mọi refresh session; middleware đọc `role` từ DB nên hiệu lực ngay.
+- Web: mục **Tài khoản** trong CRM (chỉ Admin), có tìm kiếm, đổi role, bật/tắt toàn quyền,
+  đặt lại mật khẩu, xoá, và chọn hồ sơ nhân viên khi tạo.
+- Kiểm chứng: `admin-users.test.mjs` 14 test; chạy thật trên Atlas với `hoang`
+  (liệt kê 2.442 tài khoản, tạo → đăng nhập → hạ role → mất quyền ngay → đặt lại MK → xoá).
