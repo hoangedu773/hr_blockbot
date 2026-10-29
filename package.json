@@ -11,5 +11,10 @@
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
     "demo:verify": "node scripts/demo-verify.mjs"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "mongodb-memory-server"
+    ]
   }
 }
