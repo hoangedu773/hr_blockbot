@@ -1,12 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  chromium,
+  reactDomUmdPath,
+  reactUmdPath,
+  transform,
+} from './helpers/browser-deps.mjs';
 
-const require = createRequire(import.meta.url);
-const { chromium } = require('playwright');
-const { transform } = require('../../../node_modules/.pnpm/node_modules/esbuild');
+const cssPath = fileURLToPath(new URL('../src/index.css', import.meta.url));
 
 test('ChatDrawer renders Markdown/citations, confirms drafts honestly, validates errors and handles mobile keyboard', async () => {
   // Isolated component harness: real React + Chromium; HTTP boundary is intercepted, not live integration.
@@ -19,9 +22,9 @@ test('ChatDrawer renders Markdown/citations, confirms drafts honestly, validates
     page.on('pageerror', (error) => errors.push(error.message));
     await page.route('http://chat.test/**', (route) => route.fulfill({ contentType: 'text/html', body: '<!doctype html><html lang="vi"><body><button id="trigger">Mở chat</button><div id="root"></div></body></html>' }));
     await page.goto('http://chat.test/');
-    await page.addScriptTag({ path: resolve('apps/web/node_modules/react/umd/react.development.js') });
-    await page.addScriptTag({ path: resolve('apps/web/node_modules/react-dom/umd/react-dom.development.js') });
-    await page.addStyleTag({ path: resolve('apps/web/src/index.css') });
+    await page.addScriptTag({ path: reactUmdPath });
+    await page.addScriptTag({ path: reactDomUmdPath });
+    await page.addStyleTag({ path: cssPath });
     await page.addScriptTag({ content: `const { useState, useEffect, useRef } = React; const API_BASE = '/api'; const apiFetch = fetch; ${compiled.code} const root = ReactDOM.createRoot(document.getElementById('root')); window.showChat = () => root.render(React.createElement(window.ChatDrawer, { isOpen: true, onClose: () => root.render(null) })); document.getElementById('trigger').onclick = window.showChat;` });
     const requests = [];
     let mode = 'success';

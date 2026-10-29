@@ -108,8 +108,11 @@ def test_agent_loop_generates_attachments_tai_san():
 
 def test_agent_loop_fallback_attachments_on_degraded():
     ctx = UserContext.model_validate({"employeeId": "651111111111111111111111", "role": "Employee"})
-    # Without any provider, loop enters degraded mode but still resolves attachments from text keywords
-    loop = AgentLoop(None, None, strict_provider=False)
+    # Without any provider, loop enters degraded mode but still resolves attachments from text keywords.
+    # P1-15: inject an explicitly empty chain instead of `None` — `None` falls back
+    # to `default_chain()`, which is env-dependent (real keys in .env would turn
+    # this offline test into a live API call).
+    loop = AgentLoop(None, ProviderChain([]), strict_provider=False)
     turn = loop.run("Cho em xin biên bản bàn giao công việc", ctx)
 
     assert turn.degraded is True

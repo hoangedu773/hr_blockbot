@@ -1,5 +1,14 @@
 import { io, type Socket } from 'socket.io-client';
-import type { Citation } from '@hr-blockbot/contracts';
+import type {
+  ActionProposalData,
+  ChatAcceptedPayload,
+  ChatChunkPayload,
+  ChatConfirmPayload,
+  ChatDonePayload,
+  ChatErrorPayload,
+  ChatFinishReason,
+  ChatSendPayload,
+} from '@hr-blockbot/contracts';
 import { API_BASE } from './auth';
 
 /**
@@ -15,69 +24,25 @@ export function resolveSocketUrl(): string {
 /**
  * WebSocket payload types for the closed 10-event chat contract.
  *
- * Defined locally (not exported by `@hr-blockbot/contracts`) because Phase 1
- * keeps `docs/06-api-spec.md` §4.2 as the canonical source for socket events
- * and only ships Zod schemas for REST DTOs. Shapes below are verbatim from
- * that table; do not add fields here without amending the spec first.
+ * P2-9: these are now re-exports of the Zod-inferred types from
+ * `@hr-blockbot/contracts` instead of locally re-declared interfaces. The
+ * contracts package is the single source of truth (docs/06 §4.2); any field
+ * change must land there first so REST and WS cannot drift apart.
  */
-export type ChatChunkKind = 'text' | 'citation' | 'action_proposal';
+export type ChatChunkKind = ChatChunkPayload['kind'];
 
-export interface ChatSendPayload {
-  clientMessageId: string;
-  text: string;
-  conversationId?: string;
-}
+export type ChatAcceptedEvent = ChatAcceptedPayload;
 
-export interface ChatAcceptedEvent {
-  clientMessageId: string;
-  messageId: string;
-  conversationId: string;
-  acceptedAt: string;
-}
+export type ChatChunkEvent = ChatChunkPayload;
 
-export interface ChatChunkEvent {
-  clientMessageId: string;
-  messageId: string;
-  seq: number;
-  kind: ChatChunkKind;
-  /** Required when `kind === 'text'`; plain text only, never JSON-wrapped. */
-  delta?: string;
-  /** Required when `kind !== 'text'`; `Citation` or `ChatActionProposal` payload. */
-  data?: unknown;
-}
+export type ChatDoneEvent = ChatDonePayload;
 
-export type ChatFinishReason = 'ANSWER' | 'TOOL_RESULT' | 'ABSTAIN' | 'ERROR';
+export type ChatErrorEvent = ChatErrorPayload;
 
-export interface ChatDoneEvent {
-  clientMessageId: string;
-  finishReason: ChatFinishReason;
-  tool?: string;
-  card?: unknown;
-  citations?: Citation[];
-  score?: number;
-  usage?: { inputTokens: number; outputTokens: number };
-}
-
-export interface ChatErrorEvent {
-  clientMessageId?: string;
-  code: string;
-  message: string;
-  retryable: boolean;
-}
-
-export interface ChatConfirmPayload {
-  clientMessageId: string;
-  actionId: string;
-  approve: boolean;
-}
+export type { ChatSendPayload, ChatConfirmPayload, ChatFinishReason };
 
 /** `chat:chunk` payload for `kind === 'action_proposal'` (FR-020). */
-export interface ChatActionProposal {
-  actionId: string;
-  type: string;
-  args?: Record<string, unknown>;
-  preview?: string;
-}
+export type ChatActionProposal = ActionProposalData;
 
 export interface ChatSocketHandlers {
   onConnect: () => void;

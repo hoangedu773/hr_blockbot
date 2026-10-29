@@ -122,7 +122,10 @@ def test_strict_provider_raises_when_no_provider_can_answer():
 
 
 def test_degraded_mode_returns_extractive_answer_without_provider():
-    turn = AgentLoop(_runtime(), None).run("Chu kỳ tính lương chốt bảng công ngày nào?", CTX)
+    # P1-15: inject an explicitly empty chain instead of `None` — `None` falls
+    # back to `default_chain()`, which is env-dependent (real keys in .env would
+    # turn this offline test into a live API call).
+    turn = AgentLoop(_runtime(), ProviderChain([])).run("Chu kỳ tính lương chốt bảng công ngày nào?", CTX)
 
     assert turn.degraded is True
     assert turn.answer_source == "degraded_structured"

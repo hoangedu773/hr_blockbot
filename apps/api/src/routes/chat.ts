@@ -1,19 +1,15 @@
 import { Router, Request, Response } from "express";
-import { z } from "zod";
+import { ChatRequestSchema } from "@hr-blockbot/contracts";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
 import { chatWithAiService } from "../services/ai-client.service.js";
 import { resolveUserScope } from "../services/user-scope.service.js";
 
 const router = Router();
-const chatRequestSchema = z.object({
-  message: z.string().trim().min(1).max(2000),
-  conversationId: z.string().trim().min(1).max(200).optional(),
-  modelTier: z.enum(["low", "medium", "high"]).optional(),
-});
 
 // POST /api/chat - Giao tiếp với AI Copilot Agent Loop
 router.post("/chat", authenticateToken, async (req: Request, res: Response) => {
-  const parsed = chatRequestSchema.safeParse(req.body);
+  // P2-10: validate against the shared contract instead of a local re-declaration.
+  const parsed = ChatRequestSchema.safeParse(req.body);
 
   if (!parsed.success) {
     res.status(400).json({

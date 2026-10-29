@@ -359,6 +359,37 @@ class AgentLoop:
                 error={"code": "MESSAGE_TOO_LONG", "retryable": False},
             )
 
+        # P1-15 (migrated out of the fake.py import-time monkey-patch): with no
+        # usable provider chain, answer from the policy corpus directly instead
+        # of pretending an LLM is reachable. Deterministic, citation-backed and
+        # marked degraded — it never masquerades as a model answer. This used to
+        # be installed by patching AgentLoop.run at import time (and swallowing
+        # every error with `except: pass`); it is a plain branch now.
+        if (
+            not self.strict_provider
+            and (self.chain is None or not getattr(self.chain, "_providers", None))
+            and getattr(self, "runtime", None) is not None
+            and getattr(self.runtime, "policy", None) is not None
+        ):
+            from app.rag.answer import extractive_answer, _fallback_citations
+
+            retrieval = self.runtime.policy.retrieve(text, k=settings.top_k)
+            citations = _fallback_citations(retrieval.hits) if retrieval and retrieval.hits else []
+            if citations:
+                return AgentTurn(
+                    intent="policy_query",
+                    intent_id="policy_query",
+                    reply=extractive_answer(retrieval.hits),
+                    tool_name="search_policy",
+                    citations=citations,
+                    # `_fallback_citations` yields rendered citation dicts, not
+                    # string policy ids, so attachment lookup here is keyword-based.
+                    attachments=resolve_attachments(text, []),
+                    degraded=True,
+                    answer_source="degraded_structured",
+                    steps=1,
+                )
+
         # ponytail: static word-set greeting bypass (<0.1ms); upgrade to dynamic intent embedding if taxonomy expands.
         normalized_greeting = text.lower().strip(" \t\n\r.?!:;,~")
         user_role = (
@@ -525,6 +556,15 @@ class AgentLoop:
                 decision_source=decision.source,
                 degraded=jev_degraded,
             )
+            # P1-15 (migrated out of the fake.py hardening patch): a policy answer
+            # with zero citations is an abstention, not an answer. The UI contract
+            # states it verbatim: "câu trả lời phải kèm trích dẫn hoặc từ chối
+            # trả lời". The rule keys on the *answer's* declared intent — not the
+            # demoted turn intent, not hardcoded out-of-scope keywords like the
+            # old monkey-patch — so a Jev reclassification to general_chat cannot
+            # smuggle an uncited policy reply past the gate.
+            if answer.intent == "policy_query" and not citations and action is None:
+                turn.abstain = True
             # J-3: a degraded turn must never be cached. Otherwise a rule/fallback
             # answer is replayed for the full TTL even after Jev recovers, and the
             # gate is never consulted again for that message.
@@ -666,8 +706,14 @@ def _self_check() -> None:
             ProviderConfig(id="mock-http", type="openai_compatible", model="test", base_url="https://test.invalid/v1"),
             client=client,
         )])
-        # Never send a configured real Jev key during this offline check.
-        with patch("app.agent.jev_gateway.settings", replace(settings, jev_api_key="")):
+        # Never send a configured real Jev key during this offline check. Both
+        # key sources must be cleared: with only `jev_api_key` emptied, a
+        # JEV_USEJEVAI_KEYS pool from .env still drives the gateway out to the
+        # network and this "mock HTTP" check silently becomes a live call.
+        with patch(
+            "app.agent.jev_gateway.settings",
+            replace(settings, jev_api_key="", jev_usejevai_keys=""),
+        ):
             loop = AgentLoop(chain=chain)
             for message, intent, answer in samples:
                 responses.extend([

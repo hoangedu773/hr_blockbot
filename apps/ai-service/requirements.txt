@@ -1,7 +1,14 @@
-fastapi>=0.111.0
-uvicorn>=0.30.0
-pydantic>=2.7.0
-pymongo>=4.8.0
-python-dotenv>=1.0.1
-httpx>=0.27.0
-pytest>=8.0.0
+# P2-8: fully pinned (==) to the versions actually running in this deployment
+# environment (Python 3.14). Source of truth command, run 2026-10-29:
+#   py -3 -c "import fastapi, uvicorn, pydantic, pymongo, httpx, pytest; \
+#     from importlib.metadata import version; \
+#     print(fastapi.__version__, uvicorn.__version__, pydantic.VERSION, \
+#           pymongo.version, version('python-dotenv'), httpx.__version__, pytest.__version__)"
+# => 0.122.0 / 0.38.0 / 2.12.4 / 4.17.0 / 1.0.0 / 0.28.1 / 9.0.2
+fastapi==0.122.0
+uvicorn==0.38.0
+pydantic==2.12.4
+pymongo==4.17.0
+python-dotenv==1.0.0
+httpx==0.28.1
+pytest==9.0.2

@@ -4,29 +4,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
-
-let chromium;
-try {
-  const req = createRequire(import.meta.url);
-  chromium = req('playwright').chromium;
-} catch {
-  const candidatePaths = [
-    'C:/work-space/hr-blockbot/node_modules/',
-    'C:/Users/hoang/AppData/Roaming/npm/node_modules/',
-  ];
-  for (const p of candidatePaths) {
-    try {
-      const req = createRequire(p);
-      chromium = req('playwright').chromium;
-      if (chromium) break;
-    } catch {}
-  }
-}
-
-if (!chromium) {
-  throw new Error('Không thể nạp Playwright từ môi trường cục bộ');
-}
+import { chromium } from './helpers/browser-deps.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // E2E_DIST_DIR lets a build be verified from a scratch outDir without replacing dist/.
@@ -93,15 +71,21 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     });
 
     // Isolated auth boundary; never use real accounts or contact Atlas in this suite.
+    // P0 account-provisioning: login is by provisioned USERNAME (employee code), not email.
     let activeUser = null;
     await page.route('**/api/auth/login', (route) => {
-      const { email, password } = route.request().postDataJSON();
+      const { username, password } = route.request().postDataJSON();
       assert.equal(password, 'fixture-password');
-      activeUser = { id: 'fixture-user', role: email.startsWith('admin') ? 'Admin' : 'Employee' };
+      activeUser = {
+        id: 'fixture-user',
+        role: username.startsWith('admin') ? 'Admin' : 'Employee',
+        username,
+        mustChangePassword: false,
+      };
       return route.fulfill({ status: 200, json: { accessToken: 'fixture-token', user: activeUser } });
     });
     await page.route('**/api/auth/refresh', (route) => route.fulfill({ status: 200, json: { accessToken: activeUser ? 'fixture-token' : null } }));
-    await page.route('**/api/auth/me', (route) => route.fulfill({ status: 200, json: { userId: activeUser.id, role: activeUser.role, skills: [] } }));
+    await page.route('**/api/auth/me', (route) => route.fulfill({ status: 200, json: { userId: activeUser.id, role: activeUser.role, username: activeUser.username, mustChangePassword: false, skills: [] } }));
     await page.route('**/api/auth/logout', (route) => { activeUser = null; return route.fulfill({ status: 204 }); });
     // Invalid payload exercises the safe demo boundary without a live backend.
     await page.route('**/api/chat', (route) => route.fulfill({ status: 200, json: {} }));
@@ -169,7 +153,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
   });
 
   it('Bước 3: đăng nhập bằng tài khoản, mở Chat Copilot rồi chuyển vào CRM Dashboard', async () => {
-    await page.getByLabel('Email', { exact: true }).fill('employee@guta.test');
+    await page.getByLabel('Tên đăng nhập', { exact: true }).fill('employee');
     await page.getByLabel('Mật khẩu', { exact: true }).fill('fixture-password');
     await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
 
@@ -190,8 +174,9 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.equal(await page.evaluate(() => sessionStorage.getItem('guta_user')), null);
     assert.equal(await page.evaluate(() => localStorage.getItem('guta_user')), null);
 
-    // Kiểm tra thông tin user hiển thị ở sidebar
-    const sidebarUser = page.locator('.crm-sidebar').getByText('Nhân viên', { exact: true });
+    // Kiểm tra thông tin user hiển thị ở sidebar (username-based identity since
+    // account provisioning; the role label is only a fallback without username)
+    const sidebarUser = page.locator('.crm-sidebar').getByText('employee', { exact: true });
     assert.equal(await sidebarUser.count() > 0, true);
     const logo = page.locator('.crm-sidebar img');
     assert.equal(await logo.getAttribute('src'), '/assets/logos/guta-mark-pure.svg');
@@ -368,7 +353,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       await page.unroute('**/api/chat', pendingReply);
     }
     await page.getByRole('button', { name: /Get Started/i }).click();
-    await page.getByLabel('Email', { exact: true }).fill('employee@guta.test');
+    await page.getByLabel('Tên đăng nhập', { exact: true }).fill('employee');
     await page.getByLabel('Mật khẩu', { exact: true }).fill('fixture-password');
     await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
     await page.getByRole('button', { name: 'Quay lại Vận Hành (CRM)', exact: true }).click();
@@ -453,28 +438,76 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       const style = getComputedStyle(el);
       return [style.backgroundColor, style.color];
     }), ['rgb(222, 222, 222)', 'rgb(0, 0, 0)']);
+    const offlineChat = (route) => route.abort('connectionrefused');
+    await page.route('**/api/chat', offlineChat);
     await chat.getByRole('navigation', { name: 'Chủ đề mẫu' }).getByRole('button', { name: 'Gợi ý điều động ca' }).click();
     assert.equal(await send.isDisabled(), true);
     await chat.getByText('Demo an toàn · Dịch vụ AI chưa khả dụng', { exact: true }).waitFor();
-    const confirm = chat.getByRole('button', { name: 'Xác Nhận (Confirm)' });
-    assert.deepEqual(await confirm.evaluate((el) => {
-      const style = getComputedStyle(el);
-      return [style.backgroundColor, style.color];
-    }), ['rgb(255, 255, 255)', 'rgb(0, 0, 0)']);
-    await confirm.click();
-    assert.equal(await chat.getByText('Đã xác nhận đề xuất. Chưa thực thi.', { exact: true }).isVisible(), true);
-    await chat.getByRole('button', { name: '+ New Chat', exact: true }).click();
-    await chat.getByRole('navigation', { name: 'Chủ đề mẫu' }).getByRole('button', { name: 'Gợi ý điều động ca' }).click();
-    await chat.getByRole('button', { name: 'Từ Chối', exact: true }).click();
-    assert.equal(await chat.getByText('Đã từ chối hành động. Không có dữ liệu nào bị thay đổi.', { exact: true }).isVisible(), true);
-    await chat.getByRole('button', { name: '+ New Chat', exact: true }).click();
-    await chat.getByRole('navigation', { name: 'Chủ đề mẫu' }).getByRole('button', { name: 'Quy định kỷ luật' }).click();
-    await chat.getByRole('region', { name: 'Trích dẫn' }).waitFor();
-    assert.match(await chat.getByRole('log').textContent(), /không phải chính sách có hiệu lực/);
-    await chat.getByRole('button', { name: '+ New Chat', exact: true }).click();
-    await chat.getByRole('navigation', { name: 'Chủ đề mẫu' }).getByRole('button', { name: 'Báo cáo két ca' }).click();
-    await chat.getByText(/Không có số doanh thu đã xác thực/).waitFor();
-    assert.match(await chat.getByRole('region', { name: 'Trích dẫn' }).textContent(), /không phải báo cáo thực tế/);
+    assert.equal(await chat.getByRole('button', { name: 'Xác Nhận (Confirm)' }).count(), 0);
+    await page.unroute('**/api/chat', offlineChat);
+    // The intentional offline probe above makes Chromium log one
+    // "Failed to load resource: net::ERR_CONNECTION_REFUSED" console error.
+    // That is expected here — clear the suite-level collector so it does not
+    // poison the zero-console-error assertions of the following tests.
+    consoleErrors.length = 0;
+
+    const chatReplies = [
+      {
+        // Match on the actual suggestion prompt text (ChatPageView TOPIC_PROMPTS),
+        // not the button title — the title is a label, the prompt is what's sent.
+        match: 'thiếu người ca trưa nay',
+        json: {
+          reply: 'Đề xuất điều động ca trực cho chi nhánh đang thiếu người.',
+          proposedAction: { type: 'request_shift_swap', preview: 'Điều động một barista sang chi nhánh thiếu người' },
+        },
+      },
+      {
+        match: 'đi trễ quá 15 phút',
+        json: {
+          reply: 'Đây là trích dẫn tham khảo, không phải chính sách có hiệu lực.',
+          citations: [{ document: 'Quy chế nhân sự Guta', version: 'demo', article: 'Điều tham khảo', score: 0.8 }],
+        },
+      },
+      {
+        match: 'doanh thu két sáng',
+        json: {
+          reply: 'Không có số doanh thu đã xác thực trong phiên demo.',
+          citations: [{ document: 'Biểu mẫu đối soát két — không phải báo cáo thực tế', version: 'demo', article: 'Ghi chú', score: 0.7 }],
+        },
+      },
+    ];
+    const onlineChat = async (route) => {
+      const request = route.request().postDataJSON();
+      const reply = chatReplies.find((item) => request.message.includes(item.match)) ?? chatReplies[0];
+      await route.fulfill({ status: 200, json: reply.json });
+    };
+    await page.route('**/api/chat', onlineChat);
+    try {
+      await chat.getByRole('button', { name: '+ New Chat', exact: true }).click();
+      await chat.getByRole('navigation', { name: 'Chủ đề mẫu' }).getByRole('button', { name: 'Gợi ý điều động ca' }).click();
+      await chat.getByText('Đề xuất điều động ca trực cho chi nhánh đang thiếu người.', { exact: true }).waitFor();
+      const confirm = chat.getByRole('button', { name: 'Xác Nhận (Confirm)' });
+      assert.deepEqual(await confirm.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return [style.backgroundColor, style.color];
+      }), ['rgb(255, 255, 255)', 'rgb(0, 0, 0)']);
+      await confirm.click();
+      assert.equal(await chat.getByText('Đã xác nhận đề xuất. Chưa thực thi.', { exact: true }).isVisible(), true);
+      await chat.getByRole('button', { name: '+ New Chat', exact: true }).click();
+      await chat.getByRole('navigation', { name: 'Chủ đề mẫu' }).getByRole('button', { name: 'Gợi ý điều động ca' }).click();
+      await chat.getByRole('button', { name: 'Từ Chối', exact: true }).click();
+      assert.equal(await chat.getByText('Đã từ chối hành động. Không có dữ liệu nào bị thay đổi.', { exact: true }).isVisible(), true);
+      await chat.getByRole('button', { name: '+ New Chat', exact: true }).click();
+      await chat.getByRole('navigation', { name: 'Chủ đề mẫu' }).getByRole('button', { name: 'Quy định kỷ luật' }).click();
+      await chat.getByRole('region', { name: 'Trích dẫn' }).waitFor();
+      assert.match(await chat.getByRole('log').textContent(), /không phải chính sách có hiệu lực/);
+      await chat.getByRole('button', { name: '+ New Chat', exact: true }).click();
+      await chat.getByRole('navigation', { name: 'Chủ đề mẫu' }).getByRole('button', { name: 'Báo cáo két ca' }).click();
+      await chat.getByText(/Không có số doanh thu đã xác thực/).waitFor();
+      assert.match(await chat.getByRole('region', { name: 'Trích dẫn' }).textContent(), /không phải báo cáo thực tế/);
+    } finally {
+      await page.unroute('**/api/chat', onlineChat);
+    }
     assert.equal(await chat.evaluate((root) => {
       const banned = /(?:255, 209, 0|234, 179, 8|245, 158, 11|37, 99, 235|147, 197, 253|53, 67, 90|35, 49, 73)/;
       return [...root.querySelectorAll('*')].some((el) => {
@@ -521,7 +554,10 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       for (let i = 0; i < 3; i++) await input.press('Enter');
       await chat.getByText(/Phản hồi kiểm thử API/).waitFor();
       assert.equal(requests.length, 1);
-      assert.deepEqual(requests[0], { message: '<img src=x onerror="window.__chatInjected=true">' });
+      assert.equal(requests[0].message, '<img src=x onerror="window.__chatInjected=true">');
+      assert.equal(requests[0].role, 'Employee');
+      assert.equal(requests[0].modelTier, 'medium');
+      assert.deepEqual(requests[0].userContext, { role: 'Employee' });
       assert.equal(await chat.locator('[data-sender="user"]').count(), 1);
       assert.equal(await chat.getByRole('region', { name: 'Trích dẫn' }).isVisible(), true);
       assert.equal(await chat.getByRole('button', { name: 'Xác Nhận (Confirm)' }).isVisible(), true);
@@ -747,12 +783,12 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.equal(await heroTitle.isVisible(), true);
     assert.equal(await page.evaluate(() => sessionStorage.getItem('guta_user')), null);
     assert.equal(await page.evaluate(() => localStorage.getItem('guta_user')), null);
-    for (const { email, name } of [
-      { email: 'employee@guta.test', name: 'Nhân viên' },
-      { email: 'admin@guta.test', name: 'Quản trị viên' },
+    for (const { username, name } of [
+      { username: 'employee', name: 'employee' },
+      { username: 'admin', name: 'admin' },
     ]) {
       await page.getByRole('button', { name: /Get Started/i }).click();
-      await page.getByLabel('Email', { exact: true }).fill(email);
+      await page.getByLabel('Tên đăng nhập', { exact: true }).fill(username);
       await page.getByLabel('Mật khẩu', { exact: true }).fill('fixture-password');
       await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
       const backCrm = page.getByRole('button', { name: 'Quay lại Vận Hành (CRM)', exact: true });

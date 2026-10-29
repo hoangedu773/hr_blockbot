@@ -76,11 +76,16 @@ function toProposal(data: unknown): ChatActionProposal | null {
   if (!data || typeof data !== 'object') return null;
   const candidate = data as Partial<ChatActionProposal>;
   if (typeof candidate.actionId !== 'string' || typeof candidate.type !== 'string') return null;
+  // P2-9: `ActionProposalData` (contracts) requires `args` + `preview`; the
+  // runtime payload is still unvalidated, so fill honest defaults here.
   return {
     actionId: candidate.actionId,
     type: candidate.type,
-    args: candidate.args,
-    preview: typeof candidate.preview === 'string' ? candidate.preview : undefined,
+    args:
+      candidate.args && typeof candidate.args === 'object' && !Array.isArray(candidate.args)
+        ? (candidate.args as Record<string, unknown>)
+        : {},
+    preview: typeof candidate.preview === 'string' ? candidate.preview : '',
   };
 }
 
@@ -486,7 +491,7 @@ export const ChatPanel: React.FC = () => {
                     Đề xuất hành động: {turn.proposal.type}
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                    {turn.proposal.preview ?? 'Máy chủ không trả về mô tả xem trước cho hành động này.'}
+                    {turn.proposal.preview || 'Máy chủ không trả về mô tả xem trước cho hành động này.'}
                   </div>
                   <div className="proposal-card__actions">
                     <button

@@ -7,7 +7,19 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const webRoot = path.resolve(__dirname, "..");
 
-describe("Web Integration: Acceptance & Zero-Mock Verification", () => {
+/**
+ * P2-14 (fix-all-bugs phase 01): the old name `web-integration.test.mjs` was a
+ * lie — every check below only greps strings inside source files, it never
+ * mounts a component or calls the API. Renamed to `*.source-shape.test.mjs` so
+ * nobody can cite it as integration evidence (a always-green "integration" test
+ * is more dangerous than no test: it fabricates proof).
+ *
+ * Real integration coverage lives in:
+ *   - `apps/api/test/*.test.mjs` (HTTP + DB, memory-mongo harness)
+ *   - `apps/web/test/e2e-revamp-flow.test.mjs` (Playwright E2E)
+ *   - `apps/web/test/landing-workflow.test.mjs` (Playwright workflow)
+ */
+describe("Web Source-Shape Checks (NOT integration — P2-14 renamed honestly)", () => {
   it("apps/web/src/services/api.ts không chứa bất kỳ SEED_* hay fallback nuốt lỗi nào", () => {
     const apiFile = fs.readFileSync(path.join(webRoot, "src/services/api.ts"), "utf-8");
 

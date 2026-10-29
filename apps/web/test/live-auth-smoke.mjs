@@ -1,5 +1,5 @@
 // Explicit, non-destructive production smoke check. Never runs in the unit suite.
-// Supply LIVE_AUTH_SMOKE=1, TEST_LOGIN_EMAILS (comma-separated), TEST_LOGIN_PASSWORD.
+// Supply LIVE_AUTH_SMOKE=1, TEST_LOGIN_USERNAMES (comma-separated), TEST_LOGIN_PASSWORD.
 // Only login/refresh/logout sessions are written; HR and provider data are untouched.
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -7,9 +7,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 if (process.env.LIVE_AUTH_SMOKE !== '1') throw new Error('Set LIVE_AUTH_SMOKE=1 explicitly.');
-const emails = (process.env.TEST_LOGIN_EMAILS || '').split(',').filter(Boolean);
+const usernames = (process.env.TEST_LOGIN_USERNAMES || process.env.TEST_LOGIN_EMAILS || '').split(',').filter(Boolean);
 const password = process.env.TEST_LOGIN_PASSWORD;
-if (!emails.length || !password) throw new Error('Test credentials must be supplied through the environment.');
+if (!usernames.length || !password) throw new Error('Test credentials must be supplied through the environment.');
 const web = process.env.LIVE_WEB_URL || 'https://hr-blockbot-web.onrender.com';
 const api = process.env.LIVE_API_URL || 'https://hr-blockbot-api.onrender.com/api';
 const { chromium } = createRequire(import.meta.url)('playwright');
@@ -18,7 +18,7 @@ fs.mkdirSync(output, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 
 try {
-  for (const [index, email] of emails.entries()) {
+  for (const [index, username] of usernames.entries()) {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     try {
       const page = await context.newPage();
@@ -28,11 +28,11 @@ try {
       await page.goto(web, { waitUntil: 'networkidle' });
       await page.getByRole('button', { name: 'Get Started', exact: true }).click();
       assert.equal(await page.locator('#auth-modal svg, #auth-modal img').count(), 0);
-      await page.getByLabel('Email', { exact: true }).fill(email);
+      await page.getByLabel('Tên đăng nhập', { exact: true }).fill(username);
       if (index === 0) {
         await page.getByLabel('Mật khẩu', { exact: true }).fill('intentionally-wrong-smoke-password');
         await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
-        await page.getByRole('alert').filter({ hasText: 'Email hoặc mật khẩu không đúng.' }).waitFor();
+        await page.getByRole('alert').filter({ hasText: 'Tên đăng nhập hoặc mật khẩu không đúng.' }).waitFor();
       }
       await page.getByLabel('Mật khẩu', { exact: true }).fill(password);
       const loginResponse = page.waitForResponse((response) => response.url() === `${api}/auth/login` && response.status() === 200);

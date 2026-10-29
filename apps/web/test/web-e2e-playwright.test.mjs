@@ -2,29 +2,7 @@ import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { createRequire } from "node:module";
-
-let chromium;
-try {
-  const req = createRequire(import.meta.url);
-  chromium = req("playwright").chromium;
-} catch {
-  const candidatePaths = [
-    "C:/work-space/hr-blockbot/node_modules/",
-    "C:/Users/hoang/AppData/Roaming/npm/node_modules/",
-  ];
-  for (const p of candidatePaths) {
-    try {
-      const req = createRequire(p);
-      chromium = req("playwright").chromium;
-      if (chromium) break;
-    } catch {}
-  }
-}
-
-if (!chromium) {
-  throw new Error("Không thể nạp Playwright từ môi trường cục bộ");
-}
+import { chromium } from "./helpers/browser-deps.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const previewHtmlPath = path.resolve(__dirname, "../previews/index.html");

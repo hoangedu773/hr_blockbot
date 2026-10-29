@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { EmployeeSummary } from '@hr-blockbot/contracts';
 import { fetchEmployees } from '../services/api';
 
@@ -7,24 +7,39 @@ export const EmployeeListView: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
+  // P2-11: only the debounced term triggers a fetch, and only the latest
+  // request may write state — a slow older response can no longer overwrite
+  // the result of a newer one (type-to-search race).
+  const [debouncedTerm, setDebouncedTerm] = useState<string>('');
+  const latestRequestRef = useRef<number>(0);
 
-  const loadEmployees = async () => {
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedTerm(searchTerm), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const loadEmployees = async (query: string) => {
+    const requestId = ++latestRequestRef.current;
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetchEmployees({ q: searchTerm });
+      const res = await fetchEmployees({ q: query });
+      if (requestId !== latestRequestRef.current) return; // stale response, drop it
       setEmployees(res.items);
     } catch (err: unknown) {
+      if (requestId !== latestRequestRef.current) return; // stale failure, drop it
       const msg = err instanceof Error ? err.message : 'Lỗi tải danh sách nhân sự';
       setError(msg);
     } finally {
-      setIsLoading(false);
+      if (requestId === latestRequestRef.current) {
+        setIsLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    loadEmployees();
-  }, [searchTerm]);
+    loadEmployees(debouncedTerm);
+  }, [debouncedTerm]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -55,7 +70,7 @@ export const EmployeeListView: React.FC = () => {
             }}
           />
           <button
-            onClick={loadEmployees}
+            onClick={() => loadEmployees(debouncedTerm)}
             style={{
               padding: '6px 12px',
               background: 'var(--surface-card)',

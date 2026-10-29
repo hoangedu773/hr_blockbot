@@ -4,11 +4,10 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
-
-const { chromium } = createRequire(import.meta.url)('playwright');
+import { chromium } from './helpers/browser-deps.mjs';
 const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist');
-const credentials = { email: 'employee@guta.test', password: 'test-only-password' };
+// P0 account-provisioning: login is by provisioned USERNAME (employee code), not email.
+const credentials = { username: 'employee', password: 'test-only-password' };
 const user = { id: 'test-employee', role: 'Employee' };
 const deferred = () => {
   let resolve;
@@ -63,7 +62,7 @@ describe('Account login and session lifecycle (isolated browser fixtures)', () =
         state.loginCount += 1;
         assert.deepEqual(request.postDataJSON(), credentials);
         if (options.networkError) return route.abort('connectionrefused');
-        if (options.rejectLogin) return route.fulfill({ status: 401, json: { error: { message: 'Invalid email or password' } } });
+        if (options.rejectLogin) return route.fulfill({ status: 401, json: { error: { message: 'Invalid username or password' } } });
         if (options.malformedLogin) return route.fulfill({ status: 200, json: { accessToken: 'invalid', user: { id: user.id, role: 'SM' } } });
         state.active = true;
         state.refreshed = false;
@@ -109,7 +108,7 @@ describe('Account login and session lifecycle (isolated browser fixtures)', () =
     }
     await page.getByRole('button', { name: 'Get Started' }).click();
     await page.getByRole('heading', { name: 'Đăng nhập Guta Workspace' }).waitFor();
-    await page.getByLabel('Email', { exact: true }).fill(credentials.email);
+    await page.getByLabel('Tên đăng nhập', { exact: true }).fill(credentials.username);
     await page.getByLabel('Mật khẩu', { exact: true }).fill(credentials.password);
   }
 
@@ -130,7 +129,7 @@ describe('Account login and session lifecycle (isolated browser fixtures)', () =
     const { page, state, errors } = await fixture({ rejectLogin: true });
     await openForm(page);
     await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
-    await page.getByRole('alert').filter({ hasText: 'Email hoặc mật khẩu không đúng.' }).waitFor();
+    await page.getByRole('alert').filter({ hasText: 'Tên đăng nhập hoặc mật khẩu không đúng.' }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Đăng nhập', exact: true }).isEnabled(), true);
     assert.equal(await page.locator('#detail-drawer').count(), 0);
     assert.equal(state.loginCount, 1);
@@ -179,7 +178,7 @@ describe('Account login and session lifecycle (isolated browser fixtures)', () =
     await page.getByRole('button', { name: 'Gửi', exact: true }).click();
     await page.getByText('Phản hồi từ API theo phiên đăng nhập.', { exact: true }).waitFor();
     assert.equal(state.chatCount, 2);
-    assert.equal(state.refreshCount, 2); // startup + one retry
+    assert.equal(state.refreshCount, 1); // no startup refresh for an anonymous boot; one 401 retry
     assert.deepEqual(errors, []);
   });
 

@@ -717,6 +717,16 @@ export const ChatMessageSchema = z.object({
 });
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 
+// P2-10: REST chat request — single source of truth. `apps/api/src/routes/chat.ts`
+// previously re-declared this shape locally and drifted from the socket payload
+// contract; both REST and WS now validate against this schema.
+export const ChatRequestSchema = z.object({
+  message: z.string().trim().min(1).max(2000),
+  conversationId: z.string().trim().min(1).max(200).optional(),
+  modelTier: z.enum(["low", "medium", "high"]).optional(),
+});
+export type ChatRequest = z.infer<typeof ChatRequestSchema>;
+
 export const RagQueryRequestSchema = z.object({
   question: z.string(),
   store_name: z.string().optional(),

@@ -946,12 +946,24 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
     const storesContainer = root.querySelector('#crm-stores-container') as HTMLElement | null;
     const portalContainer = root.querySelector('#crm-custom-view-portal') as HTMLElement | null;
     if (storesContainer && portalContainer) {
+      // BUG (caught by e2e step "CRM sidebar chuyển phân hệ"): the portal div is
+      // a DOM *descendant* of #crm-stores-container in the shipped HTML, so the
+      // old toggle (stores: none / portal: block) hid the portal together with
+      // its parent — every non-stores section rendered nothing visible. Hide
+      // the store inventory children individually instead; this is agnostic to
+      // whether the portal ends up inside or next to the container.
+      const storeChildren = Array.from(storesContainer.children) as HTMLElement[];
       if (activeView === 'stores') {
         storesContainer.style.display = 'block';
         portalContainer.style.display = 'none';
+        storeChildren.forEach((child) => {
+          if (child !== portalContainer) child.style.display = '';
+        });
       } else {
-        storesContainer.style.display = 'none';
         portalContainer.style.display = 'block';
+        storeChildren.forEach((child) => {
+          if (child !== portalContainer) child.style.display = 'none';
+        });
       }
     }
   }, [activeView]);

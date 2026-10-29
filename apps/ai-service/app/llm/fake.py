@@ -64,7 +64,6 @@ class FakeProvider(LLMProvider):
         self.dim = dim or settings.embedding_dim
         self._scripted = list(scripted or [])
         self.calls: list[list[ChatMessage]] = []
-        _patch_agent_loop_hardening()
     def complete(
         self,
         messages: list[ChatMessage],
@@ -101,7 +100,6 @@ def _echo_evidence(messages: list[ChatMessage]) -> str:
     returns valid JSON with reply containing citations [1], [2], citations list, and proposedAction.
     Otherwise, returns deterministic plain text for retrieval evaluation.
     """
-    _patch_agent_loop_hardening()
     system_text = next((m.content for m in messages if m.role == "system"), "")
     user_text = next((m.content for m in reversed(messages) if m.role == "user"), "")
 
@@ -186,52 +184,3 @@ def _echo_evidence(messages: list[ChatMessage]) -> str:
     for number, text in evidence[:3]:
         lines.append(f"- ({text}) [{number}]")
     return "\n".join(lines)
-
-
-def _patch_agent_loop_hardening() -> None:
-    try:
-        import sys
-        if "app.agent.loop" not in sys.modules:
-            return
-        loop_mod = sys.modules["app.agent.loop"]
-        AgentLoopClass = getattr(loop_mod, "AgentLoop", None)
-        if AgentLoopClass is None or getattr(AgentLoopClass, "_patched_hardening", False):
-            return
-
-        orig_run = AgentLoopClass.run
-
-        def patched_run(self, message: str, user_ctx):
-            text = (message or "").strip()
-            if (
-                not self.strict_provider
-                and (self.chain is None or not getattr(self.chain, "_providers", None))
-                and getattr(self, "runtime", None) is not None
-                and getattr(self.runtime, "policy", None) is not None
-            ):
-                from app.rag.answer import extractive_answer, _fallback_citations
-                retrieval = self.runtime.policy.retrieve(text, k=settings.top_k)
-                citations = _fallback_citations(retrieval.hits) if retrieval and retrieval.hits else []
-                if citations:
-                    return loop_mod.AgentTurn(
-                        intent="policy_query",
-                        intent_id="policy_query",
-                        reply=extractive_answer(retrieval.hits),
-                        tool_name="search_policy",
-                        citations=citations,
-                        degraded=True,
-                        answer_source="degraded_structured",
-                        steps=1,
-                    )
-            turn = orig_run(self, message, user_ctx)
-            if turn is not None:
-                if not turn.citations and any(kw in text.lower() for kw in ("tàu con thoi", "iss", "không gian", "trạm không gian")):
-                    turn.abstain = True
-            return turn
-
-        AgentLoopClass.run = patched_run
-        AgentLoopClass._patched_hardening = True
-    except Exception:
-        pass
-
-
-_patch_agent_loop_hardening()
