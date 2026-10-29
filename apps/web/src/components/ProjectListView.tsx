@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   EmployeeSummary,
   MeResponse,
@@ -59,6 +59,14 @@ export const ProjectListView: React.FC<ProjectListViewProps> = ({ onNotify }) =>
   const { user } = useAuth();
   const isAdmin = user?.role === 'Admin';
 
+  // P1-16: `onNotify` is usually passed as an inline arrow, so its identity changes
+  // on every render. Using it directly in `load`'s dependency list made the effect
+  // re-run forever. Keep the latest callback in a ref and leave deps to real inputs.
+  const onNotifyRef = useRef(onNotify);
+  useEffect(() => {
+    onNotifyRef.current = onNotify;
+  }, [onNotify]);
+
   const [data, setData] = useState<PaginatedProjectsResponse | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string>('');
@@ -101,11 +109,11 @@ export const ProjectListView: React.FC<ProjectListViewProps> = ({ onNotify }) =>
     } catch (err: unknown) {
       const message = err instanceof ApiError ? `${err.code}: ${err.message}` : err instanceof Error ? err.message : 'Lỗi tải danh sách đề tài';
       setLoadError(message);
-      onNotify(message, 'error', 'Không tải được đề tài');
+      onNotifyRef.current(message, 'error', 'Không tải được đề tài');
     } finally {
       setIsLoading(false);
     }
-  }, [statusFilter, overdueOnly, page, onNotify]);
+  }, [statusFilter, overdueOnly, page]);
 
   useEffect(() => {
     void load();

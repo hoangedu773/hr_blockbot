@@ -5,6 +5,7 @@ import {
   EmployeeDetailSchema,
   PaginatedEmployeesResponseSchema,
   PaginationQuerySchema,
+  CreateProfileChangeRequestSchema,
 } from "@hr-blockbot/contracts";
 import { EmployeeModel } from "../models/Employee.js";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
@@ -258,6 +259,152 @@ router.get("/employees/:id", authenticateToken, async (req: Request, res: Respon
         message: "Failed to fetch employee",
       },
     });
+  }
+});
+
+// --- Profile change requests (P1-8) -------------------------------------------
+// The Employee model, the contracts and the web client already spoke this contract;
+// only the routes were missing, so the profile screen called a 404. Requests are
+// embedded in the employee document on purpose (ADR-018: no new collection).
+
+function canActOnEmployee(user: { role: string; employeeId?: string | null; departmentId?: string | null }, employee: any): boolean {
+  if (user.role !== "Admin") {
+    return Boolean(user.employeeId) && String(user.employeeId) === String(employee._id);
+  }
+  const employeeDept = employee.departmentId ? String(employee.departmentId) : "";
+  return Boolean(user.departmentId) && user.departmentId === employeeDept;
+}
+
+function toProfileChangeRequest(raw: any) {
+  return {
+    id: String(raw.id ?? raw._id ?? ""),
+    requestedBy: String(raw.requestedBy ?? ""),
+    requestedAt: new Date(raw.requestedAt ?? Date.now()).toISOString(),
+    status: raw.status,
+    targetFields: raw.targetFields ?? {},
+    previousSnapshot: raw.previousSnapshot ?? {},
+    reviewedBy: raw.reviewedBy ?? null,
+    reviewedAt: raw.reviewedAt ? new Date(raw.reviewedAt).toISOString() : null,
+    rejectionReason: raw.rejectionReason ?? null,
+    previousRequestId: raw.previousRequestId ?? null,
+  };
+}
+
+// POST /api/employees/:id/change-requests - employee asks to change level/hiredAt/jobTitle
+router.post("/employees/:id/change-requests", authenticateToken, async (req: Request, res: Response) => {
+  const user = req.user!;
+  const { id } = req.params;
+  const parsed = CreateProfileChangeRequestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({
+      error: { code: "VALIDATION_FAILED", message: "Invalid change request", details: parsed.error.flatten() },
+    });
+    return;
+  }
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    res.status(400).json({ error: { code: "VALIDATION_FAILED", message: "Invalid employee ID format" } });
+    return;
+  }
+
+  try {
+    const employee: any = await EmployeeModel.findById(id);
+    if (!employee) {
+      res.status(404).json({ error: { code: "RESOURCE_NOT_FOUND", message: "Employee not found" } });
+      return;
+    }
+    if (!canActOnEmployee(user, employee)) {
+      // 404, not 403: do not confirm that an out-of-scope employee exists.
+      res.status(404).json({ error: { code: "RESOURCE_NOT_FOUND", message: "Employee not found" } });
+      return;
+    }
+
+    const previousSnapshot = {
+      level: employee.level,
+      hiredAt: employee.hiredAt,
+      jobTitle: employee.jobTitle ?? employee.job_title,
+    };
+    const request = {
+      id: new mongoose.Types.ObjectId().toString(),
+      requestedBy: String(user.employeeId || user.userId),
+      requestedAt: new Date(),
+      status: "PENDING" as const,
+      targetFields: parsed.data.targetFields,
+      previousSnapshot,
+      previousRequestId: parsed.data.previousRequestId,
+    };
+
+    employee.profileChangeRequests = [...(employee.profileChangeRequests ?? []), request];
+    await employee.save();
+
+    res.status(201).json(toProfileChangeRequest(request));
+  } catch (err) {
+    console.error("[Employees] Change request error:", err instanceof Error ? err.message : "internal error");
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to create change request" } });
+  }
+});
+
+// GET /api/employees/:id/change-requests - own history (or Admin in scope)
+router.get("/employees/:id/change-requests", authenticateToken, async (req: Request, res: Response) => {
+  const user = req.user!;
+  const { id } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    res.status(400).json({ error: { code: "VALIDATION_FAILED", message: "Invalid employee ID format" } });
+    return;
+  }
+
+  try {
+    const employee: any = await EmployeeModel.findById(id).lean();
+    if (!employee || !canActOnEmployee(user, employee)) {
+      res.status(404).json({ error: { code: "RESOURCE_NOT_FOUND", message: "Employee not found" } });
+      return;
+    }
+    const items = (employee.profileChangeRequests ?? []).map(toProfileChangeRequest);
+    res.status(200).json({ items });
+  } catch (err) {
+    console.error("[Employees] Change request list error:", err instanceof Error ? err.message : "internal error");
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to fetch change requests" } });
+  }
+});
+
+// GET /api/change-requests?status=PENDING - Admin approval queue, department-scoped
+router.get("/change-requests", authenticateToken, async (req: Request, res: Response) => {
+  const user = req.user!;
+  if (user.role !== "Admin") {
+    res.status(403).json({ error: { code: "RBAC_DENIED", message: "Only Admin can list change requests" } });
+    return;
+  }
+  if (!user.departmentId) {
+    res.status(403).json({
+      error: { code: "RBAC_DENIED", message: "Admin has no assigned department scope (unmapped)" },
+    });
+    return;
+  }
+
+  const statusFilter = typeof req.query.status === "string" ? req.query.status : "PENDING";
+  if (!["PENDING", "APPROVED", "REJECTED"].includes(statusFilter)) {
+    res.status(400).json({ error: { code: "VALIDATION_FAILED", message: "Invalid status filter" } });
+    return;
+  }
+
+  try {
+    const employees: any[] = await EmployeeModel.find({ departmentId: user.departmentId })
+      .select("fullName full_name profileChangeRequests")
+      .lean();
+
+    const items = employees.flatMap((employee) =>
+      (employee.profileChangeRequests ?? [])
+        .filter((request: any) => request.status === statusFilter)
+        .map((request: any) => ({
+          employeeId: String(employee._id),
+          employeeName: String(employee.fullName ?? employee.full_name ?? ""),
+          request: toProfileChangeRequest(request),
+        }))
+    );
+
+    res.status(200).json({ items });
+  } catch (err) {
+    console.error("[Employees] Queue error:", err instanceof Error ? err.message : "internal error");
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Failed to fetch change request queue" } });
   }
 });
 

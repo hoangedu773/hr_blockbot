@@ -3,10 +3,11 @@ import { createPortal } from 'react-dom';
 import type { NotifyFn } from './Toast';
 import { AdminSettingsView } from './AdminSettingsView';
 import { EmployeeListView } from './EmployeeListView';
+import { EmployeeProfileView } from './EmployeeProfileView';
 import { ProjectListView } from './ProjectListView';
 import { RosterView } from './RosterView';
 
-export type ActiveCrmView = 'stores' | 'employees' | 'schedules' | 'projects' | 'settings';
+export type ActiveCrmView = 'stores' | 'employees' | 'profile' | 'schedules' | 'projects' | 'settings';
 export interface CrmDashboardViewProps {
   userName: string;
   userRole: string;
@@ -67,6 +68,7 @@ const CRM_HTML = `
 
           <button type="button" data-section="stores" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold bg-muted/60 text-foreground border border-border/80 text-left">Chi nhánh / Cửa hàng <span class="ml-auto">45</span></button>
           <button type="button" data-section="employees" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Nhân sự</button>
+          <button type="button" data-section="profile" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Hồ sơ của tôi</button>
           <button type="button" data-section="schedules" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Hồ sơ nhân sự</button>
           <button type="button" data-section="settings" id="crm-nav-settings" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Cài đặt LLM</button>
         </nav>
@@ -958,6 +960,8 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
         createPortal(
           activeView === 'employees' ? (
             <EmployeeListView />
+          ) : activeView === 'profile' ? (
+            <EmployeeProfileView onLogout={onLogout} onNotify={safeNotify} />
           ) : activeView === 'schedules' ? (
             <RosterView onNotify={safeNotify} />
           ) : activeView === 'projects' ? (
