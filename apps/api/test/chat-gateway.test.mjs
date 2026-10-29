@@ -18,7 +18,9 @@ function mockBoundaries(t) {
   const saved = { ...process.env };
   t.after(() => { process.env = saved; });
   process.env.AI_LLM_API_KEY = 'test-only-not-a-credential';
-  delete process.env.AI_LLM_BASE_URL;
+  // J-5: không còn endpoint mặc định trong source — thiếu AI_LLM_BASE_URL thì service
+  // fail-closed và không bao giờ gọi fetch. Test này cần một endpoint giả để chạm boundary.
+  process.env.AI_LLM_BASE_URL = 'https://provider.test.invalid/v1';
   delete process.env.AI_LLM_MODEL;
   return t.mock.method(globalThis, 'fetch', async () => Response.json(answer));
 }
@@ -60,7 +62,9 @@ test('gateway forwards authenticated context, conversation and canonical action 
   assert.deepEqual(request.userContext, context);
   assert.equal(request.conversationId, 'conversation-test');
   const provider = request.providerConfig.providers[0];
-  assert.equal(provider.baseUrl, DEFAULT_GEMINI_PROVIDER.baseUrl);
+  // J-5: endpoint đến từ env, không có giá trị mặc định trong source.
+  assert.equal(provider.baseUrl, process.env.AI_LLM_BASE_URL);
+  assert.equal(DEFAULT_GEMINI_PROVIDER.baseUrl, '');
   assert.equal(provider.model, 'ag/gemini-3.8-flash-low');
   assert.equal(provider.timeoutMs, 15000);
   assert.equal(DEFAULT_GEMINI_PROVIDER.apiKey, '');

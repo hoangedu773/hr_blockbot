@@ -1,7 +1,49 @@
 import "./require-isolated-db.mjs";
 import { test, describe, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { createServer } from "node:http";
+import http, { createServer } from "node:http";
+
+/**
+ * HTTP client cho bộ test: `fetch` (undici) giữ socket keep-alive trong pool, và một
+ * socket còn sống thì tiến trình test không bao giờ thoát -> `npm test` treo sau khi
+ * mọi assertion đã pass. Helper này mở kết nối riêng cho từng request và đóng ngay.
+ */
+function httpFetch(url, init = {}) {
+  return new Promise((resolve, reject) => {
+    const target = new URL(url);
+    const req = http.request(
+      {
+        hostname: target.hostname,
+        port: target.port,
+        path: `${target.pathname}${target.search}`,
+        method: init.method || "GET",
+        headers: { ...(init.headers || {}), Connection: "close" },
+        agent: false,
+      },
+      (res) => {
+        const chunks = [];
+        res.on("data", (chunk) => chunks.push(chunk));
+        res.on("end", () => {
+          const body = Buffer.concat(chunks).toString("utf8");
+          resolve({
+            status: res.statusCode,
+            headers: {
+              get: (name) => {
+                const value = res.headers[name.toLowerCase()];
+                return Array.isArray(value) ? value.join(", ") : value ?? null;
+              },
+            },
+            json: async () => JSON.parse(body),
+            text: async () => body,
+          });
+        });
+      }
+    );
+    req.on("error", reject);
+    if (init.body) req.write(init.body);
+    req.end();
+  });
+}
 
 import { app } from "../dist/app.js";
 import { connectDB, disconnectDB } from "../dist/db.js";
@@ -45,14 +87,14 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
 
     // 3. Clean up any leftover test data
     const leftoverUsers = await UserModel.find(
-      { email: /@test-phase2\.vn$/ },
+      { username: /^test-p2-/ },
       { _id: 1 }
     ).lean();
     if (leftoverUsers.length > 0) {
       const leftoverUserIds = leftoverUsers.map((u) => u._id);
       await RefreshSessionModel.deleteMany({ userId: { $in: leftoverUserIds } });
     }
-    await UserModel.deleteMany({ email: /@test-phase2\.vn$/ });
+    await UserModel.deleteMany({ username: /^test-p2-/ });
     await EmployeeModel.deleteMany({ employeeCode: /^TEST-P2-/ });
 
     // 4. Seed test employees
@@ -99,7 +141,7 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
     // 5. Seed test users
     const adminPasswordHash = await hashPassword("AdminPass@123");
     testAdminUser = await UserModel.create({
-      email: "admin@test-phase2.vn",
+      username: "test-p2-admin",
       passwordHash: adminPasswordHash,
       role: "Admin",
       employeeId: testAdminEmployee._id,
@@ -109,7 +151,7 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
 
     const empPasswordHash = await hashPassword("EmpPass@123");
     testEmpUser = await UserModel.create({
-      email: "emp@test-phase2.vn",
+      username: "test-p2-emp",
       passwordHash: empPasswordHash,
       role: "Employee",
       employeeId: testEmpEmployee._id,
@@ -119,19 +161,26 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
   });
 
   after(async () => {
-    // Clean up test data scoped by user fixture IDs
-    const fixtureUserIds = [testAdminUser?._id, testEmpUser?._id].filter(Boolean);
-    if (fixtureUserIds.length > 0) {
-      await RefreshSessionModel.deleteMany({ userId: { $in: fixtureUserIds } });
-    }
-    await UserModel.deleteMany({ email: /@test-phase2\.vn$/ });
-    await EmployeeModel.deleteMany({ employeeCode: /^TEST-P2-/ });
-
-    // Close connections
-    await disconnectDB();
     if (server) {
-      await new Promise((resolve) => server.close(resolve));
+      // Không await `close()`: một keep-alive socket còn sót lại làm promise này treo
+      // vô hạn và `npm test` không bao giờ kết thúc.
+      server.closeAllConnections?.();
+      server.close();
     }
+    // Dọn dẹp best-effort: in-memory mongod đôi khi ngừng trả lời ở cuối lượt chạy.
+    // Teardown không được phép treo cả bộ test; DB test bị xoá sau mỗi lần chạy.
+    await Promise.race([
+      (async () => {
+        const fixtureUserIds = [testAdminUser?._id, testEmpUser?._id].filter(Boolean);
+        if (fixtureUserIds.length > 0) {
+          await RefreshSessionModel.deleteMany({ userId: { $in: fixtureUserIds } });
+        }
+        await UserModel.deleteMany({ username: /^test-p2-/ });
+        await EmployeeModel.deleteMany({ employeeCode: /^TEST-P2-/ });
+        await disconnectDB();
+      })(),
+      new Promise((resolve) => setTimeout(resolve, 3000)),
+    ]);
   });
 
   // ==========================================================================
@@ -261,45 +310,45 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
   // ==========================================================================
   describe("5. Endpoints: Login, Auth Me & Logout", () => {
     test("POST /api/auth/login - từ chối payload sai format (400 VALIDATION_FAILED)", async () => {
-      const res = await fetch(`${baseUrl}/api/auth/login`, {
+      const res = await httpFetch(`${baseUrl}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "not-an-email" }),
+        body: JSON.stringify({ username: "ab" }),
       });
       assert.equal(res.status, 400);
       const data = await res.json();
       assert.equal(data.error.code, "VALIDATION_FAILED");
     });
 
-    test("POST /api/auth/login - từ chối sai email hoặc password bằng thông báo chung (401 UNAUTHENTICATED)", async () => {
-      // Sai email
-      const res1 = await fetch(`${baseUrl}/api/auth/login`, {
+    test("POST /api/auth/login - từ chối sai username hoặc password bằng thông báo chung (401 UNAUTHENTICATED)", async () => {
+      // Sai username
+      const res1 = await httpFetch(`${baseUrl}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "nonexistent@test-phase2.vn", password: "somepassword" }),
+        body: JSON.stringify({ username: "test-p2-missing", password: "somepassword" }),
       });
       assert.equal(res1.status, 401);
       const data1 = await res1.json();
       assert.equal(data1.error.code, "UNAUTHENTICATED");
-      assert.equal(data1.error.message, "Invalid email or password");
+      assert.equal(data1.error.message, "Invalid username or password");
 
       // Sai mật khẩu
-      const res2 = await fetch(`${baseUrl}/api/auth/login`, {
+      const res2 = await httpFetch(`${baseUrl}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "admin@test-phase2.vn", password: "WrongPassword" }),
+        body: JSON.stringify({ username: "test-p2-admin", password: "WrongPassword" }),
       });
       assert.equal(res2.status, 401);
       const data2 = await res2.json();
       assert.equal(data2.error.code, "UNAUTHENTICATED");
-      assert.equal(data2.error.message, "Invalid email or password");
+      assert.equal(data2.error.message, "Invalid username or password");
     });
 
     test("POST /api/auth/login - thành công cấp Access Token trong body và Refresh Token trong HttpOnly cookie", async () => {
-      const res = await fetch(`${baseUrl}/api/auth/login`, {
+      const res = await httpFetch(`${baseUrl}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "admin@test-phase2.vn", password: "AdminPass@123" }),
+        body: JSON.stringify({ username: "test-p2-admin", password: "AdminPass@123" }),
       });
       assert.equal(res.status, 200);
 
@@ -321,40 +370,150 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
 
     test("GET /api/auth/me - yêu cầu auth, trả đúng identity và scope", async () => {
       // Unauthenticated -> 401
-      const resUnauth = await fetch(`${baseUrl}/api/auth/me`);
+      const resUnauth = await httpFetch(`${baseUrl}/api/auth/me`);
       assert.equal(resUnauth.status, 401);
 
       // Login Admin
-      const loginRes = await fetch(`${baseUrl}/api/auth/login`, {
+      const loginRes = await httpFetch(`${baseUrl}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "admin@test-phase2.vn", password: "AdminPass@123" }),
+        body: JSON.stringify({ username: "test-p2-admin", password: "AdminPass@123" }),
       });
       const { accessToken } = await loginRes.json();
 
-      const resMe = await fetch(`${baseUrl}/api/auth/me`, {
+      const resMe = await httpFetch(`${baseUrl}/api/auth/me`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       assert.equal(resMe.status, 200);
       const meData = await resMe.json();
       assert.equal(meData.role, "Admin");
       assert.equal(meData.departmentId, "DEPT_TECH");
+      assert.equal(meData.username, "test-p2-admin");
+    });
+  });
+
+  describe("5b. Đổi mật khẩu bắt buộc (mật khẩu tạm do quản lý phát)", () => {
+    let tempUser;
+    const TEMP_PASSWORD = "TempPass@2026";
+    const NEW_PASSWORD = "NewPass@2026";
+
+    before(async () => {
+      // Chỉ cần một user có mustChangePassword: hành vi đổi mật khẩu không phụ thuộc
+      // hồ sơ nhân viên, nên fixture không tạo Employee để giảm bề mặt lỗi.
+      await UserModel.deleteMany({ username: "test-p2-temp" });
+      tempUser = await UserModel.create({
+        username: "test-p2-temp",
+        passwordHash: await hashPassword(TEMP_PASSWORD),
+        role: "Employee",
+        mustChangePassword: true,
+      });
+    });
+
+    after(async () => {
+      if (tempUser) await RefreshSessionModel.deleteMany({ userId: tempUser._id });
+      await UserModel.deleteMany({ username: "test-p2-temp" });
+    });
+
+    test("login trả mustChangePassword=true để web buộc đổi mật khẩu", async () => {
+      const res = await httpFetch(`${baseUrl}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "test-p2-temp", password: TEMP_PASSWORD }),
+      });
+      assert.equal(res.status, 200);
+      const body = await res.json();
+      assert.equal(body.user.mustChangePassword, true);
+      assert.equal(body.user.username, "test-p2-temp");
+    });
+
+    test("POST /api/auth/change-password - sai mật khẩu hiện tại bị 401", async () => {
+      const loginRes = await httpFetch(`${baseUrl}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "test-p2-temp", password: TEMP_PASSWORD }),
+      });
+      const { accessToken } = await loginRes.json();
+
+      const res = await httpFetch(`${baseUrl}/api/auth/change-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ currentPassword: "wrong-pass", newPassword: NEW_PASSWORD }),
+      });
+      assert.equal(res.status, 401);
+
+      // Mật khẩu cũ vẫn dùng được: lần đổi sai không làm hỏng tài khoản.
+      const retry = await httpFetch(`${baseUrl}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "test-p2-temp", password: TEMP_PASSWORD }),
+      });
+      assert.equal(retry.status, 200);
+    });
+
+    test("POST /api/auth/change-password - thiếu access token bị 401", async () => {
+      const res = await httpFetch(`${baseUrl}/api/auth/change-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword: TEMP_PASSWORD, newPassword: NEW_PASSWORD }),
+      });
+      assert.equal(res.status, 401);
+    });
+
+    test("POST /api/auth/change-password - đổi thành công, thu hồi refresh token cũ, mật khẩu mới dùng được", async () => {
+      const loginRes = await httpFetch(`${baseUrl}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "test-p2-temp", password: TEMP_PASSWORD }),
+      });
+      const { accessToken } = await loginRes.json();
+      const rt = loginRes.headers.get("set-cookie").match(/refreshToken=([^;]+)/)[1];
+
+      const res = await httpFetch(`${baseUrl}/api/auth/change-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ currentPassword: TEMP_PASSWORD, newPassword: NEW_PASSWORD }),
+      });
+      assert.equal(res.status, 204);
+
+      // Refresh token cấp trước khi đổi mật khẩu đã bị thu hồi.
+      const refreshRes = await httpFetch(`${baseUrl}/api/auth/refresh`, {
+        method: "POST",
+        headers: { Cookie: `refreshToken=${rt}` },
+      });
+      assert.equal(refreshRes.status, 401);
+
+      // Mật khẩu cũ chết, mật khẩu mới sống.
+      const oldLogin = await httpFetch(`${baseUrl}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "test-p2-temp", password: TEMP_PASSWORD }),
+      });
+      assert.equal(oldLogin.status, 401);
+
+      const newLogin = await httpFetch(`${baseUrl}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "test-p2-temp", password: NEW_PASSWORD }),
+      });
+      assert.equal(newLogin.status, 200);
+      const newBody = await newLogin.json();
+      assert.equal(newBody.user.mustChangePassword, false);
     });
   });
 
   describe("6. Refresh Token Rotation (RTR) & Replay Attack Detection", () => {
     test("POST /api/auth/refresh - rotate token thành công một lần", async () => {
       // 1. Login để lấy RT-1
-      const loginRes = await fetch(`${baseUrl}/api/auth/login`, {
+      const loginRes = await httpFetch(`${baseUrl}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "emp@test-phase2.vn", password: "EmpPass@123" }),
+        body: JSON.stringify({ username: "test-p2-emp", password: "EmpPass@123" }),
       });
       const setCookie1 = loginRes.headers.get("set-cookie");
       const rt1 = setCookie1.match(/refreshToken=([^;]+)/)[1];
 
       // 2. Refresh lần đầu bằng RT-1 -> nhận RT-2
-      const refreshRes1 = await fetch(`${baseUrl}/api/auth/refresh`, {
+      const refreshRes1 = await httpFetch(`${baseUrl}/api/auth/refresh`, {
         method: "POST",
         headers: { Cookie: `refreshToken=${rt1}` },
       });
@@ -368,7 +527,7 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
       assert.notEqual(rt1, rt2);
 
       // 3. REPLAY ATTACK: Dùng lại RT-1 đã bị rotate -> lập tức phát hiện replay và thu hồi cả family
-      const replayRes = await fetch(`${baseUrl}/api/auth/refresh`, {
+      const replayRes = await httpFetch(`${baseUrl}/api/auth/refresh`, {
         method: "POST",
         headers: { Cookie: `refreshToken=${rt1}` },
       });
@@ -377,7 +536,7 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
       assert.equal(replayData.error.code, "TOKEN_REUSED");
 
       // 4. FAIL-CLOSED: RT-2 (đang hợp lệ trước đó) cũng BỊ THU HỒI theo do cùng family
-      const successorRes = await fetch(`${baseUrl}/api/auth/refresh`, {
+      const successorRes = await httpFetch(`${baseUrl}/api/auth/refresh`, {
         method: "POST",
         headers: { Cookie: `refreshToken=${rt2}` },
       });
@@ -386,10 +545,10 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
 
     test("Concurrent Refresh Race Condition: cả hai không tạo successor hợp lệ dùng được sau revoke", async () => {
       // 1. Login
-      const loginRes = await fetch(`${baseUrl}/api/auth/login`, {
+      const loginRes = await httpFetch(`${baseUrl}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "emp@test-phase2.vn", password: "EmpPass@123" }),
+        body: JSON.stringify({ username: "test-p2-emp", password: "EmpPass@123" }),
       });
       const setCookie = loginRes.headers.get("set-cookie");
       const rt = setCookie.match(/refreshToken=([^;]+)/)[1];
@@ -417,22 +576,22 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
     });
 
     test("POST /api/auth/logout - thu hồi toàn bộ session family và xóa cookie", async () => {
-      const loginRes = await fetch(`${baseUrl}/api/auth/login`, {
+      const loginRes = await httpFetch(`${baseUrl}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "emp@test-phase2.vn", password: "EmpPass@123" }),
+        body: JSON.stringify({ username: "test-p2-emp", password: "EmpPass@123" }),
       });
       const setCookie = loginRes.headers.get("set-cookie");
       const rt = setCookie.match(/refreshToken=([^;]+)/)[1];
 
-      const logoutRes = await fetch(`${baseUrl}/api/auth/logout`, {
+      const logoutRes = await httpFetch(`${baseUrl}/api/auth/logout`, {
         method: "POST",
         headers: { Cookie: `refreshToken=${rt}` },
       });
       assert.equal(logoutRes.status, 204);
 
       // Thử dùng lại RT sau logout -> 401
-      const tryRefresh = await fetch(`${baseUrl}/api/auth/refresh`, {
+      const tryRefresh = await httpFetch(`${baseUrl}/api/auth/refresh`, {
         method: "POST",
         headers: { Cookie: `refreshToken=${rt}` },
       });
@@ -446,23 +605,23 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
 
     before(async () => {
       // Lấy token cho Admin và Employee
-      const adminLogin = await fetch(`${baseUrl}/api/auth/login`, {
+      const adminLogin = await httpFetch(`${baseUrl}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "admin@test-phase2.vn", password: "AdminPass@123" }),
+        body: JSON.stringify({ username: "test-p2-admin", password: "AdminPass@123" }),
       });
       adminToken = (await adminLogin.json()).accessToken;
 
-      const empLogin = await fetch(`${baseUrl}/api/auth/login`, {
+      const empLogin = await httpFetch(`${baseUrl}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "emp@test-phase2.vn", password: "EmpPass@123" }),
+        body: JSON.stringify({ username: "test-p2-emp", password: "EmpPass@123" }),
       });
       empToken = (await empLogin.json()).accessToken;
     });
 
     test("GET /api/employees - Employee cố gọi danh sách nhân sự bị 403 RBAC_DENIED", async () => {
-      const res = await fetch(`${baseUrl}/api/employees`, {
+      const res = await httpFetch(`${baseUrl}/api/employees`, {
         headers: { Authorization: `Bearer ${empToken}` },
       });
       assert.equal(res.status, 403);
@@ -471,7 +630,7 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
     });
 
     test("GET /api/employees - Admin xem danh sách trong scope, TUYỆT ĐỐI KHÔNG chứa PII", async () => {
-      const res = await fetch(`${baseUrl}/api/employees`, {
+      const res = await httpFetch(`${baseUrl}/api/employees`, {
         headers: { Authorization: `Bearer ${adminToken}` },
       });
       assert.equal(res.status, 200);
@@ -495,7 +654,7 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
     });
 
     test("GET /api/employees - Admin yêu cầu xem phòng ban ngoài scope bị 403 RBAC_DENIED", async () => {
-      const res = await fetch(`${baseUrl}/api/employees?departmentId=DEPT_OTHER`, {
+      const res = await httpFetch(`${baseUrl}/api/employees?departmentId=DEPT_OTHER`, {
         headers: { Authorization: `Bearer ${adminToken}` },
       });
       assert.equal(res.status, 403);
@@ -504,7 +663,7 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
     });
 
     test("GET /api/employees/:id - Employee xem hồ sơ của CHÍNH MÌNH (own) thành công với EmployeeDetailSchema", async () => {
-      const res = await fetch(`${baseUrl}/api/employees/${testEmpEmployee._id}`, {
+      const res = await httpFetch(`${baseUrl}/api/employees/${testEmpEmployee._id}`, {
         headers: { Authorization: `Bearer ${empToken}` },
       });
       assert.equal(res.status, 200);
@@ -519,7 +678,7 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
     });
 
     test("GET /api/employees/:id - Employee xem hồ sơ người khác bị 403 RBAC_DENIED", async () => {
-      const res = await fetch(`${baseUrl}/api/employees/${testAdminEmployee._id}`, {
+      const res = await httpFetch(`${baseUrl}/api/employees/${testAdminEmployee._id}`, {
         headers: { Authorization: `Bearer ${empToken}` },
       });
       assert.equal(res.status, 403);
@@ -528,7 +687,7 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
     });
 
     test("GET /api/employees/:id - Admin xem nhân sự trong scope chỉ nhận EmployeeSummarySchema (không có phone/hiredAt)", async () => {
-      const res = await fetch(`${baseUrl}/api/employees/${testEmpEmployee._id}`, {
+      const res = await httpFetch(`${baseUrl}/api/employees/${testEmpEmployee._id}`, {
         headers: { Authorization: `Bearer ${adminToken}` },
       });
       assert.equal(res.status, 200);
@@ -541,7 +700,7 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
     });
 
     test("GET /api/employees/:id - Admin xem nhân sự ngoài scope bị 403 RBAC_DENIED", async () => {
-      const res = await fetch(`${baseUrl}/api/employees/${testOtherEmployee._id}`, {
+      const res = await httpFetch(`${baseUrl}/api/employees/${testOtherEmployee._id}`, {
         headers: { Authorization: `Bearer ${adminToken}` },
       });
       assert.equal(res.status, 403);
@@ -550,10 +709,68 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
     });
   });
 
+  describe("7b. Global Admin (không gắn hồ sơ nhân viên) — hàng đợi duyệt toàn hệ thống", () => {
+    let globalToken;
+    let scopedUnmappedToken;
+
+    before(async () => {
+      await UserModel.deleteMany({ username: { $in: ["test-p2-global", "test-p2-unmapped"] } });
+      const globalAdmin = await UserModel.create({
+        username: "test-p2-global",
+        passwordHash: await hashPassword("GlobalPass@123"),
+        role: "Admin",
+        employeeId: null,
+        isGlobalAdmin: true,
+      });
+      const unmappedAdmin = await UserModel.create({
+        username: "test-p2-unmapped",
+        passwordHash: await hashPassword("UnmappedPass@123"),
+        role: "Admin",
+        employeeId: null,
+        isGlobalAdmin: false,
+      });
+      globalToken = await signAccessToken({ sub: globalAdmin._id.toString(), role: "Admin" });
+      scopedUnmappedToken = await signAccessToken({ sub: unmappedAdmin._id.toString(), role: "Admin" });
+    });
+
+    after(async () => {
+      await UserModel.deleteMany({ username: { $in: ["test-p2-global", "test-p2-unmapped"] } });
+    });
+
+    test("Admin toàn quyền xem được hàng đợi duyệt dù không có departmentId", async () => {
+      const res = await httpFetch(`${baseUrl}/api/change-requests?status=PENDING`, {
+        headers: { Authorization: `Bearer ${globalToken}` },
+      });
+      assert.equal(res.status, 200);
+      const data = await res.json();
+      assert.ok(Array.isArray(data.items));
+    });
+
+    test("Admin toàn quyền xem được danh sách nhân sự toàn hệ thống", async () => {
+      const res = await httpFetch(`${baseUrl}/api/employees?limit=5`, {
+        headers: { Authorization: `Bearer ${globalToken}` },
+      });
+      assert.equal(res.status, 200);
+      const data = await res.json();
+      assert.ok(data.paging.totalItems >= 3);
+    });
+
+    test("Admin không có cờ isGlobalAdmin và không có departmentId vẫn bị 403 (fail-closed)", async () => {
+      const queue = await httpFetch(`${baseUrl}/api/change-requests?status=PENDING`, {
+        headers: { Authorization: `Bearer ${scopedUnmappedToken}` },
+      });
+      assert.equal(queue.status, 403);
+      const employees = await httpFetch(`${baseUrl}/api/employees`, {
+        headers: { Authorization: `Bearer ${scopedUnmappedToken}` },
+      });
+      assert.equal(employees.status, 403);
+    });
+  });
+
   describe("8. Security Lockdown: Legacy Endpoints & Health Check", () => {
     test("Legacy endpoints (/stores, /schedules, /corrections, /cash) trả 503 disabled", async () => {
       for (const endpoint of ["/api/stores", "/api/schedules", "/api/corrections", "/api/cash"]) {
-        const res = await fetch(`${baseUrl}${endpoint}`);
+        const res = await httpFetch(`${baseUrl}${endpoint}`);
         assert.equal(res.status, 503);
         const data = await res.json();
         assert.ok(data.error.message.includes("disabled"));
@@ -561,7 +778,7 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
     });
 
     test("GET /api/health - trả thông tin tối thiểu, phân biệt liveness vs readiness, không lộ connection string", async () => {
-      const res = await fetch(`${baseUrl}/api/health`);
+      const res = await httpFetch(`${baseUrl}/api/health`);
       assert.equal(res.status, 200);
       const data = await res.json();
 

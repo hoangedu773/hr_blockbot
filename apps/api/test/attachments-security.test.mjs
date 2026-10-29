@@ -1,13 +1,31 @@
+import "./require-isolated-db.mjs";
 import { test, describe, before, after } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { createApp } from "../dist/app.js";
+import { connectDB, disconnectDB } from "../dist/db.js";
+import { UserModel } from "../dist/models/User.js";
+import { signAccessToken } from "../dist/services/auth.service.js";
 
 describe("Phase 3: Attachments Security & Static File Integrity", () => {
   let server;
   let baseUrl;
+  let accessToken;
+  let fixtureUserId;
 
   before(async () => {
+    // `GET /api/attachments/*` yêu cầu access token (middleware thêm sau khi test này
+    // được viết) — mọi assertion path-traversal bên dưới chạy với một user hợp lệ.
+    await connectDB();
+    await UserModel.deleteMany({ username: "test-p3-attach" });
+    const fixture = await UserModel.create({
+      username: "test-p3-attach",
+      passwordHash: "not-used-by-this-suite",
+      role: "Employee",
+    });
+    fixtureUserId = fixture._id;
+    accessToken = await signAccessToken({ sub: fixture._id.toString(), role: "Employee" });
+
     const app = createApp();
     server = http.createServer(app);
     await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -17,8 +35,21 @@ describe("Phase 3: Attachments Security & Static File Integrity", () => {
 
   after(async () => {
     if (server) {
-      await new Promise((resolve) => server.close(resolve));
+      // Không await `close()`: một keep-alive socket còn sót lại làm promise này treo
+      // vô hạn và `npm test` không bao giờ kết thúc.
+      server.closeAllConnections?.();
+      server.close();
     }
+    // Dọn dẹp best-effort: in-memory mongod đôi khi ngừng trả lời sau nhiều request,
+    // và teardown không được phép treo cả bộ test. DB test bị xoá sau mỗi lần chạy nên
+    // dữ liệu fixture không sống sót dù bước xoá có bị bỏ dở.
+    await Promise.race([
+      (async () => {
+        if (fixtureUserId) await UserModel.deleteMany({ _id: fixtureUserId });
+        await disconnectDB();
+      })(),
+      new Promise((resolve) => setTimeout(resolve, 3000)),
+    ]);
   });
 
   // Helper for raw HTTP requests without client-side path normalization
@@ -31,6 +62,10 @@ describe("Phase 3: Attachments Security & Static File Integrity", () => {
           port,
           path: rawPath,
           method: "GET",
+          headers: { Authorization: `Bearer ${accessToken}` },
+          // Node >= 19 keeps `http.globalAgent` sockets alive; without this the test
+          // process stays up waiting on an idle socket long after the assertions pass.
+          agent: false,
         },
         (res) => {
           const chunks = [];
