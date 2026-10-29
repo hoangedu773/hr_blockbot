@@ -466,11 +466,6 @@ async function commandPasswords(db, flags) {
       (includeAdmins ? ` (gồm ${adminCount} admin)` : " (chỉ Employee)")
   );
 
-  if (!apply) {
-    console.log("[passwords] DRY RUN — thêm --apply để ghi đè mật khẩu toàn bộ.");
-    return;
-  }
-
   const employees = await db
     .collection("employees")
     .find({}, { projection: { employee_code: 1, full_name: 1, store_raw: 1, businessRole: 1, status: 1 } })
@@ -479,7 +474,37 @@ async function commandPasswords(db, flags) {
     employees.map((employee) => [String(employee.employee_code ?? "").toLowerCase(), employee])
   );
 
-  const slips = [];
+  // Phiếu được suy ra từ username + secret nên in lại lúc nào cũng được, kể cả khi
+  // không đụng tới database: dry run chỉ ghi file `-preview.csv`.
+  const slips = users.map((user) => {
+    const employee = employeeByCode.get(String(user.username));
+    return [
+      user.username,
+      derivePassword(user.username, secret),
+      employee?.full_name ?? "",
+      employee?.store_raw ?? "",
+      employee?.businessRole ?? "",
+      employee?.status ?? "",
+    ];
+  });
+
+  if (!apply) {
+    const previewFile = path.join(
+      REPO_ROOT,
+      "data",
+      "accounts",
+      `employee-passwords-${timestamp()}-preview.csv`
+    );
+    writeCsv(
+      previewFile,
+      ["username", "temp_password", "full_name", "store", "business_role", "status"],
+      slips
+    );
+    console.log(`[passwords] DRY RUN — phiếu xem trước: ${path.relative(REPO_ROOT, previewFile)}`);
+    console.log("[passwords] Thêm --apply để ghi đè mật khẩu toàn bộ trong database.");
+    return;
+  }
+
   let updated = 0;
   const startedAt = Date.now();
 
@@ -502,15 +527,6 @@ async function commandPasswords(db, flags) {
           },
         },
       });
-      const employee = employeeByCode.get(String(user.username));
-      slips.push([
-        user.username,
-        password,
-        employee?.full_name ?? "",
-        employee?.store_raw ?? "",
-        employee?.businessRole ?? "",
-        employee?.status ?? "",
-      ]);
     }
     const result = await db.collection("users").bulkWrite(operations, { ordered: false });
     updated += result.modifiedCount;

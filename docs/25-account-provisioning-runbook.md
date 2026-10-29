@@ -35,13 +35,15 @@ password = "Guta@" + 8 ký tự lấy từ HMAC-SHA256(ACCOUNT_PASSWORD_SECRET, 
 Lệnh:
 
 ```bash
-node scripts/provision-accounts.mjs passwords                 # dry run, in quy luật + số tài khoản
-node scripts/provision-accounts.mjs passwords --apply         # chỉ Employee
+node scripts/provision-accounts.mjs passwords                            # in phiếu xem trước, KHÔNG ghi DB
+node scripts/provision-accounts.mjs passwords --apply                    # chỉ Employee
 node scripts/provision-accounts.mjs passwords --include-admins --apply   # cả 3 admin
 ```
 
-Script ghi `data/accounts/employee-passwords-<ts>.csv` (username, mật khẩu tạm, họ tên,
-cửa hàng, bậc, trạng thái) và thu hồi mọi refresh session của các tài khoản bị đổi.
+Dry run xuất `employee-passwords-<ts>-preview.csv` — cùng secret thì phiếu này **trùng khít**
+phiếu đã phát (đã đối chiếu 2.442/2.442 dòng), nên mất phiếu chỉ cần chạy lại lệnh không có
+`--apply`. `--apply` ghi `employee-passwords-<ts>.csv` (username, mật khẩu tạm, họ tên, cửa hàng,
+bậc, trạng thái) và thu hồi mọi refresh session của các tài khoản bị đổi.
 
 ## 3. Phân quyền
 
