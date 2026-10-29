@@ -93,12 +93,21 @@ def is_manager_role(role: str | None) -> bool:
         "cửa hàng trưởng",
         "quản lý khu vực",
         "ban điều hành",
+        "am",
+        "ptch",
     )
 
 
-def get_role_instructions(role: str | None) -> str:
+def get_role_instructions(role: str | None, store_name: str | None = None) -> str:
+    store_line = (
+        f"- Ngữ cảnh cửa hàng: Người dùng đang làm việc tại cửa hàng '{store_name}'. Khi câu hỏi liên quan "
+        "đến ca, quỹ, kho hoặc nhân sự, mặc định trả lời theo phạm vi cửa hàng này.\n"
+        if store_name
+        else ""
+    )
     if is_manager_role(role):
         return (
+            f"{store_line}"
             "HƯỚNG DẪN THEO VAI TRÒ NGƯỜI DÙNG: QUẢN LÝ (SM / AOM / Admin / Ban điều hành / Quản lý cửa hàng).\n"
             "- Thẩm quyền xét duyệt: Hướng dẫn rõ thẩm quyền phê duyệt đơn đổi ca, thẩm quyền xử lý chênh lệch quỹ két (SM duyệt trong hạn mức cửa hàng, AOM/Ban điều hành duyệt khi vượt hạn mức hoặc có nghi vấn gian lận).\n"
             "- Checklist kiểm tra: Cung cấp checklist các bước đối soát bàn giao ca, bàn giao tài sản thiết bị pha chế, và kiểm tra tính hợp lệ của biên bản kiểm quỹ.\n"
@@ -106,6 +115,7 @@ def get_role_instructions(role: str | None) -> str:
             "- Quản lý nhân sự & điều động: Quy trình xử lý khi ca trực thiếu người (liên hệ cụm chi nhánh lân cận, điều động Barista dự phòng hoặc ghi nhận tăng ca) và phê duyệt lịch công."
         )
     return (
+        f"{store_line}"
         "HƯỚNG DẪN THEO VAI TRÒ NGƯỜI DÙNG: NHÂN VIÊN (Employee / Barista / Thu ngân).\n"
         "- Thao tác thực hiện & Biểu mẫu: Hướng dẫn cụ thể, từng bước thao tác của nhân viên, cách lập và ghi các biểu mẫu biên bản (Biên bản bàn giao công việc, Biên bản bàn giao tài sản, Biên bản kiểm quỹ két).\n"
         "- Thời hạn bắt buộc theo quy chế:\n"
@@ -115,8 +125,12 @@ def get_role_instructions(role: str | None) -> str:
     )
 
 
-def build_system_prompt(role: str | None = None, relevant_policy_text: str | None = None) -> str:
-    role_guide = get_role_instructions(role)
+def build_system_prompt(
+    role: str | None = None,
+    relevant_policy_text: str | None = None,
+    store_name: str | None = None,
+) -> str:
+    role_guide = get_role_instructions(role, store_name=store_name)
     policy_content = relevant_policy_text if relevant_policy_text is not None else IN_CONTEXT_POLICY
     return (
         f"{BASE_INSTRUCTIONS}\n\n"
@@ -347,7 +361,10 @@ class AgentLoop:
 
         # ponytail: static word-set greeting bypass (<0.1ms); upgrade to dynamic intent embedding if taxonomy expands.
         normalized_greeting = text.lower().strip(" \t\n\r.?!:;,~")
-        user_role = getattr(user_ctx, "role", "Employee")
+        user_role = (
+            getattr(user_ctx, "business_role", None) or getattr(user_ctx, "role", "Employee")
+        )
+        store_name = getattr(user_ctx, "store_name", None)
         if normalized_greeting in GREETING_WORDS:
             reply = (
                 "Chào Quản lý! Mình là trợ lý HR-BlockBot hỗ trợ SM/AOM. Bạn cần kiểm tra checklist bàn giao ca, phê duyệt đổi ca hay đối soát quỹ két hôm nay?"
@@ -398,7 +415,7 @@ class AgentLoop:
                         reply=dashboard_reply(plan), steps=1,
                         decision_source=decision.source,
                     )
-                role_guide = get_role_instructions(user_role)
+                role_guide = get_role_instructions(user_role, store_name=store_name)
                 pruned_sections = select_relevant_policies(text, role=user_role, top_k=4)
                 policy_context = render_policy_sections(pruned_sections)
                 result = self.chain.complete([
@@ -427,13 +444,13 @@ class AgentLoop:
                 pruned_sections = select_relevant_policies(text, role=user_role, top_k=4)
                 policy_context = render_policy_sections(pruned_sections)
                 result = self.chain.complete([
-                    ChatMessage("system", build_system_prompt(user_role, relevant_policy_text=policy_context)),
+                    ChatMessage("system", build_system_prompt(user_role, relevant_policy_text=policy_context, store_name=store_name)),
                     ChatMessage("user", text),
                 ], CompletionOptions(temperature=0.2, max_tokens=1200))
                 raw_obj = json_object(result.text)
                 if raw_obj.get("reply") is None:
                     decision = TypedDecision.model_validate(raw_obj)
-                    role_guide = get_role_instructions(user_role)
+                    role_guide = get_role_instructions(user_role, store_name=store_name)
                     result = self.chain.complete([
                         ChatMessage("system", (
                             f"{BASE_INSTRUCTIONS}\n\n{role_guide}\n"

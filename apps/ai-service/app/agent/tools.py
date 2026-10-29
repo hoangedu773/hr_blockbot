@@ -41,6 +41,12 @@ class UserContext(BaseModel):
     department_id: str | None = Field(
         default=None, validation_alias=AliasChoices("departmentId", "department_id")
     )
+    # Manager tier from job_title (admin|aom|sm|am|ptch|staff). Auth `role` only
+    # knows Admin|Employee, so an SM would otherwise get staff guidance.
+    business_role: Literal["admin", "aom", "sm", "am", "ptch", "staff"] | None = Field(
+        default=None, validation_alias=AliasChoices("businessRole", "business_role")
+    )
+    store_name: str | None = Field(default=None, validation_alias=AliasChoices("storeName", "store_name"))
 
     @field_validator("role", mode="before")
     @classmethod
