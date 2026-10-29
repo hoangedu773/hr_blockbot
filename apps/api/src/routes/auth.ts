@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import crypto from "crypto";
 import {
   LoginRequestSchema,
   LoginResponseSchema,
@@ -8,6 +9,7 @@ import {
 import { UserModel } from "../models/User.js";
 import {
   verifyPassword,
+  hashPassword,
   createLoginSession,
   rotateRefreshToken,
   logoutSession,
@@ -17,6 +19,41 @@ import {
 import { authenticateToken } from "../middlewares/auth.middleware.js";
 
 const router = Router();
+
+// P1-4: login had no rate limit (unlimited password guessing) and returned early for
+// unknown emails (timing oracle for user enumeration). Both are handled here.
+// In-memory is a deliberate limit of this single-instance deployment (ADR-010).
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_WINDOW_MS = 5 * 60 * 1000;
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+
+function loginAttemptKey(req: Request, email: string): string {
+  return `${req.ip || "unknown"}|${email.toLowerCase()}`;
+}
+
+function registerLoginAttempt(key: string): boolean {
+  const now = Date.now();
+  const entry = loginAttempts.get(key);
+  if (!entry || entry.resetAt <= now) {
+    loginAttempts.set(key, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > LOGIN_MAX_ATTEMPTS;
+}
+
+function clearLoginAttempts(key: string): void {
+  loginAttempts.delete(key);
+}
+
+// A throwaway hash so the "user not found" branch costs the same as a wrong password.
+let dummyHashPromise: Promise<string> | null = null;
+function dummyHash(): Promise<string> {
+  if (dummyHashPromise === null) {
+    dummyHashPromise = hashPassword(crypto.randomBytes(16).toString("hex"));
+  }
+  return dummyHashPromise;
+}
 
 // POST /api/auth/login
 router.post("/auth/login", async (req: Request, res: Response) => {
@@ -33,11 +70,24 @@ router.post("/auth/login", async (req: Request, res: Response) => {
   }
 
   const { email, password } = parseResult.data;
+  const attemptKey = loginAttemptKey(req, email);
+
+  if (registerLoginAttempt(attemptKey)) {
+    res.status(429).json({
+      error: {
+        code: "TOO_MANY_ATTEMPTS",
+        message: "Too many login attempts. Try again in a few minutes.",
+      },
+    });
+    return;
+  }
 
   try {
     const user = await UserModel.findOne({ email: email.toLowerCase() });
     if (!user) {
-      // Generic error response - do not reveal user existence
+      // P1-4: burn comparable CPU on a dummy hash so "unknown email" and "wrong
+      // password" take the same time. Response body stays identical either way.
+      await verifyPassword(await dummyHash(), password).catch(() => false);
       res.status(401).json({
         error: {
           code: "UNAUTHENTICATED",
@@ -58,6 +108,8 @@ router.post("/auth/login", async (req: Request, res: Response) => {
       });
       return;
     }
+
+    clearLoginAttempts(attemptKey);
 
     const sessionCtx = {
       ip: req.ip,
