@@ -59,7 +59,10 @@ class Settings:
     bm25_k1: float = 1.5
     bm25_b: float = 0.75
     min_evidence_dense: float = 0.30
-    min_evidence_lexical: float = 0.35
+    # Calibrated 2026-10-29 on `--corpus db` (40 câu, 30 in-scope / 10 out-of-scope):
+    # 0.50–0.70 là vùng phẳng tốt nhất (false_answer 0.20, abstain_in 0.03); chọn giữa
+    # vùng để còn biên dung sai hai phía. 0.35 cũ để lọt 50% câu ngoài phạm vi.
+    min_evidence_lexical: float = 0.60
     rrf_k: int = 60
     rrf_weight_dense: float = 1.0
     rrf_weight_lexical: float = 1.0
@@ -109,7 +112,7 @@ def load_settings() -> Settings:
         bm25_k1=_env_float("AI_BM25_K1", 1.5),
         bm25_b=_env_float("AI_BM25_B", 0.75),
         min_evidence_dense=_env_float("AI_MIN_EVIDENCE_DENSE", 0.30),
-        min_evidence_lexical=_env_float("AI_MIN_EVIDENCE_LEXICAL", 0.35),
+        min_evidence_lexical=_env_float("AI_MIN_EVIDENCE_LEXICAL", 0.60),
         rrf_k=_env_int("AI_RRF_K", 60),
         rrf_weight_dense=_env_float("AI_RRF_WEIGHT_DENSE", 1.0),
         rrf_weight_lexical=_env_float("AI_RRF_WEIGHT_LEXICAL", 1.0),

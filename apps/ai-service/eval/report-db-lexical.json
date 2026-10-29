@@ -1,0 +1,16 @@
+[
+  {
+    "retriever": "lexical",
+    "nInScope": 30,
+    "nOutOfScope": 10,
+    "recall@1": 0.9,
+    "recall@3": 1.0,
+    "recall@5": 1.0,
+    "citationHitRate": 0.9667,
+    "abstainRateIn": 0.0333,
+    "abstainRateOut": 0.8,
+    "falseAnswerRate": 0.2,
+    "latencyP50Ms": 0.52,
+    "latencyP95Ms": 0.94
+  }
+]
