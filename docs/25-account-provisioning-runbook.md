@@ -12,6 +12,11 @@
 - `users` có 3 index: `username` unique, `email` unique **sparse** (admin có thể có email),
   `employeeId` unique **partial** (`$type: "objectId"` — admin để `employeeId: null` nên
   sparse thường sẽ chặn tài khoản admin thứ hai).
+- Mật khẩu **không được mã hoá hai chiều** mà **băm một chiều bằng Argon2id**
+  (`$argon2id$v=19$m=19456,t=2,p=1$<salt>$<hash>`, salt riêng từng người, 97 ký tự). Database
+  không có trường mật khẩu thô nào; quên mật khẩu chỉ có thể đặt lại, không đọc ra được.
+  Bản rõ duy nhất tồn tại là phiếu CSV trong `data/accounts/` (đã gitignore) — phát tay xong
+  nên xoá.
 
 ## 2. Quy luật cấp tài khoản (nguồn: `apps/api/scripts/lib/account-rule.mjs`)
 
@@ -27,8 +32,10 @@ password = "Guta@" + 8 ký tự lấy từ HMAC-SHA256(ACCOUNT_PASSWORD_SECRET, 
   commit) thì không suy ra được mật khẩu của người khác. Đây là lý do **không** dùng luật
   `Guta@<mã nhân viên>`: mã nhân viên nằm trên bảng lương, sổ ca, bảng chấm công — đồng
   nghiệp biết mã của nhau, nên luật đó cho phép đăng nhập chéo cho tới lần đổi đầu tiên.
-- 8 ký tự = 40 bit; `mustChangePassword = true` buộc đổi ngay lần đầu nên đây chỉ là
-  mật khẩu tạm, không phải mật khẩu dài hạn.
+- 8 ký tự = 40 bit; đây là mật khẩu tạm, không phải mật khẩu dài hạn.
+- **Nhân viên** (`role = Employee`): `mustChangePassword = true` — bị chặn cho tới khi đổi.
+  **3 admin**: `mustChangePassword = false` — nhận tài khoản trực tiếp từ chủ nhiệm, không bị
+  chặn ở lần đăng nhập đầu (script tự đặt theo role, nên chạy lại không sinh ra chặn mới).
 - Mất secret = phải cấp lại toàn bộ (giống mất file mật khẩu). Secret hiện có trong `.env`
   máy chạy cấp phát; khi deploy phải đặt cùng biến đó trong env của Render.
 
@@ -36,8 +43,9 @@ Lệnh:
 
 ```bash
 node scripts/provision-accounts.mjs passwords                            # in phiếu xem trước, KHÔNG ghi DB
-node scripts/provision-accounts.mjs passwords --apply                    # chỉ Employee
-node scripts/provision-accounts.mjs passwords --include-admins --apply   # cả 3 admin
+node scripts/provision-accounts.mjs passwords --apply                    # chỉ Employee (buộc đổi)
+node scripts/provision-accounts.mjs passwords --only-admins --apply      # chỉ 3 admin (không buộc đổi)
+node scripts/provision-accounts.mjs passwords --include-admins --apply   # cả hai nhóm
 ```
 
 Dry run xuất `employee-passwords-<ts>-preview.csv` — cùng secret thì phiếu này **trùng khít**

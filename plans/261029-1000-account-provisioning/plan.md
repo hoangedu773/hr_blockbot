@@ -179,3 +179,14 @@ password = "Guta@" + 8 ký tự HMAC-SHA256(secret, username)   vd Guta@N67S8EZB
 - Đã áp cho **2.442 tài khoản** (2.439 nhân viên + 3 admin), `mustChangePassword = true`,
   thu hồi toàn bộ refresh session, phiếu mới ở `data/accounts/employee-passwords-<ts>.csv`.
 - File `employees-20261029-121538.csv` (mật khẩu ngẫu nhiên cũ) **hết hiệu lực** từ lần chạy này.
+
+### Bổ sung: 3 admin không bị buộc đổi mật khẩu (2026-10-29 14:21)
+
+- `mustChangePassword` giờ đặt theo role trong `provision-accounts.mjs passwords`:
+  `Employee` → `true`, `Admin` → `false`. Chạy lại lệnh không sinh ra chặn mới cho admin.
+- Thêm cờ `--only-admins` để đặt lại đúng 3 tài khoản admin (3 dòng, <1s) thay vì 2.442.
+- Đã áp: hoang / phi / hoa `mustChangePassword = false`; 2.439 nhân viên vẫn `true`.
+- Kiểm chứng HTTP thật: 3 admin đăng nhập 200 với `mustChangePassword=false`, `/auth/me` 200,
+  hàng đợi duyệt 200; một nhân viên vẫn `mustChangePassword=true`.
+- Mật khẩu trong DB là **hash Argon2id một chiều** (`$argon2id$v=19$m=19456,t=2,p=1$...`),
+  không có trường bản rõ; bản rõ chỉ có trong phiếu CSV cục bộ.

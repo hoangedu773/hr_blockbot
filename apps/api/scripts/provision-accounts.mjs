@@ -454,7 +454,8 @@ async function commandPasswords(db, flags) {
   console.log(`[passwords] mẫu cho username 'gt-sample': ${sample}`);
 
   const includeAdmins = flags["include-admins"] === true;
-  const filter = includeAdmins ? {} : { role: "Employee" };
+  const onlyAdmins = flags["only-admins"] === true;
+  const filter = onlyAdmins ? { role: "Admin" } : includeAdmins ? {} : { role: "Employee" };
   const users = await db
     .collection("users")
     .find(filter, { projection: { username: 1, employeeId: 1, role: 1 } })
@@ -463,7 +464,7 @@ async function commandPasswords(db, flags) {
   const adminCount = users.filter((user) => user.role === "Admin").length;
   console.log(
     `[passwords] tài khoản sẽ đặt lại: ${users.length}` +
-      (includeAdmins ? ` (gồm ${adminCount} admin)` : " (chỉ Employee)")
+      (onlyAdmins ? ` (chỉ ${adminCount} admin)` : includeAdmins ? ` (gồm ${adminCount} admin)` : " (chỉ Employee)")
   );
 
   const employees = await db
@@ -520,7 +521,9 @@ async function commandPasswords(db, flags) {
           update: {
             $set: {
               passwordHash,
-              mustChangePassword: true,
+              // Admin nhận tài khoản trực tiếp từ chủ nhiệm nên không bị chặn ở lần
+              // đăng nhập đầu; nhân viên vẫn buộc đổi mật khẩu tạm.
+              mustChangePassword: user.role !== "Admin",
               passwordChangedAt: null,
               updatedAt: new Date(),
             },
