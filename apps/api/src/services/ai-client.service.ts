@@ -147,6 +147,10 @@ export interface UserContextPayload {
   role?: "Admin" | "Employee";
   employeeId?: string | null;
   departmentId?: string | null;
+  /** Manager tier derived from job_title (P1-7 follow-up): admin|aom|sm|am|ptch|staff */
+  businessRole?: string | null;
+  /** The caller's own store, so role guidance and tool scope match the person. */
+  storeName?: string | null;
 }
 
 const citationSchema = z.object({
