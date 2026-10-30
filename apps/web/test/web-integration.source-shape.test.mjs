@@ -81,23 +81,52 @@ describe("Phase 3: dead-endpoint debt removal (task 1)", () => {
     });
   };
 
-  it("không còn lời gọi 4 endpoint legacy 503 trong toàn bộ src", () => {
-    const forbidden = ["fetchStores", "fetchSchedules", "fetchCashCounts", "fetchCorrections"];
+  // Store CRUD is a real, authenticated endpoint again (phase 1). Schedules,
+  // corrections and cash remain 503, so the ban stays absolute for those three
+  // and only permits `fetchStores`/`/stores` at the one legitimate call site.
+  it("3 endpoint legacy 503 vẫn bị cấm tuyệt đối; stores chỉ được gọi từ services/api.ts", () => {
+    const forbiddenEverywhere = ["fetchSchedules", "fetchCashCounts", "fetchCorrections"];
     const offenders = [];
     for (const file of walk(srcRoot)) {
       const content = fs.readFileSync(file, "utf-8");
-      for (const name of forbidden) {
+      for (const name of forbiddenEverywhere) {
         if (content.includes(name)) offenders.push(`${path.relative(srcRoot, file)}:${name}`);
       }
     }
-    assert.deepEqual(offenders, [], "Không được còn cache 4 fetcher legacy 503");
+    assert.deepEqual(offenders, [], "Không được còn cache 3 fetcher legacy 503");
+
+    // The `/stores` URL literal is the transport detail: it may only exist in the
+    // data layer. A component hand-rolling its own fetch would bypass auth
+    // handling and error normalisation, which is exactly what this bans.
+    const pathOffenders = [];
+    const fetchStoresOffenders = [];
+    for (const file of walk(srcRoot)) {
+      const relative = path.relative(srcRoot, file).split(path.sep).join("/");
+      const content = fs.readFileSync(file, "utf-8");
+      if (relative !== "services/api.ts" && content.includes("/stores")) {
+        pathOffenders.push(`${relative}:/stores`);
+      }
+      // fetchStores may be consumed, never re-implemented: any file that mentions
+      // it must import it from the api module.
+      if (relative !== "services/api.ts" && content.includes("fetchStores")) {
+        const importsApiModule = /from\s+['"](\.\.?\/)+services\/api['"]/.test(content);
+        if (!importsApiModule) fetchStoresOffenders.push(`${relative}:fetchStores`);
+      }
+    }
+    assert.deepEqual(pathOffenders, [], "path /stores chỉ được xuất hiện trong services/api.ts");
+    assert.deepEqual(fetchStoresOffenders, [], "fetchStores chỉ được import từ services/api, không được tự định nghĩa lại");
+
+    // auth.ts is the token boundary, not a data layer: it must never reach /stores.
+    assert.equal(read("services/auth.ts").includes("/stores"), false, "auth.ts không được gọi endpoint /stores");
+    assert.equal(read("services/auth.ts").includes("fetchStores"), false, "auth.ts không được gọi fetchStores");
   });
 
-  it("api.ts không còn path legacy /stores /schedules /corrections /cash", () => {
+  it("api.ts chỉ gọi stores qua endpoint thật, không còn path legacy 503", () => {
     const apiFile = read("services/api.ts");
-    for (const endpoint of ["/stores", "/schedules", "/corrections", "/cash"]) {
+    for (const endpoint of ["/schedules", "/corrections", "/cash"]) {
       assert.equal(apiFile.includes(endpoint), false, `api.ts không được gọi endpoint ${endpoint}`);
     }
+    assert.equal(apiFile.includes("`/stores"), true, "api.ts phải gọi /stores qua requestJson");
     assert.equal(/\.catch\(\s*\(\s*\)\s*=>\s*\[\]\s*\)/.test(apiFile), false, "api.ts không được nuốt lỗi bằng catch(() => [])");
   });
 

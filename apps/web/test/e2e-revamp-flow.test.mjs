@@ -10,6 +10,127 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // E2E_DIST_DIR lets a build be verified from a scratch outDir without replacing dist/.
 const distDir = path.resolve(__dirname, process.env.E2E_DIST_DIR ?? '../dist');
 
+// ---------------------------------------------------------------------------
+// Store directory fixture. Mirrors StoreListResponse: the route emulates the
+// real server-side filters (q/kind/district/status) so a regression that drops
+// a query param from `fetchStores` fails here instead of passing vacuously.
+// `581 Sư Vạn Hạnh` keeps the historic search rhythm of this suite.
+// ---------------------------------------------------------------------------
+const STORE_FIXTURE_ITEMS = [
+  {
+    id: '65f1c0ffee00000000000001',
+    code: 'GT-CH-01',
+    name: 'GUTA CAFE - Tân Bình - 02 Đặng Văn Sâm',
+    kind: 'outlet',
+    district: 'Tân Bình',
+    managerName: 'Nguyễn Thị Phương Anh',
+    managerEmployeeId: '65f1c0ffee0000000000e001',
+    employeeCount: 46,
+    activeEmployeeCount: 44,
+    status: 'ACTIVE',
+  },
+  {
+    id: '65f1c0ffee00000000000002',
+    code: 'GT-CH-02',
+    name: 'GUTA CAFE - Quận 10 - 581 Sư Vạn Hạnh',
+    kind: 'outlet',
+    district: 'Quận 10',
+    managerName: 'Đỗ Quỳnh Anh',
+    managerEmployeeId: '65f1c0ffee0000000000e002',
+    employeeCount: 56,
+    activeEmployeeCount: 51,
+    status: 'ACTIVE',
+  },
+  {
+    id: '65f1c0ffee00000000000003',
+    code: 'GT-CH-03',
+    name: 'GUTA CAFE - Quận 1 - 146 Nguyễn Văn Thủ',
+    kind: 'outlet',
+    district: 'Quận 1',
+    managerName: 'Trương Quốc Thái',
+    managerEmployeeId: '65f1c0ffee0000000000e003',
+    employeeCount: 43,
+    activeEmployeeCount: 43,
+    status: 'ACTIVE',
+  },
+  {
+    id: '65f1c0ffee00000000000004',
+    code: null,
+    name: 'GUTA EXPRESS - Bình Thạnh - 193F Điện Biên Phủ',
+    kind: 'support',
+    district: 'Bình Thạnh',
+    managerName: null,
+    managerEmployeeId: null,
+    employeeCount: 0,
+    activeEmployeeCount: 0,
+    status: 'INACTIVE',
+  },
+];
+
+const DASHBOARD_OVERVIEW_FIXTURE = {
+  stores: { outlets: 3, groups: 0, support: 1 },
+  employees: { total: 145, active: 138, inactive: 7 },
+  profileCompletionRate: { value: 92.4, reason: null, source: 'employees', asOf: '2026-10-29' },
+  managersCovered: { value: 66.7, reason: null, source: 'employees', asOf: '2026-10-29' },
+  employeesPerOutlet: { value: 48.3, reason: null, source: 'employees', asOf: '2026-10-29' },
+  // No verified revenue source -> value MUST stay null and the UI must not print 0.
+  revenue: {
+    value: null,
+    reason: 'Chỉ 9/45 cửa hàng có cash_counts trong 1 kỳ',
+    source: 'cash_counts',
+    asOf: '2026-10-28',
+  },
+  onTimeRate: {
+    value: null,
+    reason: 'Không có dữ liệu chấm công/punch trong nguồn',
+    source: 'none',
+    asOf: null,
+  },
+  latestScheduleDate: '2026-10-29',
+  generatedAt: '2026-10-30T03:00:00.000Z',
+};
+
+const normalize = (value) => (value ?? '').toString().trim().toLowerCase();
+
+const buildStoreResponse = (url) => {
+  const params = url.searchParams;
+  const q = normalize(params.get('q'));
+  const kind = normalize(params.get('kind'));
+  const district = normalize(params.get('district'));
+  const status = normalize(params.get('status'));
+  const page = Number(params.get('page') ?? 1);
+  const limit = Number(params.get('limit') ?? 20);
+
+  const filtered = STORE_FIXTURE_ITEMS.filter((store) => {
+    if (kind && normalize(store.kind) !== kind) return false;
+    if (district && normalize(store.district) !== district) return false;
+    if (status && normalize(store.status) !== status) return false;
+    if (q) {
+      const haystack = [store.name, store.code, store.district].map(normalize).join(' ');
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
+  });
+
+  const start = (page - 1) * limit;
+  const items = filtered.slice(start, start + limit);
+  return {
+    items,
+    paging: {
+      page,
+      limit,
+      totalItems: filtered.length,
+      totalPages: Math.max(1, Math.ceil(filtered.length / limit)),
+      hasNext: start + limit < filtered.length,
+      hasPrev: page > 1,
+    },
+    summary: {
+      totalOutlets: filtered.filter((store) => store.kind === 'outlet').length,
+      totalGroups: filtered.filter((store) => store.kind === 'group').length,
+    },
+  };
+};
+
 describe('Guta UI Revamp E2E Flow (Playwright)', () => {
   let server;
   let serverUrl;
@@ -87,6 +208,14 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     await page.route('**/api/auth/refresh', (route) => route.fulfill({ status: 200, json: { accessToken: activeUser ? 'fixture-token' : null } }));
     await page.route('**/api/auth/me', (route) => route.fulfill({ status: 200, json: { userId: activeUser.id, role: activeUser.role, username: activeUser.username, mustChangePassword: false, skills: [] } }));
     await page.route('**/api/auth/logout', (route) => { activeUser = null; return route.fulfill({ status: 204 }); });
+    await page.route('**/api/stores**', (route) => {
+      const request = route.request();
+      if (request.method() !== 'GET') {
+        return route.fulfill({ status: 405, json: { error: { code: 'METHOD_NOT_ALLOWED', message: 'fixture read-only' } } });
+      }
+      return route.fulfill({ status: 200, json: buildStoreResponse(new URL(request.url())) });
+    });
+    await page.route('**/api/dashboard/overview', (route) => route.fulfill({ status: 200, json: DASHBOARD_OVERVIEW_FIXTURE }));
     // Invalid payload exercises the safe demo boundary without a live backend.
     await page.route('**/api/chat', (route) => route.fulfill({ status: 200, json: {} }));
 
@@ -107,6 +236,26 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       await page.getByRole('button', { name: 'Quay lại Vận Hành (CRM)', exact: true }).click();
     }
     await page.getByRole('table').waitFor({ state: 'visible' });
+    await page.waitForFunction(
+      (expected) => document.querySelectorAll('table tbody tr[data-id]').length === expected,
+      STORE_FIXTURE_ITEMS.length
+    );
+  };
+
+  // Re-establishes a known identity. Mutating-control tests must not inherit
+  // whatever role the previous step happened to leave behind.
+  const signInAs = async (username) => {
+    const logoutBtn = page.getByRole('button', { name: /Đăng Xuất Phiên/i });
+    if (await logoutBtn.count()) {
+      await logoutBtn.click();
+      await page.getByRole('button', { name: /Get Started/i }).waitFor({ state: 'visible' });
+    }
+    await page.getByRole('button', { name: /Get Started/i }).click();
+    await page.getByLabel('Tên đăng nhập', { exact: true }).fill(username);
+    await page.getByLabel('Mật khẩu', { exact: true }).fill('fixture-password');
+    await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
+    await page.getByRole('button', { name: 'Quay lại Vận Hành (CRM)', exact: true }).click();
+    await returnToCrm();
   };
 
   it('Bước 1: Render Landing Page, tiêu đề chuẩn, logo marquee và 0 pixel màu vàng', async () => {
@@ -171,6 +320,13 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     await headerTitle.waitFor({ state: 'visible', timeout: 5000 });
     assert.equal(await headerTitle.isVisible(), true);
 
+    // The directory is API-backed now: wait for real rows before reading any
+    // computed style off the KPI ribbon / table cells below.
+    await page.waitForFunction(
+      (expected) => document.querySelectorAll('table tbody tr[data-id]').length === expected,
+      STORE_FIXTURE_ITEMS.length
+    );
+
     assert.equal(await page.evaluate(() => sessionStorage.getItem('guta_user')), null);
     assert.equal(await page.evaluate(() => localStorage.getItem('guta_user')), null);
 
@@ -229,8 +385,21 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     await page.getByTestId('guta-splash').waitFor({ state: 'detached', timeout: 1000 });
   });
 
-  it('Bước 4: Bảng cửa hàng render đủ 45 chi nhánh, tìm kiếm chi nhánh "Sư Vạn Hạnh"', async () => {
-    // Kiểm tra hàng đầu tiên tồn tại
+  it('Bước 4: Bảng cửa hàng render đúng số hàng của fixture, tìm kiếm chi nhánh "Sư Vạn Hạnh"', async () => {
+    // Đếm thật: số <tr> phải khớp items của fixture, không phải một con số trang trí.
+    await page.waitForFunction(
+      (expected) => document.querySelectorAll('table tbody tr[data-id]').length === expected,
+      STORE_FIXTURE_ITEMS.length
+    );
+    assert.equal(await page.locator('table tbody tr[data-id]').count(), STORE_FIXTURE_ITEMS.length);
+    assert.equal(await page.locator('table tbody tr').count(), STORE_FIXTURE_ITEMS.length);
+
+    // Mỗi hàng mang data-id là ObjectId thật từ fixture.
+    assert.deepEqual(
+      await page.locator('table tbody tr[data-id]').evaluateAll((rows) => rows.map((row) => row.getAttribute('data-id'))),
+      STORE_FIXTURE_ITEMS.map((store) => store.id)
+    );
+
     const tableRow = page.getByText(/581 Sư Vạn Hạnh/i);
     assert.equal(await tableRow.isVisible(), true);
 
@@ -242,32 +411,39 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     await page.getByText('Không tìm thấy chi nhánh nào phù hợp với từ khóa tìm kiếm.').waitFor({ state: 'visible' });
     assert.equal(await page.getByText(/581 Sư Vạn Hạnh/i).isVisible(), false);
 
+    // Debounce 250ms + round-trip: chờ đúng số hàng thay vì sleep mù.
     await searchInput.fill('Sư Vạn Hạnh');
-
-    // Chờ kết quả lọc
-    await page.waitForTimeout(200);
+    await page.waitForFunction(() => document.querySelectorAll('table tbody tr[data-id]').length === 1);
     const filteredRow = page.getByText(/581 Sư Vạn Hạnh/i);
     assert.equal(await filteredRow.isVisible(), true);
 
     // Xóa tìm kiếm để hiển thị lại đủ
     await searchInput.fill('');
-    await page.waitForTimeout(200);
+    await page.waitForFunction(
+      (expected) => document.querySelectorAll('table tbody tr[data-id]').length === expected,
+      STORE_FIXTURE_ITEMS.length
+    );
   });
 
-  it('Bước 5: Click vào dòng cửa hàng, kiểm tra Slide-Over Drawer mở ra với thông tin Barista', async () => {
-    // Click vào dòng Sư Vạn Hạnh
-    const row = page.getByText(/581 Sư Vạn Hạnh/i);
+  it('Bước 5: Click vào dòng cửa hàng, kiểm tra Slide-Over Drawer mở đúng dữ liệu của dòng đó', async () => {
+    // Dùng data-id của fixture thay vì phụ thuộc mã cứng GT-CH-02.
+    const target = STORE_FIXTURE_ITEMS.find((store) => store.name.includes('Sư Vạn Hạnh'));
+    assert.ok(target, 'fixture phải có cửa hàng Sư Vạn Hạnh');
+
+    const row = page.locator(`table tbody tr[data-id="${target.id}"]`);
     await row.hover();
-    await page.waitForFunction(() => getComputedStyle(document.querySelector('tr[data-id="GT-CH-02"]')).backgroundColor === 'rgba(255, 255, 255, 0.03)');
+    await page.waitForFunction(
+      (id) => getComputedStyle(document.querySelector(`tr[data-id="${id}"]`)).backgroundColor === 'rgba(255, 255, 255, 0.03)',
+      target.id
+    );
     await row.click();
 
-    // Drawer trượt ra, kiểm tra Barista
-    const headBarista = page.getByText(/Trương Quốc Thái/i).first();
-    await headBarista.waitFor({ state: 'visible', timeout: 3000 });
-    assert.equal(await headBarista.isVisible(), true);
-
-    const cashier = page.getByText(/Lê Thị Kim Ngân/i).first();
-    assert.equal(await cashier.isVisible(), true);
+    // Drawer trượt ra với đúng bản ghi đã bấm, không phải hàng đầu tiên.
+    await page.waitForFunction((id) => document.querySelector('#detail-drawer')?.classList.contains('drawer-open'), target.id);
+    assert.equal(await page.locator('#d-id').textContent(), target.code);
+    assert.equal(await page.locator('#d-name').textContent(), target.name);
+    assert.equal(await page.locator('#d-district').textContent(), `Quận: ${target.district} • Cửa hàng trưởng: ${target.managerName}`);
+    assert.match(await page.locator('#d-staff').textContent(), new RegExp(`${target.activeEmployeeCount} / ${target.employeeCount}`));
     assert.deepEqual(await page.locator('#detail-drawer').evaluate((el) => {
       const style = getComputedStyle(el);
       return [style.backgroundColor, style.backdropFilter, style.borderLeftColor];
@@ -295,16 +471,20 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
   });
 
   it('Regression: đóng liên tục, double click, Escape sớm và filter ký tự đặc biệt', async () => {
+    await page.waitForFunction(
+      (expected) => document.querySelectorAll('table tbody tr[data-id]').length === expected,
+      STORE_FIXTURE_ITEMS.length
+    );
     assert.deepEqual(await page.evaluate(() => [typeof window.openDrawer, typeof window.closeDrawer]), ['function', 'function']);
     assert.equal(await page.locator('[onclick]').count(), 0);
     await page.evaluate(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-      const row = document.querySelector('tbody tr');
+      const row = document.querySelector('tbody tr[data-id]');
       row.click();
       row.click();
     });
     assert.equal(await page.locator('#detail-drawer').evaluate((drawer) => drawer.classList.contains('drawer-open')), true);
-    assert.equal(await page.locator('#d-id').textContent(), 'GT-CH-01');
+    assert.equal(await page.locator('#d-id').textContent(), STORE_FIXTURE_ITEMS[0].code);
     await page.evaluate(() => {
       const close = document.querySelector('[aria-label="Đóng chi tiết"]');
       for (let i = 0; i < 10; i++) close.click();
@@ -314,12 +494,23 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     const search = page.getByPlaceholder(/Lọc theo tên, quận, mã.../i);
     for (const keyword of ['[]()*', '\'"\\', '<script>alert(1)</script>', '☕ tiếng Việt']) {
       await search.fill(keyword);
+      await page.getByText('Không tìm thấy chi nhánh nào phù hợp với từ khóa tìm kiếm.').waitFor({ state: 'visible' });
       assert.equal(await page.getByText('Không tìm thấy chi nhánh nào phù hợp với từ khóa tìm kiếm.').isVisible(), true);
     }
     await search.fill('');
+    await page.waitForFunction(
+      (expected) => document.querySelectorAll('table tbody tr[data-id]').length === expected,
+      STORE_FIXTURE_ITEMS.length
+    );
     await page.locator('nav a').filter({ hasText: 'Copilot' }).click();
     await page.keyboard.press('Escape');
     assert.equal(await page.getByTestId('chat-page').count(), 0);
+    // Returning to CRM remounts the view, so the portal + first fetch are async.
+    await page.getByRole('table').waitFor({ state: 'visible' });
+    await page.waitForFunction(
+      (expected) => document.querySelectorAll('table tbody tr[data-id]').length === expected,
+      STORE_FIXTURE_ITEMS.length
+    );
     assert.equal(await page.getByRole('table').isVisible(), true);
     assert.deepEqual(consoleErrors, []);
   });
@@ -406,7 +597,9 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       assert.deepEqual(await button.evaluate((el) => {
         const rect = el.getBoundingClientRect();
         const style = getComputedStyle(el);
-        return [rect.width, rect.height, style.borderRadius, style.borderTopWidth];
+        // Layout can return 44.000030517578125 for a 44px box at a non-integer DPR;
+        // compare the rendered pixel size, not the subpixel float.
+        return [Math.round(rect.width), Math.round(rect.height), style.borderRadius, style.borderTopWidth];
       }), [44, 44, '9999px', '0px']);
     }
     await input.focus();
@@ -519,6 +712,13 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.ok(composer.y > 600, 'Conversation composer must stay near the bottom');
     assert.equal(await chat.locator('.guta-chat-composer').evaluate((el) => getComputedStyle(el).borderRadius), '9999px');
     await chat.getByRole('button', { name: 'Quay lại Vận Hành (CRM)', exact: true }).click();
+    // The store table is portal-mounted and API-backed: wait for it instead of
+    // sampling visibility on the same tick as the tab switch.
+    await page.getByRole('table').waitFor({ state: 'visible' });
+    await page.waitForFunction(
+      (expected) => document.querySelectorAll('table tbody tr[data-id]').length === expected,
+      STORE_FIXTURE_ITEMS.length
+    );
     assert.equal(await page.getByRole('table').isVisible(), true);
   });
 
@@ -699,13 +899,30 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.equal(await emergencyBtn.isDisabled(), false);
     assert.match(await emergencyBtn.textContent(), /Tạo Ca Đột Xuất/);
 
-    // 2. District Filter Cycle
+    // 2. District Filter Cycle — the cycle walks the districts present in the
+    //    loaded data, so the expectation is derived from the fixture, not from a
+    //    hardcoded district list.
+    await page.waitForFunction(
+      (expected) => document.querySelectorAll('table tbody tr[data-id]').length === expected,
+      STORE_FIXTURE_ITEMS.length
+    );
+    const firstDistrict = STORE_FIXTURE_ITEMS[0].district;
     const districtBtn = page.getByRole('button', { name: /Bộ lọc Quận/i });
     await districtBtn.click();
-    await page.waitForTimeout(200);
-    const q1Btn = page.getByRole('button', { name: /Quận: Quận 1/i });
+    const q1Btn = page.getByRole('button', { name: new RegExp(`Quận: ${firstDistrict}`, 'i') });
+    await q1Btn.waitFor({ state: 'visible' });
     assert.equal(await q1Btn.isVisible(), true);
-    assert.deepEqual(await page.locator('tbody tr[data-id]:visible').evaluateAll((rows) => rows.map((row) => row.getAttribute('data-district'))), ['Quận 1']);
+    await page.waitForFunction(
+      (district) => {
+        const rows = [...document.querySelectorAll('table tbody tr[data-id]')];
+        return rows.length > 0 && rows.every((row) => row.getAttribute('data-district') === district);
+      },
+      firstDistrict
+    );
+    assert.deepEqual(
+      await page.locator('table tbody tr[data-id]').evaluateAll((rows) => rows.map((row) => row.getAttribute('data-district'))),
+      STORE_FIXTURE_ITEMS.filter((store) => store.district === firstDistrict).map((store) => store.district)
+    );
 
     // 3. Illustrated Empty State and Reset CTA
     const search = page.getByPlaceholder(/Lọc theo tên, quận, mã.../i);
@@ -714,8 +931,11 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     const resetBtn = page.getByRole('button', { name: /Đặt lại bộ lọc/i });
     assert.equal(await resetBtn.isVisible(), true);
     await resetBtn.click();
-    await page.waitForTimeout(200);
     assert.equal(await search.inputValue(), '');
+    await page.waitForFunction(
+      (expected) => document.querySelectorAll('table tbody tr[data-id]').length === expected,
+      STORE_FIXTURE_ITEMS.length
+    );
     assert.equal(await page.getByText(/581 Sư Vạn Hạnh/i).isVisible(), true);
 
     // 4. ChatDrawer Trigger Button State
@@ -762,8 +982,12 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
 
       // 5. Quay lại phân hệ Cửa hàng / Chi nhánh
       await page.locator('nav [data-section="stores"]').click();
-      await page.getByRole('heading', { name: /Guta Workspace — Quản lý nhân sự & 45 chi nhánh|Chi Nhánh Cà Phê Guta/i }).waitFor({ state: 'visible' });
-      assert.equal(await page.getByRole('table').getByText('GT-CH-01').first().isVisible(), true);
+      await page.getByRole('heading', { name: /Guta Workspace — Quản lý nhân sự & chi nhánh/i }).waitFor({ state: 'visible' });
+      await page.waitForFunction(
+        (expected) => document.querySelectorAll('table tbody tr[data-id]').length === expected,
+        STORE_FIXTURE_ITEMS.length
+      );
+      assert.equal(await page.getByRole('table').getByText(STORE_FIXTURE_ITEMS[0].code).first().isVisible(), true);
     } finally {
       await page.unroute('**/api/employees**', employeesHandler);
     }
@@ -771,6 +995,58 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     // Xác nhận không có toast coming soon / lộ trình phát triển nào xuất hiện
     assert.equal(await page.locator('#zkteco-sync-toast').count(), 0);
     assert.equal(await page.getByText(/Coming Soon|Lộ trình phát triển/i).count(), 0);
+  });
+
+  it('CRM real-data: KPI null hiển thị — (không phải 0) và xoá 409 báo nghiệp vụ', async () => {
+    // The mutating controls are Admin-only; sign in explicitly instead of
+    // inheriting the role the previous step left behind.
+    await signInAs('admin');
+
+    // --- KPI ribbon: value === null must render an em dash, never 0 ---
+    const kpiValues = await page.locator('.crm-kpi-value').evaluateAll((nodes) => nodes.map((node) => node.textContent.trim()));
+    assert.equal(kpiValues.length, 4);
+    // revenue + onTimeRate are null in the fixture.
+    assert.ok(kpiValues[2].includes('—'), `Doanh thu phải là dấu —, nhận: ${kpiValues[2]}`);
+    assert.ok(!/^0\b/.test(kpiValues[2]), 'Không được hiển thị 0 thay cho null');
+    assert.ok(kpiValues[3].includes('—'), `Tỷ lệ đúng giờ phải là dấu —, nhận: ${kpiValues[3]}`);
+    assert.ok(!/^0\b/.test(kpiValues[3]), 'Không được hiển thị 0 thay cho null');
+
+    // The reason must be reachable as a tooltip, not silently dropped.
+    const revenueTitle = await page.locator('.crm-kpi-card').nth(2).locator('.crm-kpi-value').getAttribute('title');
+    assert.equal(revenueTitle, DASHBOARD_OVERVIEW_FIXTURE.revenue.reason);
+    const onTimeTitle = await page.locator('.crm-kpi-card').nth(3).locator('.crm-kpi-value').getAttribute('title');
+    assert.equal(onTimeTitle, DASHBOARD_OVERVIEW_FIXTURE.onTimeRate.reason);
+
+    // Sidebar badge + header chip come from overview.stores.outlets.
+    assert.equal((await page.locator('#crm-nav-store-count').textContent()).trim(), String(DASHBOARD_OVERVIEW_FIXTURE.stores.outlets));
+    assert.match(await page.locator('#crm-header-store-chip').textContent(), new RegExp(`${DASHBOARD_OVERVIEW_FIXTURE.stores.outlets} chi nhánh`));
+
+    // Paging line is derived from the response, not a literal.
+    assert.match(await page.getByText(/Hiển thị \d+ \/ \d+ Cửa hàng/).textContent(), new RegExp(`Hiển thị ${STORE_FIXTURE_ITEMS.length} / ${STORE_FIXTURE_ITEMS.length}`));
+
+    // --- Delete: 409 STORE_HAS_EMPLOYEES must surface a business message ---
+    const target = STORE_FIXTURE_ITEMS[0];
+    const conflictHandler = (route) => route.fulfill({
+      status: 409,
+      json: { error: { code: 'STORE_HAS_EMPLOYEES', message: 'STORE_HAS_EMPLOYEES' } },
+    });
+    await page.route('**/api/stores/*', conflictHandler);
+    page.once('dialog', (dialog) => dialog.accept());
+    try {
+      await page.locator(`table tbody tr[data-id="${target.id}"]`).getByRole('button', { name: 'Xoá', exact: true }).click();
+      const toast = page.getByText(new RegExp(`Cửa hàng còn ${target.employeeCount} nhân sự, không thể xoá`));
+      await toast.waitFor({ state: 'visible', timeout: 3000 });
+      assert.equal(await toast.isVisible(), true);
+      // The raw code must never leak to the operator.
+      assert.equal(await page.getByText(/STORE_HAS_EMPLOYEES/).count(), 0);
+    } finally {
+      await page.unroute('**/api/stores/*', conflictHandler);
+    }
+    // The deliberate 409 makes Chromium log
+    // "Failed to load resource: ... 409 (Conflict)". That is the expected
+    // network trace of this assertion, not a defect: clear it so the
+    // zero-console-error assertions in the following steps stay meaningful.
+    consoleErrors.length = 0;
   });
 
   it('Bước 7: Bấm nút "Đăng xuất", kiểm tra quay lại Landing Page an toàn', async () => {
@@ -783,9 +1059,9 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.equal(await heroTitle.isVisible(), true);
     assert.equal(await page.evaluate(() => sessionStorage.getItem('guta_user')), null);
     assert.equal(await page.evaluate(() => localStorage.getItem('guta_user')), null);
-    for (const { username, name } of [
-      { username: 'employee', name: 'employee' },
-      { username: 'admin', name: 'admin' },
+    for (const { username, name, isAdmin } of [
+      { username: 'employee', name: 'employee', isAdmin: false },
+      { username: 'admin', name: 'admin', isAdmin: true },
     ]) {
       await page.getByRole('button', { name: /Get Started/i }).click();
       await page.getByLabel('Tên đăng nhập', { exact: true }).fill(username);
@@ -797,6 +1073,16 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       assert.equal(await page.evaluate(() => sessionStorage.getItem('guta_user')), null);
       assert.equal(await page.evaluate(() => localStorage.getItem('guta_user')), null);
       assert.equal(await page.locator('.crm-sidebar').getByText(name, { exact: true }).isVisible(), true);
+      // RBAC on the directory: only Admin may see the mutating controls. The
+      // server enforces this too; this guards against the UI advertising an
+      // action that will 403.
+      await page.waitForFunction(
+        (expected) => document.querySelectorAll('table tbody tr[data-id]').length === expected,
+        STORE_FIXTURE_ITEMS.length
+      );
+      assert.equal(await page.getByRole('button', { name: 'Thêm cửa hàng' }).count(), isAdmin ? 1 : 0);
+      assert.equal(await page.getByRole('button', { name: 'Sửa', exact: true }).count(), isAdmin ? STORE_FIXTURE_ITEMS.length : 0);
+      assert.equal(await page.getByRole('button', { name: 'Xoá', exact: true }).count(), isAdmin ? STORE_FIXTURE_ITEMS.length : 0);
       await logoutBtn.click();
       await heroTitle.waitFor({ state: 'visible' });
       assert.equal(await page.evaluate(() => sessionStorage.getItem('guta_user')), null);

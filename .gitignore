@@ -70,7 +70,7 @@ prompt/
 # scripts/extract_sheet_to_db.py + scripts/export_for_mongo.py, never pushed
 db/
 data/
-dashboard/
+/dashboard/
 
 # Large installer binary (>100MB exceeds GitHub's hard file limit)
 docs/DevinUserSetup-x64-3.10.23.exe

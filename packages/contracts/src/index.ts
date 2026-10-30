@@ -955,3 +955,70 @@ export const KpiUpdatedPayloadSchema = z.object({
 });
 export type KpiUpdatedPayload = z.infer<typeof KpiUpdatedPayloadSchema>;
 
+// ============================================================================
+// 12. Store Directory & Dashboard Schemas (CRM real-data)
+// ============================================================================
+
+export const StoreKindSchema = z.enum(["outlet", "group", "support"]);
+export type StoreKind = z.infer<typeof StoreKindSchema>;
+
+export const StoreStatusSchema = z.enum(["ACTIVE", "INACTIVE"]);
+export type StoreStatus = z.infer<typeof StoreStatusSchema>;
+
+export const StoreSummarySchema = z.object({
+  id: z.string(),
+  code: z.string().nullable(),
+  name: z.string(),
+  kind: StoreKindSchema,
+  district: z.string().nullable(),
+  managerName: z.string().nullable(),
+  managerEmployeeId: z.string().nullable(),
+  employeeCount: z.number().int().nonnegative(),
+  activeEmployeeCount: z.number().int().nonnegative(),
+  status: StoreStatusSchema,
+});
+export type StoreSummary = z.infer<typeof StoreSummarySchema>;
+
+export const StoreListResponseSchema = z.object({
+  items: z.array(StoreSummarySchema),
+  paging: PaginationMetaSchema,
+  summary: z.object({
+    totalOutlets: z.number().int().nonnegative(),
+    totalGroups: z.number().int().nonnegative(),
+  }),
+});
+export type StoreListResponse = z.infer<typeof StoreListResponseSchema>;
+
+export const StoreCreateSchema = z.object({
+  name: z.string().trim().min(3).max(120),
+  code: z.string().trim().min(1).max(32).nullable().optional(),
+  kind: StoreKindSchema.default("outlet"),
+  district: z.string().trim().max(60).nullable().optional(),
+  status: StoreStatusSchema.default("ACTIVE"),
+});
+export type StoreCreate = z.infer<typeof StoreCreateSchema>;
+
+export const StoreUpdateSchema = StoreCreateSchema.partial();
+export type StoreUpdate = z.infer<typeof StoreUpdateSchema>;
+
+export const DashboardMetricSchema = z.object({
+  value: z.number().nullable(),
+  reason: z.string().nullable(),
+  source: z.string(),
+  asOf: z.string().nullable(),
+});
+export type DashboardMetric = z.infer<typeof DashboardMetricSchema>;
+
+export const DashboardOverviewSchema = z.object({
+  stores: z.object({ outlets: z.number(), groups: z.number(), support: z.number() }),
+  employees: z.object({ total: z.number(), active: z.number(), inactive: z.number() }),
+  profileCompletionRate: DashboardMetricSchema,
+  managersCovered: DashboardMetricSchema,
+  employeesPerOutlet: DashboardMetricSchema,
+  revenue: DashboardMetricSchema,
+  onTimeRate: DashboardMetricSchema,
+  latestScheduleDate: z.string().nullable(),
+  generatedAt: z.string(),
+});
+export type DashboardOverview = z.infer<typeof DashboardOverviewSchema>;
+

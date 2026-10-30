@@ -9,6 +9,7 @@ import type {
   UpdateAdminUser,
   Conversation,
   CreateProfileChangeRequest,
+  DashboardOverview,
   EmployeeDetail,
   EmployeeLevel,
   EmployeeSummary,
@@ -30,6 +31,12 @@ import type {
   ReviewProfileChangeRequest,
   ScheduleEntry,
   Store,
+  StoreCreate,
+  StoreKind,
+  StoreListResponse,
+  StoreStatus,
+  StoreSummary,
+  StoreUpdate,
   UpdateLLMProvidersRequest,
 } from '@hr-blockbot/contracts';
 import { API_BASE, apiFetch } from './auth';
@@ -490,3 +497,55 @@ export async function deleteAdminUser(userId: string): Promise<void> {
 }
 
 export type { AdminUser, AdminUserWithPassword, CreateAdminUser, ResetPasswordResponse, UpdateAdminUser };
+
+// ---------------------------------------------------------------------------
+// Store directory + dashboard overview (CRM real data)
+// ---------------------------------------------------------------------------
+
+export interface StoreListParams {
+  q?: string;
+  kind?: StoreKind;
+  district?: string;
+  status?: StoreStatus;
+  page?: number;
+  limit?: number;
+}
+
+export async function fetchStores(params?: StoreListParams): Promise<StoreListResponse> {
+  const query = new URLSearchParams();
+  if (params?.q) query.set('q', params.q);
+  if (params?.kind) query.set('kind', params.kind);
+  if (params?.district) query.set('district', params.district);
+  if (params?.status) query.set('status', params.status);
+  if (params?.page) query.set('page', String(params.page));
+  if (params?.limit) query.set('limit', String(params.limit));
+
+  const qs = query.toString();
+  const json = await requestJson<StoreListResponse>(`/stores${qs ? `?${qs}` : ''}`);
+  if (!Array.isArray(json.items) || !json.paging) {
+    throw new ApiError('Phản hồi danh sách cửa hàng sai hợp đồng (thiếu items/paging)', 500, 'INVALID_RESPONSE');
+  }
+  return json;
+}
+
+export async function fetchStoreById(id: string): Promise<StoreSummary> {
+  return requestJson<StoreSummary>(`/stores/${encodeURIComponent(id)}`);
+}
+
+export async function createStore(body: StoreCreate): Promise<StoreSummary> {
+  return requestJson<StoreSummary>('/stores', postJson(body));
+}
+
+export async function updateStore(id: string, body: StoreUpdate): Promise<StoreSummary> {
+  return requestJson<StoreSummary>(`/stores/${encodeURIComponent(id)}`, patchJson(body));
+}
+
+export async function deleteStore(id: string): Promise<void> {
+  await requestJson<void>(`/stores/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export async function fetchDashboardOverview(): Promise<DashboardOverview> {
+  return requestJson<DashboardOverview>('/dashboard/overview');
+}
+
+export type { StoreCreate, StoreKind, StoreListResponse, StoreStatus, StoreSummary, StoreUpdate };

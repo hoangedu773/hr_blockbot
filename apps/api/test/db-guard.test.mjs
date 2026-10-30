@@ -39,3 +39,36 @@ describe("Safety Guard: Test Database URI Validator", () => {
     );
   });
 });
+
+describe("Safety Guard: database resolution", () => {
+  test("test mode: URI path thắng MONGODB_DB_NAME (giữ isolation)", async () => {
+    const { resolveDbName } = await import("../dist/db.js");
+    const previous = process.env.MONGODB_DB_NAME;
+    process.env.MONGODB_DB_NAME = "hr_bot";
+    try {
+      assert.equal(resolveDbName("mongodb://127.0.0.1:27017/test_hr_auth"), "test_hr_auth");
+      assert.equal(resolveDbName("mongodb://127.0.0.1:27017/test_hr_auth?retryWrites=true"), "test_hr_auth");
+      assert.equal(resolveDbName("mongodb://127.0.0.1:27017"), "hr_bot");
+    } finally {
+      if (previous === undefined) delete process.env.MONGODB_DB_NAME;
+      else process.env.MONGODB_DB_NAME = previous;
+    }
+  });
+
+  test("production: MONGODB_DB_NAME vẫn thắng (tách dev/demo/test trên một cluster)", async () => {
+    const { resolveDbName } = await import("../dist/db.js");
+    const savedNodeEnv = process.env.NODE_ENV;
+    const previous = process.env.MONGODB_DB_NAME;
+    process.env.NODE_ENV = "production";
+    process.env.MONGODB_DB_NAME = "hr_demo";
+    try {
+      assert.equal(resolveDbName("mongodb://127.0.0.1:27017/hr_bot"), "hr_demo");
+      delete process.env.MONGODB_DB_NAME;
+      assert.equal(resolveDbName("mongodb://127.0.0.1:27017/hr_bot"), "hr_bot");
+    } finally {
+      process.env.NODE_ENV = savedNodeEnv;
+      if (previous === undefined) delete process.env.MONGODB_DB_NAME;
+      else process.env.MONGODB_DB_NAME = previous;
+    }
+  });
+});

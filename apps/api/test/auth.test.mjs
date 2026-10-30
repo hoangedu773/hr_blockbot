@@ -768,13 +768,19 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
   });
 
   describe("8. Security Lockdown: Legacy Endpoints & Health Check", () => {
-    test("Legacy endpoints (/stores, /schedules, /corrections, /cash) trả 503 disabled", async () => {
-      for (const endpoint of ["/api/stores", "/api/schedules", "/api/corrections", "/api/cash"]) {
+    test("Legacy endpoints còn lại (/schedules, /corrections, /cash) trả 503 disabled", async () => {
+      for (const endpoint of ["/api/schedules", "/api/corrections", "/api/cash"]) {
         const res = await httpFetch(`${baseUrl}${endpoint}`);
         assert.equal(res.status, 503);
         const data = await res.json();
         assert.ok(data.error.message.includes("disabled"));
       }
+    });
+
+    test("/api/stores đã mount thật: không token phải 401, không phải 503 hay 200", async () => {
+      const res = await httpFetch(`${baseUrl}/api/stores`);
+      assert.equal(res.status, 401);
+      assert.equal((await res.json()).error.code, "UNAUTHENTICATED");
     });
 
     test("GET /api/health - trả thông tin tối thiểu, phân biệt liveness vs readiness, không lộ connection string", async () => {

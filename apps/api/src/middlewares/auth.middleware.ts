@@ -1,7 +1,44 @@
 import { Request, Response, NextFunction } from "express";
+import mongoose from "mongoose";
 import { verifyAccessToken } from "../services/auth.service.js";
 import { UserModel } from "../models/User.js";
 import { EmployeeModel } from "../models/Employee.js";
+
+/**
+ * Lỗi hạ tầng (mất kết nối, server selection timeout, pool cạn) KHÔNG phải lỗi xác
+ * thực. Trả 401 cho chúng khiến client coi phiên đã hết, gọi refresh, refresh cũng
+ * 401 rồi đăng xuất toàn bộ người dùng đang online vì một sự cố Mongo thoáng qua.
+ *
+ * Phân loại chỉ dựa trên danh tính lớp lỗi của driver, không dò chuỗi trong message:
+ * heuristic "connection"/"pool" khớp cả lỗi nghiệp vụ và biến chúng thành 503.
+ */
+const INFRASTRUCTURE_ERROR_NAMES = new Set([
+  "MongooseServerSelectionError",
+  "MongoServerSelectionError",
+  "MongoNetworkError",
+  "MongoNetworkTimeoutError",
+  "MongoOperationTimeoutError",
+  "MongoNotConnectedError",
+]);
+
+export function isInfrastructureError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  if (INFRASTRUCTURE_ERROR_NAMES.has(err.name)) return true;
+
+  const { MongoNetworkError, MongoServerSelectionError, MongoNotConnectedError } = mongoose.mongo;
+  if (
+    err instanceof MongoNetworkError ||
+    err instanceof MongoServerSelectionError ||
+    err instanceof MongoNotConnectedError ||
+    err instanceof mongoose.Error.MongooseServerSelectionError
+  ) {
+    return true;
+  }
+
+  // Lỗi duy nhất cần khớp chuỗi: mongoose ném `MongooseError` với message cố định này
+  // khi buffer timeout, không có lớp riêng để instanceof.
+  return err.name === "MongooseError" && /^Operation `.*` buffering timed out/.test(err.message);
+}
 
 export interface AuthenticatedUser {
   userId: string;
@@ -47,9 +84,22 @@ export async function authenticateToken(
   }
 
   const token = authHeader.split(" ")[1];
-  try {
-    const claims = await verifyAccessToken(token);
 
+  let claims: Awaited<ReturnType<typeof verifyAccessToken>>;
+  try {
+    claims = await verifyAccessToken(token);
+  } catch {
+    // Chỉ lỗi verify (sai chữ ký, hết hạn, sai format) mới là 401.
+    res.status(401).json({
+      error: {
+        code: "UNAUTHENTICATED",
+        message: "Invalid or expired access token",
+      },
+    });
+    return;
+  }
+
+  try {
     const user = await UserModel.findById(claims.sub);
     if (!user) {
       res.status(401).json({
@@ -85,7 +135,12 @@ export async function authenticateToken(
     };
 
     next();
-  } catch (_err) {
+  } catch (err) {
+    if (isInfrastructureError(err)) {
+      // next(err) -> error handler chung trả 503 SERVICE_UNAVAILABLE.
+      next(err);
+      return;
+    }
     res.status(401).json({
       error: {
         code: "UNAUTHENTICATED",
@@ -138,8 +193,13 @@ export async function optionalAuthenticateToken(
       mustChangePassword: user.mustChangePassword === true,
       isGlobalAdmin: user.isGlobalAdmin === true,
     };
-  } catch {
-    // Invalid or expired token: gracefully proceed as unauthenticated guest
+  } catch (err) {
+    // Token hỏng -> tiếp tục như khách. Lỗi hạ tầng thì không: nuốt nó ở đây biến
+    // route public thành 200 với dữ liệu thiếu, khó lần hơn nhiều so với 503.
+    if (isInfrastructureError(err)) {
+      next(err);
+      return;
+    }
   }
 
   next();

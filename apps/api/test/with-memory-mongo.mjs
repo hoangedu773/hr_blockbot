@@ -7,9 +7,11 @@
  * server stopped answering `hello` and the next file died with "Server selection timed
  * out after 30000 ms". Startup costs ~1-2s per file once the binary is cached.
  *
- * `--test-force-exit` is required because a lingering keep-alive socket otherwise keeps
- * a test process alive forever; it only takes effect in a process that is itself the
- * test runner, which is why each file is spawned separately.
+ * Each file is spawned separately so one wedged mongod cannot poison the next. The
+ * child runs plain `node --test`: `--test-force-exit` used to be here to kill lingering
+ * keep-alive sockets, but on Node 24 it aborts with a libuv assertion
+ * (`!(handle->flags & UV_HANDLE_CLOSING)`) after the assertions already passed, turning
+ * a green file into exit 1. Teardown now closes sockets instead.
  *
  * If something already listens on 127.0.0.1:27017 that server is reused (a file that
  * wedges it will still break the next one — the operator's server, the operator's call).
@@ -18,7 +20,7 @@
  */
 
 import net from "node:net";
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 
 const TEST_FILES = process.argv.slice(2);
 if (TEST_FILES.length === 0) {
@@ -82,12 +84,27 @@ for (const file of TEST_FILES) {
     TEST_MONGODB_URI: databaseFor(baseUri, file),
   };
   delete env.ATLAS_URI;
+  // The guard copies TEST_MONGODB_URI into MONGODB_URI, but a shell-level
+  // MONGODB_DB_NAME would still redirect mongoose to another database.
+  delete env.MONGODB_DB_NAME;
 
-  const child = spawnSync(process.execPath, ["--test", "--test-force-exit", file], {
-    env,
-    stdio: "inherit",
+  // No `--test-force-exit`: on Node 24 it aborts the process with
+  // "Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)" after the tests have
+  // already passed, so a green suite exits 1. Every file now closes its sockets
+  // (see `httpFetch` in auth.test.mjs and `server.closeAllConnections` in teardown),
+  // so the process drains on its own.
+  //
+  // Must be async `spawn`, not `spawnSync`: spawnSync blocks this process's event
+  // loop, so the in-memory mongod's stdout pipe is never drained. Once that pipe
+  // fills, mongod blocks on write and every query in the child hangs — the suite
+  // passed assertions and then never exited. Only files that never touch the DB
+  // (db-guard) were immune.
+  const status = await new Promise((resolve) => {
+    const child = spawn(process.execPath, ["--test", file], { env, stdio: "inherit" });
+    child.on("error", () => resolve(1));
+    child.on("close", (code, signal) => resolve(code ?? (signal ? 1 : 0)));
   });
-  if ((child.status ?? 1) !== 0) failed = true;
+  if (status !== 0) failed = true;
 
   if (server) {
     await server.stop().catch(() => {});
