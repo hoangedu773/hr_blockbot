@@ -36,6 +36,9 @@
   --folio-space: 8px;
   --folio-section: 64px;
   --folio-width: 1270px;
+  /* One measure for the whole page: nav, hero fragment, section heads and
+   * card grids all resolve to this, so the page has one pair of margins. */
+  --folio-content: 1120px;
   --folio-display: "Newsreader", Georgia, "Times New Roman", serif;
   --folio-body: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --folio-pill: 9999px;
@@ -154,85 +157,106 @@ html.dark {
   .folio-preview h2 { font-size: 36px; }
 }
 
-/* 3. Header — one nav, two shapes.
+/* 3. Header — Architecture from folio-topaz reference:
  *
- * Full-bleed at the top of the page; on scroll it contracts into a floating
- * pill with a blurred ground and a hairline. One element, so focus order,
- * aria-expanded and the mobile menu keep a single source of truth. Only
- * max-width / margin / radius animate — never `all`. */
+ * <nav> is ALWAYS fixed, 100% wide, top:0, transparent, pointer-events:none.
+ * It NEVER resizes, NEVER shifts, NEVER teleports.
+ *
+ * All shape and style changes live on the inner `.folio-nav` container:
+ *   - At top: centered capsule at max-width 1152px, transparent background
+ *   - Scrolled: fluidly tucks in to 920px with frosted-glass blur and border
+ *   - Pulling up: smoothly expands back to 1152px with cubic-bezier(0.16, 1, 0.3, 1)
+ *
+ * Links are centered with `position: absolute; inset: 0; margin: auto; width: fit-content;`
+ * exactly like folio-topaz-delta.vercel.app: ZERO horizontal drifting. */
 .folio-preview > header nav {
   position: fixed;
   inset: 0 0 auto 0;
   width: 100%;
   z-index: 50;
-  max-width: 100%;
-  margin-inline: 0;
-  padding-inline: clamp(16px, 4vw, 32px);
+  padding: 0 8px;
   background: transparent;
+  pointer-events: none;
+}
+
+.folio-nav {
+  pointer-events: auto;
+  position: relative;
+  width: 100%;
+  max-width: min(1152px, calc(100% - 16px));
+  margin: 8px auto 0;
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 16px;
   border: 1px solid transparent;
-  border-radius: 0;
+  background: transparent;
   box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   transition:
-    max-width var(--t-pill) var(--ease-out),
-    margin var(--t-pill) var(--ease-out),
-    padding var(--t-pill) var(--ease-out),
-    border-radius var(--t-pill) var(--ease-out),
-    background-color var(--t-pill) var(--ease-out),
-    border-color var(--t-pill) var(--ease-out),
-    box-shadow var(--t-pill) var(--ease-out);
+    max-width 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-radius 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    padding 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 260ms var(--ease-out),
+    border-color 260ms var(--ease-out),
+    box-shadow 260ms var(--ease-out),
+    -webkit-backdrop-filter 260ms var(--ease-out),
+    backdrop-filter 260ms var(--ease-out);
 }
 
-.folio-preview > header nav > div {
-  max-width: var(--folio-width);
-  margin: 0 auto;
-}
-
-.folio-preview > header nav.nav-scrolled {
-  max-width: min(960px, calc(100% - 32px));
-  margin-inline: auto;
-  margin-top: 12px;
-  padding-inline: clamp(10px, 2vw, 18px);
-  border-radius: var(--folio-pill);
-  background: color-mix(in oklab, var(--folio-canvas) 78%, transparent);
+.folio-preview > header nav.nav-scrolled .folio-nav {
+  max-width: min(920px, calc(100% - 24px));
+  border-radius: 9999px;
+  padding: 8px 20px;
+  background: color-mix(in oklab, var(--folio-canvas) 80%, transparent);
   border-color: var(--folio-border);
-  /* Overlay: the bar floats above content that scrolls under it. */
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-  /* Prefixed first: the CSS minifier collapses these two into one declaration
-   * and keeps the last, so the unprefixed form has to come last or the blur is
-   * silently dropped from the bundle. */
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
 }
 
-/* An open menu must not be clipped by the pill's radius. The selector repeats
- * the full pill chain so it wins on specificity rather than on !important. */
-.folio-preview > header nav[data-state="active"],
-.folio-preview > header nav.nav-scrolled[data-state="active"] {
+@media (min-width: 1024px) {
+  /* Absolute centring like folio-topaz: mathematically centered in the bar
+   * at both 1152px and 920px. Never drifts when the bar width transitions. */
+  .folio-nav-links {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: fit-content;
+    height: fit-content;
+    display: flex;
+    gap: 28px;
+    list-style: none;
+    padding: 0;
+  }
+}
+
+/* Open mobile menu expands full width */
+.folio-preview nav[data-state="active"] {
+  pointer-events: auto;
+  padding: 0;
+}
+
+.folio-preview nav[data-state="active"] .folio-nav {
   max-width: 100%;
-  margin-top: 0;
+  margin: 0;
   border-radius: 0;
+  border-color: var(--folio-border);
+  background: var(--folio-canvas);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
-/* Anchor targets need room for the fixed bar, pill or not. */
+/* Anchor targets need room for the fixed bar */
 .folio-preview :is(section[id], div[id="dashboard-preview"]) {
-  scroll-margin-top: 96px;
-}
-
-@media (max-width: 1023px) {
-  .folio-preview > header nav.nav-scrolled {
-    max-width: calc(100% - 24px);
-    margin-top: 8px;
-  }
-
-  .folio-preview :is(section[id], div[id="dashboard-preview"]) {
-    scroll-margin-top: 76px;
-  }
+  scroll-margin-top: 88px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .folio-preview > header nav { transition: none; }
+  .folio-nav { transition: none !important; }
 }
 
 .folio-nav {
@@ -557,7 +581,7 @@ html:not(.dark) .folio-preview [data-theme-toggle] button[aria-label="Light them
 }
 
 .folio-hero-inner {
-  width: min(100% - 32px, 1080px);
+  width: min(100% - 32px, var(--folio-content));
   margin-inline: auto;
   text-align: center;
 }
@@ -666,33 +690,31 @@ html:not(.dark) .folio-preview [data-theme-toggle] button[aria-label="Light them
 /* Hero mockup: a cropped interface fragment, opening on the hero timeline.
  * The photograph behind it is the room the product sits in: no frame, no
  * border, edges dissolved by a two-axis mask plus one neutral scrim. */
+/* Hero Stage & Photo Plate — architecture from folio-topaz:
+ *
+ * The table mockup is centered in a compact 1080px container (max-w-6xl).
+ * The landscape photo plate sits behind it, inset -48px to the sides and
+ * -64px to the top, so the glowing sunset sky flanks the table softly on
+ * the left and right, with edges dissolved by a two-axis mask. */
 .hero-stage {
   position: relative;
-  margin-top: 40px;
-  padding-top: 88px;
-  padding-bottom: 48px;
-  overflow-x: clip;
-}
-
-@media (max-width: 1023px) {
-  .hero-stage { padding-top: 64px; }
-}
-
-@media (max-width: 639px) {
-  .hero-stage { padding-top: 48px; }
+  width: min(100% - 32px, 1080px);
+  margin: 32px auto 0;
+  padding: 0 0 28px;
+  overflow: visible;
 }
 
 .hero-plate {
   position: absolute;
-  inset: -150px -60px 40px;
+  inset: -64px -48px 0;
   pointer-events: none;
-  opacity: 0.72;
+  opacity: 0.68;
   mask-image:
-    linear-gradient(to right, transparent 0%, #000 26%, #000 74%, transparent 100%),
-    linear-gradient(to bottom, transparent 0%, #000 32%, #000 100%);
+    linear-gradient(to right, transparent 0%, #000 18%, #000 82%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, #000 22%, #000 88%, transparent 100%);
   -webkit-mask-image:
-    linear-gradient(to right, transparent 0%, #000 26%, #000 74%, transparent 100%),
-    linear-gradient(to bottom, transparent 0%, #000 32%, #000 100%);
+    linear-gradient(to right, transparent 0%, #000 18%, #000 82%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, #000 22%, #000 88%, transparent 100%);
   mask-composite: intersect;
   -webkit-mask-composite: source-in;
 }
@@ -702,38 +724,30 @@ html:not(.dark) .folio-preview [data-theme-toggle] button[aria-label="Light them
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: 50% 52%;
-}
-
-/* Neutral scrim over the photo where the mockup edge meets it. This is the one
- * gradient the house rules allow: it exists to keep a hard edge from cutting
- * across a photograph, not to decorate. */
-.hero-stage::after {
-  content: "";
-  position: absolute;
-  inset: auto 0 0;
-  height: 30%;
-  z-index: 0;
-  pointer-events: none;
-  background: linear-gradient(to bottom, transparent, var(--folio-canvas) 92%);
-}
-
-@media (max-width: 1023px) {
-  .hero-plate { inset: -120px -28px 32px; opacity: 0.62; }
-}
-
-@media (max-width: 639px) {
-  .hero-plate { inset: -96px -18px 24px; opacity: 0.58; }
+  object-position: center 36%;
 }
 
 .hero-stage-frame {
   position: relative;
-  z-index: 1;
+  z-index: 10;
   max-height: 420px;
   overflow: hidden;
-  mask-image: linear-gradient(to bottom, #000 0%, #000 82%, transparent 100%); /* taste-skill-ignore */
-  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 82%, transparent 100%); /* taste-skill-ignore */
+  border-radius: var(--folio-radius-panel);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 85%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 85%, transparent 100%);
 }
+
+@media (max-width: 1023px) {
+  .hero-stage { width: min(100% - 24px, 1080px); }
+  .hero-plate { inset: -48px -28px 0; opacity: 0.62; }
+}
+
+@media (max-width: 639px) {
+  .hero-stage { width: calc(100% - 16px); margin-top: 24px; }
+  .hero-plate { inset: -36px -14px 0; opacity: 0.58; }
+}
+
+
 
 .hero-stage-crop {
   position: relative;
@@ -1300,8 +1314,11 @@ html:not(.dark) .folio-preview [data-theme-toggle] button[aria-label="Light them
 }
 
 /* 6. Landing sections */
+/* Padding is inside the box, so the cap adds it back: at 1440 the content
+ * edge lands on --folio-content, the same edge the nav and hero use. */
 .guta-container {
-  width: min(100%, var(--folio-width));
+  width: 100%;
+  max-width: calc(var(--folio-content) + 64px);
   margin-inline: auto;
   padding-inline: clamp(16px, 4vw, 32px);
 }

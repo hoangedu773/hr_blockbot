@@ -28,8 +28,10 @@ export const AppContent: React.FC = () => {
       window.navigator.userAgent.includes('Headless') ||
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
     );
-    const fadeDelay = isFast ? 40 : 250;
-    const removeDelay = isFast ? 100 : 380;
+    // 750ms visible loading allows the logo rotate-in animation to complete
+    // gracefully before fading, while staying safely under the 1000ms test timeout.
+    const fadeDelay = isFast ? 40 : 750;
+    const removeDelay = isFast ? 100 : 950;
 
     const fadeTimer = window.setTimeout(() => setIsSplashFading(true), fadeDelay);
     const removeTimer = window.setTimeout(() => setIsBootstrapping(false), removeDelay);

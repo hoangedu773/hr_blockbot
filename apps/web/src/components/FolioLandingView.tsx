@@ -73,7 +73,7 @@ const FOLIO_HTML = `
 
     <div class="hero-stage">
       <div class="hero-plate" aria-hidden="true">
-        <img src="/assets/folio/images/dashboard-bg-hero.jpg" alt="" width="1600" height="1067" decoding="async" fetchpriority="high" class="hero-plate-img" />
+        <img src="/assets/folio/images/dashboard-bg.jpg" alt="" width="1600" height="1067" decoding="async" fetchpriority="high" class="hero-plate-img" />
       </div>
       <div class="hero-stage-frame" data-open>
         <div class="hero-stage-crop">
@@ -512,10 +512,10 @@ export const FolioLandingView: React.FC<FolioLandingViewProps> = ({ onLogin, isA
       toggle.addEventListener('click', handleToggle);
     }
     const nav = root.querySelector('nav');
-    // Hysteresis: enter at 24, leave at 8. One threshold flickers when the
-    // user rests the scroll position on it (trackpad inertia, iOS bounce).
-    const NAV_ENTER_AT = 24;
-    const NAV_LEAVE_AT = 8;
+    // Threshold matching folio-topaz reference: enter at 50px, leave at 20px.
+    // 30px hysteresis buffer prevents any flickering on trackpad inertia.
+    const NAV_ENTER_AT = 50;
+    const NAV_LEAVE_AT = 20;
     let navScrolled = false;
     const syncScrolledNav = () => {
       const y = window.scrollY;
