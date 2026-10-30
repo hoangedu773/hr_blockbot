@@ -113,9 +113,9 @@ class UseJevKeyPool:
             if code in ("auth", "quota"):
                 state.disabled = True
                 state.reason = code
-            elif code == "rate":
+            elif code in ("rate", "transport", "server", "timeout"):
                 state.cooldown_until = time.monotonic() + self.cooldown_seconds
-                state.reason = "rate"
+                state.reason = code
             else:
                 state.reason = code
 
@@ -239,9 +239,9 @@ class UseJevClient:
                 raise UseJevError("transport", 0) from exc
 
             if self._clock() > deadline:
+                self.pool.report_failure(key, "timeout")
                 self.pool.release(key)
                 raise UseJevError("timeout", None)
-
             if status in (200, 201, 202):  # the live API answers 202 Accepted
                 try:
                     parsed = json.loads(body)
@@ -316,6 +316,7 @@ class UseJevClient:
             if state in TERMINAL_BAD:
                 raise UseJevError(f"run_{state}", status)
             self._sleep(self.poll_interval_seconds)
+        self.pool.report_failure(key, "timeout")
         raise UseJevError("timeout", None)
 
 
