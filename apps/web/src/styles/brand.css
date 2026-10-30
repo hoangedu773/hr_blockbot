@@ -67,3 +67,16 @@
 .folio-display .line {
   font-family: var(--brand-font-display);
 }
+
+.folio-main {
+  display: block;
+}
+
+.folio-footer {
+  width: 100%;
+}
+
+.folio-theme {
+  display: inline-flex;
+  align-items: center;
+}

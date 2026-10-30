@@ -175,7 +175,6 @@
   --emerald: #10b981;
   --rose: #f43f5e;
   --cyan: #06b6d4;
-  --purple: #a855f7;
 
   --mono: var(--font-mono);
   --ease: var(--ease-out);
@@ -1622,17 +1621,14 @@
 .progress__bar {
   height: 100%;
   border-radius: var(--radius-pill);
-  background: linear-gradient(90deg, var(--guta-blue), var(--emerald));
+  background: var(--accent-solid);
   transition: width 240ms var(--ease-out);
 }
 
 .skeleton {
   border-radius: 6px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.05));
-  background-size: 200% 100%;
-  animation: skeleton-sweep 1.4s ease-in-out infinite;
+  background: var(--surface-raised);
 }
-
 @keyframes skeleton-sweep {
   from {
     background-position: 200% 0;

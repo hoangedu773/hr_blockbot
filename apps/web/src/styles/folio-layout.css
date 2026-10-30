@@ -590,16 +590,7 @@ html:not(.dark) .folio-preview [data-theme-toggle] button[aria-label="Light them
 }
 
 .hero-stage-glow {
-  position: absolute;
-  inset: -56px -40px -8px;
-  pointer-events: none;
-  opacity: 0.55;
-  background: radial-gradient(60% 60% at 50% 0%, rgba(38, 109, 240, 0.16), transparent 70%);
-  border-radius: var(--folio-radius-panel);
-}
-
-html:not(.dark) .hero-stage-glow {
-  background: radial-gradient(60% 60% at 50% 0%, rgba(37, 99, 235, 0.1), transparent 70%);
+  display: none;
 }
 
 .hero-stage-frame {
@@ -607,8 +598,8 @@ html:not(.dark) .hero-stage-glow {
   z-index: 1;
   max-height: 420px;
   overflow: hidden;
-  mask-image: linear-gradient(to bottom, #000 0%, #000 82%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 82%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 82%, transparent 100%); /* taste-skill-ignore */
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 82%, transparent 100%); /* taste-skill-ignore */
 }
 
 .hero-stage-crop {
