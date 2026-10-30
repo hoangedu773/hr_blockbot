@@ -413,32 +413,34 @@ class AgentLoop:
             getattr(user_ctx, "business_role", None) or getattr(user_ctx, "role", "Employee")
         )
         store_name = getattr(user_ctx, "store_name", None)
-        if normalized_greeting in GREETING_WORDS:
-            reply = (
-                "Chào Quản lý! Mình là trợ lý HR-BlockBot hỗ trợ SM/AOM. Bạn cần kiểm tra checklist bàn giao ca, phê duyệt đổi ca hay đối soát quỹ két hôm nay?"
-                if is_manager_role(user_role)
-                else "Chào bạn! Mình là trợ lý HR-BlockBot. Bạn cần hỗ trợ gì về ca trực, hướng dẫn biểu mẫu bàn giao hay giải trình két Guta hôm nay?"
-            )
-            return AgentTurn(
-                intent="general_chat",
-                intent_id="general_chat",
-                reply=reply,
-                steps=1,
-                answer_source="rule",
-            )
-        if normalized_greeting in CHAT_RULE_WORDS:
-            reply = (
-                "Chào Quản lý! Hôm nay chưa có tin mới nào mình được cập nhật. Mình luôn sẵn sàng: tra quy chế, checklist bàn giao ca, phê duyệt đổi ca hay đối soát quỹ két."
-                if is_manager_role(user_role)
-                else "Chào bạn! Hôm nay chưa có tin mới nào mình được cập nhật. Bạn cứ hỏi mình về quy chế làm việc, ca trực hay giải trình két Guta nhé."
-            )
-            return AgentTurn(
-                intent="general_chat",
-                intent_id="general_chat",
-                reply=reply,
-                steps=1,
-                answer_source="rule",
-            )
+        has_llm = self.chain is not None and bool(getattr(self.chain, "_providers", None))
+        if not has_llm:
+            if normalized_greeting in GREETING_WORDS:
+                reply = (
+                    "Chào Quản lý! Mình là trợ lý HR-BlockBot hỗ trợ SM/AOM. Bạn cần kiểm tra checklist bàn giao ca, phê duyệt đổi ca hay đối soát quỹ két hôm nay?"
+                    if is_manager_role(user_role)
+                    else "Chào bạn! Mình là trợ lý HR-BlockBot. Bạn cần hỗ trợ gì về ca trực, hướng dẫn biểu mẫu bàn giao hay giải trình két Guta hôm nay?"
+                )
+                return AgentTurn(
+                    intent="general_chat",
+                    intent_id="general_chat",
+                    reply=reply,
+                    steps=1,
+                    answer_source="rule",
+                )
+            if normalized_greeting in CHAT_RULE_WORDS:
+                reply = (
+                    "Chào Quản lý! Hôm nay chưa có tin mới nào mình được cập nhật. Mình luôn sẵn sàng: tra quy chế, checklist bàn giao ca, phê duyệt đổi ca hay đối soát quỹ két."
+                    if is_manager_role(user_role)
+                    else "Chào bạn! Hôm nay chưa có tin mới nào mình được cập nhật. Bạn cứ hỏi mình về quy chế làm việc, ca trực hay giải trình két Guta nhé."
+                )
+                return AgentTurn(
+                    intent="general_chat",
+                    intent_id="general_chat",
+                    reply=reply,
+                    steps=1,
+                    answer_source="rule",
+                )
 
         cache_scope = payload_version({
             "userContext": user_ctx.model_dump(),
@@ -596,15 +598,15 @@ class AgentLoop:
                 }
             citations = []
             for policy_id in dict.fromkeys(answer.citations):
-                if policy_id not in POLICY_BY_ID:
-                    raise KeyError(f"Unknown policy citation: {policy_id}")
-                policy = POLICY_BY_ID[policy_id]
-                citations.append({
-                    "document": policy.document, "version": policy.version,
-                    "article": policy.article,
-                    # Evidence presence, not a fabricated model confidence score.
-                    "score": 1.0,
-                })
+                policy = POLICY_BY_ID.get(policy_id)
+                if policy is not None:
+                    citations.append({
+                        "document": policy.document, "version": policy.version,
+                        "article": policy.article,
+                        "score": 1.0,
+                    })
+                else:
+                    logger.warning("Ignored unknown policy citation from model: %s", policy_id)
             attachments = resolve_attachments(text, answer.citations, answer.attachments)
             turn = AgentTurn(
                 intent=decision.intent, intent_id=decision.intent, reply=answer.reply,
@@ -637,6 +639,26 @@ class AgentLoop:
                     "PROVIDER_ERROR", "LLM_TIMEOUT", "QUOTA_EXCEEDED", "INVALID_PROVIDER_CONFIG",
                 } else "PROVIDER_ERROR"
                 errors.append({"providerId": exc.provider_id, "code": code})
+            if normalized_greeting in GREETING_WORDS:
+                reply = (
+                    "Chào Quản lý! Mình là trợ lý HR-BlockBot hỗ trợ SM/AOM. Bạn cần kiểm tra checklist bàn giao ca, phê duyệt đổi ca hay đối soát quỹ két hôm nay?"
+                    if is_manager_role(user_role)
+                    else "Chào bạn! Mình là trợ lý HR-BlockBot. Bạn cần hỗ trợ gì về ca trực, hướng dẫn biểu mẫu bàn giao hay giải trình két Guta hôm nay?"
+                )
+                return AgentTurn(
+                    intent="general_chat", intent_id="general_chat",
+                    reply=reply, steps=1, answer_source="rule",
+                )
+            if normalized_greeting in CHAT_RULE_WORDS:
+                reply = (
+                    "Chào Quản lý! Hôm nay chưa có tin mới nào mình được cập nhật. Mình luôn sẵn sàng: tra quy chế, checklist bàn giao ca, phê duyệt đổi ca hay đối soát quỹ két."
+                    if is_manager_role(user_role)
+                    else "Chào bạn! Hôm nay chưa có tin mới nào mình được cập nhật. Bạn cứ hỏi mình về quy chế làm việc, ca trực hay giải trình két Guta nhé."
+                )
+                return AgentTurn(
+                    intent="general_chat", intent_id="general_chat",
+                    reply=reply, steps=1, answer_source="rule",
+                )
             if self.strict_provider:
                 raise LLMUnavailable(errors) from None
             fallback_attachments = resolve_attachments(text, [])

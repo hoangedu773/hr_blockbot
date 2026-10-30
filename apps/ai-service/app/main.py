@@ -314,10 +314,6 @@ def chat(
             },
         )
     chain = _chain_for(req.providerConfig) if req.providerConfig is not None else default_chain()
-    if not chain:
-        return _llm_unavailable_response(
-            LLMUnavailable([{"providerId": "none", "code": "LLM_UNAVAILABLE"}])
-        )
     try:
         user_ctx = UserContext.model_validate(req.userContext or {})
     except ValidationError:

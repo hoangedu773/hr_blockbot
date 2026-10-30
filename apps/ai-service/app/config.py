@@ -102,7 +102,7 @@ class Settings:
     jev_usejevai_base_url: str = "https://usejevai.com"
     # J-1: apps/api aborts the whole ai-service call at 15s. The decision gate runs
     # before generation, so its own budget must leave room for the LLM: 6s here.
-    jev_usejevai_timeout_ms: int = 6000
+    jev_usejevai_timeout_ms: int = 2000
     jev_usejevai_cooldown_seconds: float = 60.0
 
     # Transport / auth.
@@ -139,7 +139,7 @@ def load_settings() -> Settings:
         decision_timeout_ms=_env_int("AI_DECISION_TIMEOUT_MS", 8000),
         jev_usejevai_keys=_env_str("JEV_USEJEVAI_KEYS", ""),
         jev_usejevai_base_url=_env_str("JEV_USEJEVAI_BASE_URL", "https://usejevai.com"),
-        jev_usejevai_timeout_ms=_env_int("JEV_USEJEVAI_TIMEOUT_MS", 6000),
+        jev_usejevai_timeout_ms=_env_int("JEV_USEJEVAI_TIMEOUT_MS", 2000),
         jev_usejevai_cooldown_seconds=_env_float("JEV_USEJEVAI_COOLDOWN_SECONDS", 60.0),
         ai_service_api_key=_env_str("AI_SERVICE_API_KEY", ""),
         request_max_chars=_env_int("AI_REQUEST_MAX_CHARS", 2000),

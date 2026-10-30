@@ -125,6 +125,17 @@ def _echo_evidence(messages: list[ChatMessage]) -> str:
                 },
                 ensure_ascii=False,
             )
+        if user_lower.strip(" \t\n\r.?!:;,~") in ("hi", "hello", "chào", "chào bạn", "alo", "hey", "test"):
+            return json.dumps(
+                {
+                    "intent": "general_chat",
+                    "reply": "Chào bạn! Mình là trợ lý Guta, mình có thể hỗ trợ gì cho bạn hôm nay?",
+                    "citations": [],
+                    "proposedAction": None,
+                    "attachments": [],
+                },
+                ensure_ascii=False,
+            )
 
         citations: list[str] = []
         if any(kw in user_lower for kw in ("lương", "công", "trễ", "muộn", "chấm công", "bảng công", "ca trực", "vắng", "nghỉ", "đổi ca")):

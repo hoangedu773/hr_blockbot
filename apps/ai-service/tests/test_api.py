@@ -96,6 +96,18 @@ def test_chat_fails_closed_without_provider_config(client, monkeypatch):
     assert payload["degraded"] == "degraded-structured"
 
 
+def test_chat_greeting_succeeds_even_when_chain_has_no_provider(client, monkeypatch):
+    _enable_agent(monkeypatch)
+    response = client.post(
+        "/api/v1/chat",
+        json={"message": "hi", "providerConfig": {"configVersion": 1, "providers": []}},
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["intent"] == "general_chat"
+    assert "trợ lý" in payload["reply"].lower()
+    assert payload["abstain"] is False
+
 def test_chat_policy_path_with_mock_provider(client, monkeypatch):
     _enable_agent(monkeypatch)
     monkeypatch.setattr(main_module.db_client, "ping", lambda: False)
