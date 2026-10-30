@@ -1,5 +1,34 @@
 # Trạng thái fix — 2026-10-29 09:45 (trên `main`)
 
+> ## Cập nhật 16:30 — lượt fix cuối: 6 claim còn lại + gate #4 e2e (16/16)
+>
+> **Đã fix + kiểm chứng (lệnh thật, không suy luận):**
+>
+> | Mục | Fix | Bằng chứng |
+> |---|---|---|
+> | **P2-10** | `ChatRequestSchema` vào `packages/contracts`; `apps/api/src/routes/chat.ts` bỏ schema khai local | contracts **40/40** (2 test mới) · `api tsc` 0 |
+> | **P2-9** | `chatSocket.ts` import type từ contracts (hết tái khai); `ChatPanel.toProposal` trả `ActionProposalData` đầy đủ | `web build` (tsc+vite) exit 0 |
+> | **P2-11** | `EmployeeListView`: debounce 300ms cho keystroke + latest-wins guard (query rỗng chạy ngay) | build 0 · e2e pass |
+> | **P2-14** | `web-integration.test.mjs` → **`web-integration.source-shape.test.mjs`** (đổi tên trung thực + header) | 13/13 pass |
+> | **P1-15** | Xoá `_patch_agent_loop_hardening` khỏi `fake.py` (hết monkey-patch import-time); 2 behavior chuyển thành code thường trong `loop.py`: (a) extractive degraded fallback khi chain rỗng, (b) abstain khi `answer.intent == policy_query` mà 0 citations | `grep "monkey\|AgentLoop.run ="` = 0 · pytest **47/47** · `test_jev*` 21/21 |
+> | **P2-8** | `requirements.txt` pin `==` theo runtime thật (py 3.14, freeze 2026-10-29) | 7/7 dòng `==` |
+> | **Gate #4** | e2e `e2e-revamp-flow`: sửa mock login username (P0 provisioning), sidebar expect username, match prompt thật, clear `consoleErrors` sau offline probe → **16/16** | chạy 2 lần liền |
+>
+> **Bug thật phát hiện nhờ e2e (đã sửa trong product code):** `CrmDashboardView` — portal `#crm-custom-view-portal` nằm **bên trong** `#crm-stores-container`, mà toggle cũ set `stores: none` khi rời section "Chi nhánh" ⇒ **mọi section khác (Nhân sự/Hồ sơ/Roster/Settings) invisible**. Sửa: ẩn từng con của stores-container trừ portal (nesting-agnostic). Đây là loại bug `tsc` không thấy được — chỉ e2e bắt được.
+>
+> **Test env-hoá determinant:** `test_loop.py` thêm fixture neutralize Jev keys (`.env` thật làm `steps=2`); `test_degraded_mode`/`test_agent_loop_fallback_attachments_on_degraded` inject `ProviderChain([])` thay vì `None` (tránh `default_chain()` gọi LLM thật).
+>
+> **Sự cố 16:08:** cơ chế "Checkout-checkpoint" tự động commit working tree thành `7c20c99` (main) rồi **switch sang `integration/full-delivery`** ⇒ file tạm "quay về cũ". Đã `git checkout main` — không mất gì; toàn bộ work nằm trong `7c20c99`. Cảnh báo: cơ chế này có thể switch branch giữa chừng lần nữa.
+>
+> **Còn lại (lọc lại, chuẩn logic mới):**
+> 1. `apps/api/test_api.py` 7/12 fail **pre-existing** (env harness, fail y hệt trước khi sửa) — tách task riêng.
+> 2. `python -m app.agent.loop` self-check fail pre-existing (protocol giả định jev_configured; đã vá `jev_usejevai_keys=""` để không gọi ra ngoài, phần protocol cần viết lại).
+> 3. Feature clarify C1→C5 — plan sẵn `plans/261029-0930-agent-clarify/`, chưa viết code.
+> 4. Corpus RAG: nạp 145 docs crawl (chờ duyệt), tài liệu két/quỹ, đồng bộ 40 nhãn eval.
+> 5. Hậu cấp phát: quên mật khẩu, nâng role OD/OM, key Jev trả phí.
+> 6. Phase 08 close-verdict: chưa đóng (cần `jev_gateway_live_check` + quyết định DEFERRED list).
+> —Các mục dưới đây là trạng thái 09:45, giữ làm lịch sử—
+
 ## VECTOR: ĐÃ XONG — tìm theo nghĩa chạy thật trên dữ liệu Atlas
 
 | Bước | Kết quả |

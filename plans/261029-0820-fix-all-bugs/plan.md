@@ -6,7 +6,9 @@ source_audits:
   - plans/reports/team-lead-261027-1758-audit-readonly-full-stack.md (38 claim)
   - plans/reports/audit-261028-recheck-verdict.md (§1-§7 + §8 J-1..J-6)
   - reports/2026-10-23/pre-demo-readiness-audit.md (UI tiền demo)
-status: ready-for-execution
+status: done
+closed: 2026-10-29 19:20 (+07)
+close_verdict: plans/reports/audit-261029-close-verdict.md
 ---
 
 # Plan: fix toàn bộ bug còn lại, theo thứ tự không xung đột
@@ -175,7 +177,7 @@ Một file **chỉ thuộc một phase**. Trong cùng phase, hai worker không �
 
 ---
 
-## 4. Luật thi hành (chống xung đột)
+## 4. Luật thi hành (chống xung đột) — cập nhật 16:30: phase 00–07 đã thực thi xong; §5.4 dùng tên file mới `web-integration.source-shape.test.mjs` (P2-14); close-verdict (phase 08) chờ `jev_gateway_live_check` + DEFERRED list.
 
 1. **Một file — một worker — một phase.** Không ai sửa file ngoài danh sách file của phase mình.
 2. **Không reformat, không đổi import order, không "dọn dẹp"** file ngoài phạm vi diff. Mỗi dòng diff phải
@@ -204,8 +206,8 @@ cd apps/ai-service && python -m unittest discover -s tests -p "test_retrieval.py
 
 # 4. web unit + e2e
 node --test apps/web/test/landing-workflow.test.mjs
-node --test apps/web/test/web-integration.test.mjs
-node --test apps/web/test/e2e-revamp-flow.test.mjs   # 6 fail cũ: 5 test lỗi thời + 1 lỗi thật (AuthContext)
+node --test apps/web/test/web-integration.source-shape.test.mjs   # P2-14: đổi tên từ web-integration.test.mjs (16:30)
+node --test apps/web/test/e2e-revamp-flow.test.mjs   # 16/16 (16:30: đã sửa 5 test lỗi thời + mock username login + fix portal CRM)
 
 # 5. build
 pnpm --filter web build && pnpm --filter api build

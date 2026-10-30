@@ -176,8 +176,19 @@ Ba đường **không tương thích key**: key của Vercel AI Gateway hay UseJ
 - Round-robin trên `JEV_USEJEVAI_KEYS`; `401` hoặc hết quota → **disable key đó vĩnh viễn trong phiên**;
   `429` → cooldown 60s rồi dùng lại; hết key dùng được → `NO_KEY_AVAILABLE`.
 - Giới hạn trial: **3 run song song, 20 attempt/phút mỗi tài khoản, 10.000 input token/run**, và dùng chung
-  ngân sách toàn site → 4 key ≈ 12 run song song, 80 attempt/phút.
+  ngân sách toàn site → 4 key ≈ 12 run song song, 80 attempt/phút. Pool quản lý atomic in-flight lease (max 3/key)
+  và bảo lưu cooldown 429 khi có request cũ hoàn tất muộn.
 
+#### 6.1.2b. Hạn mức thời gian & cách ly cache xuyên suốt luồng
+
+- **Deadline 15s toàn request**: API gateway tính `deadlineAtMs = Date.now() + 15000` từ lúc tiếp nhận, truyền
+  sang `ai-service` qua `use_deadline`. Jev (trần 6s) và các provider Gemini chia sẻ ngân sách còn lại theo thời gian
+  thực (`remaining_seconds`); native fetch bỏ header hop-by-hop `Keep-Alive` tránh lỗi HTTP.
+- **Cách ly cache câu hỏi quy chế (`QUERY_CACHE`)**: Khoá cache bọc toàn bộ danh tính người dùng (`userId`,
+  `role`, `businessRole`, `storeName`) và cấu hình provider (model, keys, version), loại trừ `timeout_ms` động để
+  tránh rò rỉ câu trả lời giữa các cửa hàng hoặc vai trò nghiệp vụ khác nhau.
+- **Bảo vệ trích dẫn (Citation Guard)**: Mọi câu trả lời quy chế (`policy_query`) bắt buộc phải có trích dẫn văn bản
+  hợp lệ, nếu không hệ thống tự động từ chối (`abstain=true`, `degraded=true`) thay vì suy đoán không căn cứ.
 #### 6.1.3. Suy giảm có khai báo (không "giả làm Jev")
 
 Khi `NO_KEY_AVAILABLE` hoặc Jev lỗi, Agent Loop **không** trả 503: nó rơi về đường 3, đặt `degraded=True`
@@ -387,3 +398,28 @@ Học hỏi từ mô hình Agentic Container Isolation (tham chiếu kiến trú
 4. **Episodic & Long-term Memory (Qdrant + SQLite Git):** Vượt qua giới hạn 50 tin nhắn của `conversations`, lưu trữ vết ngữ cảnh dài hạn và thói quen đổi ca của nhân viên có thể kiểm toán qua Git commit log.
 5. **Omni-Channel Ingress Relay:** Mở rộng kết nối qua Telegram Bot và Zalo OA thông qua Tailscale sidecar bảo mật cho quản lý cửa hàng trên di động.
 
+
+## 9. Cập nhật 2026-10-29 — corpus vector LIVE + key pool
+
+Mục này thay thế các mệnh đề đã lỗi thời ở §6.2 ("Zero-Vector, Zero-PyTorch"):
+
+- **Corpus chính sách trên Atlas đã có vector**: `policies` = **223 tài liệu / 435 chunks**, mỗi chunk
+  có `embedding` 3072 chiều (`gemini-embedding-001`). Retrieval mặc định `hybrid` (lexical + dense,
+  cosine in-memory) — ADR "zero-vector" chỉ còn đúng cho giai đoạn trước 29/10. Nguồn corpus: quy chế
+  seed + 145 tài liệu GUTA portal (cào + OCR), đã chia nhỏ ≤4000 chars/piece.
+- **Key pool LLM**: 22 Google key (OAuth token), mỗi key 1 provider `gemini-direct` — model chat
+  **`gemini-3-flash-preview`** (model `gemini-3.5-flash` KHÔNG tồn tại với pool này — `generateContent`
+  treo tới hết deadline; xác minh bằng ListModels). Embedding dùng chain riêng `gemini-embedding-001`.
+  `thinkingBudget=0` bắt buộc cho chat: không tắt thinking, prompt chính sách mất 40s+ thay vì ~5s.
+- **"Tủ key" (cooldown cabinet)** trong `app/llm/chain.py`: key vừa 429 (QUOTA_EXCEEDED) bị park 90s,
+  key treo (LLM_TIMEOUT) park 30s; request sau bỏ qua key đang ủ tức thì (0ms), hết khay thì recycle
+  key sớm hồi nhất. Registry module-level vì chain được dựng mỗi request.
+- `load_db_chunks` nâng limit 100 → 1000: trước đây corpus vượt 100 docs bị rơi âm thầm khỏi cả runtime
+  lẫn seed script.
+- Số đo live-check cập nhật: xem `plans/reports/audit-261029-close-verdict.md` §1 cổng 6.
+
+- **BỎ modelTier slider (30/10, quyết định user)**: hệ thống tier low/medium/high bị XÓA qua 4 lớp —
+  contracts (ChatRequestSchema), web (ModelPickerPopover/ModelSlider/state/CSS), api (MODEL_TIER_MAP +
+  GEMINI_DIRECT_TIER_MAP + ChatOptions), ai-service (ChatRequest.modelTier + TIER_MODEL). Một model
+  chat duy nhất `gemini-3-flash-preview` cho mọi tier cũ (pro 429 trên key free; `gemini-3.5-flash`
+  không tồn tại). Embedding không đổi: `gemini-embedding-001` trên embedding chain riêng.

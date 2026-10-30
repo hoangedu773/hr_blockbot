@@ -358,3 +358,8 @@ Dòng nào ở trên chưa có câu trả lời thì tài liệu này **giữ ng
 | **Frontend Web** (`apps/web`) | `pnpm --filter web test`<br>`pnpm --filter web build` | **4 / 4 pass**<br>Build sạch (10.59s) | ✅ 100% PASS | In-memory token (zero storage), single-flight 401 refresh, xóa sạch `SEED_*` và toasts giả, UI preview 6 trạng thái tại `apps/web/previews/index.html`. |
 | **AI Service** (`apps/ai-service`) | `python apps/ai-service/tests/test_health_probe.py`<br>`python apps/ai-service/tests/test_vector_probe.py` | **11 / 11 pass** | ✅ 100% PASS | Xóa credentials hardcode, `/health` ping DB Atlas thật (liveness/readiness), 403 mock chat lockdown, trích dẫn BR-15 & abstention. |
 
+
+## Phát hiện quy trình từ audit 261029 (fix-all-bugs phase 08)
+
+1. **`verify-claims.mjs` chỉ kiểm anchor còn đúng dòng, KHÔNG kiểm bug còn tồn tại.** Hai ví dụ đối xứng: P1-11 anchor vẫn khớp (là tiền tố của danh sách 6 file) nhưng bug đã chết; P0-5 anchor dời dòng (251 → 309) nhưng bug còn nguyên. Quy luật: mọi kết luận "đã fix" bắt buộc kèm đọc code tại chỗ + lệnh chạy, không suy luận từ anchor.
+2. **Test "luôn xanh" nguy hiểm hơn không có test** vì nó tạo bằng chứng giả: P2-3 (assert `statuses.includes(200)` luôn đúng), P2-14 (grep chuỗi trong source nhưng đặt tên "integration" — đã đổi thành `*.source-shape.test.mjs`), `test_answer_pipeline_degrades_when_all_providers_fail` (fake provider thiếu `.config`/`.timeout` — lần "pass" trước là artefact của checkout-checkpoint switch sang cây cũ, không phải chạy thật trên code hiện tại).
