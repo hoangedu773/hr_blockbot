@@ -1406,7 +1406,11 @@
 .input:focus-visible,
 .select:focus-visible,
 .textarea:focus-visible,
-.link:focus-visible {
+.link:focus-visible,
+#auth-modal input:focus-visible,
+#auth-modal button:focus-visible,
+[role="dialog"] input:focus-visible,
+[role="dialog"] button:focus-visible {
   outline: 2px solid var(--accent-primary);
   outline-offset: 2px;
 }
