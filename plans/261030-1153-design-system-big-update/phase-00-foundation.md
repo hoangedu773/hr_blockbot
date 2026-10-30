@@ -3,7 +3,7 @@ phase: 00
 plan: design-system-big-update
 title: Nền tảng — Tailwind v4 build thật, token 3 tầng, xoá dead code
 owner: fullstack-developer
-status: pending
+status: completed
 priority: P0
 effort: 6h
 depends_on: []

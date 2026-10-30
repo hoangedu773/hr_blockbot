@@ -1,7 +1,7 @@
 ---
 title: "Design System Big Update — tái cấu trúc khoa học toàn bộ UI/UX"
 description: "Sửa gốc CSS không tái sinh được (61 class chết), implement dealt sheet data-terminal cho Product register và editorial+showcase cho Brand register, verify bằng inspector/lint/critique."
-status: pending
+status: completed
 priority: P1
 effort: 49h
 branch: main
@@ -31,12 +31,12 @@ kiểm chứng được.
 
 | Phase | Name | Status |
 |---|---|---|
-| 00 | [Nền tảng — Tailwind v4, token 3 tầng, xoá dead code](./phase-00-foundation.md) | Pending |
-| 01 | [Product register — CRM shell, KPI, bảng 45 chi nhánh](./phase-01-product-crm-shell.md) | Pending |
-| 02 | [Chat surfaces — ChatPage, ChatDrawer, motion 60fps](./phase-02-chat-surfaces.md) | Pending |
-| 03 | [Ma trận 8 trạng thái — Auth, form, control](./phase-03-eight-states.md) | Pending |
-| 04 | [Brand register — Landing editorial, hero appear, Bento loops](./phase-04-brand-landing-showcase.md) | Pending |
-| 05 | [Verification — inspect, lint, adversarial QA, critique](./phase-05-verification.md) | Pending |
+| 00 | [Nền tảng — Tailwind v4, token 3 tầng, xoá dead code](./phase-00-foundation.md) | Completed |
+| 01 | [Product register — CRM shell, KPI, bảng 45 chi nhánh](./phase-01-product-crm-shell.md) | Completed |
+| 02 | [Chat surfaces — ChatPage, ChatDrawer, motion 60fps](./phase-02-chat-surfaces.md) | Completed |
+| 03 | [Ma trận 8 trạng thái — Auth, form, control](./phase-03-eight-states.md) | Completed |
+| 04 | [Brand register — Landing editorial, hero appear, Bento loops](./phase-04-brand-landing-showcase.md) | Completed |
+| 05 | [Verification — inspect, lint, adversarial QA, critique](./phase-05-verification.md) | Completed |
 
 Thứ tự thực thi: **00 → (01 ∥ 02 ∥ 04) → 03 → 05**. Ước lượng: 6h + 10h + 8h + 12h (song song) + 7h + 6h.
 

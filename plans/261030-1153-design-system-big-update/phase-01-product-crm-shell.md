@@ -3,7 +3,7 @@ phase: 01
 plan: design-system-big-update
 title: Product register — CRM shell, KPI strip, bảng 45 chi nhánh theo dealt sheet
 owner: fullstack-developer
-status: pending
+status: completed
 priority: P1
 effort: 10h
 depends_on: [00]

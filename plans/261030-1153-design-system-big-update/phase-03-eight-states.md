@@ -3,7 +3,7 @@ phase: 03
 plan: design-system-big-update
 title: Ma trận 8 trạng thái — Auth modal, form, control trên toàn Product register
 owner: fullstack-developer
-status: pending
+status: completed
 priority: P1
 effort: 7h
 depends_on: [01, 02]

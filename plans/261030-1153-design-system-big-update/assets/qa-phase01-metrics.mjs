@@ -43,14 +43,48 @@ async function newPage(width, height, reducedMotion = 'no-preference') {
   const p = await ctx.newPage();
   p.on('pageerror', (e) => report.errors.push(`${width}x${height}: ${String(e).slice(0, 240)}`));
   p.on('console', (m) => { if (m.type() === 'error') report.errors.push(`${width}x${height} console: ${m.text().slice(0, 240)}`); });
+  let loggedIn = false;
   await p.route('**/api/**', (route) => {
     const u = new URL(route.request().url());
-    if (u.pathname === '/api/auth/login') return route.fulfill({ status: 200, json: { accessToken: 'qa-token', user } });
+    if (u.pathname === '/api/auth/login') { loggedIn = true; return route.fulfill({ status: 200, json: { accessToken: 'qa-token', user } }); }
     // Boot must land unauthenticated so the landing page renders; only a
     // post-login /me may resolve a session, otherwise the splash never clears.
-    if (u.pathname === '/api/auth/refresh') return route.fulfill({ status: 200, json: { accessToken: 'qa-token' } });
-    if (u.pathname === '/api/auth/me') return route.fulfill({ status: 401, json: { error: 'unauthenticated' } });
+    if (u.pathname === '/api/auth/refresh') return route.fulfill({ status: 200, json: { accessToken: loggedIn ? 'qa-token' : null } });
+    if (u.pathname === '/api/auth/me') {
+      if (!loggedIn) return route.fulfill({ status: 401, json: { error: 'unauthenticated' } });
+      return route.fulfill({ status: 200, json: { userId: user.id, role: user.role, username: user.username, mustChangePassword: false, skills: [] } });
+    }
     if (u.pathname === '/api/auth/logout') return route.fulfill({ status: 204, body: '' });
+    if (u.pathname.startsWith('/api/stores')) {
+      return route.fulfill({
+        status: 200,
+        json: {
+          items: Array.from({ length: 10 }, (_, i) => ({
+            id: `store-${i+1}`,
+            code: `GT-CH-${String(i+1).padStart(2, '0')}`,
+            name: `GUTA CAFE Chi Nhánh ${i+1}`,
+            kind: 'outlet',
+            district: 'Quận 1',
+            status: 'ACTIVE',
+            employeeCount: 45,
+            activeEmployeeCount: 42,
+            managerName: 'Nguyễn Văn Quản Lý',
+          })),
+          paging: { page: 1, limit: 10, totalItems: 45, totalPages: 5, hasNext: true, hasPrev: false },
+        },
+      });
+    }
+    if (u.pathname.startsWith('/api/dashboard/overview')) {
+      return route.fulfill({
+        status: 200,
+        json: {
+          stores: { total: 45, outlets: 45, groups: 0, support: 0 },
+          employees: { total: 135, active: 130, inactive: 5 },
+          revenue: { value: null, reason: 'Chưa có nguồn dữ liệu' },
+          onTimeRate: { value: null, reason: 'Chưa có nguồn dữ liệu' },
+        },
+      });
+    }
     return route.fulfill({ status: 200, json: {} });
   });
   return p;

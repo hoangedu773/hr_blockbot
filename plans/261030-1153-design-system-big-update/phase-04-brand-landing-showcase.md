@@ -3,7 +3,7 @@ phase: 04
 plan: design-system-big-update
 title: Brand register — Landing editorial, hero appear, Bento living loops
 owner: fullstack-developer
-status: pending
+status: completed
 priority: P1
 effort: 12h
 depends_on: [00]

@@ -3,7 +3,7 @@ phase: 02
 plan: design-system-big-update
 title: Chat surfaces — ChatPage, ChatDrawer, motion chat theo chuẩn 60fps
 owner: fullstack-developer
-status: pending
+status: completed
 priority: P1
 effort: 8h
 depends_on: [00]
