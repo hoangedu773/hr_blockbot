@@ -1,0 +1,26 @@
+/*
+ * Single stylesheet entry. Order is load-bearing:
+ *   tailwind  — preflight + utilities into @layer
+ *   tokens    — Tier 1 primitives
+ *   base      — reset and mobile baseline
+ *   product   — Tier 2/3 for the product register (unlayered)
+ *   brand     — Tier 2/3 for the brand register (unlayered)
+ *
+ * product.css and brand.css are unlayered on purpose: unlayered
+ * declarations outrank every @layer, so component rules beat Tailwind
+ * utilities without specificity inflation or override flags.
+ *
+ * source(none) disables automatic detection so only the globs below feed the
+ * scanner. Without it, previews/ (mock pages, 916 classes) leaks into the
+ * production stylesheet and drifts every time those mocks are edited.
+ * @source must follow all @import rules — CSS requires @import to come first.
+ */
+
+@import "tailwindcss" source(none);
+@import "./tokens.css";
+@import "./base.css";
+@import "./product.css";
+@import "./brand.css";
+
+@source "../**/*.{ts,tsx}";
+@source "../../index.html";

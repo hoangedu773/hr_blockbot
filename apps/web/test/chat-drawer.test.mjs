@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import {
@@ -9,7 +11,16 @@ import {
   transform,
 } from './helpers/browser-deps.mjs';
 
-const cssPath = fileURLToPath(new URL('../src/index.css', import.meta.url));
+// addStyleTag needs CSS the browser can resolve on its own. The source entry
+// starts with `@import "tailwindcss"`, which only a bundler resolves, so this
+// harness reads the built stylesheet. `pnpm test` is expected to run after
+// `pnpm build` (the e2e suites already serve dist/).
+const distAssetsDir = fileURLToPath(new URL('../dist/assets/', import.meta.url));
+const builtCss = fs
+  .readdirSync(distAssetsDir)
+  .filter((name) => name.endsWith('.css'))
+  .map((name) => fs.readFileSync(path.join(distAssetsDir, name), 'utf8'))
+  .join('\n');
 
 test('ChatDrawer renders Markdown/citations, confirms drafts honestly, validates errors and handles mobile keyboard', async () => {
   // Isolated component harness: real React + Chromium; HTTP boundary is intercepted, not live integration.
@@ -24,7 +35,7 @@ test('ChatDrawer renders Markdown/citations, confirms drafts honestly, validates
     await page.goto('http://chat.test/');
     await page.addScriptTag({ path: reactUmdPath });
     await page.addScriptTag({ path: reactDomUmdPath });
-    await page.addStyleTag({ path: cssPath });
+    await page.addStyleTag({ content: builtCss });
     await page.addScriptTag({ content: `const { useState, useEffect, useRef } = React; const API_BASE = '/api'; const apiFetch = fetch; ${compiled.code} const root = ReactDOM.createRoot(document.getElementById('root')); window.showChat = () => root.render(React.createElement(window.ChatDrawer, { isOpen: true, onClose: () => root.render(null) })); document.getElementById('trigger').onclick = window.showChat;` });
     const requests = [];
     let mode = 'success';

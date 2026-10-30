@@ -190,138 +190,6 @@ function parseReply(value: unknown): Omit<Message, 'id' | 'sender'> & { conversa
 }
 
 
-const styles = `
-.guta-chat {
-  animation: guta-view-enter 220ms cubic-bezier(0.23, 1, 0.32, 1) both;
-  --chat-bg: #171717; --chat-sidebar: #111111; --chat-card: #1e1e1e;
-  --chat-text: #f5f5f5; --chat-muted: #b4b4b4; --chat-border: rgba(255, 255, 255, 0.1);
-  --chat-accent: #ffffff; --chat-focus: rgba(255, 255, 255, 0.3); --chat-hover: rgba(255, 255, 255, 0.08);
-  --chat-font: var(--font-sans, 'Geist', system-ui, sans-serif);
-  display: flex; height: 100dvh; overflow: hidden; background: var(--chat-bg);
-  color: var(--chat-text); font: 16px/1.6 var(--chat-font); color-scheme: dark;
-}
-.guta-chat *, .guta-chat *::before, .guta-chat *::after { box-sizing: border-box; }
-.guta-chat button, .guta-chat textarea { font: inherit; color: inherit; }
-.guta-chat button { min-height: 44px; min-width: 44px; cursor: pointer; border: 1px solid transparent; border-radius: 12px; background: transparent; padding: 8px 16px; text-align: left; }
-.guta-chat button:focus-visible, .guta-chat textarea:focus-visible { outline: 2px solid var(--chat-focus); outline-offset: 3px; }
-.guta-chat button:active:not(:disabled) { background: var(--chat-hover); }
-.guta-chat button:disabled { opacity: .5; cursor: not-allowed; }
-.guta-chat .chat-primary { background: var(--chat-accent); color: #000000; }
-.guta-chat .chat-primary:active:not(:disabled), .guta-chat .chat-send:active:not(:disabled) { background: #dedede; }
-.guta-chat-sidebar { width: 256px; flex-shrink: 0; background: var(--chat-sidebar); border-right: 1px solid var(--chat-border); display: flex; flex-direction: column; gap: 24px; padding: 24px 16px; overflow-y: auto; }
-.guta-chat-brand { display: flex; align-items: center; gap: 8px; padding: 0 8px; font-weight: 700; }
-.guta-chat-logo { width: 32px; height: 32px; object-fit: contain; }
-.guta-chat-sidebar .chat-new { border-color: var(--chat-border); }
-.guta-chat-sidebar nav { display: flex; flex-direction: column; gap: 8px; }
-.guta-chat-sidebar nav p { margin: 0 0 8px; padding: 0 16px; font-size: 12px; color: var(--chat-muted); }
-.guta-chat-sidebar nav button { font-size: 14px; white-space: nowrap; }
-.guta-chat-sidebar footer { margin-top: auto; display: grid; gap: 8px; }
-.guta-chat-sidebar footer button { font-size: 14px; padding: 8px; white-space: nowrap; }
-.guta-chat .chat-back-crm { border-color: var(--chat-border); background: var(--chat-hover); transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1), background-color 140ms cubic-bezier(0.23, 1, 0.32, 1); }
-.guta-chat .chat-back-crm:active:not(:disabled) { transform: scale(0.98); }
-.guta-chat-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.guta-chat-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 72px; padding: 16px 24px; flex-wrap: wrap; }
-.guta-chat-header-title { display: flex; flex-direction: column; gap: 2px; }
-.guta-chat-header strong { font-size: 16px; }
-.guta-chat-header span { font-size: 12px; color: var(--chat-muted); }
-.guta-chat-header-actions { display: flex; align-items: center; gap: 12px; }
-.guta-verified-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 9999px; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--chat-border); font-size: 11px; }
-.guta-chat-header .chat-menu { display: none; }
-.guta-chat-body { flex: 1; min-height: 0; overflow-y: auto; padding: 24px; }
-.guta-chat-banner { margin: 0 24px 8px; padding: 12px 16px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.14); }
-.guta-chat-banner strong { display: block; font-size: 13px; font-weight: 600; color: var(--chat-text); }
-.guta-chat-banner p { margin: 4px 0 0; font-size: 12px; color: var(--chat-muted); }
-.guta-chat-width { width: 100%; max-width: 768px; margin: 0 auto; }
-.guta-chat-empty { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; justify-content: center; padding: 24px; }
-.guta-chat-hero { text-align: center; margin-bottom: 32px; }
-.guta-chat-hero img { width: 48px; height: 48px; margin: 0 auto 24px; object-fit: contain; }
-.guta-chat h1, .guta-chat h1:focus, .guta-chat h1:focus-visible { outline: none !important; border: none !important; box-shadow: none !important; }
-.guta-chat h1 { font-size: clamp(24px, 3vw, 32px); line-height: 1.25; font-weight: 600; font-style: normal; letter-spacing: -.03em; margin: 0 0 16px; }
-.guta-chat-hero p { color: var(--chat-muted); margin: 0; }
-.guta-chat-prompts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 24px; }
-.guta-chat-prompts button { border-color: var(--chat-border); font-size: 14px; white-space: nowrap; border-radius: 999px; }
-.guta-chat-composer { display: flex; align-items: center; gap: 10px; background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 9999px; padding: 6px 8px 6px 14px; }
-.guta-chat-composer:focus-within { border-color: rgba(255, 255, 255, 0.28); box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4); }
-.guta-chat .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
-.guta-chat-composer textarea { display: block; flex: 1; min-width: 0; min-height: 44px; max-height: 192px; resize: none; background: transparent; border: none !important; outline: none !important; box-shadow: none !important; padding: 10px 0; font-size: 14px; line-height: 24px; overflow-y: auto; }
-.guta-chat-composer textarea::placeholder { color: var(--chat-muted); opacity: 1; }
-.guta-chat .chat-send, .guta-chat .chat-attach-btn { flex-shrink: 0; border-radius: 9999px; width: 44px; height: 44px; min-width: 44px; min-height: 44px; border: none; padding: 0; display: flex; align-items: center; justify-content: center; }
-.guta-chat .chat-attach-btn { color: rgba(255, 255, 255, 0.6); background: transparent; }
-.guta-chat .chat-send { background: var(--chat-accent); color: #000000; transition: none; }
-.guta-chat .chat-send:disabled { opacity: 1; background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.3); }
-.guta-chat-note { text-align: center; font-size: 12px; color: var(--chat-muted); margin: 16px 0 0; }
-.guta-chat-bottom { padding: 16px 24px max(16px, env(safe-area-inset-bottom)); }
-.guta-chat-message { margin-bottom: 32px; overflow-wrap: anywhere; }
-.guta-chat-message > p { white-space: pre-wrap; margin: 8px 0 0; }
-.guta-chat-message[data-sender="user"] { margin-left: auto; padding: 16px 24px; border-radius: 24px; background: var(--chat-card); width: fit-content; max-width: 90%; }
-.guta-chat-message strong { font-size: 14px; }
-.guta-chat-card { border: 1px solid var(--chat-border); border-radius: 16px; padding: 16px; margin-top: 16px; background: var(--chat-card); }
-.guta-chat-card p { margin: 8px 0; }
-.guta-chat-card ul { margin: 8px 0 0; padding-left: 24px; font-size: 14px; color: var(--chat-muted); }
-.guta-chat-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
-.guta-chat-actions button { font-size: 14px; border-color: var(--chat-border); white-space: nowrap; }
-.guta-chat-status { display: flex; align-items: flex-start; gap: 12px; padding: 14px 18px; border-radius: 16px; background: rgba(255, 255, 255, 0.04); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); color: #a1a1aa; margin: 16px 0; width: fit-content; max-width: 480px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05); animation: guta-thinking-enter 220ms cubic-bezier(0.23, 1, 0.32, 1) both; }
-.guta-thinking-avatar { width: 32px; height: 32px; flex-shrink: 0; border-radius: 10px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); display: flex; align-items: center; justify-content: center; animation: guta-aura-pulse 2.4s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
-.guta-thinking-avatar img { width: 18px; height: 18px; object-fit: contain; }
-.guta-thinking-content { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
-.guta-thinking-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.guta-thinking-label { font-size: 13px; font-weight: 500; color: #e4e4e7; letter-spacing: -0.01em; line-height: 1.4; }
-.guta-thinking-dots { display: inline-flex; align-items: center; gap: 3.5px; }
-.guta-thinking-dot { width: 4px; height: 4px; border-radius: 9999px; background: #a1a1aa; animation: guta-dot-pulse 1.4s cubic-bezier(0.23, 1, 0.32, 1) infinite both; }
-.guta-thinking-dot:nth-child(1) { animation-delay: 0s; }
-.guta-thinking-dot:nth-child(2) { animation-delay: 0.2s; }
-.guta-thinking-dot:nth-child(3) { animation-delay: 0.4s; }
-.guta-thinking-shimmer-bar { width: 100%; max-width: 200px; height: 2px; border-radius: 9999px; background: rgba(255, 255, 255, 0.06); position: relative; overflow: hidden; margin: 1px 0; }
-.guta-thinking-shimmer-line { position: absolute; inset: 0; width: 100%; height: 100%; background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.35) 50%, transparent 100%); transform: translateX(-100%); animation: guta-shimmer-sweep 2s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
-.guta-thinking-steps { position: relative; height: 16px; font-size: 11px; line-height: 16px; color: #71717a; overflow: hidden; }
-.guta-thinking-step { position: absolute; top: 0; left: 0; white-space: nowrap; opacity: 0; transform: translateY(3px); will-change: opacity, transform; }
-.guta-step-1 { opacity: 1; transform: translateY(0); animation: guta-step-cycle-1 6s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
-.guta-step-2 { animation: guta-step-cycle-2 6s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
-.guta-step-3 { animation: guta-step-cycle-3 6s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
-@keyframes guta-thinking-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes guta-aura-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.08), 0 0 8px rgba(255, 255, 255, 0.04); } 50% { box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.06), 0 0 16px rgba(255, 255, 255, 0.12); } }
-@keyframes guta-dot-pulse { 0%, 80%, 100% { opacity: 0.25; transform: scale(0.85); } 40% { opacity: 1; transform: scale(1.2); background-color: #ffffff; } }
-@keyframes guta-shimmer-sweep { 0% { transform: translateX(-100%); } 50%, 100% { transform: translateX(100%); } }
-@keyframes guta-step-cycle-1 { 0%, 28% { opacity: 1; transform: translateY(0); } 33.33%, 94% { opacity: 0; transform: translateY(-3px); } 95%, 100% { opacity: 1; transform: translateY(0); } }
-@keyframes guta-step-cycle-2 { 0%, 28% { opacity: 0; transform: translateY(3px); } 33.33%, 61% { opacity: 1; transform: translateY(0); } 66.66%, 100% { opacity: 0; transform: translateY(-3px); } }
-@keyframes guta-step-cycle-3 { 0%, 61% { opacity: 0; transform: translateY(3px); } 66.66%, 94% { opacity: 1; transform: translateY(0); } 98%, 100% { opacity: 0; transform: translateY(-3px); } }
-@keyframes guta-sparkle-pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
-.guta-model-sparkle { animation: guta-sparkle-pulse 2.5s ease-in-out infinite; }
-@media (prefers-reduced-motion: reduce) {
-  .guta-chat-status { animation: none !important; }
-  .guta-thinking-avatar { animation: none !important; }
-  .guta-thinking-dot { animation: none !important; opacity: 0.8 !important; }
-  .guta-thinking-shimmer-line { animation: none !important; display: none !important; }
-  .guta-step-1 { animation: none !important; opacity: 1 !important; transform: none !important; position: static !important; }
-  .guta-step-2, .guta-step-3 { display: none !important; }
-  .guta-model-sparkle { animation: none !important; }
-}
-.guta-chat-sidebar, .guta-chat-body, .guta-chat-empty, .guta-chat textarea { scrollbar-width: thin; scrollbar-color: var(--chat-border) transparent; }
-@media (hover: hover) and (pointer: fine) {
-  .guta-chat button:hover:not(:disabled) { background: var(--chat-hover); }
-  .guta-chat .chat-attach-btn:hover { color: var(--chat-accent); }
-  .guta-chat .chat-primary:hover:not(:disabled), .guta-chat .chat-send:hover:not(:disabled) { background: #dedede; }
-}
-@media (max-width: 767px) {
-  .guta-chat-sidebar { display: none; position: absolute; top: 72px; bottom: 0; left: 0; z-index: 2; width: min(280px, 100%); box-shadow: 16px 0 32px rgba(0, 0, 0, 0.25); }
-  .guta-chat-sidebar[data-open="true"] { display: flex; }
-  .guta-chat-header { padding: 8px 16px; }
-  .guta-chat-header .chat-menu { display: block; }
-  .guta-chat-header-title span { display: none; }
-  .guta-chat-banner { margin: 0 16px 8px; }
-  .guta-chat-body, .guta-chat-empty { padding: 16px; }
-  .guta-chat-empty { justify-content: safe center; }
-  .guta-chat-bottom { padding: 8px 16px max(16px, env(safe-area-inset-bottom)); }
-  .guta-chat-hero { margin-bottom: 24px; }
-}
-@media (max-width: 480px) {
-  .guta-chat-header { padding: 8px 12px; gap: 8px; }
-  .guta-chat-header-actions { gap: 4px; }
-  .guta-chat-header-actions button { padding: 6px 10px; text-align: center; }
-  .guta-verified-badge { padding: 4px 6px !important; }
-  .guta-verified-badge span:last-child { display: none; }
-}
-`;
 
 export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogout }) => {
   const { user } = useAuth();
@@ -434,8 +302,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
 
   return (
     <div className="guta-chat" data-testid="chat-page">
-      <style>{styles}</style>
-      <aside id="copilot-sidebar" className="guta-chat-sidebar" data-open={sidebarOpen} aria-label="Điều hướng Copilot">
+            <aside id="copilot-sidebar" className="guta-chat-sidebar" data-open={sidebarOpen} aria-label="Điều hướng Copilot">
         <div className="guta-chat-brand"><img className="guta-chat-logo" src="/assets/logos/guta-mark-pure.svg" alt="" />HR-BlockBot Workspace</div>
         <button className="chat-new" type="button" onClick={newChat}>+ New Chat</button>
         <nav aria-label="Gợi ý theo vai trò">
@@ -624,9 +491,6 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
                           <span className="guta-thinking-dot" />
                           <span className="guta-thinking-dot" />
                         </span>
-                      </div>
-                      <div className="guta-thinking-shimmer-bar" aria-hidden="true">
-                        <div className="guta-thinking-shimmer-line" />
                       </div>
                       <div className="guta-thinking-steps" aria-hidden="true">
                         <span className="guta-thinking-step guta-step-1">Tra cứu quy chế Guta</span>

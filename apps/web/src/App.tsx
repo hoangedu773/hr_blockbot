@@ -60,25 +60,9 @@ export const AppContent: React.FC = () => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
   }, []);
 
-  // Switch styles only after the API confirms an authenticated session.
+  // The register selects the whole Tier 2 token set; no stylesheet swapping.
   useEffect(() => {
-    let link = document.getElementById('theme-css') as HTMLLinkElement | null;
-    if (!link) {
-      link = document.createElement('link');
-      link.id = 'theme-css';
-      link.rel = 'stylesheet';
-      document.head.appendChild(link);
-    }
-    const targetHref = hasSession ? '/assets/crm/2voh1gse7971r.css' : '/assets/folio/folio.css';
-    if (link.getAttribute('href') !== targetHref) {
-      link.setAttribute('href', targetHref);
-    }
-
-    const folioCss = document.getElementById('folio-layout-css') as HTMLLinkElement | null;
-    if (folioCss) folioCss.disabled = hasSession;
-
-    const crmCss = document.getElementById('crm-layout-css') as HTMLLinkElement | null;
-    if (crmCss) crmCss.disabled = !hasSession;
+    document.documentElement.dataset.register = hasSession ? 'product' : 'brand';
   }, [hasSession]);
 
   useEffect(() => {

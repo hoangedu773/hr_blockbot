@@ -1,0 +1,72 @@
+TASTESKILL · LINT   42 file(s)
+
+FAIL
+  [emoji] Emoji used as UI.  (30×)
+      apps/web/src/components/AddShiftModal.tsx:103  ✕
+      apps/web/src/components/AiCopilotBar.tsx:43  🤖
+      apps/web/src/components/AiCopilotModal.tsx:69  🤖
+      apps/web/src/components/AiCopilotModal.tsx:105  ✕
+      apps/web/src/components/chat/ChatDrawer.tsx:569  ✕
+      apps/web/src/components/chat/ChatDrawer.tsx:902  ✕
+      … 24 more
+  [gradient] Gradient fill. Use a flat colour or a real image (a neutral scrim over a photo is the one exception).  (24×)
+      apps/web/src/components/AiCopilotBar.tsx:20  linear-gradient(
+      apps/web/src/components/chat/ChatDrawer.tsx:453  linear-gradient(
+      apps/web/src/components/chat/ChatPageView.tsx:275  linear-gradient(
+      apps/web/src/components/CrmDashboardView.tsx:61  bg-gradient-
+      apps/web/src/components/CrmDashboardView.tsx:82  bg-gradient-
+      apps/web/src/components/CrmDashboardView.tsx:117  bg-gradient-
+      … 18 more
+  [micro-label] Tiny uppercase letter-spaced label.  (2×)
+      apps/web/src/components/CrmDashboardView.tsx:489  text-xs font-bold text-foreground uppercase tracking-wider
+      apps/web/src/components/landing/WorkflowSection.tsx:66  inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-s
+  [purple] Indigo / violet — the generated-page accent.  (2×)
+      apps/web/src/components/CrmDashboardView.tsx:518  bg-purple-500
+      apps/web/src/index.css:60  #a855f7
+
+WARN
+  [shadow] Shadow. Elements at rest carry none; only real overlays (menu, dialog, sticky bar) may.  (20×)
+      apps/web/src/components/chat/ChatDrawer.tsx:441  box-shadow:
+      apps/web/src/components/chat/ChatDrawer.tsx:460  box-shadow:
+      apps/web/src/components/chat/ChatPageView.tsx:238  box-shadow:
+      apps/web/src/components/chat/ChatPageView.tsx:244  box-shadow:
+      apps/web/src/components/chat/ChatPageView.tsx:246  box-shadow:
+      apps/web/src/components/chat/ChatPageView.tsx:263  box-shadow:
+      … 14 more
+  [glass] Backdrop blur. One sticky bar at most; glass cards are a tell.  (19×)
+      apps/web/src/components/chat/ChatDrawer.tsx:441  backdrop-filter:
+      apps/web/src/components/chat/ChatPageView.tsx:243  backdrop-filter:
+      apps/web/src/components/chat/ChatPageView.tsx:263  backdrop-filter:
+      apps/web/src/components/CrmDashboardView.tsx:27  backdrop-blur
+      apps/web/src/components/CrmDashboardView.tsx:187  backdrop-blur
+      apps/web/src/components/CrmDashboardView.tsx:189  backdrop-blur
+      … 13 more
+  [framework-colour] A framework default colour (Tailwind blue, green, red, amber). Take the accent and status colours from the dealt style.  (58×)
+      apps/web/src/components/chat/ChatDrawer.tsx:594  #10b981
+      apps/web/src/components/chat/ChatDrawer.tsx:633  #10b981
+      apps/web/src/components/chat/ChatDrawer.tsx:807  #10b981
+      apps/web/src/components/chat/ChatDrawer.tsx:827  #60a5fa
+      apps/web/src/components/chat/ChatPageView.tsx:479  #10b981
+      apps/web/src/components/chat/ChatPageView.tsx:570  #10b981
+      … 52 more
+  [mono] Monospace type. Only literal code may be monospace.  (54×)
+      apps/web/src/components/CrmDashboardView.tsx:65  font-mono
+      apps/web/src/components/CrmDashboardView.tsx:102  font-mono
+      apps/web/src/components/CrmDashboardView.tsx:205  font-mono
+      apps/web/src/components/CrmDashboardView.tsx:217  font-mono
+      apps/web/src/components/CrmDashboardView.tsx:218  font-mono
+      apps/web/src/components/CrmDashboardView.tsx:219  font-mono
+      … 48 more
+  [bounce] Looping attention animation (bounce / ping / pulse dot).  (3×)
+      apps/web/src/components/CrmDashboardView.tsx:65  animate-pulse
+      apps/web/src/components/CrmDashboardView.tsx:106  animate-pulse
+      apps/web/src/components/landing/WorkflowSection.tsx:95  animate-ping
+  [transition-all] transition: all. Name the properties (transform, opacity).  (3×)
+      apps/web/src/components/landing/WorkflowSection.tsx:80  transition-all
+      apps/web/src/components/landing/WorkflowSection.tsx:86  transition-all
+      apps/web/src/index.css:437  transition: all
+  [em-dash] Em-dash habit. Use a full stop or a comma; keep at most one or two on a page.  (1×)
+      (all files):0  24 em dashes
+
+RESULT: 58 FAIL, 158 WARN — fix the FAILs before rendering.
+Interface fragments marked data-ui keep their own borders and shadows. Any other line that must keep a flagged pattern for a real reason can carry the comment taste-skill-ignore.

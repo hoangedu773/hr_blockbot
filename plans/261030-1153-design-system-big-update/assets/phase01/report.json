@@ -1,0 +1,707 @@
+{
+  "viewports": {
+    "390": {
+      "rows": 10,
+      "columns": 6,
+      "shellScrollWidth": 342,
+      "shellClientWidth": 342,
+      "shellScrollsX": false,
+      "tableWidth": 342,
+      "identityWidth": 164,
+      "identityShare": 0.48,
+      "statusRight": 0,
+      "statusVisible": true,
+      "kpiBackgroundImage": "none",
+      "kpiBackdrop": "none",
+      "kpiRadius": "0px",
+      "kpiGap": "1px",
+      "kpiCols": "340px",
+      "kpiLabelTransform": "none",
+      "kpiLabelSize": "12px",
+      "kpiLeadSize": "24px",
+      "kpiValueSize": "24px",
+      "kpiDeltaSize": "14px",
+      "kpiDeltaBad": "rgb(255, 101, 104)",
+      "kpiDeltaGood": "rgb(161, 161, 161)",
+      "sidebarBackdrop": "none",
+      "sidebarBg": "rgb(10, 10, 10)",
+      "headerBackdrop": "none",
+      "headerBg": "rgb(10, 10, 10)",
+      "headerHeight": "64px",
+      "sidebarWidth": 0,
+      "logoBoxBg": "rgba(0, 0, 0, 0)",
+      "logoFilter": "brightness(0) invert(1)",
+      "navActiveBg": "rgba(0, 0, 0, 0)",
+      "navActiveColor": "rgb(250, 250, 250)",
+      "navIdleColor": "rgb(161, 161, 161)",
+      "navRuleWidth": "auto",
+      "navRuleColor": "rgb(37, 99, 235)",
+      "tabularPct": 100,
+      "numericCells": 30,
+      "transitionAll": 0,
+      "punctuality": [
+        {
+          "pct": "100",
+          "barWidth": 55.25,
+          "right": "0px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "98",
+          "barWidth": 54.1406,
+          "right": "1.10938px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "95",
+          "barWidth": 52.4844,
+          "right": "2.76562px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "100",
+          "barWidth": 55.25,
+          "right": "0px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "96",
+          "barWidth": 53.0312,
+          "right": "2.21875px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "94",
+          "barWidth": 51.9219,
+          "right": "3.32812px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "97",
+          "barWidth": 53.5781,
+          "right": "1.67188px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "99",
+          "barWidth": 54.6875,
+          "right": "0.5625px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "95",
+          "barWidth": 52.4844,
+          "right": "2.76562px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "100",
+          "barWidth": 55.25,
+          "right": "0px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        }
+      ],
+      "punctualityMinBar": 51.9219,
+      "punctualityAllBars": true,
+      "rowHeights": [
+        42
+      ],
+      "headerCells": [
+        {
+          "text": "Cửa hàng",
+          "uppercase": "none",
+          "bg": "rgba(0, 0, 0, 0)",
+          "borderBottom": "0px",
+          "height": 32
+        },
+        {
+          "text": "Cửa hàng trưởng",
+          "uppercase": "none",
+          "bg": "rgba(0, 0, 0, 0)",
+          "borderBottom": "0px",
+          "height": 0
+        },
+        {
+          "text": "Nhân sự",
+          "uppercase": "none",
+          "bg": "rgba(0, 0, 0, 0)",
+          "borderBottom": "0px",
+          "height": 0
+        },
+        {
+          "text": "Doanh thu két",
+          "uppercase": "none",
+          "bg": "rgba(0, 0, 0, 0)",
+          "borderBottom": "0px",
+          "height": 32
+        },
+        {
+          "text": "Đúng giờ",
+          "uppercase": "none",
+          "bg": "rgba(0, 0, 0, 0)",
+          "borderBottom": "0px",
+          "height": 32
+        },
+        {
+          "text": "Trạng thái",
+          "uppercase": "none",
+          "bg": "rgba(0, 0, 0, 0)",
+          "borderBottom": "0px",
+          "height": 0
+        }
+      ],
+      "statusPill": {
+        "height": 0,
+        "bg": "color(srgb 0.0627451 0.72549 0.505882 / 0.14)",
+        "color": "rgb(74, 222, 128)",
+        "marks": 1
+      },
+      "branchIcons": 0,
+      "moneySamples": [
+        {
+          "text": "8.420.000,00₫",
+          "align": "right",
+          "unitSize": "10px",
+          "unitColor": "rgb(138, 138, 138)"
+        },
+        {
+          "text": "12.150.000,00₫",
+          "align": "right",
+          "unitSize": "10px",
+          "unitColor": "rgb(138, 138, 138)"
+        }
+      ],
+      "docScrollWidth": 390,
+      "docClientWidth": 390,
+      "docNoOverflow": true,
+      "yellow": false,
+      "rowHover": {
+        "before": {
+          "bg": "rgba(0, 0, 0, 0)",
+          "shadow": "none"
+        },
+        "after": {
+          "bg": "rgba(0, 0, 0, 0)",
+          "shadow": "rgba(255, 255, 255, 0.15) 0px 0px 0px 1px inset"
+        },
+        "fillUnchanged": true
+      },
+      "drawer": {
+        "open": true,
+        "transform": "matrix(1, 0, 0, 1, 0, 0)",
+        "transitionProperty": "transform",
+        "transitionDuration": "0.24s",
+        "transitionTiming": "cubic-bezier(0.23, 1, 0.32, 1)",
+        "backdropFilter": "none",
+        "background": "rgb(23, 23, 23)",
+        "backdropBg": "rgba(0, 0, 0, 0.6)",
+        "backdropFilterB": "none",
+        "backdropOpacity": "1",
+        "focused": "Đóng chi tiết",
+        "focusedInsideDrawer": true
+      },
+      "focus": {
+        "count": 3,
+        "started": true,
+        "wrapped": true
+      },
+      "afterClose": {
+        "open": false,
+        "focusRestoredToRow": true,
+        "focusTag": "TR"
+      }
+    },
+    "768": {
+      "rows": 10,
+      "columns": 6,
+      "shellScrollWidth": 729,
+      "shellClientWidth": 720,
+      "shellScrollsX": true,
+      "tableWidth": 720,
+      "identityWidth": 331,
+      "identityShare": 0.46,
+      "statusRight": 744,
+      "statusVisible": true,
+      "kpiBackgroundImage": "none",
+      "kpiBackdrop": "none",
+      "kpiRadius": "0px",
+      "kpiGap": "1px",
+      "kpiCols": "358.5px 358.5px",
+      "kpiLabelTransform": "none",
+      "kpiLabelSize": "12px",
+      "kpiLeadSize": "30px",
+      "kpiValueSize": "24px",
+      "kpiDeltaSize": "14px",
+      "kpiDeltaBad": "rgb(255, 101, 104)",
+      "kpiDeltaGood": "rgb(161, 161, 161)",
+      "sidebarBackdrop": "none",
+      "sidebarBg": "rgb(10, 10, 10)",
+      "headerBackdrop": "none",
+      "headerBg": "rgb(10, 10, 10)",
+      "headerHeight": "64px",
+      "sidebarWidth": 0,
+      "logoBoxBg": "rgba(0, 0, 0, 0)",
+      "logoFilter": "brightness(0) invert(1)",
+      "navActiveBg": "rgba(0, 0, 0, 0)",
+      "navActiveColor": "rgb(250, 250, 250)",
+      "navIdleColor": "rgb(161, 161, 161)",
+      "navRuleWidth": "auto",
+      "navRuleColor": "rgb(37, 99, 235)",
+      "tabularPct": 100,
+      "numericCells": 30,
+      "transitionAll": 0,
+      "punctuality": [
+        {
+          "pct": "100",
+          "barWidth": 52,
+          "right": "0px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "98",
+          "barWidth": 50.9531,
+          "right": "1.04688px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "95",
+          "barWidth": 49.3906,
+          "right": "2.60938px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "100",
+          "barWidth": 52,
+          "right": "0px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "96",
+          "barWidth": 49.9062,
+          "right": "2.09375px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "94",
+          "barWidth": 48.875,
+          "right": "3.125px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "97",
+          "barWidth": 50.4375,
+          "right": "1.5625px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "99",
+          "barWidth": 51.4688,
+          "right": "0.53125px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "95",
+          "barWidth": 49.3906,
+          "right": "2.60938px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "100",
+          "barWidth": 52,
+          "right": "0px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        }
+      ],
+      "punctualityMinBar": 48.875,
+      "punctualityAllBars": true,
+      "rowHeights": [
+        42
+      ],
+      "headerCells": [
+        {
+          "text": "Cửa hàng",
+          "uppercase": "none",
+          "bg": "rgba(0, 0, 0, 0)",
+          "borderBottom": "0px",
+          "height": 32
+        },
+        {
+          "text": "Cửa hàng trưởng",
+          "uppercase": "none",
+          "bg": "rgba(0, 0, 0, 0)",
+          "borderBottom": "0px",
+          "height": 0
+        },
+        {
+          "text": "Nhân sự",
+          "uppercase": "none",
+          "bg": "rgba(0, 0, 0, 0)",
+          "borderBottom": "0px",
+          "height": 32
+        },
+        {
+          "text": "Doanh thu két",
+          "uppercase": "none",
+          "bg": "rgba(0, 0, 0, 0)",
+          "borderBottom": "0px",
+          "height": 32
+        },
+        {
+          "text": "Đúng giờ",
+          "uppercase": "none",
+          "bg": "rgba(0, 0, 0, 0)",
+          "borderBottom": "0px",
+          "height": 32
+        },
+        {
+          "text": "Trạng thái",
+          "uppercase": "none",
+          "bg": "rgba(0, 0, 0, 0)",
+          "borderBottom": "0px",
+          "height": 32
+        }
+      ],
+      "statusPill": {
+        "height": 20,
+        "bg": "color(srgb 0.0627451 0.72549 0.505882 / 0.14)",
+        "color": "rgb(74, 222, 128)",
+        "marks": 1
+      },
+      "branchIcons": 0,
+      "moneySamples": [
+        {
+          "text": "8.420.000,00₫",
+          "align": "right",
+          "unitSize": "10px",
+          "unitColor": "rgb(138, 138, 138)"
+        },
+        {
+          "text": "12.150.000,00₫",
+          "align": "right",
+          "unitSize": "10px",
+          "unitColor": "rgb(138, 138, 138)"
+        }
+      ],
+      "docScrollWidth": 768,
+      "docClientWidth": 768,
+      "docNoOverflow": true,
+      "yellow": false,
+      "rowHover": {
+        "before": {
+          "bg": "rgba(0, 0, 0, 0)",
+          "shadow": "none"
+        },
+        "after": {
+          "bg": "rgba(0, 0, 0, 0)",
+          "shadow": "rgba(255, 255, 255, 0.15) 0px 0px 0px 1px inset"
+        },
+        "fillUnchanged": true
+      },
+      "drawer": {
+        "open": true,
+        "transform": "matrix(1, 0, 0, 1, 0, 0)",
+        "transitionProperty": "transform",
+        "transitionDuration": "0.24s",
+        "transitionTiming": "cubic-bezier(0.23, 1, 0.32, 1)",
+        "backdropFilter": "none",
+        "background": "rgb(23, 23, 23)",
+        "backdropBg": "rgba(0, 0, 0, 0.6)",
+        "backdropFilterB": "none",
+        "backdropOpacity": "1",
+        "focused": "Đóng chi tiết",
+        "focusedInsideDrawer": true
+      },
+      "focus": {
+        "count": 3,
+        "started": true,
+        "wrapped": true
+      },
+      "afterClose": {
+        "open": false,
+        "focusRestoredToRow": true,
+        "focusTag": "TR"
+      }
+    },
+    "1440": {
+      "rows": 10,
+      "columns": 6,
+      "shellScrollWidth": 1168,
+      "shellClientWidth": 1168,
+      "shellScrollsX": false,
+      "tableWidth": 1168,
+      "identityWidth": 409,
+      "identityShare": 0.35,
+      "statusRight": 1416,
+      "statusVisible": true,
+      "kpiBackgroundImage": "none",
+      "kpiBackdrop": "none",
+      "kpiRadius": "0px",
+      "kpiGap": "1px",
+      "kpiCols": "269.203px 269.219px 355.359px 269.203px",
+      "kpiLabelTransform": "none",
+      "kpiLabelSize": "12px",
+      "kpiLeadSize": "30px",
+      "kpiValueSize": "24px",
+      "kpiDeltaSize": "14px",
+      "kpiDeltaBad": "rgb(255, 101, 104)",
+      "kpiDeltaGood": "rgb(161, 161, 161)",
+      "sidebarBackdrop": "none",
+      "sidebarBg": "rgb(10, 10, 10)",
+      "headerBackdrop": "none",
+      "headerBg": "rgb(10, 10, 10)",
+      "headerHeight": "64px",
+      "sidebarWidth": 224,
+      "logoBoxBg": "rgba(0, 0, 0, 0)",
+      "logoFilter": "brightness(0) invert(1)",
+      "navActiveBg": "rgba(0, 0, 0, 0)",
+      "navActiveColor": "rgb(250, 250, 250)",
+      "navIdleColor": "rgb(161, 161, 161)",
+      "navRuleWidth": "1px",
+      "navRuleColor": "rgb(37, 99, 235)",
+      "tabularPct": 100,
+      "numericCells": 30,
+      "transitionAll": 0,
+      "punctuality": [
+        {
+          "pct": "100",
+          "barWidth": 96.7969,
+          "right": "0px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "98",
+          "barWidth": 94.8594,
+          "right": "1.9375px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "95",
+          "barWidth": 91.9531,
+          "right": "4.84375px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "100",
+          "barWidth": 96.7969,
+          "right": "0px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "96",
+          "barWidth": 92.9219,
+          "right": "3.875px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "94",
+          "barWidth": 90.9844,
+          "right": "5.8125px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "97",
+          "barWidth": 93.8906,
+          "right": "2.90625px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "99",
+          "barWidth": 95.8281,
+          "right": "0.96875px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "95",
+          "barWidth": 91.9531,
+          "right": "4.84375px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        },
+        {
+          "pct": "100",
+          "barWidth": 96.7969,
+          "right": "0px",
+          "align": "right",
+          "font": "\"Geist Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+          "numeric": "tabular-nums"
+        }
+      ],
+      "punctualityMinBar": 90.9844,
+      "punctualityAllBars": true,
+      "rowHeights": [
+        42
+      ],
+      "headerCells": [
+        {
+          "text": "Cửa hàng",
+          "uppercase": "none",
+          "bg": "rgba(0, 0, 0, 0)",
+          "borderBottom": "0px",
+          "height": 36
+        },
+        {
+          "text": "Cửa hàng trưởng",
+          "uppercase": "none",
+          "bg": "rgba(0, 0, 0, 0)",
+          "borderBottom": "0px",
+          "height": 36
+        },
+        {
+          "text": "Nhân sự",
+          "uppercase": "none",
+          "bg": "rgba(0, 0, 0, 0)",
+          "borderBottom": "0px",
+          "height": 36
+        },
+        {
+          "text": "Doanh thu két",
+          "uppercase": "none",
+          "bg": "rgba(0, 0, 0, 0)",
+          "borderBottom": "0px",
+          "height": 36
+        },
+        {
+          "text": "Đúng giờ",
+          "uppercase": "none",
+          "bg": "rgba(0, 0, 0, 0)",
+          "borderBottom": "0px",
+          "height": 36
+        },
+        {
+          "text": "Trạng thái",
+          "uppercase": "none",
+          "bg": "rgba(0, 0, 0, 0)",
+          "borderBottom": "0px",
+          "height": 36
+        }
+      ],
+      "statusPill": {
+        "height": 20,
+        "bg": "color(srgb 0.0627451 0.72549 0.505882 / 0.14)",
+        "color": "rgb(74, 222, 128)",
+        "marks": 1
+      },
+      "branchIcons": 0,
+      "moneySamples": [
+        {
+          "text": "8.420.000,00₫",
+          "align": "right",
+          "unitSize": "10px",
+          "unitColor": "rgb(138, 138, 138)"
+        },
+        {
+          "text": "12.150.000,00₫",
+          "align": "right",
+          "unitSize": "10px",
+          "unitColor": "rgb(138, 138, 138)"
+        }
+      ],
+      "docScrollWidth": 1440,
+      "docClientWidth": 1440,
+      "docNoOverflow": true,
+      "yellow": false,
+      "rowHover": {
+        "before": {
+          "bg": "rgba(0, 0, 0, 0)",
+          "shadow": "none"
+        },
+        "after": {
+          "bg": "rgba(0, 0, 0, 0)",
+          "shadow": "rgba(255, 255, 255, 0.15) 0px 0px 0px 1px inset"
+        },
+        "fillUnchanged": true
+      },
+      "drawer": {
+        "open": true,
+        "transform": "matrix(1, 0, 0, 1, 0, 0)",
+        "transitionProperty": "transform",
+        "transitionDuration": "0.24s",
+        "transitionTiming": "cubic-bezier(0.23, 1, 0.32, 1)",
+        "backdropFilter": "none",
+        "background": "rgb(23, 23, 23)",
+        "backdropBg": "rgba(0, 0, 0, 0.6)",
+        "backdropFilterB": "none",
+        "backdropOpacity": "1",
+        "focused": "Đóng chi tiết",
+        "focusedInsideDrawer": true
+      },
+      "focus": {
+        "count": 3,
+        "started": true,
+        "wrapped": true
+      },
+      "afterClose": {
+        "open": false,
+        "focusRestoredToRow": true,
+        "focusTag": "TR"
+      }
+    }
+  },
+  "failures": [],
+  "errors": [],
+  "touchHover": {
+    "hoverNone": true,
+    "rowShadow": "none"
+  },
+  "reducedMotion": {
+    "kpiTransform": "none",
+    "rowTransition": "0s"
+  }
+}

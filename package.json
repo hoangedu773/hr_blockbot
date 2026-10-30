@@ -8,13 +8,8 @@
     "dev:web": "pnpm --filter web dev",
     "dev:ai": "cd apps/ai-service && python start.py",
     "build": "pnpm -r build",
-    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "demo:verify": "node scripts/demo-verify.mjs"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "mongodb-memory-server"
-    ]
   }
 }

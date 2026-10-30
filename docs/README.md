@@ -51,12 +51,13 @@ Chọn vai trò của bạn để đi theo luồng tài liệu tối ưu nhất:
 
 ### 3. 🎨 Dành cho Frontend Developer
 *Nắm giao diện chỉ huy, hệ màu dark theme, luồng người dùng và tích hợp API:*
-1. [`DESIGN.md`](DESIGN.md) — Kiến trúc giao diện mới: Folio Landing Page (Newsreader editorial, Zero-Yellow, Sticky Shrink Header) + Auth Modal 3 vai trò + CRM Command Center (45 chi nhánh Guta) + Chat Copilot Capsule Pill (OpenAI Style, Neutral Charcoal).
-2. [`10-ui-ux-spec.md`](10-ui-ux-spec.md) — Design system nền tối (Dark Command Center), motion tokens Emil Kowalski / Apple macOS, visual timeline, token semantic.
-3. [`18-user-flows.md`](18-user-flows.md) — 10 luồng người dùng chi tiết (UF-01 đến UF-10) và 28 intents chatbot.
-4. [`06-api-spec.md`](06-api-spec.md) — Danh sách endpoint và format dữ liệu trả về kết nối qua client service.
-5. [`ADR-015`](03-decision-records/ADR-015-shadcn-ui-va-recharts.md) — Lựa chọn component UI và thư viện biểu đồ.
-6. Mã nguồn thực tế: `apps/web/src/components/FolioLandingView.tsx`, `apps/web/src/components/CrmDashboardView.tsx`, `apps/web/src/components/chat/ChatPageView.tsx`, `apps/web/src/components/chat/ChatDrawer.tsx`.
+1. [`DESIGN.md`](DESIGN.md) — **Unified Enterprise Design System v3.0**: Design Brief hai register (Product/Brand), kiến trúc token 3 tầng, Zero-Yellow invariant (Obsidian + Electric Sapphire), Motion Physics 60fps, ma trận 8 trạng thái tương tác, đặc tả 4 bề mặt (Landing, CRM, Chat, Auth). Nguồn chân lý duy nhất cho mọi thay đổi UI.
+2. [`rules/project-design-rules.md`](rules/project-design-rules.md) — 10 quy tắc bất biến chống AI-slop, enforce tự động bằng test (`yellowCount === 0`).
+3. [`10-ui-ux-spec.md`](10-ui-ux-spec.md) — Đặc tả thông tin & hành vi: kiến trúc thông tin theo vai, phân vùng quyền, token semantic, luồng dữ liệu.
+4. [`18-user-flows.md`](18-user-flows.md) — 10 luồng người dùng chi tiết (UF-01 đến UF-10) và 28 intents chatbot.
+5. [`06-api-spec.md`](06-api-spec.md) — Danh sách endpoint và format dữ liệu trả về kết nối qua client service.
+6. [`ADR-015`](03-decision-records/ADR-015-shadcn-ui-va-recharts.md) — Lựa chọn component UI và thư viện biểu đồ.
+7. Mã nguồn thực tế: `apps/web/src/components/FolioLandingView.tsx`, `apps/web/src/components/CrmDashboardView.tsx`, `apps/web/src/components/chat/ChatPageView.tsx`, `apps/web/src/components/chat/ChatDrawer.tsx`.
 
 ---
 

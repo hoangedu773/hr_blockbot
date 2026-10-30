@@ -13,7 +13,7 @@ Mọi Agent hoạt động trong repository này **phải tuân thủ nghiêm ng
 |---|---|---|---|
 | **Web Dashboard** | **React 18 + Vite (SPA)** | ❌ **Next.js** | Dashboard nội bộ 2 vai, không cần SEO/SSR; Next.js gây phức tạp hóa WebSocket realtime và khó deploy tĩnh. |
 | **Backend API** | **Express.js + TypeScript** | ❌ **NestJS** | Đề cương gốc chốt MERN (ADR-002). Giữ module 5-file tinh gọn (`routes`, `controller`, `service`, `repository`, `schema`), không dùng NestJS DI boilerplate. |
-| **AI Service** | **FastAPI + Python 3.10+** | ❌ Chạy chung Node.js | Sidecar độc lập xử lý Policy RAG và PhoBERT semantic matching (ADR-003). |
+| **AI Service** | **FastAPI + Python 3.10+** | ❌ Chạy chung Node.js | Sidecar độc lập xử lý Policy RAG (embedding `gemini-embedding-001`) + typed-decision agent (ADR-003). PhoBERT cho F4 là yêu cầu đề cương, **chưa** triển khai ở HEAD. |
 | **Database** | **MongoDB Atlas M0** | ❌ PostgreSQL (ở khóa luận) | Đã nạp dữ liệu thật 34 cửa hàng GUTA Cafe; dùng Single-Document Atomic Update (ADR-004), không dùng transaction đa collection. |
 | **Contracts** | **Zod (`packages/contracts`)** | ❌ Tự định nghĩa kiểu trùng lặp | Single Source of Truth cho toàn bộ data model giữa Web, API và AI. |
 
@@ -71,28 +71,34 @@ Kế hoạch chi tiết được quản lý tại:
 
 ## 5. Trạng Thái Các Nhánh Bootstrap & Hướng Dẫn Tiếp Quản
 
+> **Đã đóng (2026-10-30):** mọi nhánh `feat/*` dưới đây đã merge 100% vào `main` và **không còn trên
+> `origin`** (`git ls-remote --heads origin` chỉ trả `main` + `integration/full-delivery`). Mục 5.1 là
+> lịch sử để truy vết nguồn gốc quyết định, **không** phải danh sách nhánh đang tồn tại. Đừng
+> `git checkout feat/...` — lệnh đó sẽ fail.
+
 ### 5.1 Trạng Thái Các Nhánh Đã Hoàn Thành & Push GitHub (Tuần 7)
 
-| Nhánh | Worktree | Commit SHA | Trạng thái & Kết quả kiểm chứng |
+| Nhánh | Worktree (đã xoá) | Commit SHA | Trạng thái & Kết quả kiểm chứng |
 |---|---|---|---|
 | `feat/pm-agentkit` | `../hr-blockbot-pm` | `27ff731` | **DONE:** Chốt Zod contracts (Auth, Employee allowlist không PII, pagination, error catalog), phân quyền đọc/ghi các app, kịch bản Phase 5. Test 10/10 pass. |
-| `feat/api-backend` | `../hr-blockbot-api` | `32f4000` | **DONE:** Xóa hardcode secrets, Argon2id + jose (JWT + RTR fail-closed), scope guard `assertInScope()`, Allowlist API `/api/employees`, khóa routes cũ và Socket.IO. Test `pnpm --filter api test:auth` 22/22 pass. |
+| `feat/api-backend` | `../hr-blockbot-api` | `32f4000` | **DONE:** Xóa hardcode secrets, Argon2id + jose (JWT + RTR fail-closed), scope guard `assertInScope()`, Allowlist API `/api/employees`, khóa routes cũ và Socket.IO. Test 22/22 pass (script `test:auth` thời điểm đó; nay là `pnpm --filter api test`). |
 | `feat/frontend-web` | `../hr-blockbot-web` | `b0d9cdc` | **DONE:** Liên kết contracts, in-memory token, interceptor 401 single-flight refresh, xóa sạch `SEED_*` và optimistic toasts giả, dựng UI preview gate 6 trạng thái tại `apps/web/previews/index.html`. Build pass. |
 | `feat/ai-service` | `../hr-blockbot-ai` | `ba08fd2` | **DONE:** Xóa hardcode secrets, endpoint `/health` ping DB Atlas thật báo liveness/readiness trung thực, khóa mock chat (403), giữ requirements tinh gọn. Test 11/11 pass. |
 
-### 5.2 Hướng Dẫn Đồng Nghiệp & Dev Tiếp Quản Nhánh
+### 5.2 Hướng Dẫn Đồng Nghiệp & Dev Tiếp Quản
 
-1. **Kéo mã nguồn mới nhất:**
+1. **Lấy mã nguồn:** làm việc trực tiếp trên `main` — không còn nhánh feature để checkout.
    ```bash
    git fetch origin
-   git checkout <tên_nhánh>
-   git pull origin <tên_nhánh>
+   git checkout main
+   git pull origin main
    ```
-2. **Kiểm tra kiểm thử tự động:**
-   - Backend API: `pnpm --filter api test:auth` (22/22 tests pass)
-   - Contracts: `pnpm --filter @hr-blockbot/contracts test` (10/10 tests pass)
-   - Frontend Web: `pnpm --filter web build` (TypeScript + Vite build pass)
-   - AI Service: `pytest apps/ai-service/tests/test_health_probe.py`
+2. **Kiểm tra kiểm thử tự động (lệnh thật ở HEAD, đã chạy 2026-10-30):**
+   - Typecheck toàn workspace: `pnpm -r typecheck` → 0 error (api, web, contracts).
+   - Backend API: `pnpm --filter api test` (10 file `node --test` trên mongodb-memory-server).
+   - Contracts: `pnpm --filter @hr-blockbot/contracts test` (40/40 pass).
+   - Frontend Web: `pnpm --filter web test` + `pnpm --filter web build`.
+   - AI Service: `cd apps/ai-service && python -m pytest -q` (177 passed, 1 skipped, 34 subtests).
 3. **Môi trường & Biến môi trường (`.env`):**
    - Đảm bảo file `.env` chứa `MONGODB_URI` hoặc `ATLAS_URI` hợp lệ kết nối tới cụm Atlas của dự án.
    - Không commit file `.env` lên git repository.

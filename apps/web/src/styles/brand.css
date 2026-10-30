@@ -1,0 +1,69 @@
+/*
+ * Brand register. Owns the landing surface (FOLIO_HTML).
+ *
+ * `folio-layout.css` is the hand-written layout sheet for the landing mock
+ * (geometry, the .crm-* preview widgets, and the whole motion layer). It is
+ * imported here so the bundle has one landing stylesheet and one cascade
+ * position. Do not duplicate its rules below — Tier 2 tokens only.
+ */
+
+@import "./folio-layout.css";
+
+/*
+ * FOLIO_HTML stores these classes with HTML entities (&amp;, &gt;) because the
+ * markup is authored as an HTML string. Tailwind scans the raw source text and
+ * therefore never sees a valid utility. They are declared explicitly here so
+ * the generated selectors match the entity-decoded class names the browser
+ * actually renders.
+ */
+@source inline("[&_svg]:shrink-0");
+@source inline("[&_svg]:pointer-events-none");
+@source inline("[&_svg:not([class*='size-'])]:size-4");
+@source inline("has-[>svg]:px-2.5");
+@source inline("has-[>svg]:px-3");
+
+/* ------------------------------------------------------------------ *
+ * Tier 2 — semantic, brand
+ *
+ * The brand register is lighter than the product register by design: the
+ * landing is a marketing surface, not a control surface.
+ * ------------------------------------------------------------------ */
+
+[data-register="brand"],
+:root:not([data-register]) {
+  --brand-canvas: var(--folio-canvas, #121212);
+  --brand-surface: var(--folio-surface, #181818);
+  --brand-surface-raised: var(--folio-surface-raised, #242424);
+  --brand-ink: var(--folio-ink, #fafafa);
+  --brand-muted: var(--folio-muted, #9b9b9b);
+  --brand-border: var(--folio-border, #2e2e2e);
+  --brand-accent: var(--folio-accent, #266df0);
+
+  --brand-font-display: var(--folio-display, var(--font-serif));
+  --brand-font-body: var(--folio-body, var(--font-sans));
+
+  --brand-section-space: var(--folio-section, 64px);
+  --brand-measure: var(--folio-width, 1270px);
+  --brand-pill: var(--folio-pill, 9999px);
+}
+
+/* ------------------------------------------------------------------ *
+ * Tier 3 — brand components
+ * ------------------------------------------------------------------ */
+
+.folio-preview {
+  font-family: var(--brand-font-body);
+  color: var(--brand-ink);
+}
+
+.folio-view-container {
+  min-height: 100dvh;
+}
+
+/* The hero headline is the page's one display moment: it keeps the serif even
+ * though `.folio-preview :is(h1, h2, h3)` already sets it, because the utility
+ * layer in FOLIO_HTML would otherwise win on specificity for the inner spans. */
+.folio-display,
+.folio-display .line {
+  font-family: var(--brand-font-display);
+}

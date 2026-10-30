@@ -17,7 +17,7 @@ Hệ thống giao diện của HR BlockBot Command Center được kết tinh t�
    - Dành riêng cho màn hình Quản trị (Admin): Thẻ số liệu KPI tinh gọn, thanh tiến độ đề tài % rõ ràng, bảng nhân sự và đối soát ca trực có mật độ thông tin cao (`table row height: 36px - 40px`).
 3. **Màu sắc & Lưới trật tự từ Swiss International / Vercel (Geist Style):**
    - Nền than chì sâu thẳm tự nhiên `#090A0F` đến `#121212` (loại bỏ màu nền đen tuyền `#000` hoặc xanh tím neon `#090D16`).
-   - Tối giản tối đa: 90% diện tích là gam màu trung tính, chữ sắc nét có độ tương phản đạt chuẩn WCAG AAA; chỉ dành 10% cho màu chức năng và 1 điểm nhấn thương hiệu **Guta Amber (`#D97706` / `#F59E0B`)**.
+   - Tối giản tối đa: 90% diện tích là gam màu trung tính, chữ sắc nét có độ tương phản đạt chuẩn WCAG AAA; chỉ dành 10% cho màu chức năng và 1 điểm nhấn hành động **Electric Sapphire (`#2563EB` / `#3B82F6`)**, triệt tiêu hoàn toàn màu vàng chói (Zero-Yellow Invariant).
 
 ---
 
@@ -37,7 +37,7 @@ Bất kỳ AI Agent hoặc lập trình viên nào khi tạo mới hoặc sửa 
 ### Quy Tắc 3: NGUYÊN TẮC PHÂN BỔ MÀU 90/10 & SINGLE ACCENT
 - 90% diện tích giao diện là thang xám than chì trung tính.
 - Tối đa 10% diện tích dùng màu nhấn (nút CTA chính, cảnh báo, trạng thái).
-- Màu nhấn thương hiệu độc bản duy nhất là **Guta Amber (`#D97706` / `#EAB308`)**, không pha trộn nhiều màu nhấn lòe loẹt.
+   - Màu nhấn hành động độc bản duy nhất là **Electric Sapphire (`#2563EB` / `#3B82F6`)**. Triệt tiêu 100% màu vàng (`#FFD100`, `#EAB308`, `#F59E0B`, `#FDD663`) để bảo đảm độ tương phản và loại bỏ cảm giác chói mắt. Trạng thái vận hành dùng Emerald (`#10B981`) cho ca đúng giờ/online, Rose (`#F43F5E`) cho trễ ca/cảnh báo, và Slate (`#64748B`) cho chờ duyệt.
 
 ### Quy Tắc 4: CẤM NEON GLOW & GRADIENT RỰC RỠ
 - Cấm triệt để hiệu ứng đổ bóng phát sáng neon (`box-shadow: 0 0 20px ...`).

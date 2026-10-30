@@ -1,0 +1,58 @@
+/*
+ * Tier 1 — primitives. Raw values only, no semantics, no component knowledge.
+ * Nothing in this file may reference a Tier 2 or Tier 3 token.
+ */
+
+/* The app is dark-only and pins <html class="dark">. Tailwind's default `dark:`
+   variant follows prefers-color-scheme, which would hand light-OS users the
+   light branch on a near-black canvas (measured 1.89:1 on the revenue column).
+   Binding the variant to the class makes .dark the single source of truth. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  /* Obsidian — neutral ramp used by the product register */
+  --obsidian-950: #090a0f;
+  --obsidian-900: #121214;
+  --obsidian-850: #18181b;
+  --obsidian-800: #222226;
+  --obsidian-700: #2e2e2e;
+  --obsidian-500: #64748b;
+  --obsidian-400: #94a3b8;
+  --obsidian-100: #f1f5f9;
+  --obsidian-50: #f8fafc;
+
+  /* Accents */
+  --sapphire-600: #1d4ed8;
+  --sapphire-500: #2563eb;
+  --sapphire-400: #3b82f6;
+  --emerald-500: #10b981;
+  --rose-500: #f43f5e;
+
+  /* Type */
+  --font-sans: "Geist", system-ui, -apple-system, sans-serif;
+  --font-serif: "Newsreader", Georgia, serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Radii */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-pill: 9999px;
+
+  /* Motion — values from ak-motion-craft/references/animation-rules.md */
+  --ease-snappy: cubic-bezier(0.2, 0.8, 0.2, 1); /* dropdown, popover, tooltip */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1); /* entrance, UI < 600ms */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); /* objects travelling across the screen */
+  --ease-exit: cubic-bezier(0.55, 0.055, 0.675, 0.19); /* things leaving for good */
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); /* iOS-like sheet */
+
+  --t-press: 140ms;
+  --t-hover: 180ms;
+  --t-ui: 240ms;
+  --t-sheet: 240ms;
+  --t-reveal: 800ms; /* brand register only */
+  --t-open: 1200ms; /* brand register only */
+
+  --stagger-item: 70ms;
+  --stagger-line: 90ms;
+}

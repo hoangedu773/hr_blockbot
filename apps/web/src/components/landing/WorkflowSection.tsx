@@ -5,6 +5,11 @@ export interface WorkflowSectionProps {
   diagramSrc?: string;
 }
 
+/**
+ * The workflow block is deliberately static: the diagram inside the iframe runs
+ * its own live loop, and animating the container on top of it would put two
+ * moving things on one screen. The toolbar is the only thing that changes state.
+ */
 export const WorkflowSection: React.FC<WorkflowSectionProps> = ({
   className = '',
   diagramSrc = '/diagrams/chatbot-architecture.html',
@@ -60,57 +65,31 @@ export const WorkflowSection: React.FC<WorkflowSectionProps> = ({
   }, [postToDiagram]);
 
   return (
-    <section className={`py-20 md:py-28 relative ${className}`} id="solution">
-      <div className="guta-container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
-        <header className="guta-section-head text-center max-w-3xl mx-auto mb-10">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold tracking-wider uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 mb-3">
-            KIẾN TRÚC &amp; LUỒNG XỬ LÝ AGENTIC
-          </span>
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-foreground">
-            Luồng Vận Hành Tự Động 24/7
-          </h2>
-          <p className="mt-4 text-base sm:text-lg text-muted-foreground leading-relaxed">
+    <section className={`folio-section ${className}`} id="solution">
+      <div className="guta-container">
+        <header className="guta-section-head">
+          <span className="guta-label">Kiến trúc &amp; luồng xử lý agentic</span>
+          <h2>Luồng Vận Hành Tự Động 24/7</h2>
+          <p>
             Hệ thống tự động điều phối luồng hội thoại từ Ingress (Zalo, Telegram, Web), qua Bộ lọc Fast Rule Gate,
             Phân loại Jev AI, Vòng lặp Agent đến Gemini 3.8 Flash và Cổng xác thực con người 2 bước.
           </p>
         </header>
 
-        <div
-          ref={containerRef}
-          className="workflow-diagram-card relative border border-emerald-500/20 bg-background/80 backdrop-blur-md rounded-2xl overflow-hidden shadow-2xl shadow-emerald-950/20 transition-all duration-300 hover:border-emerald-500/35"
-        >
-          {/* Frosted Toolbar Header */}
-          <div className="workflow-toolbar flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 bg-emerald-950/40 border-b border-emerald-500/20 backdrop-blur-lg">
-            <div className="flex items-center gap-2">
-              <span
-                className={`workflow-status-chip inline-flex items-center gap-2 px-3 py-1 text-xs font-semibold rounded-full transition-all duration-200 ${
-                  isPlaying
-                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                    : 'bg-muted/40 text-muted-foreground border border-border'
-                }`}
-              >
-                {isPlaying ? (
-                  <>
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                    </span>
-                    <span className="workflow-status-text">🟢 Luồng tín hiệu: Đang chạy liên tục (Live Loop)</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="h-2 w-2 rounded-full bg-slate-400"></span>
-                    <span className="workflow-status-text">⏸ Luồng tín hiệu: Đã tạm dừng</span>
-                  </>
-                )}
+        <div ref={containerRef} className="workflow-diagram-card">
+          <div className="workflow-toolbar">
+            <span className="workflow-status-chip" data-state={isPlaying ? 'play' : 'paused'}>
+              <span className="workflow-dot" aria-hidden="true" />
+              <span className="workflow-status-text">
+                {isPlaying ? 'Luồng tín hiệu: đang chạy liên tục (Live Loop)' : 'Luồng tín hiệu: đã tạm dừng'}
               </span>
-            </div>
+            </span>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="workflow-actions">
               <button
                 type="button"
                 onClick={handleFitView}
-                className="workflow-btn-fit px-3 py-1.5 text-xs font-medium rounded-lg border border-emerald-500/30 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/50 hover:text-emerald-100 transition-colors cursor-pointer"
+                className="workflow-btn-fit"
                 title="Khớp khung hình sơ đồ (Fit View)"
                 aria-label="Khớp khung hình sơ đồ"
               >
@@ -120,35 +99,42 @@ export const WorkflowSection: React.FC<WorkflowSectionProps> = ({
               <button
                 type="button"
                 onClick={handleToggleMotion}
-                className="workflow-btn-toggle px-3 py-1.5 text-xs font-medium rounded-lg border border-emerald-500/30 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/50 hover:text-emerald-100 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                className="workflow-btn-toggle"
+                data-state={isPlaying ? 'play' : 'paused'}
                 title="Tạm dừng / Tiếp tục luồng tín hiệu (Space)"
                 aria-label={isPlaying ? 'Tạm dừng luồng' : 'Tiếp tục luồng'}
               >
-                <span className="workflow-toggle-icon">{isPlaying ? '⏸' : '▶'}</span>
+                <svg className="workflow-icon-pause" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M9 5v14M15 5v14" />
+                </svg>
+                <svg className="workflow-icon-play" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7 4.5v15l13-7.5z" />
+                </svg>
                 <span className="workflow-toggle-text">{isPlaying ? 'Tạm dừng' : 'Tiếp tục'}</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleOpenFullscreen}
-                className="workflow-btn-fullscreen px-3 py-1.5 text-xs font-medium rounded-lg border border-emerald-500/30 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/50 hover:text-emerald-100 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                className="workflow-btn-fullscreen"
                 title="Mở toàn màn hình hoặc tab mới"
                 aria-label="Mở toàn màn hình mới"
               >
-                <span>⛶</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 0 2 2h3" />
+                </svg>
                 <span>Mở toàn màn hình mới</span>
               </button>
             </div>
           </div>
 
-          {/* Diagram iframe viewport */}
-          <div className="workflow-iframe-wrapper relative w-full h-[480px] sm:h-[560px] lg:h-[680px] bg-[#021a16] overflow-hidden">
+          <div className="workflow-iframe-wrapper">
             <iframe
               ref={iframeRef}
               id="workflow-diagram-iframe"
               src={diagramSrc}
               title="HR BlockBot - Chatbot &amp; Agentic Architecture"
-              className="w-full h-full border-0 block"
+              className="workflow-iframe"
               loading="lazy"
               allow="fullscreen"
             />

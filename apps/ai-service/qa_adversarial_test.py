@@ -10,12 +10,27 @@ Tests 5 critical corner cases:
 
 import concurrent.futures
 import json
+import os
 import sys
 import threading
 import time
 import tracemalloc
 from typing import Any
 from unittest.mock import patch
+
+# Hermetic by construction: this script mocks every provider, so any credential that
+# leaks in from the workstation turns it into a live-network test (real Jev keys make
+# AgentLoop pick the Jev path instead of the scripted chain, and an unset service key
+# makes TestClient answer 503 before the mocked provider is reached).
+os.environ["PYTHON_DOTENV_DISABLED"] = "1"
+for _name in list(os.environ):
+    if _name.startswith(("JEV_", "OPENAI_", "GOOGLE_", "GEMINI_")) or _name in (
+        "MONGODB_URI", "ATLAS_URI",
+    ):
+        del os.environ[_name]
+os.environ["AI_SERVICE_API_KEY"] = "qa-adversarial-local-key"
+for _name in ("AI_AGENT_ENABLED", "AI_LLM_MODEL", "AI_EMBEDDING_MODEL", "AI_EMBEDDING_DIM"):
+    os.environ.pop(_name, None)
 
 import httpx
 from fastapi.testclient import TestClient
@@ -39,7 +54,7 @@ from app.llm.base import (
 from app.llm.chain import ProviderChain, ProviderChainCache
 from app.main import app
 
-client = TestClient(app)
+client = TestClient(app, headers={"x-ai-service-key": os.environ["AI_SERVICE_API_KEY"]})
 CTX = UserContext()
 
 report = {

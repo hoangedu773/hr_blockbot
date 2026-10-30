@@ -1,154 +1,237 @@
-# 🎨 DESIGN.md — Thư Viện Nguồn Cảm Hứng & Hệ Thống Thiết Kế UI/UX
+# 🏛️ DESIGN.md — Unified Enterprise Design System Specification (v3.0)
 
-> **Mục tiêu:** Cung cấp danh sách các trang web thư viện component UI đẹp nhất hiện nay (xem trực quan, có code copy-paste ngay) để bạn tự do lựa chọn giao diện Dashboard/Command Center ưng ý nhất. Sau khi bạn chọn được mẫu/link yêu thích, hệ thống sẽ điều phối cập nhật toàn bộ vào codebase.
-
----
-
-## 1. 🌐 Top 6 Trang Web Thư Viện UI Trực Quan Đẹp Nhất (Copy-Paste Code)
-
-Dưới đây là các kho giao diện Dark Mode xịn xò nhất dành cho React, Tailwind CSS và Dashboard chuyên nghiệp:
-
-### 1. [21st.dev — The NPM for Design Engineers](https://21st.dev) ⭐ (Khuyên dùng số 1)
-- **Điểm mạnh:** Thư viện mở lớn nhất tập hợp hàng nghìn components cực đẹp từ cộng đồng design engineers (tương tự Product Hunt cho UI).
-- **Trực quan:** Có bản demo live chạy trực tiếp trên web, xem được cả Dark Mode, hiệu ứng hover, click.
-- **Copy code:** Bấm 1 nút là copy thẳng code React (Tailwind / Framer Motion / Lucide icons).
-- **Mục nên xem:** Tìm kiếm từ khóa `dashboard`, `stat card`, `data table`, `timeline`, `chat`.
-
-### 2. [Shadcn UI Blocks & Examples](https://ui.shadcn.com/blocks)
-- **Điểm mạnh:** Thư viện chuẩn mực số 1 của hệ sinh thái React hiện nay (chuẩn mực kiến trúc ADR-015 của dự án).
-- **Các mẫu Dashboard dựng sẵn:**
-  - [Dashboard 01 - Executive Overview](https://ui.shadcn.com/blocks#dashboard-01) (Cards KPI + Bảng giao dịch gần đây).
-  - [Dashboard 05 - Orders & Analytics](https://ui.shadcn.com/blocks#dashboard-05) (Thanh tiến độ tuần, bảng phân trang, tab lọc).
-  - [Dashboard 06 - Products & Inventory](https://ui.shadcn.com/blocks#dashboard-06) (Bảng dữ liệu chuẩn Enterprise, bộ lọc trạng thái).
-- **Xem thêm tại:** [Shadcn.io Examples](https://www.shadcn.io/examples) (Hơn 1.100 ví dụ trực quan về Cards, Charts, Tables).
-
-### 3. [Tremor — Dashboard & Analytics Components](https://tremor.so) ⭐ (Chuyên trị số liệu & KPI)
-- **Điểm mạnh:** Thiết kế chuyên dụng 100% cho Dashboard quản trị, biểu đồ số liệu, thẻ KPI doanh nghiệp.
-- **Phong cách:** Cực kỳ tối giản, thanh lịch, tone xám đen cao cấp (tương tự Stripe Dashboard).
-- **Các khối có sẵn:** Metric Cards kèm Sparklines (biểu đồ mini góc thẻ), thanh đo % tiến độ, bảng phân công nhiệm vụ, bộ lọc đa chiều.
-
-### 4. [Aceternity UI](https://ui.aceternity.com)
-- **Điểm mạnh:** Các components có hiệu ứng thị giác đỉnh cao (Borders phát sáng nhẹ, Card 3D tilt, Spotlight hover).
-- **Ứng dụng:** Rất hợp nếu bạn muốn thanh AI Copilot, Khung Chat hoặc Thẻ đề tài có hiệu ứng hiện đại, cao cấp kiểu Linear.app.
-
-### 5. [Magic UI](https://magicui.design)
-- **Điểm mạnh:** Tinh gọn hơn Aceternity, chuyên các vi tương tác (micro-interactions): số đếm nhảy mượt mà (Number Ticker), thanh trạng thái phát sáng (Shimmer Button), dây nối tiến trình (Animated Beam).
-
-### 6. [Untitled UI — Dashboard Inspiration](https://www.untitledui.com/components/dashboards)
-- **Điểm mạnh:** Kho dashboard SaaS mẫu đẹp nhất thế giới trên Figma & Tailwind. Dù bản Figma đầy đủ có phí nhưng thư viện showcase của họ là nguồn tham khảo layout bố cục chuẩn xác nhất về tỷ lệ vàng dashboard.
+> **Dự án:** Khóa luận KLCN133 — HR BlockBot Command Center & AI Copilot  
+> **Quy chuẩn:** Doanh nghiệp F&B Đa Chi Nhánh (Enterprise Multi-Outlet Workspace)  
+> **Phiên bản:** v3.0 (Cập nhật toàn diện 10/2026 — Thay thế toàn bộ bản thảo cũ)  
+> **Kiến trúc cốt lõi:** Swiss International Grid · Linear Minimalist Shell · Tremor Data Density · Emil Kowalski Motion Physics
 
 ---
 
-## 2. 🚫 Quy Tắc Bất Biến Về Select Menu & Scrollbar (Theo project-design-rules.md)
+## 1. 🎯 Design Brief (Đặc Tả Thẩm Mỹ Chuẩn Hóa)
 
-- **Cấm hoàn toàn thẻ `<select>` mặc định của OS**: Không để bung popup xám trắng của Windows/macOS. 100% dùng Custom Popover/Select component (Radix Select / Custom div dropdown) có nền tối, viền mỏng, item hover mượt mà.
-- **Custom Scrollbar đồng bộ**: Toàn bộ thanh cuộn danh sách menu và bảng phải dùng custom CSS scrollbar siêu mảnh (4px - 6px), thumb bo góc mờ, hover đổi màu nhẹ, cấm thanh kéo trắng xám to bản mặc định.
+Bản đặc tả thiết kế tuân thủ nghiêm ngặt quy trình `ak-frontend-design` và `ak-design-taste`:
 
----
-
-## 3. 🎯 Các Bước Bạn Chọn & Tôi Điều Phối Tiếp Theo
-
-1. Bạn chỉ cần click vào các đường link trên (đặc biệt là **[21st.dev](https://21st.dev)**, **[ui.shadcn.com/blocks](https://ui.shadcn.com/blocks)** hoặc **[tremor.so](https://tremor.so)**).
-2. Khi lướt thấy **component hoặc dashboard nào bạn ưng ý nhất** (về tông màu, kiểu thẻ card, bảng hay thanh điều hướng):
-   - Bạn chỉ cần **quăng link hoặc copy đoạn code/mô tả đó vào đây**.
-3. Tôi sẽ điều phối:
-   - Thay thế toàn bộ CSS tokens / Palette màu theo đúng phong cách đó.
-   - Viết lại các View (`ProjectListView`, `DetailView`, `ApprovalQueue`) và dựng trang Preview chuẩn chỉ cho bạn nghiệm thu!
-
----
-
-## 4. 🏆 Quyết Định Kiến Trúc Giao Diện Mới (Official Design Decision - 2026)
-
-Đã chốt phương án phối hợp 2 giao diện cao cấp:
-
-### 4.1. Cấu Trúc Trải Nghiệm (User Experience Flow)
 ```text
-[Landing Page (Folio)] ---> Nút "Get Started" / "Đăng nhập" ---> [Auth Modal] ---> [Trợ Lý AI Copilot (Chat-First)]
-(Editorial serif Newsreader,                                                       (OpenAI Capsule Pill,
- Sticky shrink header, 0 pixel màu vàng)                                           Quick switch sang CRM 45 chi nhánh)
+Register:  Product (CRM Command Center & Chat Copilot) + Brand (Folio Landing Page)
+Scene:     Cửa hàng trưởng (SM) thao tác nhanh trên mobile 375px tại quầy bar ồn ào;
+           Quản lý khu vực (AOM) duyệt ca trên iPad/Laptop khi di chuyển giữa các quận;
+           Ban Điều Hành (Admin) giám sát 45 chi nhánh trên màn hình workstation 1440px tại trụ sở.
+Direction: Swiss International / Linear Minimalist — tập trung tối đa vào dữ liệu vận hành,
+           lưới 12 cột kỷ luật, viền 1px siêu mảnh, triệt tiêu trang trí thừa và chống AI-slop.
+Color:     Restrained (Zero-Yellow Token System): 90% Obsidian Neutral (#090A0F..#121214),
+           10% Electric Sapphire (#2563EB) cho hành động chính và focus;
+           Màu trạng thái: Emerald (#10B981), Rose (#F43F5E), Slate (#64748B).
+Type:      Display Serif 'Newsreader' (Landing Page) + Sans 'Geist Sans' / 'Inter' + Mono 'ui-monospace' (CRM & Chat);
+           Trục tương phản: Editorial Elegance (Marketing) vs Technical Precision (SaaS).
+Signature: Bảng ma trận 45 chi nhánh thời gian thực với Slide-Over Barista Drawer & AI Copilot Action Center.
+Dials:     Product Register: Variance 3 / Motion 2 / Density 7
+           Brand Register:   Variance 7 / Motion 5 / Density 3
 ```
 
-1. **Trang Giới Thiệu (Landing Page):** Bóc tách chính xác từ bản chuẩn **[`apps/web/previews/folio-layout.html`](../apps/web/previews/folio-layout.html)**:
-   - URL Local Preview: `http://127.0.0.1:5173/previews/folio-layout.html`.
-   - Component sản phẩm: `apps/web/src/components/FolioLandingView.tsx`.
-   - Stylesheets: `/assets/folio/folio.css` + `/assets/folio/folio-layout.css`.
-   - Typography: Font Editorial Serif **Newsreader** (Google Fonts) kết hợp Geist Sans, bảo đảm 100% hiển thị mượt mà dấu thanh tiếng Việt không bị nhảy font (Georgia fallback bug).
-   - Nội dung: Hero với Headline chuẩn "Quản Trị Nhân Sự & Phân Ca Tự Động Chuỗi F&B", mockup 5 cột Kanban theo vòng đời đề tài (Khởi tạo, Đã giao, Đang thực hiện, Chờ duyệt, Hoàn thành), thẻ gợi ý phân công AI PhoBERT, khối tính năng đối chiếu và dải đối tác cung ứng F&B (Vinamilk, La Marzocco, Dalatmilk, Monin,...).
-   - **Sticky Shrink Header:** Cuộn trang `scrollY > 20px` navbar full-width co nhỏ padding dọc với hiệu ứng frosted glass neutral obsidian `backdrop-filter: blur(24px)` và viền đáy mờ tinh tế; không bo góc capsule.
+---
 
-2. **Cổng Đăng Nhập (Auth Modal):** 
-   - Modal bật lên từ nút "Get Started" / "Đăng nhập" / "Xem dashboard".
-   - Hỗ trợ đăng nhập nhanh 1-Click theo 3 vai trò thực tế:
-     * Cửa hàng trưởng (SM): Nguyễn Thị Phương Anh (Chi nhánh Tân Bình).
-     * Quản lý khu vực (AOM): Nguyễn Cao Thanh Trầm (Khu vực Q1/Q3/Q10).
-     * Quản trị viên (Admin): Ban Điều Hành Guta (Toàn quyền chuỗi).
+## 2. 🧱 Kiến Trúc Design Tokens 3 Tầng (3-Tier Token Architecture)
 
-3. **Bảng Điều Khiển Quản Trị (CRM Dashboard):** Bóc tách chính xác từ bản chuẩn **[`previews/preview-21st-crm.html`](../previews/preview-21st-crm.html)**:
-   - File tham chiếu: `C:\work-space\hr-blockbot\previews\preview-21st-crm.html`.
-   - Component sản phẩm: `apps/web/src/components/CrmDashboardView.tsx`.
-   - Stylesheets: `/assets/crm/2voh1gse7971r.css` + `/assets/crm/2e445toz63gzv.css`.
-   - Bảng dữ liệu thực tế 45 chi nhánh Guta Coffee (Sư Vạn Hạnh, Nguyễn Cửu Vân, Đặng Văn Sâm, Nguyễn Thị Minh Khai,...).
-   - **Slide-Over Sheet:** Bấm vào bất kỳ dòng cửa hàng nào -> Drawer trượt từ bên phải ra hiển thị danh sách Barista trong ca, doanh thu két tiền mặt, và nút gửi cảnh báo qua Bot Telegram.
+Hệ thống token được phân cấp thành 3 tầng kế thừa chặt chẽ, loại bỏ hoàn toàn các giá trị hardcode tự do:
 
-### 4.2. Hệ Màu Nhận Diện & Tokens Chuẩn (Zero-Yellow Token System)
-- **Màu sắc & Logo HR-BlockBot:** Triệt tiêu hoàn toàn màu vàng chói cũ (`#ffd100`, `#eab308`), thay bằng **Neutral Obsidian + Electric Sapphire** (`#121214` / `#2563eb`):
-  - Biểu tượng nhận diện: **Logo chính thức của nền tảng HR-BlockBot** (`hr-blockbot-logo.svg` / `guta-mark-pure.svg`).
-  - Chữ `GUTA`: `font-black text-foreground tracking-wider` (Trắng sáng trong Dark Mode, Đen neutral trong Light Mode)
-  - Chữ `WORKSPACE`: `font-semibold text-muted-foreground tracking-tight`
-  - Accent chính: Electric Sapphire (`#2563eb` / `#3b82f6`) dùng cho nút bấm chính, viền focus, icon khối đa giác.
-  - Trạng thái ca: Xanh ngọc lục bảo Emerald (`#10b981`) cho trạng thái mở ca / đúng giờ, Tuyệt đối không dùng màu vàng.
-  - Nền: Dark Mode (`#0a0a0c` / `#121214`), Light Mode (`#ffffff` / `#f8fafc`).
-- **Thư viện Preview Tổng Hợp:** Xem trực tiếp tại `previews/index.html` (Tab *Mẫu D: Guta AI Landing* và *Mẫu E: Guta Workspace Dashboard*).
+```mermaid
+flowchart TD
+    Tier1[Tier 1: Global Primitives<br/>Palette 10 cấp, font families, base scales, timing curves] --> Tier2[Tier 2: Semantic Tokens<br/>Canvas, Surface, Text-primary, Action-accent, Status-dot]
+    Tier2 --> Tier3[Tier 3: Component Scope Tokens<br/>--crm-kpi-border, --table-row-h, --chat-bubble-bg]
+```
 
-### 4.3. Quyết Định Logo Vector Chuẩn (Official HR-BlockBot Vector Logo Mark — Chốt 10/2026)
-- **Asset vector chính thức:** [`docs/assets/guta-mark-pure.svg`](assets/guta-mark-pure.svg) (bản sao phục vụ web runtime đặt tại `apps/web/public/assets/logos/guta-mark-pure.svg`). Đây là **Biểu tượng Logo chính thức của nền tảng HR-BlockBot**.
-- **Nguồn gốc & Tinh giản:**
-  - Vector hóa từ master artwork (1024×1024).
-  - Khử toàn bộ răng cưa bitmap bằng thuật toán đường cong B-spline / Cubic Bézier tuần hoàn khép kín (`trace_smooth.py`).
-- **Thông số kỹ thuật:**
-  - **Định dạng:** Single-path SVG (thuần một thẻ `<path>`), fill-rule `evenodd`.
-  - **Màu sắc:** `fill="currentColor"` — **không** cố định màu nội bộ, **không** mang khung nền cố định. Biểu tượng tự động thừa hưởng màu chữ, màu thẻ hoặc màu accent của phần tử bao bọc cha.
-  - **Khung tọa độ:** `viewBox="0 0 1024 1024"`. Co giãn mượt mà không vỡ từ kích thước siêu nhỏ (16px favicon, 24px navbar, 32px sidebar) tới kích thước lớn (64px, 128px+ auth banner).
-- **Mẫu nhúng chuẩn (Code Snippet):**
-  ```tsx
-  // Nhúng trực tiếp SVG currentColor linh hoạt màu sắc và kích thước
-  export function HRBlockBotLogoMark({ size = 24, className = "" }: { size?: number; className?: string }) {
-    return (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 1024 1024"
-        width={size}
-        height={size}
-        fill="currentColor"
-        className={className}
-        aria-label="HR-BlockBot Logo"
-      >
-        <path
-          fillRule="evenodd"
-          d="M510.07 61.76c14.82-.26 31.26 12.85 44.93 21.98...Z"
-        />
-      </svg>
-    );
-  }
+### 2.1. Tier 1: Global Primitives (Giá trị nền tảng bất biến)
+
+```css
+:root {
+  /* Obsidian Charcoal Palette (Neutral) */
+  --primitive-obsidian-950: #090a0f; /* Deepest canvas */
+  --primitive-obsidian-900: #121214; /* Card & surface base */
+  --primitive-obsidian-850: #18181b; /* Elevated surface / popover */
+  --primitive-obsidian-800: #222226; /* Hover / subtle highlight */
+  --primitive-obsidian-700: #333338; /* Border default */
+  --primitive-obsidian-500: #64748b; /* Slate muted text */
+  --primitive-obsidian-400: #94a3b8; /* Secondary text */
+  --primitive-obsidian-100: #f1f5f9; /* Near white */
+  --primitive-obsidian-50:  #f8fafc; /* Crisp foreground */
+
+  /* Functional Accents */
+  --primitive-sapphire-600: #1d4ed8;
+  --primitive-sapphire-500: #2563eb; /* Primary action / focus */
+  --primitive-sapphire-400: #3b82f6;
+  --primitive-emerald-500:  #10b981; /* Shift active / on-time */
+  --primitive-rose-500:     #f43f5e; /* Alert / late / error */
+
+  /* Typography Scales */
+  --font-family-display: "Newsreader", Georgia, serif;
+  --font-family-sans: "Geist Sans", "Inter", system-ui, sans-serif;
+  --font-family-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+
+  /* Shape & Radii (Border-Radius Discipline) */
+  --radius-none: 0px;
+  --radius-sm:   4px;  /* Badge, small input */
+  --radius-md:   6px;  /* Standard button, select trigger */
+  --radius-lg:   8px;  /* Modal, card, panel */
+  --radius-pill: 9999px; /* Status dot, pill tag */
+
+  /* Motion Primitives (Emil Kowalski Standard) */
+  --motion-ease-snappy: cubic-bezier(0.2, 0.8, 0.2, 1);     /* Dropdowns, tooltips */
+  --motion-ease-smooth: cubic-bezier(0.23, 1, 0.32, 1);    /* Modals, drawers */
+  --motion-duration-fast:   140ms; /* Hover, press */
+  --motion-duration-base:   220ms; /* State transitions, card emergence */
+  --motion-duration-drawer: 280ms; /* Slide-over panel */
+}
+```
+
+### 2.2. Tier 2: Semantic Tokens (Ngữ nghĩa chức năng)
+
+| Semantic Token | Giá trị CSS Variable | Mục đích sử dụng | Tiêu chuẩn tương phản WCAG |
+|---|---|---|---|
+| `--bg-canvas` | `var(--primitive-obsidian-950)` | Nền toàn ứng dụng | Đạt nền tương phản gốc |
+| `--bg-surface` | `var(--primitive-obsidian-900)` | Bề mặt Card, Header, Sidebar | Phân tách viền mờ 1px |
+| `--bg-surface-elevated` | `var(--primitive-obsidian-850)` | Modal, Popover, Dropdown | Đổ bóng mờ nhẹ không neon |
+| `--border-subtle` | `rgba(255, 255, 255, 0.08)` | Viền ngăn cách mặc định | Độ tương phản 3:1 |
+| `--border-focus` | `var(--primitive-sapphire-500)` | Viền khi nhận focus keyboard | 2px solid rõ nét |
+| `--text-primary` | `var(--primitive-obsidian-50)` | Tiêu đề, dữ liệu quan trọng | Tỷ lệ tương phản $\ge 16:1$ (AAA) |
+| `--text-secondary` | `var(--primitive-obsidian-400)` | Nhãn cột, mô tả phụ | Tỷ lệ tương phản $\ge 7:1$ (AAA) |
+| `--text-muted` | `var(--primitive-obsidian-500)` | Timestamp, watermark | Tỷ lệ tương phản $\ge 4.5:1$ (AA) |
+| `--accent-action` | `var(--primitive-sapphire-500)` | Nút CTA, điểm sáng chính | 10% diện tích màn hình |
+| `--status-active` | `var(--primitive-emerald-500)` | Đang làm việc, đúng giờ | Micro-dot 6px |
+| `--status-alert` | `var(--primitive-rose-500)` | Trễ ca, thiếu nhân sự | Micro-dot 6px |
+
+### 2.3. Quy Tắc Bất Biến Zero-Yellow (Anti-Yellow Invariant)
+Toàn bộ mã hex vàng chói (`#FFD100`, `#EAB308`, `#F59E0B`, `#FDD663`) **bị cấm tuyệt đối 100%** trong toàn bộ DOM computed styles của ứng dụng. Mọi trạng thái cảnh báo/thao tác trước đây dùng màu vàng được chuyển thành:
+- Thông tin trung tính: Dùng nhãn xám Slate (`#64748B` / `#94A3B8`).
+- Điểm nhấn thương hiệu: Dùng Electric Sapphire (`#2563EB`).
+- Kiểm tra tự động bằng Playwright assertion: `yellowCount === 0`.
+
+---
+
+## 3. ⚡ Chuẩn Mực Motion & Micro-Interactions (60fps GPU Engineering)
+
+Theo triết lý của Emil Kowalski: *Invisible correctness — chi tiết vô hình tạo nên giao diện người dùng yêu thích*.
+
+### 3.1. Bộ Lọc Tần Suất (Frequency Gate)
+- **Tần suất 100+ lần/ngày (Chuyển tab, phím tắt, lọc bảng):** **0ms delay**. Không animation. Chuyển đổi trạng thái tức thời.
+- **Tần suất hàng chục lần/ngày (Hover dòng bảng, nút bấm):** Phản hồi vi mô dưới **140ms**, chuyển động lún nhẹ `transform: scale(0.98)` khi `:active`.
+- **Tần suất thi thoảng (Mở Drawer xem Barista, mở Auth Modal):** Chuyển cảnh êm dịu từ **220ms – 280ms**.
+
+### 3.2. 5 Luật Sắt Motion (Hard Motion Invariants)
+1. **Chỉ animate GPU Composite:** Chỉ sử dụng `transform` và `opacity`. Tuyệt đối cấm animate các thuộc tính gây reflow/layout recalculation (`width`, `height`, `top`, `left`, `margin`, `padding`).
+2. **Cấm tuyệt đối `transition: all`:** Phải khai báo tường minh từng thuộc tính:
+   ```css
+   /* Đúng */
+   transition: transform var(--motion-duration-fast) var(--motion-ease-snappy),
+               opacity var(--motion-duration-fast) linear;
+   /* Cấm */
+   transition: all 0.3s ease;
+   ```
+3. **Cấm `scale(0)`:** Không vật thể nào trong thế giới thực xuất hiện từ kích thước 0. Trạng thái xuất hiện bắt đầu từ `transform: scale(0.97); opacity: 0` nở lên `scale(1); opacity: 1`.
+4. **Cấm `ease-in` cho giao diện xuất hiện:** `ease-in` gây độ trễ cảm giác (perceptual lag). Luôn dùng `ease-out` (bắt đầu nhanh, tiếp đất êm).
+5. **Tôn trọng quyền tiếp cận:** Bắt buộc hỗ trợ `@media (prefers-reduced-motion: reduce)`:
+   ```css
+   @media (prefers-reduced-motion: reduce) {
+     *, *::before, *::after {
+       animation-duration: 0.01ms !important;
+       animation-iteration-count: 1 !important;
+       transition-duration: 0.01ms !important;
+     }
+   }
+   ```
+
+---
+
+## 4. 🎛️ Ma Trận 8 Trạng Thái Tương Tác (8-State Interaction Matrix)
+
+Tất cả các thành phần tương tác (Button, Dropdown, Table Row, Input, Drawer) phải hoàn thiện đầy đủ 8 trạng thái:
+
+| # | Trạng thái | Hành vi thị giác & Quy chuẩn kỹ thuật |
+|---|---|---|
+| **1** | **Default** | Bề mặt phẳng, viền `1px solid rgba(255, 255, 255, 0.08)`, chữ độ tương phản cao, số dạng `tabular-nums`. |
+| **2** | **Hover** | Nâng sáng nhẹ 1 cấp (`--bg-surface-elevated`), con trỏ `cursor: pointer`. Chỉ kích hoạt trên `@media (hover: hover) and (pointer: fine)`. |
+| **3** | **Focus-Visible** | Viền 2px `var(--primitive-sapphire-500)` cách phần tử 2px (`outline-offset: 2px`). Không làm mất focus ring khi điều hướng bằng phím Tab. |
+| **4** | **Active (Press)** | Phản hồi xúc giác tức thời trong 80ms: `transform: scale(0.98)` trên nút bấm; làm tối nhẹ nền. |
+| **5** | **Disabled** | Giảm `opacity: 0.4`, `cursor: not-allowed`, `pointer-events: none`. Không gửi bất kỳ sự kiện mạng nào. |
+| **6** | **Loading (Skeleton)** | Khối xương xám trung tính với hiệu ứng shimmer mờ nhẹ (pulse 1.5s), giữ nguyên chiều cao khung bao để triệt tiêu độ giật màn hình (Zero-CLS). |
+| **7** | **Empty State** | Icon vector minh họa tối giản, dòng thông báo trung thực ngắn gọn kèm nút hành động hữu ích (ví dụ: "Xóa bộ lọc" hoặc "Tạo mới"). Cấm để trang trắng trơn. |
+| **8** | **Error / Success** | Border chuyển Rose (`#F43F5E`) kèm tooltip/thông báo lỗi dễ hiểu; Success chuyển viền Emerald (`#10B981`) và tự động ẩn sau 3 giây. |
+
+---
+
+## 5. 🖥️ Đặc Tả 4 Bề Mặt Giao Diện Trọng Tâm
+
+```text
+┌────────────────────────────────────────────────────────────────────────┐
+│                        Folio Landing Page                              │
+│ [Sticky Shrink Header] ───────────────> [Bento Showcase & 5-Col Kanban]│
+└──────────────────────────────────┬─────────────────────────────────────┘
+                                   │ Nút "Get Started" / Đăng nhập
+                                   ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                         Auth Modal (1-Click)                           │
+│  [SM - Tân Bình]       [AOM - Q1/Q3/Q10]        [Admin - Ban Điều Hành]│
+└──────────────────────────────────┬─────────────────────────────────────┘
+                                   │ Đăng nhập thành công
+                                   ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                      CRM Command Center (Obsidian)                     │
+│ [KPI Cards - Tremor]   [Bảng 45 Chi Nhánh] ──> [Slide-Over Barista]   │
+│ [Chat Copilot Drawer] <────────────────────────[Tra cứu ca, hỏi RAG]   │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### 5.1. Folio Landing Page (`FolioLandingView.tsx`)
+- **Typography:** Font Display Serif **Newsreader** kết hợp Geist Sans. Bắt buộc `text-wrap: balance` cho tiêu đề và `text-wrap: pretty` cho thân bài để triệt tiêu từ đơn côi (orphans).
+- **Sticky Shrink Header:** Khi cuộn `window.scrollY > 20px`, navbar tự động co padding dọc, kích hoạt nền kính mờ `backdrop-filter: blur(24px)` và viền đáy mỏng; layout không bị nhảy (Zero-CLS).
+- **Bento Feature Grid:** 4 khối bento đa năng thể hiện tính năng phân ca thông minh, đồng bộ két tiền mặt, và AI Copilot hỗ trợ tức thì.
+- **Logo Marquee:** Dải logo đối tác F&B (Vinamilk, Dalatmilk, La Marzocco, Monin,...) hiển thị đơn sắc xám trung tính `opacity: 0.6`, hover lên `1.0`.
+
+### 5.2. CRM Command Center (`CrmDashboardView.tsx`)
+- **Bảng 45 Chi Nhánh:** Chiều cao dòng chuẩn mực `38px - 40px` (High-Density Workstation Grid), số liệu tiền mặt và giờ làm việc bắt buộc khai báo:
+  ```css
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-family-mono);
   ```
+- **Slide-Over Sheet (Chi Tiết Cửa Hàng & Barista):**
+  - Trượt ra từ cạnh phải màn hình trong 240ms khi click vào bất kỳ dòng cửa hàng nào.
+  - Hiển thị danh sách Barista trong ca trực, doanh thu ca hiện tại, và nút hành động "Gửi Cảnh Báo Telegram".
+  - Đóng êm ái bằng phím Escape, click ra ngoài backdrop, hoặc nút đóng `X`.
 
-### 4.4. Hệ Thống Motion Tokens & Trải Nghiệm Tương Tác Hiện Đại (Chuẩn Emil Kowalski & Apple Motion)
-- **Triết lý chuyển động:** Motion có mục đích rõ ràng (state feedback, spatial consistency, spatial continuity), mượt mà, tức thời và có thể bị ngắt (interruptible). Tuyệt đối không lạm dụng chuyển động giật cục hoặc animation trang trí gây chậm trễ thao tác.
-- **Motion Tokens chuẩn (`apps/web/src/index.css`):**
-  - Curve gia tốc chuẩn Apple / Emil Kowalski: `--motion-ease-standard: cubic-bezier(0.23, 1, 0.32, 1);`
-  - Thời lượng chuyển động tức thì (Hover / Press / Focus): `--motion-fast: 140ms;`
-  - Thời lượng chuyển cảnh nội dung / Cross-fade / Card Entry: `--motion-base: 220ms;`
-  - Thời lượng trượt Panel / Slide-over Drawer / Modal: `--motion-panel: 280ms;`
-- **Micro-interactions:**
-  - **Button / Interactive click:** Bổ sung phản hồi xúc giác nhẹ nhàng `transform: scale(0.98)` tức thì trong 80ms khi nhấn chuột (:active), nhả ra tự nhiên.
-  - **Card Hover:** Card KPI và thẻ chi nhánh nâng nhẹ 2px `transform: translateY(-2px)` kèm viền phát sáng mờ khi di chuột trên thiết bị trỏ chuột chính xác (`@media (hover: hover) and (pointer: fine)`).
-- **Trải nghiệm thông minh (Smart Flows):**
-  1. **Smart Auto-login & Branded Splash Loader:**
-     - Ứng dụng tự động kiểm tra phiên làm việc lưu trong `sessionStorage` và `localStorage`. Nếu đã đăng nhập trước đó, web tự động vào thẳng giao diện Dashboard.
-     - Hiệu ứng Splash Loader: Biểu tượng Logo HR-BlockBot (`guta-mark-pure.svg`) với animation nhịp thở (`guta-splash-pulse`) mờ dần trong <370ms trước khi đưa người dùng vào giao diện làm việc.
-  2. **Landing Page Sticky Shrink Header:**
-     - Navbar trang chủ cố định full-width ở đầu trang (`fixed`). Khi người dùng cuộn trang `window.scrollY > 20px`, navbar tự động co gọn padding dọc, chuyển sang bề mặt kính mờ neutral obsidian (`backdrop-filter: blur(24px)`) với viền đáy `rgba(255, 255, 255, 0.08)`; không bo góc capsule, giữ layout ổn định (Zero-CLS).
-  3. **Trợ Lý AI Trung Tâm (Chat Copilot First View):**
-     - Đặt Trợ lý AI Copilot làm trung tâm hành động (Action Center). Người dùng khi vào Dashboard sẽ tương tác ngay với AI Copilot thông minh, dễ dàng chuyển đổi sang bảng quản trị chi nhánh CRM thông qua nút chuyển nhanh hoặc thanh điều hướng.
-- **Hỗ trợ khả năng tiếp cận (Accessibility & Reduced Motion):**
-  - Mọi hiệu ứng chuyển động đều được bọc và tôn trọng thuộc tính `@media (prefers-reduced-motion: reduce)`. Khi người dùng kích hoạt giảm chuyển động, toàn bộ scale, translate và pulse đều được vô hiệu hóa, chuyển sang hiển thị tức thời hoặc mờ đục thuần túy (`opacity`).
+### 5.3. Chat Copilot Action Center (`ChatDrawer.tsx`)
+- **Kiến trúc:** Drawer tích hợp trực tiếp trong CRM hỗ trợ tra cứu chính sách, KPI, hỏi đáp RAG, và tạo lệnh phân ca.
+- **Guardrail bảo mật:** Mọi thao tác ghi dữ liệu (Write operations) đều bắt buộc hiển thị màn hình xác nhận (Confirmation Card) do người dùng chủ động bấm.
+- **Markdown & Citations:** Hiển thị trích dẫn nguồn văn bản chính sách rõ ràng, có nút click mở chi tiết điều khoản.
+
+### 5.4. Auth Modal (`AuthModal.tsx`)
+- Hỗ trợ đăng nhập nhanh 1-Click theo 3 vai trò thực tế của chuỗi:
+  1. **Cửa hàng trưởng (SM):** Nguyễn Thị Phương Anh (Chi nhánh Tân Bình).
+  2. **Quản lý khu vực (AOM):** Nguyễn Cao Thanh Trầm (Khu vực Q1/Q3/Q10).
+  3. **Quản trị viên (Admin):** Ban Điều Hành Guta (Toàn quyền hệ thống).
+- Đóng mở mượt mà bằng Escape, khóa cuộn trang (`body.style.overflow = 'hidden'`) khi mở modal và phục hồi ngay khi đóng.
+
+---
+
+## 6. ♿ Tiêu Chuẩn Khả Năng Tiếp Cận & Kiểm Thử Thẩm Mỹ (QA Gate)
+
+### 6.1. Ngưỡng Chất Lượng Tối Thiểu (Acceptance Criteria)
+1. **Độ tương phản WCAG 2.1 AAA:**
+   - Body text trên nền Obsidian $\ge 7:1$ (thực tế đo đạt từ 7.62:1 đến 21:1).
+   - UI controls và borders $\ge 3:1$.
+2. **Kích thước chạm cảm ứng (Touch Targets):**
+   - Mọi nút bấm và trigger trên mobile $\ge 44 \times 44$ CSS px.
+3. **Hiển thị trên Mobile 320px:**
+   - Tất cả các nút CTA chính hiển thị trọn vẹn trên đúng một dòng, không gãy hàng, không xuất hiện thanh cuộn ngang ngoài ý muốn (`overflow-x: hidden`).
+4. **Không rớt khung hình (Solid 60fps):**
+   - Đạt 60fps khi cuộn danh sách 45 chi nhánh và khi kích hoạt hiệu ứng trượt Slide-Over Drawer.
+
+### 6.2. Lệnh Kiểm Thử Tự Động Định Kỳ
+```bash
+# 1. Kiểm tra toàn bộ types TypeScript
+pnpm --filter web typecheck
+
+# 2. Chạy toàn bộ 50+ kịch bản kiểm thử E2E Playwright và UI
+pnpm --filter web test
+
+# 3. Quét màu cấm Zero-Yellow tự động
+node --test apps/web/test/e2e-revamp-flow.test.mjs
+```

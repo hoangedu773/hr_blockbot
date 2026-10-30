@@ -356,6 +356,7 @@ class JevGateway:
             body = response.json()
             if body.get("code") != 0:
                 raise ValueError("Jev rejected decision")
+            answers = body["data"]["result"]["answers"]
             if not isinstance(answers, dict):
                 raise ValueError("answers must be a dict")
             for name, kind in (

@@ -1,0 +1,396 @@
+  <div data-slot="sidebar-wrapper" class="group/sidebar-wrapper flex h-svh w-full overflow-hidden">
+
+    <aside class="crm-sidebar flex flex-col justify-between shrink-0 select-none">
+      <div class="flex flex-col">
+        <div class="crm-brand-bar flex items-center justify-between">
+          <div class="flex items-center gap-2.5">
+            <div class="crm-brand-mark flex size-7 items-center justify-center shrink-0">
+              <img src="/assets/logos/guta-mark-pure.svg" alt="HR-BlockBot Logo" class="size-6 object-contain" />
+            </div>
+            <div class="flex items-baseline gap-1.5 leading-none">
+              <span class="crm-brand-name">GUTA</span>
+              <span class="crm-brand-scope">Workspace</span>
+            </div>
+          </div>
+          <a href="#logout" title="Trở về Trang Chủ" class="crm-icon-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          </a>
+        </div>
+
+        <div class="crm-search-wrap">
+          <div class="crm-search">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="text" placeholder="Lọc theo tên, quận, mã..." aria-label="Lọc theo tên, quận, mã" class="crm-search-input" />
+            <kbd class="crm-kbd">⌘K</kbd>
+          </div>
+        </div>
+
+        <nav class="crm-nav" aria-label="Phân hệ vận hành">
+          <p class="crm-nav-label">Trợ lý</p>
+
+          <a href="#" aria-label="Trợ Lý AI (Copilot)" class="crm-copilot">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+            <span>Guta Copilot AI</span>
+            <span class="crm-copilot-tag"><span class="crm-dot" aria-hidden="true"></span>Trợ Lý AI (Copilot)</span>
+          </a>
+
+          <p class="crm-nav-label">Vận hành</p>
+
+          <button type="button" data-section="stores" aria-current="page" class="crm-nav-item">Chi nhánh / Cửa hàng <span class="crm-nav-count">45</span></button>
+          <button type="button" data-section="employees" class="crm-nav-item">Nhân sự</button>
+          <button type="button" data-section="profile" class="crm-nav-item">Hồ sơ của tôi</button>
+          <button type="button" data-section="schedules" class="crm-nav-item">Hồ sơ nhân sự</button>
+          <button type="button" data-section="accounts" id="crm-nav-accounts" class="crm-nav-item">Tài khoản</button>
+          <button type="button" data-section="settings" id="crm-nav-settings" class="crm-nav-item">Cài đặt LLM</button>
+        </nav>
+      </div>
+
+      <div class="crm-userbar">
+        <div class="crm-user">
+          <div class="crm-user-avatar">PA</div>
+          <div class="crm-user-meta">
+            <div class="crm-user-name">Nguyễn Thị Phương Anh</div>
+            <div class="crm-user-scope" title="Cửa hàng trưởng (SM)">Cửa hàng trưởng (SM)</div>
+          </div>
+          <button type="button" role="button" aria-label="Đăng Xuất Phiên" title="Đăng Xuất Phiên" class="crm-icon-btn crm-icon-btn--danger">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <div class="flex flex-col flex-1 h-svh overflow-hidden bg-background">
+
+      <header class="crm-header-smooth flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-4 min-w-0">
+          <div class="crm-breadcrumb">
+            <span class="crm-breadcrumb-root">Guta Workspace</span>
+            <span class="crm-breadcrumb-sep">/</span>
+            <span class="crm-breadcrumb-current">Vận Hành Chi Nhánh &amp; Phân Ca</span>
+          </div>
+          <span class="crm-freshness">
+            <span class="crm-dot crm-dot--live" aria-hidden="true"></span>
+            45/45 chi nhánh mở ca sáng
+          </span>
+        </div>
+
+        <div class="flex items-center gap-2 shrink-0">
+          <button type="button" class="crm-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            <span>Bộ lọc Quận</span>
+          </button>
+          <button type="button" class="crm-btn crm-btn--primary">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+            <span>Tạo Ca Đột Xuất</span>
+          </button>
+        </div>
+      </header>
+
+      <main class="flex-1 overflow-auto px-6 py-5">
+        <div id="crm-stores-container">
+        <div class="crm-kpi-grid">
+          <div class="crm-kpi-card">
+            <div class="crm-kpi-header"><span class="crm-kpi-title">Tổng cửa hàng</span></div>
+            <div class="crm-kpi-value">45<span class="crm-kpi-unit">chi nhánh</span></div>
+            <div class="crm-kpi-meta">45/45 mở ca sáng, bằng ca sáng qua</div>
+          </div>
+
+          <div class="crm-kpi-card">
+            <div class="crm-kpi-header"><span class="crm-kpi-title">Nhân sự trực ca</span></div>
+            <div class="crm-kpi-value">135<span class="crm-kpi-unit">người</span></div>
+            <div class="crm-kpi-meta">Định biên 3 người mỗi cửa hàng</div>
+          </div>
+
+          <div class="crm-kpi-card">
+            <div class="crm-kpi-header"><span class="crm-kpi-title">Doanh thu két sáng</span></div>
+            <div class="crm-kpi-value crm-kpi-value--lead">184.250.000,00<span class="crm-kpi-unit">₫</span></div>
+            <div class="crm-kpi-meta">+4,1% so với ca sáng qua</div>
+          </div>
+
+          <div class="crm-kpi-card">
+            <div class="crm-kpi-header"><span class="crm-kpi-title">Tỷ lệ đúng giờ</span></div>
+            <div class="crm-kpi-value">98,6<span class="crm-kpi-unit">%</span></div>
+            <div class="crm-kpi-meta crm-kpi-meta--bad">−1,2 điểm so với ca sáng qua</div>
+          </div>
+        </div>
+
+        <div class="crm-page-head">
+          <div class="min-w-0">
+            <h1 class="crm-page-title">Chi Nhánh Cà Phê Guta (Khu Vực TP.HCM)</h1>
+            <p class="crm-page-sub">Nhân sự, ca trực hiện tại và doanh thu két. Bấm một hàng để mở chi tiết chi nhánh.</p>
+          </div>
+          <div class="crm-page-count">Hiển thị 10 / 45 cửa hàng</div>
+        </div>
+
+        <div class="crm-table-shell">
+          <table class="crm-table">
+            <colgroup>
+              <col style="width:34%" />
+              <col style="width:16%" />
+              <col style="width:14%" />
+              <col style="width:15%" />
+              <col style="width:11%" />
+              <col style="width:10%" />
+            </colgroup>
+            <thead class="crm-table-head">
+              <tr>
+                <th scope="col">Cửa hàng</th>
+                <th scope="col" class="crm-col-sm">Cửa hàng trưởng</th>
+                <th scope="col" class="crm-num-head">Nhân sự</th>
+                <th scope="col" class="crm-num-head">Doanh thu két</th>
+                <th scope="col" class="crm-num-head">Đúng giờ</th>
+                <th scope="col">Trạng thái</th>
+              </tr>
+            </thead>
+            <tbody class="crm-table-body">
+
+              <tr class="table-row-hover" data-id="GT-CH-01" data-name="GUTA CAFE - Tân Bình - 02 Đặng Văn Sâm" data-sm="Nguyễn Thị Phương Anh" data-district="Tân Bình" data-staff="46" data-shift="Ca 1 (06:00 - 14:00)" data-rev="8.420.000,00 ₫" data-ontime="100%">
+                <td data-col="store" class="crm-cell-identity">
+                  <span class="crm-cell-primary">GUTA CAFE - Tân Bình - 02 Đặng Văn Sâm</span>
+                  <span class="crm-cell-sub"><span class="crm-col-code">GT-CH-01</span> · Tân Bình</span>
+                </td>
+                <td data-col="sm" class="crm-col-sm"><span class="crm-cell-primary">Nguyễn Thị Phương Anh</span></td>
+                <td data-col="staff" class="crm-num">
+                  <span class="crm-cell-primary">46</span>
+                  <span class="crm-cell-sub">Ca 1 · 06:00–14:00</span>
+                </td>
+                <td data-col="revenue" class="crm-num"><span class="crm-money">8.420.000,00</span><span class="crm-money-unit">₫</span></td>
+                <td data-col="ontime" class="crm-num"><span class="crm-punctuality" style="--pct:100">100%</span></td>
+                <td data-col="status"><span class="crm-status crm-status--positive">Đang mở ca</span></td>
+              </tr>
+
+              <tr class="table-row-hover" data-id="GT-CH-02" data-name="GUTA CAFE - Quận 10 - 581 Sư Vạn Hạnh" data-sm="Đỗ Quỳnh Anh" data-district="Quận 10" data-staff="56" data-shift="Ca 1 (06:00 - 14:00)" data-rev="12.150.000,00 ₫" data-ontime="98%">
+                <td data-col="store" class="crm-cell-identity">
+                  <span class="crm-cell-primary">GUTA CAFE - Quận 10 - 581 Sư Vạn Hạnh</span>
+                  <span class="crm-cell-sub"><span class="crm-col-code">GT-CH-02</span> · Quận 10</span>
+                </td>
+                <td data-col="sm" class="crm-col-sm"><span class="crm-cell-primary">Đỗ Quỳnh Anh</span></td>
+                <td data-col="staff" class="crm-num">
+                  <span class="crm-cell-primary">56</span>
+                  <span class="crm-cell-sub">Ca 1 · 06:00–14:00</span>
+                </td>
+                <td data-col="revenue" class="crm-num"><span class="crm-money">12.150.000,00</span><span class="crm-money-unit">₫</span></td>
+                <td data-col="ontime" class="crm-num"><span class="crm-punctuality" style="--pct:98">98%</span></td>
+                <td data-col="status"><span class="crm-status crm-status--positive">Đang mở ca</span></td>
+              </tr>
+
+              <tr class="table-row-hover" data-id="GT-CH-03" data-name="GUTA CAFE - Bình Thạnh - 18 Nguyễn Cửu Vân" data-sm="Nguyễn Lê Quang Trường" data-district="Bình Thạnh" data-staff="47" data-shift="Ca 1 (06:00 - 14:00)" data-rev="7.890.000,00 ₫" data-ontime="95%">
+                <td data-col="store" class="crm-cell-identity">
+                  <span class="crm-cell-primary">GUTA CAFE - Bình Thạnh - 18 Nguyễn Cửu Vân</span>
+                  <span class="crm-cell-sub"><span class="crm-col-code">GT-CH-03</span> · Bình Thạnh</span>
+                </td>
+                <td data-col="sm" class="crm-col-sm"><span class="crm-cell-primary">Nguyễn Lê Quang Trường</span></td>
+                <td data-col="staff" class="crm-num">
+                  <span class="crm-cell-primary">47</span>
+                  <span class="crm-cell-sub">Ca 1 · 06:00–14:00</span>
+                </td>
+                <td data-col="revenue" class="crm-num"><span class="crm-money">7.890.000,00</span><span class="crm-money-unit">₫</span></td>
+                <td data-col="ontime" class="crm-num"><span class="crm-punctuality" style="--pct:95">95%</span></td>
+                <td data-col="status"><span class="crm-status crm-status--positive">Đang mở ca</span></td>
+              </tr>
+
+              <tr class="table-row-hover" data-id="GT-CH-04" data-name="GUTA CAFE - Quận 3 - 100 Nguyễn Thị Minh Khai" data-sm="Nguyễn Thị Thu Trúc" data-district="Quận 3" data-staff="45" data-shift="Ca 1 (06:00 - 14:00)" data-rev="9.340.000,00 ₫" data-ontime="100%">
+                <td data-col="store" class="crm-cell-identity">
+                  <span class="crm-cell-primary">GUTA CAFE - Quận 3 - 100 Nguyễn Thị Minh Khai</span>
+                  <span class="crm-cell-sub"><span class="crm-col-code">GT-CH-04</span> · Quận 3</span>
+                </td>
+                <td data-col="sm" class="crm-col-sm"><span class="crm-cell-primary">Nguyễn Thị Thu Trúc</span></td>
+                <td data-col="staff" class="crm-num">
+                  <span class="crm-cell-primary">45</span>
+                  <span class="crm-cell-sub">Ca 1 · 06:00–14:00</span>
+                </td>
+                <td data-col="revenue" class="crm-num"><span class="crm-money">9.340.000,00</span><span class="crm-money-unit">₫</span></td>
+                <td data-col="ontime" class="crm-num"><span class="crm-punctuality" style="--pct:100">100%</span></td>
+                <td data-col="status"><span class="crm-status crm-status--positive">Đang mở ca</span></td>
+              </tr>
+
+              <tr class="table-row-hover" data-id="GT-CH-05" data-name="GUTA CAFE - Quận 3 - 41 Trần Cao Vân" data-sm="Triệu Quang Nhân" data-district="Quận 3" data-staff="45" data-shift="Ca 1 (06:00 - 14:00)" data-rev="8.120.000,00 ₫" data-ontime="96%">
+                <td data-col="store" class="crm-cell-identity">
+                  <span class="crm-cell-primary">GUTA CAFE - Quận 3 - 41 Trần Cao Vân</span>
+                  <span class="crm-cell-sub"><span class="crm-col-code">GT-CH-05</span> · Quận 3</span>
+                </td>
+                <td data-col="sm" class="crm-col-sm"><span class="crm-cell-primary">Triệu Quang Nhân</span></td>
+                <td data-col="staff" class="crm-num">
+                  <span class="crm-cell-primary">45</span>
+                  <span class="crm-cell-sub">Ca 1 · 06:00–14:00</span>
+                </td>
+                <td data-col="revenue" class="crm-num"><span class="crm-money">8.120.000,00</span><span class="crm-money-unit">₫</span></td>
+                <td data-col="ontime" class="crm-num"><span class="crm-punctuality" style="--pct:96">96%</span></td>
+                <td data-col="status"><span class="crm-status crm-status--positive">Đang mở ca</span></td>
+              </tr>
+
+              <tr class="table-row-hover" data-id="GT-CH-06" data-name="GUTA CAFE - Quận 1 - 146 Nguyễn Văn Thủ" data-sm="Trương Quốc Thái" data-district="Quận 1" data-staff="43" data-shift="Ca 1 (06:00 - 14:00)" data-rev="6.950.000,00 ₫" data-ontime="94%">
+                <td data-col="store" class="crm-cell-identity">
+                  <span class="crm-cell-primary">GUTA CAFE - Quận 1 - 146 Nguyễn Văn Thủ</span>
+                  <span class="crm-cell-sub"><span class="crm-col-code">GT-CH-06</span> · Quận 1</span>
+                </td>
+                <td data-col="sm" class="crm-col-sm"><span class="crm-cell-primary">Trương Quốc Thái</span></td>
+                <td data-col="staff" class="crm-num">
+                  <span class="crm-cell-primary">43</span>
+                  <span class="crm-cell-sub">Ca 1 · 06:00–14:00</span>
+                </td>
+                <td data-col="revenue" class="crm-num"><span class="crm-money">6.950.000,00</span><span class="crm-money-unit">₫</span></td>
+                <td data-col="ontime" class="crm-num"><span class="crm-punctuality" style="--pct:94">94%</span></td>
+                <td data-col="status"><span class="crm-status crm-status--positive">Đang mở ca</span></td>
+              </tr>
+
+              <tr class="table-row-hover" data-id="GT-CH-07" data-name="GUTA CAFE - Gò Vấp - 1B Nguyễn Kiệm" data-sm="Thái Thanh Lam" data-district="Gò Vấp" data-staff="42" data-shift="Ca 1 (06:00 - 14:00)" data-rev="7.200.000,00 ₫" data-ontime="97%">
+                <td data-col="store" class="crm-cell-identity">
+                  <span class="crm-cell-primary">GUTA CAFE - Gò Vấp - 1B Nguyễn Kiệm</span>
+                  <span class="crm-cell-sub"><span class="crm-col-code">GT-CH-07</span> · Gò Vấp</span>
+                </td>
+                <td data-col="sm" class="crm-col-sm"><span class="crm-cell-primary">Thái Thanh Lam</span></td>
+                <td data-col="staff" class="crm-num">
+                  <span class="crm-cell-primary">42</span>
+                  <span class="crm-cell-sub">Ca 1 · 06:00–14:00</span>
+                </td>
+                <td data-col="revenue" class="crm-num"><span class="crm-money">7.200.000,00</span><span class="crm-money-unit">₫</span></td>
+                <td data-col="ontime" class="crm-num"><span class="crm-punctuality" style="--pct:97">97%</span></td>
+                <td data-col="status"><span class="crm-status crm-status--positive">Đang mở ca</span></td>
+              </tr>
+
+              <tr class="table-row-hover" data-id="GT-CH-08" data-name="GUTA CAFE - Gò Vấp - 30 Phạm Văn Đồng" data-sm="Lại Ngọc Hoàng Nguyên" data-district="Gò Vấp" data-staff="42" data-shift="Ca 1 (06:00 - 14:00)" data-rev="7.600.000,00 ₫" data-ontime="99%">
+                <td data-col="store" class="crm-cell-identity">
+                  <span class="crm-cell-primary">GUTA CAFE - Gò Vấp - 30 Phạm Văn Đồng</span>
+                  <span class="crm-cell-sub"><span class="crm-col-code">GT-CH-08</span> · Gò Vấp</span>
+                </td>
+                <td data-col="sm" class="crm-col-sm"><span class="crm-cell-primary">Lại Ngọc Hoàng Nguyên</span></td>
+                <td data-col="staff" class="crm-num">
+                  <span class="crm-cell-primary">42</span>
+                  <span class="crm-cell-sub">Ca 1 · 06:00–14:00</span>
+                </td>
+                <td data-col="revenue" class="crm-num"><span class="crm-money">7.600.000,00</span><span class="crm-money-unit">₫</span></td>
+                <td data-col="ontime" class="crm-num"><span class="crm-punctuality" style="--pct:99">99%</span></td>
+                <td data-col="status"><span class="crm-status crm-status--positive">Đang mở ca</span></td>
+              </tr>
+
+              <tr class="table-row-hover" data-id="GT-CH-09" data-name="GUTA CAFE - Bình Thạnh - 193F Điện Biên Phủ" data-sm="Nguyễn Cao Thanh Hằng" data-district="Bình Thạnh" data-staff="39" data-shift="Ca 1 (06:00 - 14:00)" data-rev="6.450.000,00 ₫" data-ontime="95%">
+                <td data-col="store" class="crm-cell-identity">
+                  <span class="crm-cell-primary">GUTA CAFE - Bình Thạnh - 193F Điện Biên Phủ</span>
+                  <span class="crm-cell-sub"><span class="crm-col-code">GT-CH-09</span> · Bình Thạnh</span>
+                </td>
+                <td data-col="sm" class="crm-col-sm"><span class="crm-cell-primary">Nguyễn Cao Thanh Hằng</span></td>
+                <td data-col="staff" class="crm-num">
+                  <span class="crm-cell-primary">39</span>
+                  <span class="crm-cell-sub">Ca 1 · 06:00–14:00</span>
+                </td>
+                <td data-col="revenue" class="crm-num"><span class="crm-money">6.450.000,00</span><span class="crm-money-unit">₫</span></td>
+                <td data-col="ontime" class="crm-num"><span class="crm-punctuality" style="--pct:95">95%</span></td>
+                <td data-col="status"><span class="crm-status crm-status--positive">Đang mở ca</span></td>
+              </tr>
+
+              <tr class="table-row-hover" data-id="GT-CH-10" data-name="GUTA CAFE - Quận 3 - 206 Pasteur" data-sm="Lê Ngọc Bảo Trân" data-district="Quận 3" data-staff="38" data-shift="Ca 1 (06:00 - 14:00)" data-rev="8.870.000,00 ₫" data-ontime="100%">
+                <td data-col="store" class="crm-cell-identity">
+                  <span class="crm-cell-primary">GUTA CAFE - Quận 3 - 206 Pasteur</span>
+                  <span class="crm-cell-sub"><span class="crm-col-code">GT-CH-10</span> · Quận 3</span>
+                </td>
+                <td data-col="sm" class="crm-col-sm"><span class="crm-cell-primary">Lê Ngọc Bảo Trân</span></td>
+                <td data-col="staff" class="crm-num">
+                  <span class="crm-cell-primary">38</span>
+                  <span class="crm-cell-sub">Ca 1 · 06:00–14:00</span>
+                </td>
+                <td data-col="revenue" class="crm-num"><span class="crm-money">8.870.000,00</span><span class="crm-money-unit">₫</span></td>
+                <td data-col="ontime" class="crm-num"><span class="crm-punctuality" style="--pct:100">100%</span></td>
+                <td data-col="status"><span class="crm-status crm-status--positive">Đang mở ca</span></td>
+              </tr>
+
+            </tbody>
+          </table>
+        </div>
+        <div id="crm-custom-view-portal" class="space-y-6" style="display: none;"></div>
+      </main>
+
+    </div>
+  </div>
+
+  <div id="drawer-backdrop"></div>
+  <aside id="detail-drawer" aria-label="Chi tiết vận hành chi nhánh" role="dialog" aria-modal="true">
+    <div class="crm-drawer-head">
+      <div class="min-w-0">
+        <span class="crm-drawer-id" id="d-id">GT-CH-01</span>
+        <h2 class="crm-drawer-name" id="d-name">GUTA CAFE - Tân Bình - 02 Đặng Văn Sâm</h2>
+        <p class="crm-drawer-sub" id="d-district">Quận: Tân Bình • Cửa hàng trưởng: Nguyễn Thị Phương Anh</p>
+      </div>
+      <button type="button" aria-label="Đóng chi tiết" data-close-drawer class="crm-icon-btn shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="crm-drawer-body">
+      <p class="crm-drawer-note" role="note">Hệ thống dữ liệu vận hành 45 chi nhánh chuỗi GUTA Cafe</p>
+
+      <div class="crm-drawer-metrics">
+        <div class="crm-drawer-metric">
+          <span class="crm-drawer-metric-label">Doanh thu két ca</span>
+          <div class="crm-drawer-metric-value" id="d-rev">8.420.000,00 ₫</div>
+          <span class="crm-drawer-metric-delta">+14% so với ca hôm qua</span>
+        </div>
+        <div class="crm-drawer-metric">
+          <span class="crm-drawer-metric-label">Tổng nhân sự</span>
+          <div class="crm-drawer-metric-value" id="d-staff">46 người</div>
+          <span class="crm-drawer-metric-delta" id="d-ontime">Đúng giờ: 100%</span>
+        </div>
+      </div>
+
+      <div>
+        <div class="crm-drawer-section-head">
+          <h3 class="crm-drawer-section-title">Barista đang làm ca hiện tại</h3>
+          <span class="crm-status crm-status--positive">Đủ 3 người</span>
+        </div>
+
+        <div class="crm-roster">
+          <div class="crm-roster-row">
+            <div class="crm-roster-person">
+              <div class="crm-roster-avatar crm-roster-avatar--a">QT</div>
+              <div class="min-w-0">
+                <div class="crm-roster-name">Trương Quốc Thái</div>
+                <div class="crm-roster-role">Pha chế chính (Barista) • Check-in: 05:55</div>
+              </div>
+            </div>
+            <span class="crm-status crm-status--positive">Đúng ca</span>
+          </div>
+
+          <div class="crm-roster-row">
+            <div class="crm-roster-person">
+              <div class="crm-roster-avatar crm-roster-avatar--b">KN</div>
+              <div class="min-w-0">
+                <div class="crm-roster-name">Lê Thị Kim Ngân</div>
+                <div class="crm-roster-role">Thu ngân / Order • Check-in: 06:01</div>
+              </div>
+            </div>
+            <span class="crm-status crm-status--positive">Đúng ca</span>
+          </div>
+
+          <div class="crm-roster-row">
+            <div class="crm-roster-person">
+              <div class="crm-roster-avatar crm-roster-avatar--c">VD</div>
+              <div class="min-w-0">
+                <div class="crm-roster-name">Nguyễn Văn Đạt</div>
+                <div class="crm-roster-role">Phụ ca / Rửa dụng cụ • Check-in: 06:00</div>
+              </div>
+            </div>
+            <span class="crm-status crm-status--positive">Đúng ca</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="crm-drawer-ai">
+        <div class="crm-drawer-ai-head">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+          <span>Trợ lý ca Guta AI</span>
+        </div>
+        <p class="crm-drawer-ai-body">
+          Dự báo lượng khách giờ trưa (11:30 - 13:00) tại chi nhánh này tăng 35% do khu vực văn phòng. Khuyến nghị điều chuyển thêm 1 Barista Part-time hỗ trợ order máy cà phê.
+        </p>
+      </div>
+    </div>
+
+    <div class="crm-drawer-foot">
+      <button type="button" class="crm-btn crm-btn--primary crm-drawer-cta">
+        Gửi Cảnh Báo Telegram
+      </button>
+      <button type="button" aria-label="Đóng" data-close-drawer class="crm-btn">
+        Đóng
+      </button>
+    </div>
+  </aside>

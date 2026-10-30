@@ -1,0 +1,281 @@
+{
+ "landing": {
+  "html": {
+   "register": null,
+   "cls": "dark"
+  },
+  "sidebar": null,
+  "header": null,
+  "kpi": null,
+  "thead": null,
+  "logoBox": null,
+  "tableShell": null,
+  "icon": null,
+  "kpiGrid": null,
+  "kpiTitle": null,
+  "kpiValue": null,
+  "branchIcon": null,
+  "navItem": null,
+  "row": null,
+  "brandLabel": null
+ },
+ "landingClasses": {
+  ".folio-preview": {
+   "bg": "rgb(18, 18, 18)",
+   "color": "rgb(250, 250, 250)",
+   "radius": "0px",
+   "pad": "0px",
+   "font": "Geist, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif",
+   "border": "rgb(36, 36, 36)"
+  },
+  ".folio-preview section.bg-background": {
+   "bg": "rgb(18, 18, 18)",
+   "color": "rgb(250, 250, 250)",
+   "radius": "0px",
+   "pad": "0px",
+   "font": "Geist, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif",
+   "border": "rgb(36, 36, 36)"
+  },
+  ".guta-card": {
+   "bg": "rgb(24, 24, 24)",
+   "color": "rgb(250, 250, 250)",
+   "radius": "12px",
+   "pad": "24px",
+   "font": "Geist, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif",
+   "border": "rgb(46, 46, 46)"
+  },
+  ".crm-card": {
+   "bg": "rgb(15, 15, 16)",
+   "color": "rgb(245, 245, 245)",
+   "radius": "10px",
+   "pad": "12px",
+   "font": "Inter, system-ui, -apple-system, sans-serif",
+   "border": "rgb(53, 53, 54)"
+  },
+  ".crm-pill": {
+   "bg": "rgb(38, 38, 40)",
+   "color": "rgb(204, 204, 204)",
+   "radius": "4px",
+   "pad": "2px 6px",
+   "font": "Inter, system-ui, -apple-system, sans-serif",
+   "border": "rgb(36, 36, 36)"
+  },
+  ".guta-container": {
+   "bg": "rgba(0, 0, 0, 0)",
+   "color": "rgb(155, 155, 155)",
+   "radius": "0px",
+   "pad": "0px 24px 24px",
+   "font": "Geist, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif",
+   "border": "rgb(36, 36, 36)"
+  }
+ },
+ "chat": {
+  "html": {
+   "register": null,
+   "cls": "dark"
+  },
+  "sidebar": null,
+  "header": null,
+  "kpi": null,
+  "thead": null,
+  "logoBox": null,
+  "tableShell": null,
+  "icon": null,
+  "kpiGrid": null,
+  "kpiTitle": null,
+  "kpiValue": null,
+  "branchIcon": null,
+  "navItem": null,
+  "row": null,
+  "brandLabel": null
+ },
+ "crm": {
+  "html": {
+   "register": null,
+   "cls": "dark"
+  },
+  "sidebar": {
+   "backdropFilter": "blur(24px)",
+   "backgroundImage": "none",
+   "backgroundColor": "rgba(18, 18, 20, 0.75)",
+   "color": "lab(98.26 0 0)",
+   "borderRadius": "0px",
+   "boxShadow": "rgba(255, 255, 255, 0.02) -1px 0px 0px 0px inset, rgba(0, 0, 0, 0.12) 8px 0px 32px 0px",
+   "fontFamily": "\"Times New Roman\"",
+   "fontSize": "16px",
+   "transform": "matrix(1, 0, 0, 1, 0, 0)",
+   "borderTopColor": "rgba(255, 255, 255, 0.08)",
+   "borderTopWidth": "0px"
+  },
+  "header": {
+   "backdropFilter": "blur(24px)",
+   "backgroundImage": "none",
+   "backgroundColor": "rgba(18, 18, 20, 0.8)",
+   "color": "lab(98.26 0 0)",
+   "borderRadius": "0px",
+   "boxShadow": "rgba(255, 255, 255, 0.02) 0px 1px 0px 0px inset, rgba(0, 0, 0, 0.12) 0px 4px 20px 0px",
+   "fontFamily": "\"Times New Roman\"",
+   "fontSize": "16px",
+   "transform": "none",
+   "borderTopColor": "rgba(255, 255, 255, 0.08)",
+   "borderTopWidth": "0px"
+  },
+  "kpi": {
+   "backdropFilter": "blur(16px)",
+   "backgroundImage": "linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.016))",
+   "backgroundColor": "rgba(0, 0, 0, 0)",
+   "color": "lab(98.26 0 0)",
+   "borderRadius": "14px",
+   "boxShadow": "rgba(255, 255, 255, 0.04) 0px 1px 0px 0px inset, rgba(0, 0, 0, 0.2) 0px 4px 16px 0px, rgba(0, 0, 0, 0.1) 0px 12px 32px 0px",
+   "fontFamily": "\"Times New Roman\"",
+   "fontSize": "16px",
+   "transform": "none",
+   "borderTopColor": "rgba(255, 255, 255, 0.08)",
+   "borderTopWidth": "1px"
+  },
+  "thead": {
+   "backdropFilter": "blur(12px)",
+   "backgroundImage": "none",
+   "backgroundColor": "rgba(18, 18, 20, 0.7)",
+   "color": "lab(98.26 0 0)",
+   "borderRadius": "0px",
+   "boxShadow": "none",
+   "fontFamily": "\"Times New Roman\"",
+   "fontSize": "12px",
+   "transform": "none",
+   "borderTopColor": "rgba(255, 255, 255, 0.08)",
+   "borderTopWidth": "0px"
+  },
+  "logoBox": {
+   "backdropFilter": "none",
+   "backgroundImage": "none",
+   "backgroundColor": "rgba(255, 255, 255, 0.04)",
+   "color": "lab(98.26 0 0)",
+   "borderRadius": "14px",
+   "boxShadow": "none",
+   "fontFamily": "\"Times New Roman\"",
+   "fontSize": "16px",
+   "transform": "none",
+   "borderTopColor": "rgba(255, 255, 255, 0.1)",
+   "borderTopWidth": "1px"
+  },
+  "tableShell": {
+   "backdropFilter": "blur(12px)",
+   "backgroundImage": "none",
+   "backgroundColor": "rgba(255, 255, 255, 0.02)",
+   "color": "lab(98.26 0 0)",
+   "borderRadius": "14px",
+   "boxShadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0.05) 0px 1px 2px 0px",
+   "fontFamily": "\"Times New Roman\"",
+   "fontSize": "16px",
+   "transform": "none",
+   "borderTopColor": "rgba(255, 255, 255, 0.08)",
+   "borderTopWidth": "1px"
+  },
+  "icon": {
+   "backdropFilter": "none",
+   "backgroundImage": "none",
+   "backgroundColor": "rgba(255, 255, 255, 0.05)",
+   "color": "rgb(203, 213, 225)",
+   "borderRadius": "8px",
+   "boxShadow": "none",
+   "fontFamily": "\"Times New Roman\"",
+   "fontSize": "12px",
+   "transform": "none",
+   "borderTopColor": "rgba(255, 255, 255, 0.1)",
+   "borderTopWidth": "1px"
+  },
+  "kpiGrid": {
+   "backdropFilter": "none",
+   "backgroundImage": "none",
+   "backgroundColor": "rgba(0, 0, 0, 0)",
+   "color": "lab(98.26 0 0)",
+   "borderRadius": "0px",
+   "boxShadow": "none",
+   "fontFamily": "\"Times New Roman\"",
+   "fontSize": "16px",
+   "transform": "none",
+   "borderTopColor": "rgba(255, 255, 255, 0.08)",
+   "borderTopWidth": "0px"
+  },
+  "kpiTitle": {
+   "backdropFilter": "none",
+   "backgroundImage": "none",
+   "backgroundColor": "rgba(0, 0, 0, 0)",
+   "color": "rgb(148, 163, 184)",
+   "borderRadius": "0px",
+   "boxShadow": "none",
+   "fontFamily": "\"Times New Roman\"",
+   "fontSize": "11px",
+   "transform": "none",
+   "borderTopColor": "rgba(255, 255, 255, 0.08)",
+   "borderTopWidth": "0px"
+  },
+  "kpiValue": {
+   "backdropFilter": "none",
+   "backgroundImage": "none",
+   "backgroundColor": "rgba(0, 0, 0, 0)",
+   "color": "rgb(248, 250, 252)",
+   "borderRadius": "0px",
+   "boxShadow": "none",
+   "fontFamily": "ui-monospace, \"JetBrains Mono\", \"SF Mono\", Menlo, Consolas, monospace",
+   "fontSize": "24px",
+   "transform": "none",
+   "borderTopColor": "rgba(255, 255, 255, 0.08)",
+   "borderTopWidth": "0px"
+  },
+  "branchIcon": {
+   "backdropFilter": "none",
+   "backgroundImage": "none",
+   "backgroundColor": "rgba(255, 255, 255, 0.05)",
+   "color": "rgb(203, 213, 225)",
+   "borderRadius": "8px",
+   "boxShadow": "none",
+   "fontFamily": "\"Times New Roman\"",
+   "fontSize": "12px",
+   "transform": "none",
+   "borderTopColor": "rgba(255, 255, 255, 0.1)",
+   "borderTopWidth": "1px"
+  },
+  "navItem": {
+   "backdropFilter": "none",
+   "backgroundImage": "none",
+   "backgroundColor": "oklab(0.268999 -0.00000260025 0.00000627339 / 0.6)",
+   "color": "lab(98.26 0 0)",
+   "borderRadius": "14px",
+   "boxShadow": "none",
+   "fontFamily": "\"Times New Roman\"",
+   "fontSize": "12px",
+   "transform": "none",
+   "borderTopColor": "rgba(255, 255, 255, 0.08)",
+   "borderTopWidth": "1px"
+  },
+  "row": {
+   "backdropFilter": "none",
+   "backgroundImage": "none",
+   "backgroundColor": "rgba(0, 0, 0, 0)",
+   "color": "lab(98.26 0 0)",
+   "borderRadius": "0px",
+   "boxShadow": "none",
+   "fontFamily": "\"Times New Roman\"",
+   "fontSize": "12px",
+   "transform": "none",
+   "borderTopColor": "rgba(255, 255, 255, 0.08)",
+   "borderTopWidth": "0px"
+  },
+  "brandLabel": {
+   "backdropFilter": "none",
+   "backgroundImage": "none",
+   "backgroundColor": "rgba(0, 0, 0, 0)",
+   "color": "lab(98.26 0 0)",
+   "borderRadius": "0px",
+   "boxShadow": "none",
+   "fontFamily": "\"Times New Roman\"",
+   "fontSize": "14px",
+   "transform": "none",
+   "borderTopColor": "rgba(255, 255, 255, 0.08)",
+   "borderTopWidth": "0px"
+  }
+ },
+ "errors": []
+}

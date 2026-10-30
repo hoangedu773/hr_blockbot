@@ -2,7 +2,7 @@
 
 Khóa luận cử nhân CNTT (HUIT) — Mã đề tài **KLCN133**: *Xây dựng Chatbot chuyển đổi số quản lý nhân sự*.
 
-Hệ thống quản trị nhân lực và trợ lý ảo thông minh dành cho chuỗi bán lẻ / F&B, tích hợp **Web Dashboard Chỉ huy (Command Center)** cho nhà quản lý và **Trợ lý ảo Chatbot (PhoBERT + LLM Policy RAG)** cho nhân viên, vận hành thời gian thực qua WebSocket trên dữ liệu thực tế 34 cửa hàng của chuỗi **GUTA Cafe**.
+Hệ thống quản trị nhân lực và trợ lý ảo thông minh dành cho chuỗi bán lẻ / F&B, tích hợp **Web Dashboard Chỉ huy (Command Center)** cho nhà quản lý và **Trợ lý ảo Chatbot (RAG Policy + typed-decision agent)** cho nhân viên, vận hành thời gian thực qua WebSocket trên dữ liệu thực tế 34 cửa hàng của chuỗi **GUTA Cafe**.
 
 > **Trạng thái dự án:** Monorepo đã hoàn thành tích hợp 3 dịch vụ cốt lõi:
 > - **Web Frontend:** Guta Workforce Command Center (React, Vite, Tailwind, Dark Theme).
@@ -23,7 +23,7 @@ hr_blockbot/
 ├── apps/
 │   ├── web/                # Guta Workforce Command Center (React 18, Vite, Tailwind CSS)
 │   ├── api/                # REST & WebSocket API Backend (Express, TypeScript, MongoDB Atlas)
-│   └── ai-service/         # Lõi AI Sidecar (FastAPI, Policy RAG Engine, PhoBERT/LLM Agent)
+│   └── ai-service/         # Lõi AI Sidecar (FastAPI, Policy RAG Engine, typed-decision agent)
 ├── packages/
 │   └── contracts/          # Schemas chung (Zod) và TypeScript types dùng chung giữa các service
 ├── docs/                   # Bộ 25 tài liệu kiến trúc, nghiệp vụ và 16 quyết định ADR
@@ -60,110 +60,85 @@ Hệ thống đã hoàn tất toàn bộ 5 phase nền tảng, bảo mật và k
 
 ### 3. Kế Hoạch Các Luồng Tiếp Theo Theo Lộ Trình (Tuần 8 – 12):
 - **Tuần 8:** Hoàn thiện F1 (Hồ sơ nhân viên chuyên sâu) & F2 (**Vòng đời đề tài** — không phải ca kíp — với State Machine 5 bước `DRAFT` → `ASSIGNED` → `IN_PROGRESS` → `PENDING_REVIEW` → `COMPLETED`, chống conflict bằng `version`).
-- **Tuần 9:** Hoàn thiện F3 (Chatbot tra cứu chính sách RAG) & F4 (Gợi ý phân công ca qua PhoBERT semantic matching).
+- **Tuần 9:** Hoàn thiện F3 (Chatbot tra cứu chính sách RAG) & F4 (Gợi ý phân công ca — hiện `app/agent/matching.py`
+  dùng skill-overlap + LOO; PhoBERT semantic matching theo đề cương `FR-023..027` **chưa** triển khai).
 - **Tuần 10:** Hoàn thiện F5 (Lượng hóa điểm KPI qua phân tích cảm xúc) & F7 (Báo cáo nghiệm thu & nhắc hạn).
 - **Tuần 11:** Đóng băng tính năng (Feature Freeze 09/11/2026), kiểm thử UAT và triển khai Staging Cloud.
 - **Tuần 12:** Hoàn thiện báo cáo khóa luận Word/PDF và bảo vệ đề tài (16/11/2026).
 
 ---
 
-## 🌿 Mô hình Phân nhánh & Vận hành Đa Dịch Vụ
+## 🌿 Mô Hình Nhánh & Vận Hành (Single Workspace)
 
-Dự án áp dụng quy trình phát triển song song 3 dịch vụ cốt lõi theo từng nhánh chuyên biệt. Mỗi nhánh đại diện cho một mảng kỹ thuật độc lập để các thành viên trong nhóm có thể phát triển song song mà không gây xung đột working tree:
+Từ 2026-10-30, toàn bộ nhánh `feat/*` đã merge 100% vào `main` và bị xoá khỏi `origin`. Dự án vận hành
+trong **một** checkout duy nhất; mỗi service là một process riêng, không phải một nhánh riêng.
 
-| Nhánh (Branch) | Thành phần phụ trách | Stack & Cổng chạy | Trạng thái hiện tại |
+| Service | Thành phần | Stack & Cổng | Trạng thái (đo 2026-10-30) |
 |---|---|---|---|
-| **`feat/api-backend`** | REST API & WebSocket Backend | Express, TypeScript, MongoDB Atlas (Cổng `3001`, prefix `/api`) | ✅ Hoàn thành Auth JWT + RTR, Scope Guard, API allowlist nhân viên. **22/22 tests pass**. |
-| **`feat/frontend-web`** | Web Command Center | React 18, Vite, Tailwind CSS (Cổng `5173`) | ✅ Hoàn thành in-memory auth, 401 single-flight refresh, UI preview 6 trạng thái. |
-| **`feat/ai-service`** | Lõi AI Sidecar | FastAPI, Python 3.10+ (Cổng `8000`) | ✅ Hoàn thành `/health` ping DB Atlas thật, khóa mock chat (403), probe RAG. **11/11 tests pass**. |
-| **`feat/pm-agentkit`** | Điều phối & Hợp đồng chung | Zod schemas, Docs, Kế hoạch kiểm định | ✅ `@hr-blockbot/contracts` build sạch; bộ test contract **38/38 pass** (gồm 9 schema mới của plan Full Delivery và 10 schema WS event). |
-| **`main`** | Nhánh tích hợp tổng thể | Monorepo hoàn chỉnh | Nhánh ổn định để hội đồng nghiệm thu và triển khai staging. |
+| `apps/api` | REST API & Socket.IO | Express, TypeScript (Cổng `3001`, prefix `/api`) | Auth JWT + RTR, Scope Guard, allowlist nhân viên. `pnpm --filter api test` = 10 file. |
+| `apps/web` | Web Command Center | React 18, Vite, Tailwind (Cổng `5173`) | in-memory auth, 401 single-flight refresh, preview UI. Build + `web test` pass. |
+| `apps/ai-service` | Lõi AI Sidecar | FastAPI, Python (Cổng `8000`) | Jev typed-decision gate, RAG `gemini-embedding-001`, tool-calling agent. `pytest` 177 passed. |
+| `packages/contracts` | Hợp đồng chung | Zod | `contracts test` 40/40 pass. |
+| `main` | Nhánh tích hợp duy nhất | Monorepo | Nhánh ổn định để nghiệm thu và deploy staging. |
 
 ---
 
 ## ⚡ Hướng Dẫn Vận Hành Cho Đồng Nghiệp & Dev (Step-by-Step)
 
-### Cách 1: Chạy và kiểm thử theo từng nhánh chuyên biệt (Khuyên dùng khi dev tính năng)
+> **Single workspace (2026-10-30):** mọi nhánh `feat/*` đã merge 100% vào `main` và không còn trên
+> `origin`. Làm việc trực tiếp trong `C:/work-space/hr-blockbot` trên `main`; **không** tạo worktree,
+> **không** `git checkout feat/...` (lệnh sẽ fail).
 
-Khi bạn được phân công làm việc ở mảng nào, hãy checkout sang nhánh tương ứng:
-
-#### 1. Phát triển & Chạy Backend API (`feat/api-backend`):
 ```bash
-# Chuyển sang nhánh Backend
-git checkout feat/api-backend
-git pull origin feat/api-backend
-
-# Cài đặt thư viện
-pnpm install
-
-# Cấu hình biến môi trường: tạo file apps/api/.env (sao chép từ .env.example)
-# Đảm bảo có: PORT=3001 và MONGODB_URI=<chuỗi_kết_nối_Atlas>
-
-# Chạy bộ test xác thực 22 kịch bản (Auth, RTR, RBAC, Data Minimization):
-pnpm --filter api test:auth
-
-# Khởi chạy API dev server:
-pnpm dev:api
-# -> API chạy tại http://localhost:3001 (Kiểm tra health: http://localhost:3001/api/health)
-```
-
-#### 2. Phát triển & Chạy Giao diện Web (`feat/frontend-web`):
-```bash
-# Chuyển sang nhánh Web Frontend
-git checkout feat/frontend-web
-git pull origin feat/frontend-web
-
-# Cài đặt thư viện & build contracts
+git fetch origin && git checkout main && git pull origin main
 pnpm install
 pnpm --filter @hr-blockbot/contracts build
+```
 
-# Chạy kiểm tra test giao diện & build:
+#### 1. Backend API (`apps/api`, cổng 3001)
+```bash
+# Cấu hình: apps/api/.env (sao chép từ .env.example) — cần PORT=3001 và MONGODB_URI
+pnpm --filter api test      # 10 file node --test trên mongodb-memory-server
+pnpm dev:api                # http://localhost:3001/api/health
+```
+
+#### 2. Giao diện Web (`apps/web`, cổng 5173)
+```bash
 pnpm --filter web test
 pnpm --filter web build
-
-# Khởi chạy Web dev server:
-pnpm dev:web
-# -> Web chạy tại http://localhost:5173
-# -> Xem trang Preview UI kiểm duyệt: mở file apps/web/previews/index.html trên trình duyệt
+pnpm dev:web                # http://localhost:5173
+# -> Preview UI tĩnh: apps/web/previews/index.html
 ```
 
-#### 3. Phát triển & Chạy AI Service (`feat/ai-service`):
+#### 3. AI Service (`apps/ai-service`, cổng 8000)
 ```bash
-# Chuyển sang nhánh AI Service
-git checkout feat/ai-service
-git pull origin feat/ai-service
-
-# Cài đặt thư viện Python
 cd apps/ai-service
 pip install -r requirements.txt
+# .env: cần MONGODB_URI; AI_SERVICE_API_KEY fail-closed (rỗng => mọi request 503)
 
-# Cấu hình file .env: đảm bảo có MONGODB_URI=<chuỗi_kết_nối_Atlas>
-
-# Chạy test kiểm tra liveness và health probe:
-python tests/test_health_probe.py
-python tests/test_vector_probe.py
-
-# Khởi chạy AI FastAPI server:
-python -m uvicorn app.main:app --port 8000 --reload
-# -> Swagger Docs xem tại: http://localhost:8000/docs
+python -m pytest -q         # 177 passed, 1 skipped (hermetic: không dùng credential máy)
+python start.py             # hoặc: python -m uvicorn app.main:app --port 8000 --reload
+# -> Swagger: http://localhost:8000/docs
 ```
+
+#### 4. Gate toàn workspace
+```bash
+pnpm -r typecheck            # tsc --noEmit: api + web + contracts
+pnpm -r build
+pnpm -r test
+```
+Repo **không** có eslint/prettier và không có script `lint` — đừng trích `pnpm lint` làm bằng chứng.
 
 ---
 
-### Cách 2: Vận hành đồng thời cả 3 dịch vụ qua Git Worktree (Multi-Service Workspace)
+### Chạy đồng thời cả 3 dịch vụ
 
-Nếu máy tính của bạn muốn mở và chạy đồng thời cả 3 dịch vụ cùng lúc mà không phải switch branch liên tục:
+Không cần worktree: mỗi service là một process riêng trong cùng checkout.
 
 ```bash
-# 1. Tạo 3 thư mục làm việc vật lý song song tách biệt:
-git worktree add ../hr-blockbot-api feat/api-backend
-git worktree add ../hr-blockbot-web feat/frontend-web
-git worktree add ../hr-blockbot-ai feat/ai-service
-
-# 2. Mở từng terminal riêng để khởi chạy:
-# Terminal 1: cd ../hr-blockbot-api && pnpm dev:api   (Cổng 3001)
-# Terminal 2: cd ../hr-blockbot-web && pnpm dev:web   (Cổng 5173)
-# Terminal 3: cd ../hr-blockbot-ai/apps/ai-service && uvicorn app.main:app --port 8000  (Cổng 8000)
+# Terminal 1: pnpm dev:api
+# Terminal 2: pnpm dev:web
+# Terminal 3: cd apps/ai-service && python start.py
 ```
 
 ---
@@ -196,7 +171,7 @@ Bảng tra cứu nhanh tài liệu theo nhu cầu tìm hiểu và luồng nghi�
 | **Xác thực JWT, RTR & Phân quyền RBAC** | [`docs/07-auth-rbac.md`](docs/07-auth-rbac.md) | Cơ chế token trong memory, HttpOnly cookie, thuật toán Argon2id, scope guard `assertInScope()`. |
 | **Đặc tả REST API & Catalog mã lỗi** | [`docs/06-api-spec.md`](docs/06-api-spec.md) | Danh mục endpoints `/api/*`, bao gói chuẩn `{ items, paging }`, catalog lỗi hệ thống. |
 | **Cơ sở dữ liệu & 11 Collections** | [`docs/05-data-model.md`](docs/05-data-model.md)<br>[`docs/database-design.md`](docs/database-design.md) | Thiết kế 11 collections MongoDB Atlas, schema mapping chuỗi GUTA Cafe, atomic updates. |
-| **Lõi AI, PhoBERT & RAG Chính Sách** | [`docs/08-algorithms.md`](docs/08-algorithms.md)<br>[`docs/09-ai-evaluation.md`](docs/09-ai-evaluation.md) | Thuật toán semantic matching, bộ quy chế trích dẫn BR-15, cơ chế từ chối đoán (Abstention). |
+| **Lõi AI & RAG Chính Sách** | [`docs/08-algorithms.md`](docs/08-algorithms.md)<br>[`docs/09-ai-evaluation.md`](docs/09-ai-evaluation.md) | Thuật toán semantic matching, bộ quy chế trích dẫn BR-15, cơ chế từ chối đoán (Abstention). |
 | **Giao diện Dark Command Center & UX** | [`docs/10-ui-ux-spec.md`](docs/10-ui-ux-spec.md)<br>[`docs/18-user-flows.md`](docs/18-user-flows.md) | Thiết kế visual timeline, bảng màu nền tối, 10 luồng người dùng (UF-01 đến UF-10). |
 | **Kiến trúc hệ thống C4 & 16 ADRs** | [`docs/02-architecture.md`](docs/02-architecture.md)<br>[`docs/03-decision-records/`](docs/03-decision-records/) | Sơ đồ C4, trần tài nguyên container, 16 quyết định kiến trúc giải thích lý do chọn công nghệ. |
 | **Quy chuẩn cộng tác cho Dev** | [`docs/AGENT-GUIDELINES.md`](docs/AGENT-GUIDELINES.md)<br>[`docs/15-engineering-conventions.md`](docs/15-engineering-conventions.md) | Quy tắc phân quyền đọc/ghi, hướng dẫn kéo nhánh, quy ước Conventional Commits. |

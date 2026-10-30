@@ -343,6 +343,67 @@ class GatewayMappingTests(unittest.TestCase):
                     gateway.decide("text")
 
 
+class SystemOneTests(unittest.TestCase):
+    """JevGateway._system_one: one synchronous POST, answers at `data.result.answers`."""
+
+    def gateway(self, response: "httpx.Response"):
+        from types import SimpleNamespace
+
+        import app.agent.jev_gateway as gateway_module
+        from app.llm.chain import ProviderChain
+
+        stub = SimpleNamespace(
+            jev_api_key="sk_mock",
+            jev_model="typesafe/jev-1.14",
+            decision_timeout_ms=8000,
+            request_max_chars=2000,
+        )
+        patcher = mock.patch.object(gateway_module, "settings", stub)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return gateway_module.JevGateway(
+            ProviderChain([]), client=SimpleNamespace(post=lambda *a, **k: response)
+        )
+
+    def response(self, body: dict) -> "httpx.Response":
+        import httpx
+
+        return httpx.Response(
+            200, json=body, request=httpx.Request("POST", "https://thejevai.com/v1/systemone")
+        )
+
+    def test_answers_map_to_typed_decision(self) -> None:
+        """Regression: `answers` was never bound after the hermetic-suite refactor,
+        so every real System One call raised NameError outside the except tuple."""
+        gateway = self.gateway(self.response(
+            {"code": 0, "data": {"result": {"answers": deepcopy(ANSWERS)}}}
+        ))
+        decision = gateway.decide("Em xin nghỉ ca tối mai")
+        self.assertEqual(decision.intent, "shift_operation")
+        self.assertEqual(decision.source, "jev_systemone")
+        self.assertEqual(decision.intent_probabilities, {"shift_operation": 0.9})
+        self.assertAlmostEqual(decision.needs_manager_approval, 0.81)
+        self.assertAlmostEqual(decision.incident_urgency, 0.05)
+
+    def test_invalid_primitive_degrades_to_decision_unavailable(self) -> None:
+        from app.llm.base import LLMUnavailable
+
+        answers = deepcopy(ANSWERS)
+        answers["intent"] = {"type": "score", "score": 0.5}
+        gateway = self.gateway(self.response({"code": 0, "data": {"result": {"answers": answers}}}))
+        with self.assertRaises(LLMUnavailable) as caught:
+            gateway.decide("text")
+        self.assertEqual(caught.exception.errors[0]["code"], "DECISION_UNAVAILABLE")
+
+    def test_missing_answers_degrades_to_decision_unavailable(self) -> None:
+        from app.llm.base import LLMUnavailable
+
+        gateway = self.gateway(self.response({"code": 0, "data": {"result": {}}}))
+        with self.assertRaises(LLMUnavailable) as caught:
+            gateway.decide("text")
+        self.assertEqual(caught.exception.errors[0]["code"], "DECISION_UNAVAILABLE")
+
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -2,15 +2,25 @@
 <html lang="vi" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)" />
     <title>Guta Workspace — Workforce Command Center</title>
+    <!-- The landing's entrance animations only hide their start state behind `html.js`.
+         With scripting off (or the script blocked) the page renders finished. -->
+    <script>document.documentElement.classList.add('js');</script>
     <link rel="icon" type="image/svg+xml" href="/assets/logos/guta-mark-pure.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&family=Inter:wght@400;500;600;700&display=swap" />
-    <link id="theme-css" rel="stylesheet" href="/assets/folio/folio.css" />
-    <link id="folio-layout-css" rel="stylesheet" href="/assets/folio/folio-layout.css" />
-    <link id="crm-layout-css" rel="stylesheet" href="/assets/crm/2e445toz63gzv.css" disabled />
+    <!-- Preload pinned to gstatic version in the URL above; re-verify the hash when bumping
+         the Google Fonts URL in the stylesheet, or the preload silently fetches a stale file.
+         Preload the two LCP-relevant faces. The app is Vietnamese, so the `vietnamese`
+         subset is what actually renders; preloading `latin` would fetch a file the page
+         never uses. Geist Mono is body-adjacent only and is deliberately left out. -->
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwTGFWfOw.woff2" />
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="https://fonts.gstatic.com/s/newsreader/v26/cY9AfjOCX1hbuyalUrK439HyjJBG.woff2" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&display=swap" />
   </head>
   <body class="antialiased">
     <div id="root"></div>

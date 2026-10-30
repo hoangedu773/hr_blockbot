@@ -356,6 +356,13 @@ install → lint → typecheck → unit → API integration → Python AI tests
 
 PR luôn chạy mocked deterministic agent test; **live provider evaluation chạy nightly/release** (NOTES-01 B10) — chi tiết ở `docs/11-quality-testing.md` §4.
 
+**Trạng thái thật ở HEAD (2026-10-30):** chỉ gate 1, 3, 4, 6, 8 có lệnh chạy được —
+`pnpm install --frozen-lockfile`, `pnpm -r typecheck`, `pnpm -r test`, `cd apps/ai-service && python -m pytest -q`,
+`pnpm -r build`. Gate 2 (`lint`) **không tồn tại**: repo không cài eslint/prettier và không package nào khai
+báo script `lint` (script root đã bị gỡ vì `pnpm -r lint` in `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT` rồi vẫn
+`exit 0` — gate xanh giả). Gate 5 (`test:api`), 7 (`tests/eval -m gate`), 9 (`test:e2e`), 10, 11 **chưa
+được khai báo**; đừng trích chúng làm bằng chứng pass. Bảng trên là đích đến, không phải hiện trạng.
+
 ### 6.3 Nguyên tắc chống "docs trang trí"
 
 > **Không thêm gate nào nếu chưa có lệnh chạy nó trong CI.** (`RESEARCH-PLAN.md` §11)

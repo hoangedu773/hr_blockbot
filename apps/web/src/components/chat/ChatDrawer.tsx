@@ -423,150 +423,38 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
     }, 600);
   };
 
-  if (!isOpen) return null;
-
+  // The panel stays mounted while closed: unmounting on close would skip the
+  // 180ms exit entirely and leave the asymmetry as decoration. `visibility`
+  // (not `display`) keeps it out of the a11y tree and out of layout overflow.
   return (
     <>
-      <style>{`
-        .guta-chat-drawer { --drawer-text: #f4f4f5; --drawer-muted: #a1a1aa; --drawer-surface: #121214; --drawer-raised: #27272a; --drawer-border: #52525b; --drawer-on-primary: #fafafa; --drawer-primary: #52525b; --drawer-success: #6ee7b7; --drawer-shade: #09090b; font-family: var(--font-sans); }
-        .guta-chat-drawer button, .guta-chat-drawer input { min-width: 44px; min-height: 44px; }
-        .guta-chat-drawer button { font-family: inherit; white-space: nowrap; }
-        .guta-chat-drawer .guta-tier-btn { min-width: 0; min-height: 0; }
-        .guta-chat-drawer .guta-verified-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 9999px; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--drawer-border); font-size: 11px; }
-        .guta-chat-drawer button:disabled { opacity: .5; cursor: not-allowed; }
-        .guta-chat-drawer button:active:not(:disabled) { transform: translateY(1px); }
-        .guta-chat-drawer code { font-family: var(--mono); overflow-wrap: anywhere; }
-        @media (hover: hover) and (pointer: fine) { .guta-chat-drawer button:hover:not(:disabled) { filter: brightness(1.2); } }
-        @media (max-width: 768px) { aside.guta-chat-drawer { display: flex !important; } }
-        .guta-chat-drawer .guta-chat-status { display: flex; align-items: flex-start; gap: 12px; padding: 14px 18px; border-radius: 16px; background: rgba(255, 255, 255, 0.04); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); color: #a1a1aa; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05); animation: guta-thinking-enter 220ms cubic-bezier(0.23, 1, 0.32, 1) both; }
-        .guta-chat-drawer .guta-thinking-avatar { width: 32px; height: 32px; flex-shrink: 0; border-radius: 10px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); display: flex; align-items: center; justify-content: center; animation: guta-aura-pulse 2.4s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
-        .guta-chat-drawer .guta-thinking-avatar img { width: 18px; height: 18px; object-fit: contain; }
-        .guta-chat-drawer .guta-thinking-content { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
-        .guta-chat-drawer .guta-thinking-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-        .guta-chat-drawer .guta-thinking-label { font-size: 13px; font-weight: 500; color: #e4e4e7; letter-spacing: -0.01em; line-height: 1.4; }
-        .guta-chat-drawer .guta-thinking-dots { display: inline-flex; align-items: center; gap: 3.5px; }
-        .guta-chat-drawer .guta-thinking-dot { width: 4px; height: 4px; border-radius: 9999px; background: #a1a1aa; animation: guta-dot-pulse 1.4s cubic-bezier(0.23, 1, 0.32, 1) infinite both; }
-        .guta-chat-drawer .guta-thinking-dot:nth-child(1) { animation-delay: 0s; }
-        .guta-chat-drawer .guta-thinking-dot:nth-child(2) { animation-delay: 0.2s; }
-        .guta-chat-drawer .guta-thinking-dot:nth-child(3) { animation-delay: 0.4s; }
-        .guta-chat-drawer .guta-thinking-shimmer-bar { width: 100%; max-width: 200px; height: 2px; border-radius: 9999px; background: rgba(255, 255, 255, 0.06); position: relative; overflow: hidden; margin: 1px 0; }
-        .guta-chat-drawer .guta-thinking-shimmer-line { position: absolute; inset: 0; width: 100%; height: 100%; background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.35) 50%, transparent 100%); transform: translateX(-100%); animation: guta-shimmer-sweep 2s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
-        .guta-chat-drawer .guta-thinking-steps { position: relative; height: 16px; font-size: 11px; line-height: 16px; color: #71717a; overflow: hidden; }
-        .guta-chat-drawer .guta-thinking-step { position: absolute; top: 0; left: 0; white-space: nowrap; opacity: 0; transform: translateY(3px); will-change: opacity, transform; }
-        .guta-chat-drawer .guta-step-1 { opacity: 1; transform: translateY(0); animation: guta-step-cycle-1 6s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
-        .guta-chat-drawer .guta-step-2 { animation: guta-step-cycle-2 6s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
-        .guta-chat-drawer .guta-step-3 { animation: guta-step-cycle-3 6s cubic-bezier(0.23, 1, 0.32, 1) infinite; }
-        @keyframes guta-thinking-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes guta-aura-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.08), 0 0 8px rgba(255, 255, 255, 0.04); } 50% { box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.06), 0 0 16px rgba(255, 255, 255, 0.12); } }
-        @keyframes guta-dot-pulse { 0%, 80%, 100% { opacity: 0.25; transform: scale(0.85); } 40% { opacity: 1; transform: scale(1.2); background-color: #ffffff; } }
-        @keyframes guta-shimmer-sweep { 0% { transform: translateX(-100%); } 50%, 100% { transform: translateX(100%); } }
-        @keyframes guta-step-cycle-1 { 0%, 28% { opacity: 1; transform: translateY(0); } 33.33%, 94% { opacity: 0; transform: translateY(-3px); } 95%, 100% { opacity: 1; transform: translateY(0); } }
-        @keyframes guta-step-cycle-2 { 0%, 28% { opacity: 0; transform: translateY(3px); } 33.33%, 61% { opacity: 1; transform: translateY(0); } 66.66%, 100% { opacity: 0; transform: translateY(-3px); } }
-        @keyframes guta-step-cycle-3 { 0%, 61% { opacity: 0; transform: translateY(3px); } 66.66%, 94% { opacity: 1; transform: translateY(0); } 98%, 100% { opacity: 0; transform: translateY(-3px); } }
-        @keyframes guta-sparkle-pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
-        .guta-model-sparkle { animation: guta-sparkle-pulse 2.5s ease-in-out infinite; }
-        @media (prefers-reduced-motion: reduce) {
-          .guta-chat-drawer, .guta-chat-drawer * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
-          .guta-chat-drawer button:active { transform: none !important; }
-          .guta-chat-drawer .guta-chat-status { animation: none !important; }
-          .guta-chat-drawer .guta-thinking-avatar { animation: none !important; }
-          .guta-chat-drawer .guta-thinking-dot { animation: none !important; opacity: 0.8 !important; }
-          .guta-chat-drawer .guta-thinking-shimmer-line { animation: none !important; display: none !important; }
-          .guta-chat-drawer .guta-step-1 { animation: none !important; opacity: 1 !important; transform: none !important; position: static !important; }
-          .guta-chat-drawer .guta-step-2, .guta-chat-drawer .guta-step-3 { display: none !important; }
-        }
-      `}</style>
       {/* Backdrop */}
       <div
         onClick={onClose}
-        style={{
-          position: 'fixed',
-          inset: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.65)',
-          backdropFilter: 'blur(8px)',
-          zIndex: 240,
-          transition: 'opacity 250ms ease, visibility 250ms ease',
-          opacity: isOpen ? 1 : 0,
-          visibility: isOpen ? 'visible' : 'hidden',
-          pointerEvents: isOpen ? 'auto' : 'none',
-        }}
+        className="guta-chat-drawer-backdrop"
+        data-state={isOpen ? 'open' : 'closed'}
       />
 
-      {/* Slide-over Chat Panel (ChatGPT-Style Frosted Dark Slate) */}
+      {/* Slide-over Chat Panel */}
       <aside
         ref={dialogRef}
         className="guta-chat-drawer"
+        data-state={isOpen ? 'open' : 'closed'}
         role="dialog"
         aria-modal="true"
         aria-label="Guta AI Copilot Drawer"
-        style={{
-          position: 'fixed',
-          top: 0,
-          right: 0,
-          bottom: 0,
-          width: 'min(480px, 100vw)',
-          maxWidth: '100%',
-          overflowX: 'hidden',
-          backgroundColor: 'rgba(18, 18, 20, 0.94)',
-          backdropFilter: 'blur(24px)',
-          borderLeft: '1px solid rgba(255, 255, 255, 0.08)',
-          boxShadow: '-16px 0 48px rgba(0, 0, 0, 0.85)',
-          zIndex: 250,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          transition: 'transform 250ms cubic-bezier(0.16, 1, 0.3, 1), visibility 250ms ease',
-          transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
-          visibility: isOpen ? 'visible' : 'hidden',
-          pointerEvents: isOpen ? 'auto' : 'none',
-        }}
       >
         {/* Header */}
-        <div
-          style={{
-            padding: '12px 14px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-            backgroundColor: 'var(--drawer-surface)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '8px',
-            flexWrap: 'wrap',
-            minWidth: 0,
-          }}
-        >
+        <div className="guta-chat-drawer-header">
           <button
             type="button"
             onClick={onClose}
             aria-label="Đóng Chat Copilot"
-            style={{
-              order: 2,
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              color: 'var(--drawer-muted)',
-              fontSize: '15px',
-              cursor: 'pointer',
-              width: '44px',
-              height: '44px',
-              minWidth: '44px',
-              minHeight: '44px',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'opacity 140ms var(--motion-ease-standard)',
-              flexShrink: 0,
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = 'var(--drawer-text)';
-              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = 'var(--drawer-muted)';
-              e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-            }}
+            className="guta-chat-drawer-close"
           >
-            ✕
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
           </button>
 
           <div style={{ order: 1, display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -581,7 +469,6 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: '#ffffff',
-                boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.04)',
               }}
             >
               <img src="/assets/logos/guta-mark-pure.svg" alt="Guta Logo" style={{ width: '22px', height: '22px', objectFit: 'contain' }} />
@@ -601,35 +488,11 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
         </div>
 
         {/* Verified Session Role Badge */}
-        <div
-          style={{
-            padding: '8px 14px',
-            backgroundColor: 'rgba(255, 255, 255, 0.02)',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '8px',
-            flexWrap: 'wrap',
-            minWidth: 0,
-          }}
-        >
+        <div className="guta-chat-drawer-session">
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--drawer-muted)' }}>
             <span>Phiên xác thực:</span>
           </div>
-          <div
-            className="guta-verified-badge"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '4px 10px',
-              borderRadius: '9999px',
-              background: 'rgba(255, 255, 255, 0.06)',
-              border: '1px solid var(--drawer-border, rgba(255, 255, 255, 0.1))',
-              fontSize: '11px',
-            }}
-          >
+          <div className="guta-verified-badge">
             <span style={{ width: '6px', height: '6px', borderRadius: '9999px', backgroundColor: '#10b981' }} />
             <span style={{ fontWeight: 600, color: 'var(--drawer-text, #f5f5f5)' }}>
               {role === 'Admin' ? 'Quản trị viên (Admin)' : 'Nhân viên (Employee)'}
@@ -637,16 +500,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
           </div>
         </div>
         {/* Message Log */}
-        <div
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            padding: '20px 22px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '14px',
-          }}
-        >
+        <div className="guta-chat-log">
           {messages.map((msg) => {
             const isUser = msg.sender === 'user';
             return (
@@ -661,16 +515,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                 }}
               >
                 <div
-                  style={{
-                    padding: '12px 16px',
-                    borderRadius: '16px',
-                    backgroundColor: isUser ? '#52525b' : 'rgba(255, 255, 255, 0.04)',
-                    border: `1px solid ${isUser ? '#3f3f46' : 'rgba(255, 255, 255, 0.07)'}`,
-                    color: 'var(--drawer-text)',
-                    fontSize: '13.5px',
-                    lineHeight: 1.6,
-                    boxShadow: isUser ? '0 2px 8px rgba(255, 255, 255, 0.12)' : '0 2px 8px rgba(0, 0, 0, 0.2)',
-                  }}
+                  className={isUser ? 'guta-chat-bubble guta-chat-bubble--user' : 'guta-chat-bubble'}
                 >
                   <div style={{ overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>{isUser ? msg.text : renderMarkdown(msg.text)}</div>
                   {msg.retryText && <button type="button" disabled={isTyping} onClick={() => handleSend(msg.retryText)} style={{ marginTop: '8px', color: 'var(--drawer-text)', background: 'var(--drawer-raised)', border: '1px solid var(--drawer-border)', borderRadius: '8px', padding: '8px' }}>Thử lại</button>}
@@ -680,14 +525,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                     <div
                       role="region"
                       aria-label="Trích dẫn"
-                      style={{
-                        marginTop: '10px',
-                        padding: '10px 12px',
-                        borderRadius: '10px',
-                        backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                        border: '1px solid rgba(255, 255, 255, 0.12)',
-                        fontSize: '11px',
-                      }}
+                      className="guta-chat-citations"
                     >
                       <div
                         style={{
@@ -862,16 +700,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                   )}
                   {/* Khối Đề Xuất Hành Động (Confirm-Before-Write Action Card) */}
                   {msg.proposedAction && (
-                    <div
-                      style={{
-                        marginTop: '10px',
-                        padding: '10px 12px',
-                        borderRadius: '10px',
-                        backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                        border: '1px solid rgba(255, 255, 255, 0.12)',
-                        fontSize: '12px',
-                      }}
-                    >
+                    <div className="guta-chat-proposal">
                       <div
                         style={{
                           fontWeight: 700,
@@ -898,8 +727,9 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                           Đã xác nhận đề xuất. Chưa thực thi.
                         </div>
                       ) : msg.proposedAction.status === 'cancelled' ? (
-                        <div style={{ color: 'var(--drawer-muted)', fontSize: '11px', fontWeight: 600 }}>
-                          ✕ Đã từ chối hành động
+                        <div style={{ color: 'var(--drawer-muted)', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                          <span>Đã từ chối hành động</span>
                         </div>
                       ) : (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
@@ -917,7 +747,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                               fontSize: '11px',
                               fontWeight: 700,
                               cursor: 'pointer',
-                              transition: 'background-color 150ms ease',
+                              transition: 'background-color var(--t-press) var(--ease-out)',
                             }}
                           >
                             Xác nhận thực hiện
@@ -935,7 +765,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                               color: 'var(--drawer-text)',
                               fontSize: '11px',
                               cursor: 'pointer',
-                              transition: 'opacity 140ms var(--motion-ease-standard)',
+                              transition: 'opacity var(--t-press) var(--ease-out)',
                             }}
                           >
                             Hủy bỏ
@@ -978,23 +808,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                     type="button"
                     disabled={isTyping}
                     onClick={() => handleSend(item.prompt)}
-                    style={{
-                      minHeight: '44px',
-                      padding: '10px 14px',
-                      borderRadius: '12px',
-                      backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                      border: '1px solid rgba(255, 255, 255, 0.09)',
-                      color: 'var(--drawer-text)',
-                      fontSize: '12.5px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '8px',
-                      textAlign: 'left',
-                      transition: 'background-color 140ms ease',
-                    }}
-                    className="chat-prompt"
+                    className="guta-chat-prompt"
                     title={item.prompt}
                   >
                     <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
@@ -1016,21 +830,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                     type="button"
                     disabled={isTyping}
                     onClick={() => handleSend(chip)}
-                    style={{
-                      minHeight: '44px',
-                      padding: '12px 14px',
-                      borderRadius: '12px',
-                      backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                      border: '1px solid rgba(255, 255, 255, 0.07)',
-                      color: 'var(--drawer-text)',
-                      fontSize: '12.5px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      transition: 'opacity 140ms var(--motion-ease-standard)',
-                    }}
-                    className="chat-prompt"
+                    className="guta-chat-prompt guta-chat-prompt--ghost"
                     title={chip}
                   >
                     <span style={{ whiteSpace: 'normal' }}>{chip}</span>
@@ -1043,15 +843,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
 
           {/* ponytail: CSS keyframes step carousel; add SSE streaming stage events when backend supports event-driven progress */}
           {isTyping && (
-            <div
-              role="status"
-              className="guta-chat-status"
-              style={{
-                alignSelf: 'flex-start',
-                maxWidth: '92%',
-                margin: '12px 0',
-              }}
-            >
+            <div role="status" className="guta-chat-status">
               <div className="guta-thinking-avatar" aria-hidden="true">
                 <img src="/assets/logos/guta-mark-pure.svg" alt="" style={{ width: '18px', height: '18px', objectFit: 'contain' }} />
               </div>
@@ -1063,9 +855,6 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                     <span className="guta-thinking-dot" />
                     <span className="guta-thinking-dot" />
                   </span>
-                </div>
-                <div className="guta-thinking-shimmer-bar" aria-hidden="true">
-                  <div className="guta-thinking-shimmer-line" />
                 </div>
                 <div className="guta-thinking-steps" aria-hidden="true">
                   <span className="guta-thinking-step guta-step-1">Tra cứu quy chế Guta</span>
@@ -1080,17 +869,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
 
         {toast && <div role="status" style={{ margin: '8px 16px', padding: '16px', border: '1px solid var(--drawer-border)', borderRadius: '8px', background: 'var(--drawer-raised)', color: 'var(--drawer-success)', fontSize: '12px' }}>{toast}</div>}
         {/* Input Bar (ChatGPT-style) */}
-        <div
-          style={{
-            padding: '14px 18px',
-            borderTop: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-pill)',
-            backgroundColor: 'var(--drawer-surface)',
-            display: 'flex',
-            gap: '10px',
-            alignItems: 'center',
-          }}
-        >
+        <div className="guta-chat-drawer-composer">
           <input
             type="text"
             aria-label="Tin nhắn cho Guta AI"
@@ -1101,25 +880,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
               if (e.key === 'Enter') handleSend();
             }}
             placeholder="Hỏi AI về ca trực, nhân sự, tiền két..."
-            style={{
-              flex: 1,
-              padding: '10px 14px',
-              borderRadius: '12px',
-              backgroundColor: 'rgba(255, 255, 255, 0.04)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              color: 'var(--drawer-text)',
-              fontSize: '13px',
-              outline: 'none',
-              transition: 'border-color 150ms ease, box-shadow 150ms ease',
-            }}
-            onFocus={(e) => {
-              e.currentTarget.style.borderColor = '#a1a1aa';
-              e.currentTarget.style.boxShadow = '0 0 0 2px rgba(255, 255, 255, 0.12)';
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-              e.currentTarget.style.boxShadow = 'none';
-            }}
+            className="guta-chat-drawer-input"
           />
           <button
             type="button"
@@ -1135,19 +896,10 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
               fontWeight: 700,
               cursor: isTyping || !inputText.trim() ? 'not-allowed' : 'pointer',
               opacity: isTyping || !inputText.trim() ? 0.6 : 1,
-              transition: 'opacity 140ms var(--motion-ease-standard)',
+              transition: 'opacity var(--t-press) var(--ease-out)',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              boxShadow: isTyping || !inputText.trim() ? 'none' : '0 2px 8px rgba(255, 255, 255, 0.08)',
-            }}
-            onMouseDown={(e) => {
-              if (!isTyping && inputText.trim()) {
-                e.currentTarget.style.transform = 'scale(0.96)';
-              }
-            }}
-            onMouseUp={(e) => {
-              e.currentTarget.style.transform = 'scale(1)';
             }}
           >
             {isTyping ? (

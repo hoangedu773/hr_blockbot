@@ -25,7 +25,12 @@ Tuân thủ nghiêm ngặt baseline đề tài đã chốt:
   - **Chat Drawer:** `ChatDrawer.tsx` (Tích hợp sẵn trong CRM).
   - **Chi tiết UI/UX & Tokens:** Tham chiếu `docs/DESIGN.md` và `docs/10-ui-ux-spec.md`.
 - **Backend API (`apps/api`):** Express.js + TypeScript. **CẤM đổi sang NestJS**.
-- **AI Service (`apps/ai-service`):** FastAPI + Python (PhoBERT semantic matching, RAG policy).
+- **AI Service (`apps/ai-service`):** FastAPI + Python, RAG policy + typed-decision agent.
+  - **Embedding (RAG dense):** `gemini-embedding-001` trên embedding chain riêng (`app/config.py::embedding_model`),
+    corpus Atlas 3072 chiều — **không** dùng PhoBERT ở đây.
+  - **Matching F4:** `app/agent/matching.py` dùng skill-overlap + Leave-One-Out breakdown, **chưa** phải PhoBERT.
+    Đề cương yêu cầu PhoBERT cho F4 (`docs/00-vision-scope.md` §F4, `docs/01-requirements.md` FR-023..027);
+    đừng mô tả hệ thống hiện tại là "PhoBERT" khi báo cáo.
 - **Database:** MongoDB Atlas (Single-Document Atomic Update, không multi-document transaction).
 - **Shared Contracts (`packages/contracts`):** Zod schemas dùng chung, Single Source of Truth cho data types.
 
@@ -47,16 +52,22 @@ Tuân thủ nghiêm ngặt baseline đề tài đã chốt:
 Trước khi coi một task là hoàn thành, **bắt buộc chạy các lệnh sau và kiểm tra output thật**:
 
 ```powershell
-# 1. Kiểm tra build toàn bộ monorepo (Contracts + API + Web)
+# 1. Typecheck + build toàn bộ monorepo (Contracts + API + Web)
+pnpm -r typecheck
 pnpm -r run build
 
 # 2. Chạy bộ Playwright E2E test cho luồng giao diện Guta
 node apps/web/test/e2e-revamp-flow.test.mjs
 
-# 3. Kiểm tra unit test contracts (nếu có chạm vào packages/contracts)
+# 3. Unit test contracts + API (nếu có chạm vào packages/contracts hoặc apps/api)
 pnpm --filter @hr-blockbot/contracts test
+pnpm --filter api test
+
+# 4. Hermetic AI suite (nếu có chạm apps/ai-service)
+cd apps/ai-service; python -m pytest -q
 ```
-*Chỉ được claim "Done" khi terminal báo PASS 100%, không có lỗi type/lint/console error.*
+*Chỉ được claim "Done" khi terminal báo PASS 100%, không có lỗi type/build/console error.
+Repo không có lint gate — đừng trích `pnpm lint` làm bằng chứng.*
 
 ---
 

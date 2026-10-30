@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { LoginRequest } from '@hr-blockbot/contracts';
 import { AccountLoginModal } from './AccountLoginModal';
 import type { NotifyFn } from './Toast';
+import { TaglineReveal, TAGLINE_COPY } from './landing/TaglineReveal';
 
 export interface FolioLandingViewProps {
   onLogin: (credentials: LoginRequest) => Promise<void>;
@@ -10,12 +12,477 @@ export interface FolioLandingViewProps {
 }
 export { WorkflowSection } from './landing/WorkflowSection';
 
+const ENTRY_OBSERVER_OPTIONS: IntersectionObserverInit = { rootMargin: '0px 0px -12% 0px', threshold: 0.1 };
 
-const FOLIO_HTML = "<div class=\"relative flex min-h-svh flex-col overflow-x-hidden bg-background text-foreground antialiased folio-preview\">\n\n<div hidden=\"\"></div><style>\n:root {\n  --bprogress-color: var(--color-primary);\n  --bprogress-height: 2px;\n  --bprogress-spinner-size: 18px;\n  --bprogress-spinner-animation-duration: 400ms;\n  --bprogress-spinner-border-size: 2px;\n  --bprogress-box-shadow: 0 0 10px var(--color-primary), 0 0 5px var(--color-primary);\n  --bprogress-z-index: 99999;\n  --bprogress-spinner-top: 15px;\n  --bprogress-spinner-bottom: auto;\n  --bprogress-spinner-right: 15px;\n  --bprogress-spinner-left: auto;\n}\n\n.bprogress {\n  width: 0;\n  height: 0;\n  pointer-events: none;\n  z-index: var(--bprogress-z-index);\n}\n\n.bprogress .bar {\n  background: var(--bprogress-color);\n  position: fixed;\n  z-index: var(--bprogress-z-index);\n  top: 0;\n  left: 0;\n  width: 100%;\n  height: var(--bprogress-height);\n}\n\n/* Fancy blur effect */\n.bprogress .peg {\n  display: block;\n  position: absolute;\n  right: 0;\n  width: 100px;\n  height: 100%;\n  box-shadow: var(--bprogress-box-shadow);\n  opacity: 1.0;\n  transform: rotate(3deg) translate(0px, -4px);\n}\n\n/* Remove these to get rid of the spinner */\n.bprogress .spinner {\n  display: block;\n  position: fixed;\n  z-index: var(--bprogress-z-index);\n  top: var(--bprogress-spinner-top);\n  bottom: var(--bprogress-spinner-bottom);\n  right: var(--bprogress-spinner-right);\n  left: var(--bprogress-spinner-left);\n}\n\n.bprogress .spinner-icon {\n  width: var(--bprogress-spinner-size);\n  height: var(--bprogress-spinner-size);\n  box-sizing: border-box;\n  border: solid var(--bprogress-spinner-border-size) transparent;\n  border-top-color: var(--bprogress-color);\n  border-left-color: var(--bprogress-color);\n  border-radius: 50%;\n  -webkit-animation: bprogress-spinner var(--bprogress-spinner-animation-duration) linear infinite;\n  animation: bprogress-spinner var(--bprogress-spinner-animation-duration) linear infinite;\n}\n\n.bprogress-custom-parent {\n  overflow: hidden;\n  position: relative;\n}\n\n.bprogress-custom-parent .bprogress .spinner,\n.bprogress-custom-parent .bprogress .bar {\n  position: absolute;\n}\n\n.bprogress .indeterminate {\n  position: fixed;\n  top: 0;\n  left: 0;\n  width: 100%;\n  height: var(--bprogress-height);\n  overflow: hidden;\n}\n\n.bprogress .indeterminate .inc,\n.bprogress .indeterminate .dec {\n  position: absolute;\n  top: 0;\n  height: 100%;\n  background-color: var(--bprogress-color);\n}\n\n.bprogress .indeterminate .inc {\n  animation: bprogress-indeterminate-increase 2s infinite;\n}\n\n.bprogress .indeterminate .dec {\n  animation: bprogress-indeterminate-decrease 2s 0.5s infinite;\n}\n\n@-webkit-keyframes bprogress-spinner {\n  0%   { -webkit-transform: rotate(0deg); transform: rotate(0deg); }\n  100% { -webkit-transform: rotate(360deg); transform: rotate(360deg); }\n}\n\n@keyframes bprogress-spinner {\n  0%   { transform: rotate(0deg); }\n  100% { transform: rotate(360deg); }\n}\n\n@keyframes bprogress-indeterminate-increase {\n  from { left: -5%; width: 5%; }\n  to { left: 130%; width: 100%; }\n}\n\n@keyframes bprogress-indeterminate-decrease {\n  from { left: -80%; width: 80%; }\n  to { left: 110%; width: 10%; }\n}\n</style><!--$!--><template data-dgst=\"BAILOUT_TO_CLIENT_SIDE_RENDERING\"></template><header vt-update=\"auto\"><nav data-state=\"false\" class=\"fixed z-20 w-full px-2\"><div class=\"mx-auto mt-2 max-w-6xl px-6 transition-all duration-300 lg:px-12\"><div class=\"relative flex flex-wrap items-center justify-between gap-6 py-3 lg:gap-0 lg:py-4\"><div class=\"flex w-full justify-between lg:w-auto\">\n<a aria-label=\"Guta Workspace home\" class=\"flex items-center gap-2.5\" href=\"#\">\n  <img src=\"/assets/logos/guta-mark-pure.svg\" alt=\"HR-BlockBot Logo\" class=\"size-8 object-contain\" />\n  <div class=\"flex flex-col\">\n    <div class=\"flex items-center gap-1.5 leading-none\">\n      <span class=\"font-black tracking-wider text-foreground text-base\">GUTA</span>\n      <span class=\"font-semibold tracking-tight text-foreground text-base\">WORKSPACE</span>\n    </div>\n    <span class=\"text-[9px] font-medium tracking-wide text-muted-foreground uppercase mt-0.5\">HR &amp; Smart Shift AI</span>\n  </div>\n</a>\n<button type=\"button\" aria-label=\"Open Menu\" class=\"-m-2.5 -mr-4 relative z-20 block cursor-pointer p-2.5 lg:hidden\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-menu m-auto size-6 duration-200 in-data-[state=active]:rotate-180 in-data-[state=active]:scale-0 in-data-[state=active]:opacity-0\"><line x1=\"4\" x2=\"20\" y1=\"12\" y2=\"12\"></line><line x1=\"4\" x2=\"20\" y1=\"6\" y2=\"6\"></line><line x1=\"4\" x2=\"20\" y1=\"18\" y2=\"18\"></line></svg><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-x -rotate-180 absolute inset-0 m-auto size-6 scale-0 opacity-0 duration-200 in-data-[state=active]:rotate-0 in-data-[state=active]:scale-100 in-data-[state=active]:opacity-100\"><path d=\"M18 6 6 18\"></path><path d=\"m6 6 12 12\"></path></svg></button></div><div class=\"absolute inset-0 m-auto hidden size-fit lg:block\"><ul class=\"flex gap-8 text-sm\"><li><a class=\"block text-muted-foreground duration-150 hover:text-accent-foreground\" href=\"#features\">Nghiệp vụ</a></li><li><a class=\"block text-muted-foreground duration-150 hover:text-accent-foreground\" href=\"#solution\">Luồng làm việc</a></li><li><a class=\"block text-muted-foreground duration-150 hover:text-accent-foreground\" href=\"#product\">Trợ lý AI</a></li><li><a class=\"block text-muted-foreground duration-150 hover:text-accent-foreground\" href=\"#about\">Nguyên tắc</a></li></ul></div><div class=\"mb-6 hidden w-full flex-wrap items-stretch justify-end gap-6 rounded-3xl border bg-background p-6 shadow-2xl shadow-zinc-300/20 in-data-[state=active]:block md:flex-nowrap lg:m-0 lg:flex lg:w-fit lg:items-center lg:gap-6 lg:border-transparent lg:bg-transparent lg:p-0 lg:shadow-none lg:in-data-[state=active]:flex dark:shadow-none dark:lg:bg-transparent\"><div class=\"lg:hidden\"><ul class=\"space-y-6 text-base\"><li><a class=\"block text-muted-foreground duration-150 hover:text-accent-foreground\" href=\"#features\">Nghiệp vụ</a></li><li><a class=\"block text-muted-foreground duration-150 hover:text-accent-foreground\" href=\"#solution\">Luồng làm việc</a></li><li><a class=\"block text-muted-foreground duration-150 hover:text-accent-foreground\" href=\"#product\">Trợ lý AI</a></li><li><a class=\"block text-muted-foreground duration-150 hover:text-accent-foreground\" href=\"#about\">Nguyên tắc</a></li></ul></div><div class=\"flex w-full flex-col gap-3 sm:flex-row sm:items-center lg:w-auto\"><div class=\"relative inline-flex items-center rounded-full shrink-0\" data-theme-toggle=\"\" aria-label=\"Toggle Theme\"><button type=\"button\" class=\"relative rounded-full\" aria-label=\"Light theme\" title=\"Chuyển chế độ sáng\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-sun\"><circle cx=\"12\" cy=\"12\" r=\"4\"></circle><path d=\"M12 2v2\"></path><path d=\"M12 20v2\"></path><path d=\"m4.93 4.93 1.41 1.41\"></path><path d=\"m17.66 17.66 1.41 1.41\"></path><path d=\"M2 12h2\"></path><path d=\"M20 12h2\"></path><path d=\"m6.34 17.66-1.41 1.41\"></path><path d=\"m19.07 4.93-1.41 1.41\"></path></svg></button><button type=\"button\" class=\"relative rounded-full\" aria-label=\"Dark theme\" title=\"Chuyển chế độ tối\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-moon\"><path d=\"M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z\"></path></svg></button></div><a data-slot=\"button\" class=\"inline-flex shrink-0 items-center justify-center whitespace-nowrap font-medium text-sm outline-none transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&amp;_svg:not([class*='size-'])]:size-4 [&amp;_svg]:pointer-events-none [&amp;_svg]:shrink-0 border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:border-border dark:bg-input/30 dark:hover:bg-input/50 h-8 gap-1.5 rounded-md px-3 has-[&gt;svg]:px-2.5 w-full sm:w-auto\" href=\"#login\" role=\"button\" aria-label=\"Get Started\">Đăng nhập</a><a data-slot=\"button\" class=\"shrink-0 items-center justify-center whitespace-nowrap font-medium text-sm outline-none transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&amp;_svg:not([class*='size-'])]:size-4 [&amp;_svg]:pointer-events-none [&amp;_svg]:shrink-0 bg-primary text-primary-foreground shadow-xs hover:bg-primary/90 h-8 gap-1.5 rounded-md px-3 has-[&gt;svg]:px-2.5 inline-flex\" href=\"#guta-dashboard\">Xem dashboard</a></div></div></div></div></nav></header><main class=\"flex min-h-screen flex-col\" vt-update=\"auto\"><div class=\"min-h-screen\"><main class=\"relative z-10 overflow-hidden border-b\"><section class=\"relative bg-background\"><div class=\"container relative mx-auto\"><div class=\"border-border border-dashed bg-background sm:border-x\"><div class=\"pt-24 pb-20 md:pt-32 lg:pt-40\"><div class=\"relative z-10 mx-auto grid max-w-5xl items-center gap-4 px-6 text-center\"><div class=\"relative inline-flex justify-self-center\"><div class=\"-inset-[1px] absolute overflow-hidden rounded-full\"><div class=\"absolute inset-0 animate-spin-slow\" style=\"background:conic-gradient(from 0deg, transparent 0%, transparent 70%, #a1a1aa 85%, #10b981 95%, transparent 100%)\"></div></div><div class=\"relative rounded-full border border-border/50 bg-background\"><a class=\"block\" href=\"#\"><span class=\"relative z-10 flex items-center gap-1 px-4 py-1.5 font-medium text-foreground text-sm\">F&amp;B Workforce Intelligence — Next-Gen HR</span></a></div></div><h1 class=\"text-balance font-semibold text-4xl sm:text-5xl lg:text-6xl\">Quản Trị Nhân Sự &amp; Phân Ca Tự Động</h1><div class=\"mx-auto max-w-2xl\"><p class=\"mb-6 text-balance text-lg text-muted-foreground lg:text-xl\">Guta Workspace tự động hóa xếp ca 24H, đối soát chấm công và trợ lý AI điều phối nhân sự cho chuỗi cà phê — nhanh chóng, không sai sót ca làm.</p><div class=\"flex items-center justify-center gap-3\"><a data-slot=\"button\" class=\"inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium text-sm outline-none transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&amp;_svg:not([class*='size-'])]:size-4 [&amp;_svg]:pointer-events-none [&amp;_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2 has-[&gt;svg]:px-3 shadow-md\" href=\"#guta-dashboard\" role=\"button\" aria-label=\"Khám phá dashboard\">Khám phá dashboard</a><a data-slot=\"button\" class=\"inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium text-sm outline-none transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&amp;_svg:not([class*='size-'])]:size-4 [&amp;_svg]:pointer-events-none [&amp;_svg]:shrink-0 border bg-background hover:bg-accent hover:text-accent-foreground dark:border-border dark:bg-input/30 dark:hover:bg-input/50 h-9 px-4 py-2 has-[&gt;svg]:px-3 shadow-sm\" href=\"#solution\">Xem luồng làm việc</a></div><p class=\"mt-4 text-muted-foreground text-xs\">Bản giới thiệu giao diện Guta Workspace · Quản trị chuỗi F&B 45 chi nhánh TP.HCM</p></div></div><div class=\"relative pt-12 lg:pt-20\"><div class=\"relative mx-auto max-w-7xl px-1 md:px-0 lg:px-6\"><div class=\"-inset-20 sm:-inset-28 lg:-inset-40 pointer-events-none absolute opacity-60\" style=\"mask-image:linear-gradient(to right, transparent 0%, black 25%, black 75%, transparent 100%),\n                        linear-gradient(to bottom, transparent 0%, black 30%, black 100%);-webkit-mask-image:linear-gradient(to right, transparent 0%, black 25%, black 75%, transparent 100%),\n                        linear-gradient(to bottom, transparent 0%, black 30%, black 100%);mask-composite:intersect;-webkit-mask-composite:source-in\"><img alt=\"\" aria-hidden=\"true\" fetchpriority=\"high\" width=\"2000\" height=\"1333\" decoding=\"async\" data-nimg=\"1\" class=\"size-full object-cover\" style=\"color:transparent\" sizes=\"(max-width: 768px) 100vw, (max-width: 1280px) 1280px, 1600px\" src=\"/assets/folio/images/dashboard-bg.jpg\"></div><div class=\"relative z-10\" style=\"mask-image:linear-gradient(to bottom, black 0%, black 92%, transparent 100%);-webkit-mask-image:linear-gradient(to bottom, black 0%, black 92%, transparent 100%)\"><div class=\"guta-demo-scroll\" tabindex=\"0\" aria-label=\"Minh họa dashboard nhân sự 21st-CRM, cuộn ngang để xem đầy đủ\" role=\"region\" id=\"dashboard-preview\">\n  <div class=\"crm-app\" id=\"guta-dashboard\" role=\"region\" aria-label=\"Minh họa 21st-CRM Dashboard nhân sự HR BlockBot\">\n    <!-- Topbar (21st-crm header) -->\n    <header class=\"crm-topbar\">\n      <div class=\"crm-topbar-left\">\n        <div class=\"crm-brand-icon\">G</div>\n        <div class=\"crm-brand-meta\">\n          <span class=\"crm-brand-title\">GUTA WORKSPACE</span>\n          <span class=\"crm-brand-sub\">Guta CRM · Quản trị Phân Ca &amp; Nhân Sự Chuỗi</span>\n        </div>\n      </div>\n      <div class=\"crm-search-bar\" role=\"search\">\n        <svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"11\" cy=\"11\" r=\"8\"></circle><path d=\"m21 21-4.3-4.3\"></path></svg>\n        <span>Tìm kiếm chi nhánh, barista, ca trực...</span>\n        <kbd>⌘K</kbd>\n      </div>\n      <div class=\"crm-topbar-actions\">\n        <span class=\"crm-role-badge\">Admin HR</span>\n        <button type=\"button\" class=\"crm-btn crm-btn-outline\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><polygon points=\"22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3\"></polygon></svg> Bộ lọc</button>\n        <button type=\"button\" class=\"crm-btn crm-btn-primary\">+ Tạo ca trực</button>\n      </div>\n    </header>\n\n    <!-- Stats Ribbon (21st-crm metric cards with rounded.sm: 10px) -->\n    <div class=\"crm-metrics-grid\">\n      <div class=\"crm-metric-box\">\n        <div class=\"crm-metric-head\"><span>TỔNG NHÂN SỰ</span><span class=\"crm-tag-neutral\">34 Chi nhánh</span></div>\n        <div class=\"crm-metric-value\">2.439 <small>nhân sự</small></div>\n        <div class=\"crm-metric-foot\">Chuẩn hóa 5 cấp bậc (Intern → Lead)</div>\n      </div>\n      <div class=\"crm-metric-box\">\n        <div class=\"crm-metric-head\"><span>LỊCH TRÌNH VẬN HÀNH CA</span><span class=\"crm-tag-info\">5 Trạng thái</span></div>\n        <div class=\"crm-metric-value\">18 <small>đang quản lý</small></div>\n        <div class=\"crm-metric-foot\">Khởi tạo → Giao → Làm → Duyệt → Xong</div>\n      </div>\n      <div class=\"crm-metric-box\">\n        <div class=\"crm-metric-head\"><span>HÀNG ĐỢI DUYỆT</span><span class=\"crm-tag-warning\">4 Chờ duyệt</span></div>\n        <div class=\"crm-metric-value\">04 <small>báo cáo mới</small></div>\n        <div class=\"crm-metric-foot\">Cần Admin đối chiếu &amp; xác nhận</div>\n      </div>\n      <div class=\"crm-metric-box\">\n        <div class=\"crm-metric-head\"><span>GỢI Ý PHOBERT AI</span><span class=\"crm-tag-success\">Semantic Match</span></div>\n        <div class=\"crm-metric-value\">94.2% <small>độ tương đồng</small></div>\n        <div class=\"crm-metric-foot\">Khớp kỹ năng hồ sơ với yêu cầu việc</div>\n      </div>\n    </div>\n\n    <!-- Main Workspace (Pipeline Stage Kanban Columns + AI Assistant Panel) -->\n    <div class=\"crm-workspace-body\">\n      <!-- 5-Stage Pipeline Columns -->\n      <div class=\"crm-pipeline-container\">\n        <!-- Stage 1 -->\n        <div class=\"crm-stage-col\">\n          <div class=\"crm-stage-header\">\n            <span class=\"crm-stage-name\">1. Khởi tạo</span>\n            <span class=\"crm-stage-count\">1</span>\n          </div>\n          <div class=\"crm-cards-list\">\n            <div class=\"crm-card\">\n              <div class=\"crm-card-tags\">\n                <span class=\"crm-pill crm-pill-gray\">Ca Sáng</span>\n                <span class=\"crm-pill crm-pill-blue\">SOP-01</span>\n              </div>\n              <h4 class=\"crm-card-title\">Định biên nhân sự ca sáng</h4>\n              <p class=\"crm-card-desc\">Thiết lập định biên Barista và nhân sự phụ ca cho 45 cửa hàng.</p>\n              <div class=\"crm-card-meta\">\n                <div class=\"crm-avatar\">HR</div>\n                <span>Phòng Nhân sự</span>\n              </div>\n              <div class=\"crm-card-footer\">\n                <span class=\"crm-date\">Hạn: 30/10</span>\n                <span class=\"crm-status-text\">Chưa mở kỳ</span>\n              </div>\n            </div>\n          </div>\n        </div>\n\n        <!-- Stage 2 -->\n        <div class=\"crm-stage-col\">\n          <div class=\"crm-stage-header\">\n            <span class=\"crm-stage-name\">2. Đã giao</span>\n            <span class=\"crm-stage-count\">1</span>\n          </div>\n          <div class=\"crm-cards-list\">\n            <div class=\"crm-card\">\n              <div class=\"crm-card-tags\">\n                <span class=\"crm-pill crm-pill-green\">PhoBERT 95%</span>\n                <span class=\"crm-pill crm-pill-gray\">SOP-04</span>\n              </div>\n              <h4 class=\"crm-card-title\">Rà soát quy chế ca 24H</h4>\n              <p class=\"crm-card-desc\">Cập nhật quy định chấm công ZKTeco và phụ cấp ca đêm.</p>\n              <div class=\"crm-card-meta\">\n                <div class=\"crm-avatar\">VA</div>\n                <span>Nguyễn Văn An (Senior)</span>\n              </div>\n              <div class=\"crm-card-footer\">\n                <span class=\"crm-date\">Giao: 20/10</span>\n                <span class=\"crm-status-text\">Đã gửi qua Bot</span>\n              </div>\n            </div>\n          </div>\n        </div>\n\n        <!-- Stage 3 -->\n        <div class=\"crm-stage-col\">\n          <div class=\"crm-stage-header\">\n            <span class=\"crm-stage-name\">3. Đang thực hiện</span>\n            <span class=\"crm-stage-count\">2</span>\n          </div>\n          <div class=\"crm-cards-list\">\n            <div class=\"crm-card\">\n              <div class=\"crm-card-tags\">\n                <span class=\"crm-pill crm-pill-blue\">Hồ sơ &amp; Kỹ năng</span>\n              </div>\n              <h4 class=\"crm-card-title\">Chuẩn hóa hồ sơ nhân sự</h4>\n              <p class=\"crm-card-desc\">Phân loại kỹ năng pha chế, quản lý kho theo chuẩn Guta.</p>\n              <div class=\"crm-progress-bar\"><div class=\"crm-progress-fill\" style=\"width: 60%\"></div></div>\n              <div class=\"crm-card-meta\">\n                <div class=\"crm-avatar\">TB</div>\n                <span>Trần Thị Bình (Middle)</span>\n              </div>\n              <div class=\"crm-card-footer\">\n                <span class=\"crm-date\">Tiến độ: 60%</span>\n                <span class=\"crm-status-text\">Đang cập nhật</span>\n              </div>\n            </div>\n\n            <div class=\"crm-card\">\n              <div class=\"crm-card-tags\">\n                <span class=\"crm-pill crm-pill-purple\">Socket.IO</span>\n                <span class=\"crm-pill crm-pill-gray\">SOP-09</span>\n              </div>\n              <h4 class=\"crm-card-title\">Chatbot nhắc ca &amp; chốt két</h4>\n              <p class=\"crm-card-desc\">Gửi thông báo vào ca và nhắc hạn chốt quỹ két tự động.</p>\n              <div class=\"crm-progress-bar\"><div class=\"crm-progress-fill\" style=\"width: 85%\"></div></div>\n              <div class=\"crm-card-meta\">\n                <div class=\"crm-avatar\">LC</div>\n                <span>Lê Hoàng Cường (Lead)</span>\n              </div>\n              <div class=\"crm-card-footer\">\n                <span class=\"crm-date\">Tiến độ: 85%</span>\n                <span class=\"crm-status-text\">Test luồng chat</span>\n              </div>\n            </div>\n          </div>\n        </div>\n\n        <!-- Stage 4 -->\n        <div class=\"crm-stage-col\">\n          <div class=\"crm-stage-header\">\n            <span class=\"crm-stage-name\">4. Chờ duyệt</span>\n            <span class=\"crm-stage-count\">1</span>\n          </div>\n          <div class=\"crm-cards-list\">\n            <div class=\"crm-card crm-card-highlight\">\n              <div class=\"crm-card-tags\">\n                <span class=\"crm-pill crm-pill-blue\">Cần đối chiếu</span>\n                <span class=\"crm-pill crm-pill-gray\">SOP-05</span>\n              </div>\n              <h4 class=\"crm-card-title\">Đối soát bàn giao két ca</h4>\n              <p class=\"crm-card-desc\">Đã gửi biên bản chốt quỹ két qua Chatbot. Chờ Quản lý đối soát.</p>\n              <div class=\"crm-card-meta\">\n                <div class=\"crm-avatar\">PD</div>\n                <span>Phạm Minh Dũng (Junior)</span>\n              </div>\n              <div class=\"crm-card-actions\">\n                <button type=\"button\" class=\"crm-mini-btn crm-btn-confirm\">Phê duyệt</button>\n                <button type=\"button\" class=\"crm-mini-btn crm-btn-secondary\">Trả lại (lý do)</button>\n              </div>\n            </div>\n          </div>\n        </div>\n\n        <!-- Stage 5 -->\n        <div class=\"crm-stage-col\">\n          <div class=\"crm-stage-header\">\n            <span class=\"crm-stage-name\">5. Hoàn thành</span>\n            <span class=\"crm-stage-count\">1</span>\n          </div>\n          <div class=\"crm-cards-list\">\n            <div class=\"crm-card\">\n              <div class=\"crm-card-tags\">\n                <span class=\"crm-pill crm-pill-green\">Đã chốt két</span>\n                <span class=\"crm-pill crm-pill-gray\">Chuẩn 100%</span>\n              </div>\n              <h4 class=\"crm-card-title\">Nghiệm thu ca làm &amp; bàn giao</h4>\n              <p class=\"crm-card-desc\">Đã đồng bộ chấm công ZKTeco và khớp dữ liệu két ca.</p>\n              <div class=\"crm-card-meta\">\n                <div class=\"crm-avatar\">DE</div>\n                <span>Đặng Thu Em (Senior)</span>\n              </div>\n              <div class=\"crm-card-footer\">\n                <span class=\"crm-date\">Xong: 22/10</span>\n                <span class=\"crm-status-text\">Đã chốt két</span>\n              </div>\n            </div>\n          </div>\n        </div>\n      </div>\n\n      <!-- Right Side: AI Assistant & Matching Card (21st-crm side panel) -->\n      <aside class=\"crm-assistant-panel\">\n        <div class=\"crm-assistant-head\">\n          <div class=\"crm-bot-status\"><span class=\"crm-dot\"></span><strong>TRỢ LÝ HR BLOCKBOT</strong></div>\n          <span class=\"crm-tag-xs\">AI Copilot</span>\n        </div>\n        \n        <div class=\"crm-assistant-body\">\n          <div class=\"crm-chat-msg crm-msg-user\">\n            <small>Nhân viên hỏi qua Chatbot:</small>\n            <p>“Làm thế nào để tôi báo cáo chốt quỹ két và đổi ca trực?”</p>\n          </div>\n          <div class=\"crm-chat-msg crm-msg-bot\">\n            <small>Trợ lý phản hồi (SOP-05 / Vận hành ca):</small>\n            <p>Chọn ca trực phụ trách, đính kèm biên bản két và bấm xác nhận. Dữ liệu sẽ chuyển sang cột <strong>Chờ duyệt</strong> trên Dashboard của Quản lý.</p>\n            <div class=\"crm-msg-cite\">Quy định vận hành F&B: Xác nhận trước khi chốt két</div>\n          </div>\n\n          <div class=\"crm-recommendation-box\">\n            <div class=\"crm-rec-label\">GỢI Ý PHÂN CÔNG PHOBERT</div>\n            <h5>Ca trực: Tăng cường Barista giờ cao điểm</h5>\n            <div class=\"crm-rec-candidate\">\n              <div class=\"crm-avatar-sm\">LC</div>\n              <div>\n                <strong>Lê Hoàng Cường</strong> · Lead\n                <small>Điểm tương đồng kỹ năng: <strong>96%</strong> · Tải việc: 1/3</small>\n              </div>\n            </div>\n            <div class=\"crm-rec-action\">\n              <button type=\"button\" class=\"crm-btn crm-btn-primary crm-btn-block\">Chấp thuận phân công</button>\n            </div>\n            <span class=\"crm-rec-note\">Admin giữ quyền quyết định cuối cùng.</span>\n          </div>\n        </div>\n        <div class=\"crm-assistant-foot\">\n          <span>Minh họa 2 vai (Quản trị &amp; Barista) · Hệ thống Guta F&B</span>\n        </div>\n      </aside>\n    </div>\n  </div></div><p>Minh họa giao diện 21st-CRM HR BlockBot · Dữ liệu mô phỏng vận hành chuỗi cà phê · Cuộn ngang trên màn hình nhỏ</p></div></div></div></div></div></div></section></main><section class=\"py-14 sm:py-20 border-b border-border/30\">\n    <div class=\"guta-container pb-6 border-b border-border/20 flex flex-wrap items-center justify-center gap-6 text-xs font-semibold uppercase tracking-widest text-muted-foreground\">\n      <span class=\"text-primary font-bold\">ĐỐI TÁC CUNG ỨNG F&B:</span>\n      <div class=\"flex flex-wrap items-center gap-5\">\n        <span>Vinamilk</span>\n        <span>•</span>\n        <span>La Marzocco</span>\n        <span>•</span>\n        <span>Dalatmilk</span>\n        <span>•</span>\n        <span>Monin</span>\n        <span>•</span>\n        <span>Torani</span>\n        <span>•</span>\n        <span>OATLY</span>\n        <span>•</span>\n        <span>Rich's</span>\n      </div>\n    </div>\n    <div class=\"guta-container guta-capabilities pt-6\"><span class=\"guta-label\">PHẠM VI NGHIỆP VỤ</span><div><span>Hồ sơ nhân sự</span><span>Vận hành ca trực</span><span>Chatbot tiếng Việt</span><span>Gợi ý phân công</span><span>Đánh giá KPI</span><span>Báo cáo &amp; nhắc hạn</span></div></div></section><section class=\"py-16 sm:py-20 md:py-28\" id=\"features\"><div class=\"guta-container\"><header class=\"guta-section-head\"><span class=\"guta-label\">TỪ DỮ LIỆU ĐẾN QUYẾT ĐỊNH</span><h2>Bớt hỏi lại. Có chỗ để đối chiếu.</h2><p>Mỗi thông tin đi cùng một việc cần làm, thay vì nằm rải rác trong file và tin nhắn.</p></header><div class=\"guta-grid-three\"><article class=\"guta-card\"><div class=\"guta-mini\"><span>HỒ SƠ NHÂN SỰ</span><strong>Kỹ năng → Yêu cầu công việc</strong><p>Cấp bậc là dữ liệu, không phải quyền truy cập.</p></div><h3>Biết hồ sơ nào phù hợp</h3><p>Tập hợp kỹ năng, cấp bậc và lịch sử tham gia công việc để người quản lý có cơ sở lựa chọn.</p></article><article class=\"guta-card\"><div class=\"guta-mini\"><span>TRẠNG THÁI CÔNG VIỆC</span><strong>Đang thực hiện → Chờ duyệt</strong><p>Giữ lịch sử, không chỉ ghi trạng thái cuối.</p></div><h3>Biết việc đang ở đâu</h3><p>Theo dõi từng bước từ mở ca đến chốt két. Báo cáo ca trực bị từ chối phải có lý do để nhân sự điều chỉnh đúng chỗ.</p></article><article class=\"guta-card\"><div class=\"guta-mini\"><span>CĂN CỨ ĐÁNH GIÁ</span><strong>Kết quả + Nhận xét + Lịch sử</strong><p>AI hỗ trợ; quyết định không bị giấu sau một con số.</p></div><h3>Biết vì sao ra điểm số</h3><p>Đối chiếu kết quả, nhận xét và điểm KPI. Mọi hiệu chỉnh của quản lý cần lý do và người thực hiện.</p></article></div></div></section><section class=\"py-20 md:py-28 relative\" id=\"solution\"><div class=\"guta-container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl\"><header class=\"guta-section-head text-center max-w-3xl mx-auto mb-10\"><span class=\"inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold tracking-wider uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 mb-3\">KIẾN TRÚC &amp; LUỒNG XỬ LÝ AGENTIC</span><h2 class=\"text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-foreground\">Luồng Vận Hành Tự Động 24/7</h2><p class=\"mt-4 text-base sm:text-lg text-muted-foreground leading-relaxed\">Hệ thống tự động điều phối luồng hội thoại từ Ingress (Zalo, Telegram, Web), qua Bộ lọc Fast Rule Gate, Phân loại Jev AI, Vòng lặp Agent đến Gemini 3.8 Flash và Cổng xác thực con người 2 bước.</p></header><div class=\"workflow-diagram-card relative border border-emerald-500/20 bg-background/80 backdrop-blur-md rounded-2xl overflow-hidden shadow-2xl shadow-emerald-950/20 transition-all duration-300 hover:border-emerald-500/35\"><div class=\"workflow-toolbar flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 bg-emerald-950/40 border-b border-emerald-500/20 backdrop-blur-lg\"><div class=\"flex items-center gap-2\"><span class=\"workflow-status-chip inline-flex items-center gap-2 px-3 py-1 text-xs font-semibold rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30\"><span class=\"relative flex h-2 w-2\"><span class=\"animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75\"></span><span class=\"relative inline-flex rounded-full h-2 w-2 bg-emerald-500\"></span></span><span class=\"workflow-status-text\">🟢 Luồng tín hiệu: Đang chạy liên tục (Live Loop)</span></span></div><div class=\"flex flex-wrap items-center gap-2\"><button type=\"button\" class=\"workflow-btn-fit px-3 py-1.5 text-xs font-medium rounded-lg border border-emerald-500/30 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/50 hover:text-emerald-100 transition-colors cursor-pointer\" title=\"Khớp khung hình sơ đồ (Fit View)\" aria-label=\"Khớp khung hình sơ đồ\">Khớp khung hình (Fit View)</button><button type=\"button\" class=\"workflow-btn-toggle px-3 py-1.5 text-xs font-medium rounded-lg border border-emerald-500/30 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/50 hover:text-emerald-100 transition-colors inline-flex items-center gap-1.5 cursor-pointer\" title=\"Tạm dừng / Tiếp tục luồng tín hiệu (Space)\" aria-label=\"Tạm dừng luồng\"><span class=\"workflow-toggle-icon\">⏸</span> <span class=\"workflow-toggle-text\">Tạm dừng</span></button><a href=\"/diagrams/chatbot-architecture.html\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"workflow-btn-fullscreen px-3 py-1.5 text-xs font-medium rounded-lg border border-emerald-500/30 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/50 hover:text-emerald-100 transition-colors inline-flex items-center gap-1.5 cursor-pointer\" title=\"Mở toàn màn hình hoặc tab mới\" aria-label=\"Mở toàn màn hình mới\"><span>⛶</span> <span>Mở toàn màn hình mới</span></a></div></div><div class=\"workflow-iframe-wrapper relative w-full h-[480px] sm:h-[560px] lg:h-[680px] bg-[#021a16] overflow-hidden\"><iframe id=\"workflow-diagram-iframe\" src=\"/diagrams/chatbot-architecture.html\" title=\"HR BlockBot - Chatbot &amp; Agentic Architecture\" class=\"w-full h-full border-0 block\" loading=\"lazy\" allow=\"fullscreen\"></iframe></div></div></div></section><section class=\"py-20 md:py-28\" id=\"product\"><div class=\"guta-container\"><header class=\"guta-section-head\"><span class=\"guta-label\">AI CÓ VAI TRÒ CỤ THỂ</span><h2>Gợi ý có lý do. Tra cứu có ngữ cảnh.</h2><p>Hệ thống tối ưu theo quy trình chuỗi F&B thực tế, minh bạch mọi quyết định điều phối ca.</p></header><div class=\"guta-grid-two\"><article class=\"guta-card\"><div class=\"guta-mini\"><span>YÊU CẦU → GỢI Ý → NGƯỜI DUYỆT</span><strong>Không tự giao việc thay quản lý.</strong></div><h3>Phân công theo kỹ năng và khối lượng việc</h3><p>PhoBERT là thành phần ngữ nghĩa trong thiết kế matching. Người quản lý xem độ phù hợp và tải công việc trước khi quyết định.</p></article><article class=\"guta-card\"><div class=\"guta-mini\"><span>HỎI → TRA CỨU → ĐỐI CHIẾU</span><strong>“Quy định nộp báo cáo ở đâu?”</strong></div><h3>Tra cứu chính sách bằng tiếng Việt</h3><p>Hỏi theo tình huống thay vì dò nhiều file. Thiết kế chatbot ưu tiên câu trả lời bám tài liệu; chưa đủ thông tin thì hỏi lại.</p></article></div></div></section><section class=\"py-20 md:py-28\" id=\"about\"><div class=\"guta-container\"><header class=\"guta-section-head\"><span class=\"guta-label\">THIẾT KẾ ĐỂ KIỂM TRA ĐƯỢC</span><h2>Không cần tin một cách mù quáng.</h2><p>Quy trình điều phối chuẩn hóa, kiểm soát chặt chẽ chấm công máy ZKTeco và két ca.</p></header><div class=\"guta-grid-three\"><article class=\"guta-card\"><h3>Phân quyền theo vai</h3><p>Quản lý điều phối chi nhánh. Barista thao tác ca trực và đối soát két trong ca làm.</p></article><article class=\"guta-card\"><h3>Xác nhận trước khi ghi</h3><p>Nhận ca, bàn giao quỹ két hay gửi cảnh báo đều cần xác nhận chính xác trước khi lưu.</p></article><article class=\"guta-card\"><h3>Giữ dấu vết thay đổi</h3><p>Trạng thái điểm danh, lý do đi trễ và hiệu chỉnh công ca phải có nhật ký kiểm soát rõ ràng.</p></article></div></div></section><section class=\"bg-background py-16 md:py-24\" id=\"questions\"><div class=\"guta-container\"><header class=\"guta-section-head\"><span class=\"guta-label\">TRƯỚC KHI TRẢI NGHIỆM</span><h2>Những điều cần rõ.</h2><p>Phạm vi và giới hạn được nói ngay trên trang.</p></header><div class=\"guta-faq\"><details><summary>HR BlockBot giải quyết việc gì?</summary><p>Tập trung hồ sơ nhân sự, lịch phân ca 24/7, điều phối barista chéo, tra cứu quy chế, quỹ két và báo cáo trong cùng một hệ thống.</p></details><details><summary>Dashboard và chatbot có dữ liệu riêng không?</summary><p>Không. Theo thiết kế, hai giao diện chia sẻ một nguồn dữ liệu và cùng nghiệp vụ; khác nhau ở cách người dùng thao tác.</p></details><details><summary>AI có tự giao việc hay quyết định điểm KPI không?</summary><p>Thiết kế đặt AI ở vai trò hỗ trợ. Quản lý xác nhận phân công; hiệu chỉnh KPI phải có lý do và lịch sử.</p></details><details><summary>Đây có phải dữ liệu Guta đang chạy thật không?</summary><p>Không. Các công việc và hội thoại trên trang là nội dung minh họa giao diện; không phải dữ liệu vận hành hoặc kết quả AI đã đo.</p></details><details><summary>Hệ thống có xếp ca, tính lương hay duyệt nghỉ phép không?</summary><p>Hệ thống tập trung cốt lõi vào điều phối ca trực, điểm danh ZKTeco và quản trị két ca 45 chi nhánh. Các phân hệ tính lương và duyệt nghỉ phép tự động đang trong lộ trình tích hợp tiếp theo.</p></details></div></div></section></div></main><footer class=\"relative mt-12 overflow-hidden bg-background\" vt-update=\"auto\"><div class=\"guta-container guta-footer\"><strong>GUTA WORKSPACE <span>· HR BlockBot</span></strong><p>Guta Workspace · Nền tảng điều hành nhân sự &amp; chuỗi cà phê F&B</p><a href=\"#questions\">Phạm vi &amp; câu hỏi</a></div></footer><section aria-label=\"Notifications alt+T\" tabindex=\"-1\" aria-live=\"polite\" aria-relevant=\"additions text\" aria-atomic=\"false\"></section>\n<!-- AUTH MODAL -->\n\n\n\n</div>";
+/* Static marketing markup. No interpolation: every byte here is authored, never
+ * derived from user input, so dangerouslySetInnerHTML cannot carry a payload.
+ *
+ * Motion contract (see folio-layout.css §9):
+ *   [data-line] / [data-load] / [data-open]  hero appear, one signature
+ *   [data-enter]                             section entrance, manner per content type
+ *   [data-loop]                              bento story, paused while off-screen */
+const FOLIO_HTML = `
+<div class="relative flex min-h-svh flex-col overflow-x-hidden bg-background text-foreground antialiased folio-preview">
+<header>
+  <nav data-state="false" aria-label="Điều hướng chính">
+    <div class="folio-nav">
+      <a class="folio-nav-brand" href="#" aria-label="Guta Workspace home">
+        <img src="/assets/logos/guta-mark-pure.svg" alt="HR-BlockBot Logo" class="folio-nav-logo" />
+        <span class="folio-nav-wordmark">
+          <span class="folio-nav-name"><b>GUTA</b> WORKSPACE</span>
+          <span class="folio-nav-sub">HR &amp; Smart Shift AI</span>
+        </span>
+      </a>
+      <button type="button" aria-label="Open Menu" aria-expanded="false" class="folio-nav-burger">
+        <svg class="folio-nav-icon-menu" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+        <svg class="folio-nav-icon-close" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+      </button>
+      <ul class="folio-nav-links">
+        <li><a href="#features">Nghiệp vụ</a></li>
+        <li><a href="#solution">Luồng làm việc</a></li>
+        <li><a href="#product">Trợ lý AI</a></li>
+        <li><a href="#about">Nguyên tắc</a></li>
+      </ul>
+      <div class="folio-nav-actions">
+        <div class="folio-theme" data-theme-toggle aria-label="Toggle Theme">
+          <button type="button" aria-label="Light theme" title="Chuyển chế độ sáng">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg>
+          </button>
+          <button type="button" aria-label="Dark theme" title="Chuyển chế độ tối">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>
+          </button>
+        </div>
+        <a class="folio-btn folio-btn-quiet" href="#login" role="button" aria-label="Get Started">Đăng nhập</a>
+        <a class="folio-btn folio-btn-solid" href="#guta-dashboard">Xem dashboard</a>
+      </div>
+    </div>
+  </nav>
+</header>
+
+<main class="folio-main">
+  <section class="folio-hero">
+    <div class="folio-hero-inner">
+      <div class="hero-badge" data-load style="--d:120ms">
+        <span class="hero-badge-dot" aria-hidden="true"></span>
+        <a href="#">F&amp;B Workforce Intelligence — Next-Gen HR</a>
+      </div>
+      <h1 class="folio-display"><span class="line"><span data-line style="--i:0">Quản Trị Nhân Sự &amp;</span></span> <span class="line"><span data-line style="--i:1">Phân Ca Tự Động</span></span></h1>
+      <p class="hero-sub" data-load style="--d:420ms">Guta Workspace tự động hóa xếp ca 24H, đối soát chấm công và trợ lý AI điều phối nhân sự cho chuỗi cà phê — nhanh, không sót ca.</p>
+      <div class="hero-actions" data-load style="--d:480ms">
+        <a class="hero-cta" href="#guta-dashboard" role="button" aria-label="Khám phá dashboard">Khám phá dashboard</a>
+        <a class="hero-cta-secondary" href="#solution">Xem luồng làm việc</a>
+      </div>
+      <p class="hero-meta" data-load style="--d:540ms">Bản giới thiệu giao diện Guta Workspace · Quản trị chuỗi F&amp;B 45 chi nhánh TP.HCM</p>
+    </div>
+
+    <div class="hero-stage">
+      <div class="hero-stage-frame" data-open>
+        <div class="hero-stage-crop">
+          <div class="guta-demo-scroll" tabindex="0" aria-label="Minh họa dashboard nhân sự 21st-CRM, cuộn ngang để xem đầy đủ" role="region" id="dashboard-preview">
+            <div class="crm-app" id="guta-dashboard" role="region" aria-label="Minh họa 21st-CRM Dashboard nhân sự HR BlockBot">
+              <header class="crm-topbar">
+                <div class="crm-topbar-left">
+                  <div class="crm-brand-icon">G</div>
+                  <div class="crm-brand-meta">
+                    <span class="crm-brand-title">Guta Workspace</span>
+                    <span class="crm-brand-sub">Guta CRM · Quản trị phân ca &amp; nhân sự chuỗi</span>
+                  </div>
+                </div>
+                <div class="crm-search-bar" role="search">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+                  <span>Tìm kiếm chi nhánh, barista, ca trực...</span>
+                  <kbd>⌘K</kbd>
+                </div>
+                <div class="crm-topbar-actions">
+                  <span class="crm-role-badge">Admin HR</span>
+                  <button type="button" class="crm-btn crm-btn-outline"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg> Bộ lọc</button>
+                  <button type="button" class="crm-btn crm-btn-primary">Tạo ca trực</button>
+                </div>
+              </header>
+
+              <div class="crm-metrics-grid">
+                <div class="crm-metric-box">
+                  <div class="crm-metric-head"><span>Tổng nhân sự</span><span class="crm-tag-neutral">34 chi nhánh</span></div>
+                  <div class="crm-metric-value">2.439 <small>nhân sự</small></div>
+                  <div class="crm-metric-foot">Chuẩn hóa 5 cấp bậc (Intern → Lead)</div>
+                </div>
+                <div class="crm-metric-box">
+                  <div class="crm-metric-head"><span>Lịch trình vận hành ca</span><span class="crm-tag-info">5 trạng thái</span></div>
+                  <div class="crm-metric-value">18 <small>đang quản lý</small></div>
+                  <div class="crm-metric-foot">Khởi tạo → Giao → Làm → Duyệt → Xong</div>
+                </div>
+                <div class="crm-metric-box">
+                  <div class="crm-metric-head"><span>Hàng đợi duyệt</span><span class="crm-tag-neutral">4 chờ duyệt</span></div>
+                  <div class="crm-metric-value">04 <small>báo cáo mới</small></div>
+                  <div class="crm-metric-foot">Cần Admin đối chiếu &amp; xác nhận</div>
+                </div>
+                <div class="crm-metric-box">
+                  <div class="crm-metric-head"><span>Gợi ý PhoBERT</span><span class="crm-tag-success">Semantic match</span></div>
+                  <div class="crm-metric-value">94.2% <small>độ tương đồng</small></div>
+                  <div class="crm-metric-foot">Khớp kỹ năng hồ sơ với yêu cầu việc</div>
+                </div>
+              </div>
+
+              <div class="crm-workspace-body">
+                <div class="crm-pipeline-container">
+                  <div class="crm-stage-col" data-enter="col" style="--i:0">
+                    <div class="crm-stage-header"><span class="crm-stage-name">1. Khởi tạo</span><span class="crm-stage-count">1</span></div>
+                    <div class="crm-cards-list">
+                      <div class="crm-card" data-enter="card-in-col" style="--i:0">
+                        <div class="crm-card-tags"><span class="crm-pill crm-pill-gray">Ca sáng</span><span class="crm-pill crm-pill-blue">SOP-01</span></div>
+                        <h4 class="crm-card-title">Định biên nhân sự ca sáng</h4>
+                        <p class="crm-card-desc">Thiết lập định biên Barista và nhân sự phụ ca cho 45 cửa hàng.</p>
+                        <div class="crm-card-meta"><div class="crm-avatar">HR</div><span>Phòng nhân sự</span></div>
+                        <div class="crm-card-footer"><span class="crm-date">Hạn: 30/10</span><span class="crm-status-text">Chưa mở kỳ</span></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="crm-stage-col" data-enter="col" style="--i:1">
+                    <div class="crm-stage-header"><span class="crm-stage-name">2. Đã giao</span><span class="crm-stage-count">1</span></div>
+                    <div class="crm-cards-list">
+                      <div class="crm-card" data-enter="card-in-col" style="--i:0">
+                        <div class="crm-card-tags"><span class="crm-pill crm-pill-green">PhoBERT 95%</span><span class="crm-pill crm-pill-gray">SOP-04</span></div>
+                        <h4 class="crm-card-title">Rà soát quy chế ca 24H</h4>
+                        <p class="crm-card-desc">Cập nhật quy định chấm công ZKTeco và phụ cấp ca đêm.</p>
+                        <div class="crm-card-meta"><div class="crm-avatar">VA</div><span>Nguyễn Văn An (Senior)</span></div>
+                        <div class="crm-card-footer"><span class="crm-date">Giao: 20/10</span><span class="crm-status-text">Đã gửi qua Bot</span></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="crm-stage-col" data-enter="col" style="--i:2">
+                    <div class="crm-stage-header"><span class="crm-stage-name">3. Đang thực hiện</span><span class="crm-stage-count">2</span></div>
+                    <div class="crm-cards-list">
+                      <div class="crm-card" data-enter="card-in-col" style="--i:0">
+                        <div class="crm-card-tags"><span class="crm-pill crm-pill-blue">Hồ sơ &amp; kỹ năng</span></div>
+                        <h4 class="crm-card-title">Chuẩn hóa hồ sơ nhân sự</h4>
+                        <p class="crm-card-desc">Phân loại kỹ năng pha chế, quản lý kho theo chuẩn Guta.</p>
+                        <div class="crm-progress-bar"><div class="crm-progress-fill" style="width:60%"></div></div>
+                        <div class="crm-card-meta"><div class="crm-avatar">TB</div><span>Trần Thị Bình (Middle)</span></div>
+                        <div class="crm-card-footer"><span class="crm-date">Tiến độ: 60%</span><span class="crm-status-text">Đang cập nhật</span></div>
+                      </div>
+                      <div class="crm-card" data-enter="card-in-col" style="--i:1">
+                        <div class="crm-card-tags"><span class="crm-pill crm-pill-purple">Socket.IO</span><span class="crm-pill crm-pill-gray">SOP-09</span></div>
+                        <h4 class="crm-card-title">Chatbot nhắc ca &amp; chốt két</h4>
+                        <p class="crm-card-desc">Gửi thông báo vào ca và nhắc hạn chốt quỹ két tự động.</p>
+                        <div class="crm-progress-bar"><div class="crm-progress-fill" style="width:85%"></div></div>
+                        <div class="crm-card-meta"><div class="crm-avatar">LC</div><span>Lê Hoàng Cường (Lead)</span></div>
+                        <div class="crm-card-footer"><span class="crm-date">Tiến độ: 85%</span><span class="crm-status-text">Test luồng chat</span></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="crm-stage-col" data-enter="col" style="--i:3">
+                    <div class="crm-stage-header"><span class="crm-stage-name">4. Chờ duyệt</span><span class="crm-stage-count">1</span></div>
+                    <div class="crm-cards-list">
+                      <div class="crm-card crm-card-highlight" data-enter="card-in-col" style="--i:0">
+                        <div class="crm-card-tags"><span class="crm-pill crm-pill-blue">Cần đối chiếu</span><span class="crm-pill crm-pill-gray">SOP-05</span></div>
+                        <h4 class="crm-card-title">Đối soát bàn giao két ca</h4>
+                        <p class="crm-card-desc">Đã gửi biên bản chốt quỹ két qua Chatbot. Chờ quản lý đối soát.</p>
+                        <div class="crm-card-meta"><div class="crm-avatar">PD</div><span>Phạm Minh Dũng (Junior)</span></div>
+                        <div class="crm-card-actions">
+                          <button type="button" class="crm-mini-btn crm-btn-confirm">Phê duyệt</button>
+                          <button type="button" class="crm-mini-btn crm-btn-secondary">Trả lại</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="crm-stage-col" data-enter="col" style="--i:4">
+                    <div class="crm-stage-header"><span class="crm-stage-name">5. Hoàn thành</span><span class="crm-stage-count">1</span></div>
+                    <div class="crm-cards-list">
+                      <div class="crm-card" data-enter="card-in-col" style="--i:0">
+                        <div class="crm-card-tags"><span class="crm-pill crm-pill-green">Đã chốt két</span><span class="crm-pill crm-pill-gray">Chuẩn 100%</span></div>
+                        <h4 class="crm-card-title">Nghiệm thu ca làm &amp; bàn giao</h4>
+                        <p class="crm-card-desc">Đã đồng bộ chấm công ZKTeco và khớp dữ liệu két ca.</p>
+                        <div class="crm-card-meta"><div class="crm-avatar">DE</div><span>Đặng Thu Em (Senior)</span></div>
+                        <div class="crm-card-footer"><span class="crm-date">Xong: 22/10</span><span class="crm-status-text">Đã chốt két</span></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <aside class="crm-assistant-panel">
+                  <div class="crm-assistant-head">
+                    <div class="crm-bot-status"><span class="crm-dot" aria-hidden="true"></span><strong>Trợ lý HR BlockBot</strong></div>
+                    <span class="crm-tag-xs">AI copilot</span>
+                  </div>
+                  <div class="crm-assistant-body">
+                    <div class="crm-chat-msg crm-msg-user">
+                      <small>Nhân viên hỏi qua chatbot</small>
+                      <p>“Làm thế nào để tôi báo cáo chốt quỹ két và đổi ca trực?”</p>
+                    </div>
+                    <div class="crm-chat-msg crm-msg-bot">
+                      <small>Trợ lý phản hồi · SOP-05 / Vận hành ca</small>
+                      <p>Chọn ca trực phụ trách, đính kèm biên bản két và bấm xác nhận. Dữ liệu sẽ chuyển sang cột <strong>Chờ duyệt</strong> trên dashboard của quản lý.</p>
+                      <div class="crm-msg-cite">Quy định vận hành F&amp;B: xác nhận trước khi chốt két</div>
+                    </div>
+                    <div class="crm-recommendation-box">
+                      <div class="crm-rec-label">Gợi ý phân công PhoBERT</div>
+                      <h5>Ca trực: tăng cường barista giờ cao điểm</h5>
+                      <div class="crm-rec-candidate">
+                        <div class="crm-avatar-sm">LC</div>
+                        <div>
+                          <strong>Lê Hoàng Cường</strong> · Lead
+                          <small>Điểm tương đồng kỹ năng: <strong>96%</strong> · Tải việc: 1/3</small>
+                        </div>
+                      </div>
+                      <div class="crm-rec-action">
+                        <button type="button" class="crm-btn crm-btn-primary crm-btn-block">Chấp thuận phân công</button>
+                      </div>
+                      <span class="crm-rec-note">Admin giữ quyền quyết định cuối cùng.</span>
+                    </div>
+                  </div>
+                  <div class="crm-assistant-foot">Minh họa 2 vai (quản trị &amp; barista) · Hệ thống Guta F&amp;B</div>
+                </aside>
+              </div>
+            </div>
+          </div>
+          <p class="demo-caption">Minh họa giao diện 21st-CRM HR BlockBot · Dữ liệu mô phỏng vận hành chuỗi cà phê · Cuộn ngang trên màn hình nhỏ</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="folio-partners" aria-label="Đối tác cung ứng">
+    <div class="guta-container">
+      <div class="partners-row">
+        <span class="partners-lead">Đối tác cung ứng F&amp;B</span>
+        <span>Vinamilk</span><span aria-hidden="true">·</span>
+        <span>La Marzocco</span><span aria-hidden="true">·</span>
+        <span>Dalatmilk</span><span aria-hidden="true">·</span>
+        <span>Monin</span><span aria-hidden="true">·</span>
+        <span>Torani</span><span aria-hidden="true">·</span>
+        <span>OATLY</span><span aria-hidden="true">·</span>
+        <span>Rich's</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="folio-section" id="features">
+    <div class="guta-container">
+      <header class="guta-section-head">
+        <span class="guta-label">Từ dữ liệu đến quyết định</span>
+        <h2>Bớt hỏi lại. Có chỗ để đối chiếu.</h2>
+        <p>Mỗi thông tin đi cùng một việc cần làm, thay vì nằm rải rác trong file và tin nhắn.</p>
+      </header>
+      <div class="bento-grid">
+        <article class="bento-card" data-enter="card" style="--i:0">
+          <header>
+            <h3>Phân công theo kỹ năng</h3>
+            <p>Barista mới vào ca tối được xếp đúng ô trống; điểm PhoBERT và tải việc hiện ngay cạnh tên.</p>
+          </header>
+          <div class="story story--assign" data-loop aria-hidden="true">
+            <div class="story-top"><span class="story-cap">Ca tăng cường · 17:00–21:00</span><span class="story-cap">Điểm PhoBERT</span></div>
+            <ul class="assign-list">
+              <li class="assign-row-wrap">
+                <span class="assign-slot story-anim">Ô trống — chờ xếp người</span>
+                <span class="assign-row assign-row--new story-anim">
+                  <span class="assign-av">MT</span>
+                  <span class="assign-name">Mai Trâm <em>· Barista mới</em></span>
+                  <span class="assign-score">
+                    <span class="odo"><span class="odo-strip story-anim" style="--end:-112px"><b>0</b><b>12</b><b>24</b><b>36</b><b>48</b><b>60</b><b>72</b><b>84</b><b>94</b></span></span>
+                    <span class="odo-pct">.2%</span>
+                  </span>
+                </span>
+              </li>
+              <li class="assign-row assign-row--rank story-anim">
+                <span class="assign-av">LC</span>
+                <span class="assign-name">Lê Hoàng Cường <em>· Lead</em></span>
+                <span class="assign-score-static">91.4%</span>
+              </li>
+            </ul>
+            <p class="bento-note">Quản lý xem độ phù hợp trước khi chốt.</p>
+          </div>
+        </article>
+
+        <article class="bento-card" data-enter="card" style="--i:1">
+          <header>
+            <h3>Đối soát két tiền mặt</h3>
+            <p>Dòng lệch được đánh dấu khi quét; số chênh lệch hiện ra thay vì phải tự trừ.</p>
+          </header>
+          <div class="story story--cash" data-loop aria-hidden="true">
+            <div class="story-top"><span class="story-cap">Két ca sáng · 30/10</span><span class="story-cap">POS và két</span></div>
+            <div class="cash-table">
+              <span class="cash-scan story-anim" aria-hidden="true"></span>
+              <div class="cash-row"><span>Tiền mặt đầu ca</span><span>2.000.000</span><span>2.000.000</span></div>
+              <div class="cash-row"><span>Thu bán ca sáng</span><span>4.320.000</span><span>4.300.000</span><span class="cash-mark story-anim" aria-hidden="true"></span></div>
+              <div class="cash-row"><span>Chi hoàn khách</span><span>120.000</span><span>120.000</span></div>
+              <div class="cash-row"><span>Nộp két ca chiều</span><span>1.500.000</span><span>1.500.000</span></div>
+              <div class="cash-row"><span>Tồn két cuối ca</span><span>4.700.000</span><span>4.680.000</span></div>
+            </div>
+            <div class="cash-delta story-anim">
+              <span>Chênh lệch</span>
+              <span class="cash-delta-value">
+                <span class="odo"><span class="odo-strip story-anim" style="--end:-98px"><b>0</b><b>3</b><b>6</b><b>9</b><b>12</b><b>15</b><b>18</b><b>20</b></span></span>
+                <span class="odo-pct">.000 ₫</span>
+              </span>
+            </div>
+          </div>
+        </article>
+
+        <article class="bento-card" data-enter="card" style="--i:2">
+          <header>
+            <h3>Tra cứu chính sách</h3>
+            <p>Hỏi bằng tiếng Việt, nhận câu trả lời kèm nguồn — chưa đủ dữ liệu thì hệ thống hỏi lại.</p>
+          </header>
+          <div class="story story--policy" data-loop aria-hidden="true">
+            <div class="story-top"><span class="story-cap">Trợ lý chính sách</span><span class="story-cap">SOP-05</span></div>
+            <div class="policy-prompt">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+              <span class="policy-typed story-anim">Báo cáo chốt quỹ két ở đâu?</span>
+            </div>
+            <div class="policy-chips">
+              <span class="policy-chip story-anim">Quy chế vận hành ca</span>
+              <span class="policy-chip story-anim">Biểu mẫu chốt két</span>
+              <span class="policy-chip story-anim">SOP-05 · Bàn giao</span>
+            </div>
+            <p class="policy-answer story-anim">Mở <strong>Ca trực → Chốt quỹ két</strong>, đính kèm biên bản và xác nhận. Hệ thống ghi lại người duyệt.</p>
+          </div>
+        </article>
+
+        <article class="bento-card" data-enter="card" style="--i:3">
+          <header>
+            <h3>Phân ca 24H</h3>
+            <p>Một ca trượt từ “Chờ” sang “Đã giao” ngay khi người nhận xác nhận trong chatbot.</p>
+          </header>
+          <div class="story story--shift" data-loop aria-hidden="true">
+            <div class="story-top"><span class="story-cap">Ca 24H · 06:00–14:00</span><span class="story-cap">Điều phối</span></div>
+            <div class="shift-cols">
+              <div class="shift-col">
+                <span class="shift-cap">Đã giao</span>
+                <div class="shift-card story-anim">
+                  <div class="shift-card-top">
+                    <span>06:00–14:00</span>
+                    <span class="shift-badge-slot">
+                      <span class="shift-badge shift-badge--wait story-anim">Chờ</span>
+                      <span class="shift-badge shift-badge--done story-anim">Đã giao</span>
+                    </span>
+                  </div>
+                  <span class="shift-meta">Nguyễn Văn An · Barista</span>
+                </div>
+              </div>
+              <div class="shift-col">
+                <span class="shift-cap">Chờ điều phối</span>
+                <div class="shift-drop"></div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <div data-tagline-slot></div>
+
+  <section class="folio-section" id="solution">
+    <div class="guta-container">
+      <header class="guta-section-head">
+        <span class="guta-label">Kiến trúc &amp; luồng xử lý agentic</span>
+        <h2>Luồng Vận Hành Tự Động 24/7</h2>
+        <p>Hệ thống tự động điều phối luồng hội thoại từ Ingress (Zalo, Telegram, Web), qua Bộ lọc Fast Rule Gate, Phân loại Jev AI, Vòng lặp Agent đến Gemini 3.8 Flash và Cổng xác thực con người 2 bước.</p>
+      </header>
+      <div class="workflow-diagram-card">
+        <div class="workflow-toolbar">
+          <span class="workflow-status-chip" data-state="play">
+            <span class="workflow-dot" aria-hidden="true"></span>
+            <span class="workflow-status-text">Luồng tín hiệu: đang chạy liên tục (Live Loop)</span>
+          </span>
+          <div class="workflow-actions">
+            <button type="button" class="workflow-btn-fit" title="Khớp khung hình sơ đồ (Fit View)" aria-label="Khớp khung hình sơ đồ">Khớp khung hình (Fit View)</button>
+            <button type="button" class="workflow-btn-toggle" title="Tạm dừng / Tiếp tục luồng tín hiệu (Space)" aria-label="Tạm dừng luồng" data-state="play">
+              <svg class="workflow-icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5v14M15 5v14"></path></svg>
+              <svg class="workflow-icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"></path></svg>
+              <span class="workflow-toggle-text">Tạm dừng</span>
+            </button>
+            <a href="/diagrams/chatbot-architecture.html" target="_blank" rel="noopener noreferrer" class="workflow-btn-fullscreen" title="Mở toàn màn hình hoặc tab mới" aria-label="Mở toàn màn hình mới">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
+              <span>Mở toàn màn hình mới</span>
+            </a>
+          </div>
+        </div>
+        <div class="workflow-iframe-wrapper">
+          <iframe id="workflow-diagram-iframe" src="/diagrams/chatbot-architecture.html" title="HR BlockBot - Chatbot &amp; Agentic Architecture" class="workflow-iframe" loading="lazy" allow="fullscreen"></iframe>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="folio-section" id="product">
+    <div class="guta-container">
+      <header class="guta-section-head">
+        <span class="guta-label">AI có vai trò cụ thể</span>
+        <h2>Gợi ý có lý do. Tra cứu có ngữ cảnh.</h2>
+        <p>Hệ thống tối ưu theo quy trình chuỗi F&amp;B thực tế, minh bạch mọi quyết định điều phối ca.</p>
+      </header>
+      <div class="guta-grid-two">
+        <article class="guta-card" data-enter="card" style="--i:0">
+          <span class="guta-card-kicker">Yêu cầu → gợi ý → người duyệt</span>
+          <h3>Không tự giao việc thay quản lý</h3>
+          <p>PhoBERT là thành phần ngữ nghĩa trong thiết kế matching. Người quản lý xem độ phù hợp và tải công việc trước khi quyết định.</p>
+        </article>
+        <article class="guta-card" data-enter="card" style="--i:1">
+          <span class="guta-card-kicker">Hỏi → tra cứu → đối chiếu</span>
+          <h3>“Quy định nộp báo cáo ở đâu?”</h3>
+          <p>Hỏi theo tình huống thay vì dò nhiều file. Thiết kế chatbot ưu tiên câu trả lời bám tài liệu; chưa đủ thông tin thì hỏi lại.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="folio-section" id="about">
+    <div class="guta-container">
+      <header class="guta-section-head">
+        <span class="guta-label">Thiết kế để kiểm tra được</span>
+        <h2>Không cần tin một cách mù quáng.</h2>
+        <p>Quy trình điều phối chuẩn hóa, kiểm soát chặt chẽ chấm công máy ZKTeco và két ca.</p>
+      </header>
+      <div class="guta-grid-three">
+        <article class="guta-card" data-enter="card" style="--i:0">
+          <h3>Phân quyền theo vai</h3>
+          <p>Quản lý điều phối chi nhánh. Barista thao tác ca trực và đối soát két trong ca làm.</p>
+        </article>
+        <article class="guta-card" data-enter="card" style="--i:1">
+          <h3>Xác nhận trước khi ghi</h3>
+          <p>Nhận ca, bàn giao quỹ két hay gửi cảnh báo đều cần xác nhận chính xác trước khi lưu.</p>
+        </article>
+        <article class="guta-card" data-enter="card" style="--i:2">
+          <h3>Giữ dấu vết thay đổi</h3>
+          <p>Trạng thái điểm danh, lý do đi trễ và hiệu chỉnh công ca phải có nhật ký kiểm soát rõ ràng.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="folio-section" id="questions">
+    <div class="guta-container">
+      <header class="guta-section-head">
+        <span class="guta-label">Trước khi trải nghiệm</span>
+        <h2>Những điều cần rõ.</h2>
+        <p>Phạm vi và giới hạn được nói ngay trên trang.</p>
+      </header>
+      <div class="guta-faq">
+        <details data-enter="faq" style="--i:0"><summary>HR BlockBot giải quyết việc gì?</summary><p>Tập trung hồ sơ nhân sự, lịch phân ca 24/7, điều phối barista chéo, tra cứu quy chế, quỹ két và báo cáo trong cùng một hệ thống.</p></details>
+        <details data-enter="faq" style="--i:1"><summary>Dashboard và chatbot có dữ liệu riêng không?</summary><p>Không. Theo thiết kế, hai giao diện chia sẻ một nguồn dữ liệu và cùng nghiệp vụ; khác nhau ở cách người dùng thao tác.</p></details>
+        <details data-enter="faq" style="--i:2"><summary>AI có tự giao việc hay quyết định điểm KPI không?</summary><p>Thiết kế đặt AI ở vai trò hỗ trợ. Quản lý xác nhận phân công; hiệu chỉnh KPI phải có lý do và lịch sử.</p></details>
+        <details data-enter="faq" style="--i:3"><summary>Đây có phải dữ liệu Guta đang chạy thật không?</summary><p>Không. Các công việc và hội thoại trên trang là nội dung minh họa giao diện; không phải dữ liệu vận hành hoặc kết quả AI đã đo.</p></details>
+        <details data-enter="faq" style="--i:4"><summary>Hệ thống có xếp ca, tính lương hay duyệt nghỉ phép không?</summary><p>Hệ thống tập trung cốt lõi vào điều phối ca trực, điểm danh ZKTeco và quản trị két ca 45 chi nhánh. Các phân hệ tính lương và duyệt nghỉ phép tự động đang trong lộ trình tích hợp tiếp theo.</p></details>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="folio-footer">
+  <div class="guta-container guta-footer">
+    <strong>GUTA WORKSPACE <span>· HR BlockBot</span></strong>
+    <p>Guta Workspace · Nền tảng điều hành nhân sự &amp; chuỗi cà phê F&amp;B</p>
+    <a href="#questions">Phạm vi &amp; câu hỏi</a>
+  </div>
+</footer>
+<section aria-label="Notifications alt+T" tabindex="-1" aria-live="polite" aria-relevant="additions text" aria-atomic="false"></section>
+</div>`;
 
 export const FolioLandingView: React.FC<FolioLandingViewProps> = ({ onLogin, isAuthLoading = false, onNotify }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [taglineSlot, setTaglineSlot] = useState<HTMLElement | null>(null);
   const closeAuth = useCallback(() => setIsAuthOpen(false), []);
   const onNotifyRef = useRef(onNotify);
   onNotifyRef.current = onNotify;
@@ -23,6 +490,8 @@ export const FolioLandingView: React.FC<FolioLandingViewProps> = ({ onLogin, isA
   useEffect(() => {
     const root = containerRef.current;
     if (!root) return;
+
+    setTaglineSlot(root.querySelector<HTMLElement>('[data-tagline-slot]'));
 
     // 1. Mobile Menu Toggle
     const toggle = root.querySelector('button[aria-label="Open Menu"]');
@@ -66,7 +535,6 @@ export const FolioLandingView: React.FC<FolioLandingViewProps> = ({ onLogin, isA
         link.addEventListener('click', preventDeadLink);
       }
     });
-
 
     // Also attach to buttons with text "Bắt đầu", "Get Started", "Đăng nhập", "Xem dashboard", "Khám phá dashboard" or CRM preview controls
     const allButtonsAndLinks = root.querySelectorAll('button, a');
@@ -138,7 +606,6 @@ export const FolioLandingView: React.FC<FolioLandingViewProps> = ({ onLogin, isA
     const diagramSrc = '/diagrams/chatbot-architecture.html';
     const statusText = root.querySelector('.workflow-status-text');
     const statusChip = root.querySelector('.workflow-status-chip');
-    const toggleIcon = root.querySelector('.workflow-toggle-icon');
     const toggleText = root.querySelector('.workflow-toggle-text');
 
     let isDiagramPlaying = true;
@@ -176,25 +643,43 @@ export const FolioLandingView: React.FC<FolioLandingViewProps> = ({ onLogin, isA
         }
         if (statusText) {
           statusText.textContent = isDiagramPlaying
-            ? '🟢 Luồng tín hiệu: Đang chạy liên tục (Live Loop)'
-            : '⏸ Luồng tín hiệu: Đã tạm dừng';
+            ? 'Luồng tín hiệu: đang chạy liên tục (Live Loop)'
+            : 'Luồng tín hiệu: đã tạm dừng';
         }
-        if (toggleIcon) toggleIcon.textContent = isDiagramPlaying ? '⏸' : '▶';
+        if (statusChip) statusChip.setAttribute('data-state', isDiagramPlaying ? 'play' : 'paused');
+        if (btnToggle) btnToggle.setAttribute('data-state', isDiagramPlaying ? 'play' : 'paused');
         if (toggleText) toggleText.textContent = isDiagramPlaying ? 'Tạm dừng' : 'Tiếp tục';
-        if (statusChip) {
-          if (isDiagramPlaying) {
-            statusChip.className =
-              'workflow-status-chip inline-flex items-center gap-2 px-3 py-1 text-xs font-semibold rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30';
-          } else {
-            statusChip.className =
-              'workflow-status-chip inline-flex items-center gap-2 px-3 py-1 text-xs font-semibold rounded-full bg-muted/40 text-muted-foreground border border-border';
-          }
-        }
       } else if (data.type === 'DIAGRAM_READY') {
         postToDiagramIframe({ type: 'GET_STATE' });
       }
     };
     window.addEventListener('message', handleDiagramMessage);
+
+    // 7. Section entrances: one observer, fire once, unobserve. No scroll listener.
+    const enterTargets = root.querySelectorAll<HTMLElement>('[data-enter]');
+    const entranceObserver = 'IntersectionObserver' in window
+      ? new IntersectionObserver((entries, observer) => {
+          for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            entry.target.classList.add('is-in');
+            observer.unobserve(entry.target);
+          }
+        }, ENTRY_OBSERVER_OPTIONS)
+      : null;
+    if (entranceObserver) {
+      enterTargets.forEach((el) => entranceObserver.observe(el));
+    } else {
+      enterTargets.forEach((el) => el.classList.add('is-in'));
+    }
+
+    // 8. Bento stories pause off-screen; the loop restarts from its design frame on re-entry.
+    const loops = root.querySelectorAll<HTMLElement>('[data-loop]');
+    const loopObserver = 'IntersectionObserver' in window
+      ? new IntersectionObserver((entries) => {
+          for (const entry of entries) entry.target.classList.toggle('is-paused', !entry.isIntersecting);
+        }, { threshold: 0 })
+      : null;
+    if (loopObserver) loops.forEach((el) => loopObserver.observe(el));
 
     return () => {
       window.removeEventListener('scroll', syncScrolledNav);
@@ -210,12 +695,17 @@ export const FolioLandingView: React.FC<FolioLandingViewProps> = ({ onLogin, isA
       btnToggle?.removeEventListener('click', handleToggleClick);
       btnFullscreen?.removeEventListener('click', handleFullscreenClick);
       window.removeEventListener('message', handleDiagramMessage);
+      entranceObserver?.disconnect();
+      loopObserver?.disconnect();
     };
   }, []);
 
   return (
     <div className="folio-view-container relative min-h-screen">
       <div ref={containerRef} dangerouslySetInnerHTML={{ __html: FOLIO_HTML }} />
+      {taglineSlot
+        ? createPortal(<TaglineReveal copy={TAGLINE_COPY} />, taglineSlot)
+        : null}
       <style>{`button:focus-visible, a[role="button"]:focus-visible, a[data-slot="button"]:focus-visible { outline: none; box-shadow: 0 0 0 2px #71717a; }`}</style>
 
       <AccountLoginModal isOpen={isAuthOpen} isRestoringSession={isAuthLoading} onClose={closeAuth} onLogin={onLogin} />

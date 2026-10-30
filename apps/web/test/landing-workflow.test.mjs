@@ -85,7 +85,7 @@ describe('Landing Page Workflow Architecture: Continuous Flow & Acceptance Verif
     assert.match(code, /id=["']solution["']/, 'WorkflowSection phải có id="solution"');
 
     // Kiểm tra tiêu đề và badge
-    assert.match(code, /KIẾN TRÚC &amp; LUỒNG XỬ LÝ AGENTIC|KIẾN TRÚC & LUỒNG XỬ LÝ AGENTIC/, 'Phải có badge kiến trúc');
+    assert.match(code, /kiến trúc\s*&(?:amp;)?\s*luồng xử lý agentic/i, 'Phải có badge kiến trúc');
     assert.match(code, /Luồng Vận Hành Tự Động 24\/7/, 'Phải có tiêu đề H2 luồng vận hành');
 
     // Kiểm tra iframe container và controls
@@ -122,7 +122,7 @@ describe('Landing Page Workflow Architecture: Continuous Flow & Acceptance Verif
     assert.match(landingCode, /id=\\"solution\\"|id="solution"/, 'Landing page phải có section id="solution"');
 
     // Kiểm tra badge và tiêu đề H2 theo yêu cầu
-    assert.match(landingCode, /KIẾN TRÚC &amp; LUỒNG XỬ LÝ AGENTIC/, 'Phải có badge KIẾN TRÚC & LUỒNG XỬ LÝ AGENTIC');
+    assert.match(landingCode, /kiến trúc\s*&(?:amp;)?\s*luồng xử lý agentic/i, 'Phải có badge Kiến trúc & luồng xử lý agentic');
     assert.match(landingCode, /Luồng Vận Hành Tự Động 24\/7/, 'Phải có title H2 Luồng Vận Hành Tự Động 24/7');
 
     // Kiểm tra paragraph mô tả luồng
@@ -162,9 +162,11 @@ describe('Landing Page Workflow Architecture: Continuous Flow & Acceptance Verif
     );
   });
 
-  it('apps/web/src/index.css cấu hình smooth scrolling cho html', () => {
-    const cssPath = path.join(webRoot, 'src/index.css');
-    const css = fs.readFileSync(cssPath, 'utf-8');
+  it('apps/web/src/styles/ cấu hình smooth scrolling cho html', () => {
+    const stylesDir = path.join(webRoot, 'src/styles');
+    const css = ['index', 'tokens', 'base', 'product', 'brand']
+      .map((name) => fs.readFileSync(path.join(stylesDir, `${name}.css`), 'utf-8'))
+      .join('\n');
 
     assert.match(css, /html\s*\{[^}]*scroll-behavior:\s*smooth;?[^}]*\}/, 'index.css phải cấu hình scroll-behavior: smooth');
   });

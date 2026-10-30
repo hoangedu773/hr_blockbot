@@ -1,0 +1,844 @@
+{
+ "url": "http://127.0.0.1:5305/",
+ "at": "2026-10-30T07:07:53.022Z",
+ "allow": [
+  "app-title-size"
+ ],
+ "viewports": [
+  {
+   "width": 1440,
+   "height": 900,
+   "load": "load",
+   "screens": 7,
+   "filled": [
+    1,
+    1,
+    0.99,
+    0.99,
+    1,
+    1,
+    1
+   ],
+   "motion": {
+    "elements": 6,
+    "css": 4,
+    "transitions": 2,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "page": {
+     "height": 5463,
+     "screens": 6.1,
+     "words": 1196,
+     "img": 2,
+     "video": 0,
+     "canvas": 0,
+     "svg": 6,
+     "sections": 8,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 1,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [
+      "dashboard-bg.jpg"
+     ],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [
+      "🟢",
+      "⛶"
+     ],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Quản Trị Nhân Sự & Phân Ca Tự Động",
+     "words": 9,
+     "chars": 34,
+     "lines": 2,
+     "size": 60,
+     "vw": 4.2,
+     "font": "Tiempos Headline",
+     "weight": 600,
+     "tracking": -0.02,
+     "leading": 1.25,
+     "top": 126,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Quản Trị Nhân Sự & Phân Ca Tự Động",
+     "words": 9,
+     "lines": 2,
+     "size": 60,
+     "font": "Tiempos Headline"
+    },
+    "headings": [
+     {
+      "text": "Quản Trị Nhân Sự & Phân Ca Tự Động",
+      "words": 9,
+      "chars": 34,
+      "lines": 2,
+      "size": 60,
+      "vw": 4.2,
+      "font": "Tiempos Headline",
+      "weight": 600,
+      "tracking": -0.02,
+      "leading": 1.25,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "center",
+      "position": "center",
+      "widthRatio": 0.67,
+      "top": 126,
+      "tag": "h1",
+      "kind": "heading"
+     },
+     {
+      "text": "Bớt hỏi lại. Có chỗ để đối chiếu.",
+      "words": 8,
+      "chars": 33,
+      "lines": 1,
+      "size": 42,
+      "vw": 2.9,
+      "font": "Tiempos Headline",
+      "weight": 700,
+      "tracking": -0.02,
+      "leading": 1.25,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "center",
+      "position": "center",
+      "widthRatio": 0.56,
+      "top": 1803,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Luồng Vận Hành Tự Động 24/7",
+      "words": 6,
+      "chars": 27,
+      "lines": 1,
+      "size": 42,
+      "vw": 2.9,
+      "font": "Tiempos Headline",
+      "weight": 700,
+      "tracking": -0.02,
+      "leading": 1.25,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "center",
+      "position": "center",
+      "widthRatio": 0.56,
+      "top": 2450,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Gợi ý có lý do. Tra cứu có ngữ cảnh.",
+      "words": 10,
+      "chars": 36,
+      "lines": 1,
+      "size": 42,
+      "vw": 2.9,
+      "font": "Tiempos Headline",
+      "weight": 700,
+      "tracking": -0.02,
+      "leading": 1.25,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "center",
+      "position": "center",
+      "widthRatio": 0.56,
+      "top": 3541,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Không cần tin một cách mù quáng.",
+      "words": 7,
+      "chars": 32,
+      "lines": 1,
+      "size": 42,
+      "vw": 2.9,
+      "font": "Tiempos Headline",
+      "weight": 700,
+      "tracking": -0.02,
+      "leading": 1.25,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "center",
+      "position": "center",
+      "widthRatio": 0.56,
+      "top": 4175,
+      "tag": "h2",
+      "kind": "heading"
+     },
+     {
+      "text": "Những điều cần rõ.",
+      "words": 4,
+      "chars": 18,
+      "lines": 1,
+      "size": 42,
+      "vw": 2.9,
+      "font": "Tiempos Headline",
+      "weight": 700,
+      "tracking": -0.02,
+      "leading": 1.25,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "center",
+      "position": "center",
+      "widthRatio": 0.56,
+      "top": 4634,
+      "tag": "h2",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 6,
+     "maxLines": 2,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 6,
+     "medianWords": 7,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Geist",
+       "share": 0.64,
+       "mono": false
+      },
+      {
+       "family": "Inter",
+       "share": 0.33,
+       "mono": false
+      },
+      {
+       "family": "Tiempos Headline",
+       "share": 0.03,
+       "mono": false
+      },
+      {
+       "family": "Geist Mono",
+       "share": 0,
+       "mono": true
+      }
+     ],
+     "familyCount": 4,
+     "sizes": [
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      18,
+      20,
+      42,
+      60
+     ],
+     "sizeCount": 12,
+     "notLoaded": [
+      "Tiempos Headline"
+     ],
+     "body": {
+      "font": "Geist",
+      "size": 15,
+      "leading": 1.65,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 6.4
+     },
+     "measureChars": 80,
+     "max": {
+      "size": 60,
+      "vw": 4.2,
+      "font": "Tiempos Headline",
+      "text": "Quản Trị Nhân Sự & Phân Ca Tự Động"
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [
+      "Geist Mono"
+     ],
+     "monoSamples": [],
+     "microLabels": 21,
+     "microLabelShare": 0.04,
+     "microSamples": [
+      "GỢI Ý PHÂN CÔNG PHOBERT",
+      "ĐỐI TÁC CUNG ỨNG F&B:",
+      "Vinamilk",
+      "•",
+      "La Marzocco",
+      "•"
+     ],
+     "upperShare": 0.09,
+     "centerShare": 0.24,
+     "smallText": 72
+    },
+    "eyebrows": [
+     {
+      "text": "F&B Workforce Intelligence — Next-Gen HR",
+      "above": "Quản Trị Nhân Sự & Phân Ca Tự Động",
+      "upper": false,
+      "tracked": false,
+      "mono": false,
+      "pill": true,
+      "size": 14,
+      "top": 71
+     },
+     {
+      "text": "TỪ DỮ LIỆU ĐẾN QUYẾT ĐỊNH",
+      "above": "Bớt hỏi lại. Có chỗ để đối chiếu.",
+      "upper": true,
+      "tracked": true,
+      "mono": false,
+      "pill": false,
+      "size": 12,
+      "top": 1767
+     },
+     {
+      "text": "KIẾN TRÚC & LUỒNG XỬ LÝ AGENTIC",
+      "above": "Luồng Vận Hành Tự Động 24/7",
+      "upper": true,
+      "tracked": true,
+      "mono": false,
+      "pill": true,
+      "size": 12,
+      "top": 2396
+     },
+     {
+      "text": "AI CÓ VAI TRÒ CỤ THỂ",
+      "above": "Gợi ý có lý do. Tra cứu có ngữ cảnh.",
+      "upper": true,
+      "tracked": true,
+      "mono": false,
+      "pill": false,
+      "size": 12,
+      "top": 3505
+     },
+     {
+      "text": "THIẾT KẾ ĐỂ KIỂM TRA ĐƯỢC",
+      "above": "Không cần tin một cách mù quáng.",
+      "upper": true,
+      "tracked": true,
+      "mono": false,
+      "pill": false,
+      "size": 12,
+      "top": 4139
+     },
+     {
+      "text": "TRƯỚC KHI TRẢI NGHIỆM",
+      "above": "Những điều cần rõ.",
+      "upper": true,
+      "tracked": true,
+      "mono": false,
+      "pill": false,
+      "size": 12,
+      "top": 4598
+     }
+    ],
+    "numbered": [
+     {
+      "text": "04",
+      "size": 20,
+      "top": 640
+     }
+    ],
+    "color": {
+     "bodyBg": "#ffffff",
+     "bodyBgHsl": {
+      "h": 0,
+      "s": 0,
+      "l": 1
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#121212",
+       "top": 0,
+       "hsl": {
+        "h": 0,
+        "s": 0,
+        "l": 0.07
+       }
+      },
+      {
+       "color": "#0f0f10",
+       "top": 536,
+       "hsl": {
+        "h": 240,
+        "s": 0.03,
+        "l": 0.06
+       }
+      },
+      {
+       "color": "#021a16",
+       "top": 2692,
+       "hsl": {
+        "h": 170,
+        "s": 0.86,
+        "l": 0.05
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#9b9b9b",
+       "share": 0.48
+      },
+      {
+       "color": "#9e9e9e",
+       "share": 0.2
+      },
+      {
+       "color": "#fafafa",
+       "share": 0.16
+      },
+      {
+       "color": "#f5f5f5",
+       "share": 0.09
+      },
+      {
+       "color": "#00d492",
+       "share": 0.01
+      }
+     ],
+     "button": {
+      "bg": "#fafafa",
+      "hsl": {
+       "h": 0,
+       "s": 0,
+       "l": 0.98
+      },
+      "fg": "#0b0b0c"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 10,
+     "inHero": 6,
+     "radius": 8,
+     "height": 28,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Đăng nhập",
+      "Xem dashboard",
+      "Khám phá dashboard",
+      "Xem luồng làm việc",
+      "Bộ lọc"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 25,
+     "shadowOverlay": 0,
+     "shadowSamples": [
+      "a.inline-flex.shrink-0 → rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0",
+      "a.shrink-0.items-center → rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0",
+      "a.inline-flex.shrink-0 → rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0",
+      "a.inline-flex.shrink-0 → rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0"
+     ],
+     "gradients": 1,
+     "scrims": 0,
+     "gradientSamples": [
+      "div.absolute.inset-0 → conic-gradient(rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 70%, rgb(161, 161, 170) 85%, rgb(16, 185, 129) 95%, rgba("
+     ],
+     "gradientText": 0,
+     "hairlines": 19,
+     "hairlineSamples": [
+      "main.relative.z-10 1440px",
+      "div.border-border.border-dashed 1270px",
+      "header.crm-topbar 1218px",
+      "div.crm-metrics-grid 1218px",
+      "div.crm-assistant-head 264px"
+     ],
+     "outlinedBoxes": 22,
+     "dashed": 2,
+     "blurred": 2,
+     "roundedBoxes": 22,
+     "boxRadius": 10,
+     "squareMedia": 1,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": [
+      {
+       "count": 4,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 605
+      },
+      {
+       "count": 5,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 737
+      },
+      {
+       "count": 3,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 1937
+      },
+      {
+       "count": 3,
+       "iconTopped": false,
+       "rounded": true,
+       "top": 4309
+      }
+     ]
+    },
+    "heroMedia": [
+     {
+      "type": "img",
+      "ratio": 0.58
+     }
+    ],
+    "nav": {
+     "links": 7,
+     "fixed": false,
+     "height": 0,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": [
+     "geist",
+     "geist mono",
+     "inter",
+     "newsreader"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "pageH": 5463,
+    "margins": {
+     "left": 126,
+     "right": 140
+    },
+    "sections": [
+     {
+      "sel": "main.flex.min-h-screen",
+      "tag": "main",
+      "top": 0,
+      "height": 5217,
+      "words": 1230,
+      "media": 2,
+      "middle": 0,
+      "heading": {
+       "text": "Quản Trị Nhân Sự & Phân Ca Tự Động",
+       "size": 60,
+       "tag": "h1"
+      },
+      "left": 110,
+      "right": 110,
+      "textLeft": 126,
+      "textRight": 135,
+      "fullBleed": true,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "footer.relative.mt-12",
+      "tag": "footer",
+      "top": 5265,
+      "height": 198,
+      "words": 23,
+      "media": 0,
+      "middle": 0,
+      "heading": null,
+      "left": 109,
+      "right": 909,
+      "textLeft": 109,
+      "textRight": 909,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Quản Trị Nhân Sự & Phân Ca Tự Động",
+      "size": 60,
+      "top": 126,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 134,
+      "n": 6
+     },
+     {
+      "x": 320,
+      "n": 5
+     },
+     {
+      "x": 549,
+      "n": 4
+     },
+     {
+      "x": 965,
+      "n": 4
+     },
+     {
+      "x": 757,
+      "n": 2
+     }
+    ],
+    "leftBlocks": 21,
+    "bodySize": 15,
+    "stage": false,
+    "explains": true,
+    "slivers": [],
+    "voidShare": 0.07,
+    "voidBox": {
+     "x": 0,
+     "y": 120,
+     "w": 360,
+     "h": 240
+    }
+   },
+   "app": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "dark": false,
+    "ground": "#ffffff",
+    "sidebar": null,
+    "topbar": {
+     "h": 77
+    },
+    "canvas": {
+     "left": 126,
+     "right": 140
+    },
+    "hero": {
+     "text": "Quản Trị Nhân Sự & Phân Ca Tự Động",
+     "words": 9,
+     "chars": 34,
+     "lines": 2,
+     "size": 60,
+     "vw": 4.2,
+     "font": "Tiempos Headline",
+     "weight": 600,
+     "tracking": -0.02,
+     "leading": 1.25,
+     "top": 126,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 10,
+     "firstScreen": 1,
+     "ragged": [],
+     "voids": [
+      {
+       "gap": 49,
+       "at": 3826,
+       "panel": "Phân công theo kỹ năng và khối lượng việ"
+      },
+      {
+       "gap": 49,
+       "at": 3826,
+       "panel": "Tra cứu chính sách bằng tiếng Việt"
+      }
+     ]
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 29,
+     "radii": [
+      [
+       10,
+       16
+      ],
+      [
+       12,
+       9
+      ],
+      [
+       8,
+       3
+      ],
+      [
+       16,
+       1
+      ]
+     ],
+     "heavyBorders": 2,
+     "borderSamples": [
+      "#266df0 on #0f0f10 (4.13:1)",
+      "#00be7d on #121212 (7.73:1)"
+     ],
+     "heavyShadows": 1,
+     "softShadows": 20,
+     "shadowSamples": [
+      "oklab(0.262 -0.0505697 0.00661094 / 0.2) 0px 25px 50px -12px"
+     ],
+     "glass": 1
+    },
+    "chips": {
+     "count": 0,
+     "hues": 0,
+     "samples": []
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 1,
+     "tabularShare": 0,
+     "kpiMax": 10
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.42,
+     "tiny": 37,
+     "tinySamples": [
+      "HR & Smart Shift AI 9px",
+      "34 Chi nhánh 10px",
+      "5 Trạng thái 10px",
+      "4 Chờ duyệt 10px"
+     ],
+     "sizes": [
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      18,
+      20,
+      42,
+      60
+     ]
+    },
+    "title": {
+     "text": "Quản Trị Nhân Sự & Phân Ca Tự Động",
+     "size": 60,
+     "top": 126
+    },
+    "colourShare": 0.001
+   },
+   "consoleErrors": []
+  }
+ ],
+ "findings": [
+  {
+   "level": "FAIL",
+   "id": "micro-label",
+   "width": 1440,
+   "message": "21 tiny uppercase letter-spaced labels (e.g. \"GỢI Ý PHÂN CÔNG PHOBERT\", \"ĐỐI TÁC CUNG ỨNG F&B:\", \"Vinamilk\", \"•\").",
+   "fix": "Use sentence-case text at a readable size, or delete the label."
+  },
+  {
+   "level": "FAIL",
+   "id": "emoji",
+   "width": 1440,
+   "message": "Emoji in the page: 🟢 ⛶",
+   "fix": "Remove. Use words or real imagery."
+  },
+  {
+   "level": "FAIL",
+   "id": "gradient",
+   "width": 1440,
+   "message": "1 gradient fill(s): div.absolute.inset-0 → conic-gradient(rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 70%, rgb(161, 161, 170) 85%, rgb(16, 185, 129) 95%, rgba(",
+   "fix": "Use a flat colour or a real image. The only gradient allowed by default is a neutral scrim over a photo for legibility."
+  },
+  {
+   "level": "WARN",
+   "id": "font-count",
+   "width": 1440,
+   "message": "3 typefaces in use (Geist, Inter, Tiempos Headline).",
+   "fix": "Two at most."
+  },
+  {
+   "level": "WARN",
+   "id": "font-fallback",
+   "width": 1440,
+   "message": "Typeface(s) declared but not loaded, so a fallback is rendering: Tiempos Headline",
+   "fix": "Fix the font URL / family name, or the screenshots you are judging are not the design."
+  },
+  {
+   "level": "FAIL",
+   "id": "heavy-shadow",
+   "width": 1440,
+   "message": "1 panel shadow(s) heavy enough to read as floating: oklab(0.262 -0.0505697 0.00661094 / 0.2) 0px 25px 50px -12px",
+   "fix": "Panels sit on the ground: separate them with a fill one step from the ground or a quiet 1px border. A shadow, if any, is under 8% black with a small blur. Real overlays (menus, dialogs, popovers) may float."
+  },
+  {
+   "level": "FAIL",
+   "id": "tiny-text",
+   "width": 1440,
+   "message": "37 text blocks under 11px: HR & Smart Shift AI 9px, 34 Chi nhánh 10px, 5 Trạng thái 10px, 4 Chờ duyệt 10px.",
+   "fix": "Nothing below 11px; secondary text 12px, data 13–14px."
+  },
+  {
+   "level": "WARN",
+   "id": "below-fold",
+   "width": 1440,
+   "message": "Only 1 of 10 blocks start on the first 1440px screen.",
+   "fix": "Every block the brief names shows its header and first rows on the first desktop screen: size the headline block to its question, cap long lists with \"View all\", and put time-sensitive blocks before long tables."
+  },
+  {
+   "level": "WARN",
+   "id": "panel-void",
+   "width": 1440,
+   "message": "2 card(s) hold a blank band inside: 49px in \"Phân công theo kỹ năng và khối lượng việ\", 49px in \"Tra cứu chính sách bằng tiếng Việt\".",
+   "fix": "A card stretches to its neighbour only when it has content to fill. Keep a legend or a note directly under its chart (only an action or a total may sit at a stretched card's foot), let a short card keep its own height (align-items: start), and let a filtered block shrink to its rows."
+  }
+ ],
+ "images": [
+  {
+   "viewport": "desktop",
+   "width": 1440,
+   "fold": "C:\\work-space\\hr-blockbot\\plans\\261030-1153-design-system-big-update\\assets\\phase04\\_before\\desktop-fold.jpg",
+   "pages": [
+    "C:\\work-space\\hr-blockbot\\plans\\261030-1153-design-system-big-update\\assets\\phase04\\_before\\desktop-page-01.jpg",
+    "C:\\work-space\\hr-blockbot\\plans\\261030-1153-design-system-big-update\\assets\\phase04\\_before\\desktop-page-02.jpg"
+   ],
+   "film": []
+  }
+ ]
+}

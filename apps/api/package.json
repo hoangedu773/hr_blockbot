@@ -6,9 +6,10 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
+    "typecheck": "tsc --noEmit",
     "start": "node dist/index.js",
     "test": "npm run build && node test/with-memory-mongo.mjs test/db-guard.test.mjs test/auth.test.mjs test/admin-users.test.mjs test/account-rule.test.mjs test/attachments-security.test.mjs test/auth-cookie.test.mjs test/chat-gateway.test.mjs test/gemini-key-pool.test.mjs test/business-role.test.mjs test/employees-scope.test.mjs test/stores-crud.test.mjs test/dashboard-overview.test.mjs test/db-outage.test.mjs",
-    "test:guard": "node --import \"data:text/javascript,process.env.NODE_ENV='test';process.env.TEST_MONGODB_URI='mongodb://127.0.0.1:27017/test_hr';delete process.env.ATLAS_URI;\" --test test/db-guard.test.mjs"
+    "test:guard": "node --import \"data:text/javascript,process.env.NODE_ENV='test';process.env.TEST_MONGODB_URI='mongodb://127.0.0.1:27017/test_hr';delete process.env.ATLAS_URI;delete process.env.MONGODB_DB_NAME;\" --test test/db-guard.test.mjs"
   },
   "dependencies": {
     "@hr-blockbot/contracts": "workspace:*",
