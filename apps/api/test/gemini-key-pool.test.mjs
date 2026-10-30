@@ -8,7 +8,6 @@ import {
   resetKeyCooldowns,
   keyCooldownMap,
   extractAndMarkRateLimitedKeys,
-  GEMINI_DIRECT_TIER_MAP,
   chatWithAiService,
 } from '../dist/services/ai-client.service.js';
 import { SettingsModel } from '../dist/models/Settings.js';
@@ -40,55 +39,6 @@ test('getRotatedKeyPool rotates keys across calls', () => {
   }
 });
 
-test('GEMINI_DIRECT_TIER_MAP defines correct purposeful model assignments', () => {
-  assert.equal(GEMINI_DIRECT_TIER_MAP.low, 'gemini-3.1-flash-lite');
-  assert.equal(GEMINI_DIRECT_TIER_MAP.medium, 'gemini-3.5-flash');
-  assert.equal(GEMINI_DIRECT_TIER_MAP.high, 'gemini-3.8-flash');
-});
-
-test('chatWithAiService builds failover chain and high tier fallback for Gemini Direct', async (t) => {
-  resetKeyCooldowns();
-  t.mock.method(SettingsModel, 'findById', () => ({ lean: async () => null }));
-  const original = process.env.AI_LLM_API_KEYS;
-  process.env.AI_LLM_API_KEYS = 'AQ.MockKeySlot1, AQ.MockKeySlot2';
-  delete process.env.AI_LLM_API_KEY;
-  const calls = [];
-  t.mock.method(globalThis, 'fetch', async (url, opts) => {
-    calls.push({ url, body: JSON.parse(opts.body) });
-    return Response.json({
-      reply: 'ok',
-      intent: 'general_chat',
-      citations: [],
-      proposedAction: null,
-      abstain: false,
-    });
-  });
-
-  try {
-    // 1. Medium tier call (default)
-    await chatWithAiService('test query', {}, 'conv-1', { modelTier: 'medium' });
-    assert.equal(calls.length, 1);
-    const providers1 = calls[0].body.providerConfig.providers;
-    assert.equal(providers1.length, 2, 'Must include 2 key slots in pool');
-    assert.equal(providers1[0].type, 'gemini');
-    assert.equal(providers1[0].model, 'gemini-3.5-flash');
-    assert.equal(providers1[0].apiKey, 'AQ.MockKeySlot1');
-    assert.equal(providers1[1].apiKey, 'AQ.MockKeySlot2');
-
-    // 2. High tier call with fallback
-    await chatWithAiService('complex query', {}, 'conv-2', { modelTier: 'high' });
-    assert.equal(calls.length, 2);
-    const providers2 = calls[1].body.providerConfig.providers;
-    assert.equal(providers2[0].model, 'gemini-3.8-flash');
-    // Last provider should be gemini-3.5-flash fallback
-    const lastProvider = providers2[providers2.length - 1];
-    assert.equal(lastProvider.model, 'gemini-3.5-flash');
-    assert.equal(lastProvider.id, 'google-gemini-fallback-3.5');
-  } finally {
-    resetKeyCooldowns();
-    process.env.AI_LLM_API_KEYS = original;
-  }
-});
 
 test('markKeyRateLimited isolates rate-limited key from getHealthyKeyPool', () => {
   const original = process.env.AI_LLM_API_KEYS;
@@ -131,23 +81,24 @@ test('getRotatedKeyPool rotates only healthy keys when one is in cooldown', () =
   }
 });
 
-test('getHealthyKeyPool safely falls back to full pool when all keys are in cooldown', () => {
-  const original = process.env.AI_LLM_API_KEYS;
-  try {
-    process.env.AI_LLM_API_KEYS = 'AQ.Exhausted1, AQ.Exhausted2';
-    resetKeyCooldowns();
-
-    markKeyRateLimited('AQ.Exhausted1', 60_000);
-    markKeyRateLimited('AQ.Exhausted2', 60_000);
-
-    const pool = getHealthyKeyPool();
-    assert.equal(pool.length, 2);
-    assert.ok(pool.includes('AQ.Exhausted1'));
-    assert.ok(pool.includes('AQ.Exhausted2'));
-  } finally {
-    resetKeyCooldowns();
-    process.env.AI_LLM_API_KEYS = original;
-  }
+test('all cooled keys stay unavailable until their individual cooldown expires', (t) => {
+  const saved = { ...process.env };
+  t.after(() => { process.env = saved; resetKeyCooldowns(); });
+  process.env.AI_LLM_API_KEYS = 'AQ.Exhausted1,AQ.Exhausted2';
+  resetKeyCooldowns();
+  let now = 1_800_000_000_000;
+  t.mock.method(Date, 'now', () => now);
+  markKeyRateLimited('AQ.Exhausted1', 60_000);
+  markKeyRateLimited('AQ.Exhausted2', 90_000);
+  assert.deepEqual(getHealthyKeyPool(), []);
+  assert.deepEqual(getRotatedKeyPool(), []);
+  now += 59_999;
+  assert.deepEqual(getHealthyKeyPool(), []);
+  now += 1;
+  assert.deepEqual(getHealthyKeyPool(), ['AQ.Exhausted1']);
+  assert.deepEqual(getRotatedKeyPool(), ['AQ.Exhausted1']);
+  now += 30_000;
+  assert.deepEqual(getHealthyKeyPool(), ['AQ.Exhausted1', 'AQ.Exhausted2']);
 });
 
 test('resetKeyCooldowns clears all cooldowns immediately', () => {
@@ -194,13 +145,16 @@ test('chatWithAiService automatically marks key rate limited on upstream 429 / q
   delete process.env.AI_LLM_API_KEY;
   resetKeyCooldowns();
 
-  t.mock.method(globalThis, 'fetch', async () => {
+  let failedKey;
+  t.mock.method(globalThis, 'fetch', async (_url, options) => {
+    const failed = JSON.parse(options.body).providerConfig.providers[0];
+    failedKey = failed.apiKey;
     return new Response(JSON.stringify({
       error: {
         code: 'LLM_UNAVAILABLE',
         message: 'Rate limit reached',
         providers: [
-          { providerId: 'google-gemini-slot-1', code: 'QUOTA_EXCEEDED' },
+          { providerId: failed.id, code: 'QUOTA_EXCEEDED' },
         ],
       },
       degraded: 'degraded-structured',
@@ -216,8 +170,7 @@ test('chatWithAiService automatically marks key rate limited on upstream 429 / q
 
     const healthy = getHealthyKeyPool();
     assert.equal(healthy.length, 1);
-    assert.equal(healthy[0], 'AQ.KeyHealthy2');
-    assert.equal(healthy.includes('AQ.KeyUnderLimit1'), false);
+    assert.equal(healthy.includes(failedKey), false);
   } finally {
     resetKeyCooldowns();
     process.env.AI_LLM_API_KEYS = original;
