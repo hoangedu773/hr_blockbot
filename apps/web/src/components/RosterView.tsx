@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Select } from './ui/Select';
 import type { EmployeeDetail, EmployeeLevel, EmployeeSummary } from '@hr-blockbot/contracts';
 import { ApiError, fetchEmployeeById, fetchEmployees, isEmployeeDetail } from '../services/api';
 import type { NotifyFn } from './Toast';
@@ -120,43 +121,38 @@ export const RosterView: React.FC<RosterViewProps> = ({ onNotify }) => {
               />
             </div>
             <div className="field" style={{ minWidth: '150px' }}>
-              <label className="field__label" htmlFor="roster-level">
+              <span className="field__label" id="roster-level-label">
                 Cấp bậc
-              </label>
-              <select
+              </span>
+              <Select
                 id="roster-level"
-                className="select"
                 value={level}
-                onChange={(event) => {
+                onChange={(next) => {
                   setPage(1);
-                  setLevel(event.target.value);
+                  setLevel(next);
                 }}
-              >
-                <option value="">Tất cả</option>
-                {LEVELS.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
+                aria-labelledby="roster-level-label"
+                options={[{ value: '', label: 'Tất cả' }, ...LEVELS.map((item) => ({ value: item, label: item }))]}
+              />
             </div>
             <div className="field" style={{ minWidth: '150px' }}>
-              <label className="field__label" htmlFor="roster-status">
+              <span className="field__label" id="roster-status-label">
                 Trạng thái
-              </label>
-              <select
+              </span>
+              <Select
                 id="roster-status"
-                className="select"
                 value={status}
-                onChange={(event) => {
+                onChange={(next) => {
                   setPage(1);
-                  setStatus(event.target.value);
+                  setStatus(next);
                 }}
-              >
-                <option value="">Tất cả</option>
-                <option value="active">Đang hoạt động</option>
-                <option value="inactive">Tạm dừng</option>
-              </select>
+                aria-labelledby="roster-status-label"
+                options={[
+                  { value: '', label: 'Tất cả' },
+                  { value: 'active', label: 'Đang hoạt động' },
+                  { value: 'inactive', label: 'Tạm dừng' },
+                ]}
+              />
             </div>
             <button
               type="button"

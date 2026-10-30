@@ -301,13 +301,13 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.equal(await modalHeading.isVisible(), true);
   });
 
-  it('Bước 3: đăng nhập bằng tài khoản, mở Chat Copilot rồi chuyển vào CRM Dashboard', async () => {
+  it('Bước 3: đăng nhập bằng tài khoản, mở Chat rồi chuyển vào CRM Dashboard', async () => {
     await page.getByLabel('Tên đăng nhập', { exact: true }).fill('employee');
     await page.getByLabel('Mật khẩu', { exact: true }).fill('fixture-password');
     await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
 
-    // First View: Khung Chat Copilot thông minh hiển thị đầu tiên
-    const chatHeading = page.getByRole('heading', { name: 'Chào mừng HR-BlockBot AI Copilot' });
+    // First View: khung chat hiển thị đầu tiên
+    const chatHeading = page.getByRole('heading', { name: 'Chào mừng đến HR BlockBot' });
     await chatHeading.waitFor({ state: 'visible', timeout: 5000 });
     assert.equal(await chatHeading.isVisible(), true);
 
@@ -557,7 +557,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       (expected) => document.querySelectorAll('table tbody tr[data-id]').length === expected,
       STORE_FIXTURE_ITEMS.length
     );
-    await page.locator('nav a').filter({ hasText: 'Copilot' }).click();
+    await page.locator('nav a.crm-copilot').click();
     await page.keyboard.press('Escape');
     assert.equal(await page.getByTestId('chat-page').count(), 0);
     // Returning to CRM remounts the view, so the portal + first fetch are async.
@@ -582,7 +582,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     };
     await page.route('**/api/chat', pendingReply);
     try {
-      await page.locator('nav a').filter({ hasText: 'Copilot' }).click();
+      await page.locator('nav a.crm-copilot').click();
       await page.getByPlaceholder('Hỏi AI về ca trực, nhân sự, tiền két...').fill('thiếu người');
       await page.keyboard.press('Enter');
       await requestStarted;
@@ -607,16 +607,16 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
   });
 
   it('ChatPage: desktop empty state, demo an toàn, citations và confirm không giả thực thi', async () => {
-    await page.locator('nav a').filter({ hasText: 'Copilot' }).click();
+    await page.locator('nav a.crm-copilot').click();
     const chat = page.getByTestId('chat-page');
     assert.doesNotMatch(fs.readFileSync(path.resolve(__dirname, '../src/components/chat/ChatPageView.tsx'), 'utf8'), /#(?:2563eb|93c5fd|35435a|233149)\b/i);
-    const heading = chat.getByRole('heading', { name: 'Chào mừng HR-BlockBot AI Copilot' });
+    const heading = chat.getByRole('heading', { name: 'Chào mừng đến HR BlockBot' });
     await heading.waitFor();
     assert.deepEqual(await heading.evaluate((h1) => {
       const style = getComputedStyle(h1);
       return [style.outlineStyle === 'none' || style.outlineWidth === '0px', style.borderTopWidth, style.boxShadow];
     }), [true, '0px', 'none']);
-    assert.equal(await chat.getByText('HR-BlockBot AI Copilot', { exact: true }).count(), 1);
+    assert.equal(await chat.getByText('Trợ lý HR BlockBot', { exact: true }).count(), 1);
     assert.equal(await chat.getByText('HR-BlockBot Workspace', { exact: true }).count(), 1);
     assert.deepEqual(await chat.locator('img').evaluateAll((images) => images.map((img) => ({ src: img.getAttribute('src'), loaded: img.complete && img.naturalWidth > 0 }))), [
       { src: '/assets/logos/guta-mark-pure.svg', loaded: true },
@@ -791,7 +791,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     await page.route('**/api/chat', handler);
     try {
       await returnToCrm();
-      await page.locator('nav a').filter({ hasText: 'Copilot' }).click();
+      await page.locator('nav a.crm-copilot').click();
       const chat = page.getByTestId('chat-page');
       const input = chat.getByRole('textbox', { name: 'Tin nhắn cho Guta AI' });
       const singleLineHeight = await input.evaluate((el) => el.getBoundingClientRect().height);
@@ -853,7 +853,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     });
     try {
       await returnToCrm();
-      await page.locator('nav a').filter({ hasText: 'Copilot' }).click();
+      await page.locator('nav a.crm-copilot').click();
       await page.getByRole('textbox', { name: 'Tin nhắn cho Guta AI' }).fill('Kiểm tra fetch');
       await page.keyboard.press('Enter');
       await started;
@@ -891,7 +891,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       await page.getByRole('table').waitFor({ state: 'visible' });
     });
     await returnToCrm();
-    await page.locator('nav a').filter({ hasText: 'Copilot' }).click();
+    await page.locator('nav a.crm-copilot').click();
     await page.emulateMedia({ reducedMotion: 'reduce' });
     const chat = page.getByTestId('chat-page');
     for (const viewport of [{ width: 320, height: 740 }, { width: 375, height: 812 }, { width: 812, height: 375 }]) {
@@ -902,7 +902,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       assert.ok(targets.every(({ width, height }) => width >= 44 && height >= 44));
     }
     await page.setViewportSize({ width: 320, height: 740 });
-    const menu = chat.getByRole('button', { name: 'Menu Copilot' });
+    const menu = chat.getByRole('button', { name: 'Mở danh sách hội thoại' });
     await menu.focus();
     await page.keyboard.press('Enter');
     assert.equal(await menu.getAttribute('aria-expanded'), 'true');
@@ -994,7 +994,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.equal(await page.getByText(/581 Sư Vạn Hạnh/i).isVisible(), true);
 
     // 4. ChatDrawer Trigger Button State
-    await page.locator('nav a').filter({ hasText: 'Copilot' }).click();
+    await page.locator('nav a.crm-copilot').click();
     const chatInput = page.getByPlaceholder('Hỏi AI về ca trực, nhân sự, tiền két...');
     const sendBtn = page.getByRole('button', { name: 'Gửi', exact: true });
     assert.equal(await sendBtn.isDisabled(), true);

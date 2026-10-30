@@ -120,7 +120,7 @@ describe('Account login and session lifecycle (isolated browser fixtures)', () =
 
   async function openChat(page) {
     if (!await page.locator('.guta-chat').count()) {
-      await page.locator('nav a').filter({ hasText: /Copilot/i }).click();
+      await page.locator('nav a').filter({ hasText: /Trợ lý HR BlockBot/i }).click();
     }
     await page.getByPlaceholder('Hỏi AI về ca trực, nhân sự, tiền két...').waitFor();
   }

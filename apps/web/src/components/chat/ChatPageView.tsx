@@ -302,25 +302,14 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
 
   return (
     <div className="guta-chat" data-testid="chat-page">
-            <aside id="copilot-sidebar" className="guta-chat-sidebar" data-open={sidebarOpen} aria-label="Điều hướng Copilot">
+            <aside id="copilot-sidebar" className="guta-chat-sidebar" data-open={sidebarOpen} aria-label="Điều hướng hội thoại">
         <div className="guta-chat-brand"><img className="guta-chat-logo" src="/assets/logos/guta-mark-pure.svg" alt="" />HR-BlockBot Workspace</div>
-        <button className="chat-new" type="button" onClick={newChat}>+ New Chat</button>
-        <nav aria-label="Gợi ý theo vai trò">
-          <p>GỢI Ý · {ROLE_CONFIG[currentRole].badge.toUpperCase()}</p>
-          {ROLE_QUICK_REPLIES[currentRole].map((item) => (
-            <button
-              type="button"
-              key={item.label}
-              disabled={isTyping}
-              title={item.prompt}
-              onClick={() => send(item.prompt)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
-        <nav aria-label="Chủ đề mẫu">
-          <p>CHỦ ĐỀ MẪU</p>
+        <button className="chat-new" type="button" onClick={newChat}>Hội thoại mới</button>
+        {/* One nav, not two. The role quick replies already render in the centre
+            column where the user is looking; repeating them here made the
+            sidebar a second, competing menu. */}
+        <nav aria-label="Câu hỏi nhanh">
+          <p className="guta-chat-sidebar-label">Hỏi nhanh</p>
           {TOPICS.map((topic) => (
             <button type="button" key={topic.title} disabled={isTyping} onClick={() => send(topic.prompt)}>
               {topic.title}
@@ -332,12 +321,12 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
           <button type="button" aria-label="Đăng Xuất Phiên" onClick={onLogout}>Đăng xuất</button>
         </footer>
       </aside>
-      <main className="guta-chat-main" aria-label="HR-BlockBot AI Copilot">
+      <main className="guta-chat-main" aria-label="Trợ lý HR BlockBot">
         <header className="guta-chat-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <button className="chat-menu" type="button" aria-label="Menu Copilot" aria-expanded={sidebarOpen} aria-controls="copilot-sidebar" onClick={() => setSidebarOpen(!sidebarOpen)}><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg></button>
+            <button className="chat-menu" type="button" aria-label="Mở danh sách hội thoại" aria-expanded={sidebarOpen} aria-controls="copilot-sidebar" onClick={() => setSidebarOpen(!sidebarOpen)}><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg></button>
             <div className="guta-chat-header-title">
-              <strong>HR-BlockBot AI Copilot</strong>
+              <strong>Trợ lý HR BlockBot</strong>
               <span>{ROLE_CONFIG[currentRole].label}</span>
             </div>
           </div>
@@ -362,7 +351,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
             <div className="guta-chat-width">
               <div className="guta-chat-hero">
                 <img src="/assets/logos/guta-mark-pure.svg" alt="HR-BlockBot Logo" />
-                <h1 ref={headingRef} tabIndex={-1}>Chào mừng HR-BlockBot AI Copilot</h1>
+                <h1 ref={headingRef} tabIndex={-1}>Chào mừng đến HR BlockBot</h1>
                 <p>Cùng bạn điều phối ca trực, tra cứu nhân sự và đối soát tiền két.</p>
               </div>
               {composer}

@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="vi" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Preview — Hero photo · Header pill · Warm ink (Guta Workspace)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Newsreader:opsz,wght@6..72,400..600&display=swap" />
+<style>
+/* ------------------------------------------------------------------ *
+ * PREVIEW ONLY. Proves tokens and geometry; it is not production markup.
+ * Phase 00 gate — do not treat this file as delivery.
+ *
+ *   A  hero photo plate behind the product mockup
+ *   B  header, full-bleed vs pill (forced with data-scrolled)
+ *   C  surface ramp: canvas / surface / raised / overlay
+ *
+ * The mockup and the two header bars are cropped interface fragments and are
+ * marked data-ui so page-level rules (hairline, shadow, small-text) do not
+ * judge the product chrome by marketing-page standards.
+ * ------------------------------------------------------------------ */
+
+:root {
+  --canvas: #f6f4f1;
+  --surface: #fffefc;
+  --raised: #ecebe6;
+  --overlay: #e3e1da;
+  --ink: #1b1917;
+  --body-ink: #3a352e;
+  --muted: #575249;
+  --accent: #1d4ed8;
+  --accent-solid: #1d4ed8;
+  --display: "Newsreader", Georgia, serif;
+  --body: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --pill: 9999px;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --t-pill: 280ms;
+  --t-plate: 900ms;
+  color-scheme: light;
+}
+
+html.dark {
+  --canvas: #0f0e0d;
+  --surface: #171512;
+  --raised: #221f1b;
+  --overlay: #2c2823;
+  --ink: #f1efec;
+  --body-ink: #ddd7cc;
+  --muted: #b5ada3;
+  --accent: #3b82f6;
+  --accent-solid: #266df0;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { overflow-x: clip; }
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--body-ink);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Preview chrome — deliberately flat: tone steps, no rules. */
+.pv-bar {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
+  padding: 12px 20px;
+  background: var(--overlay);
+  font-size: 13px;
+}
+.pv-bar strong { font-weight: 600; color: var(--ink); }
+.pv-bar .pv-spacer { margin-left: auto; }
+.pv-bar button {
+  min-height: 36px; padding: 0 14px;
+  border: 0; border-radius: 6px;
+  background: var(--surface); color: var(--ink);
+  font: inherit; font-size: 13px; cursor: pointer;
+}
+.pv-bar button:hover { background: var(--raised); }
+
+.pv-note {
+  margin: 0; padding: 16px 20px;
+  max-width: 78ch;
+  font-size: 14px; line-height: 1.7; color: var(--muted);
+  background: var(--surface);
+}
+
+.pv-block { padding: 48px 20px 64px; }
+.pv-block + .pv-block { background: var(--surface); }
+.pv-block > h2 {
+  margin: 0 0 8px;
+  font-family: var(--display);
+  font-size: 24px; font-weight: 500; letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.pv-block > p.pv-sub { margin: 0 0 32px; max-width: 62ch; font-size: 16px; color: var(--body-ink); }
+
+/* ================= A. HERO ================= */
+/* The plate bleeds past the stage on purpose; clip it here so the bleed
+ * never becomes a horizontal scrollbar. `clip` keeps vertical overflow. */
+.hero { position: relative; padding-block: 56px 0; overflow-x: clip; }
+.hero-inner { width: min(100% - 32px, 1000px); margin-inline: auto; text-align: center; }
+
+h1.hero-title {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(34px, 5.4vw, 60px);
+  font-weight: 500; line-height: 1.14; letter-spacing: -0.02em;
+  color: var(--ink);
+  text-wrap: balance;
+}
+.hero-sub { max-width: 620px; margin: 22px auto 0; font-size: 18px; line-height: 1.65; color: var(--body-ink); text-wrap: balance; }
+.hero-actions { display: flex; justify-content: center; gap: 12px; margin-top: 30px; flex-wrap: wrap; }
+.hero-cta, .hero-cta-2 {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 44px; padding-inline: 22px;
+  border-radius: 8px; font-size: 15px; font-weight: 500; text-decoration: none;
+}
+.hero-cta { background: var(--ink); color: var(--canvas); }
+.hero-cta-2 { background: var(--raised); color: var(--ink); }
+/* The old badge sat above the headline as an eyebrow. Same words, moved to a
+ * status line under the action: it states scope, it does not introduce a title. */
+.hero-status {
+  display: inline-flex; align-items: center; gap: 8px;
+  margin: 20px auto 0; font-size: 14px; color: var(--muted);
+}
+.hero-status .dot { width: 6px; height: 6px; border-radius: var(--pill); background: var(--accent); }
+
+/* The plate: photo behind the product fragment, no frame */
+.stage { position: relative; margin-top: 44px; padding-bottom: 44px; }
+
+.plate {
+  position: absolute;
+  inset: -215px -60px -60px;
+  pointer-events: none;
+  opacity: 0.72;
+  mask-image:
+    linear-gradient(to right, transparent 0%, #000 26%, #000 74%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, #000 32%, #000 100%);
+  -webkit-mask-image:
+    linear-gradient(to right, transparent 0%, #000 26%, #000 74%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, #000 32%, #000 100%);
+  mask-composite: intersect;
+  -webkit-mask-composite: source-in;
+}
+.plate img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 52%; display: block; }
+
+/* Neutral scrim: the one gradient allowed over a photograph. */
+.stage::after {
+  content: "";
+  position: absolute; inset: auto 0 0; height: 30%;
+  pointer-events: none; z-index: 0;
+  background: linear-gradient(to bottom, transparent, var(--canvas) 92%);
+}
+
+.mock {
+  position: relative; z-index: 1;
+  max-height: 400px; overflow: hidden;
+  border-radius: 12px;
+  background: var(--surface);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 82%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 82%, transparent 100%);
+  text-align: left;
+}
+.mock-top {
+  display: flex; align-items: center; justify-content: space-between;
+  height: 52px; padding: 0 14px;
+  background: var(--raised);
+  font-size: 13px;
+}
+.mock-brand { display: flex; align-items: center; gap: 8px; }
+.mock-mark {
+  width: 26px; height: 26px; border-radius: 4px;
+  background: var(--ink); color: var(--canvas);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 13px;
+}
+.mock-brand b { display: block; font-size: 13px; color: var(--ink); }
+.mock-brand small { display: block; font-size: 13px; color: var(--muted); }
+.mock-search {
+  width: 260px; height: 32px; padding: 0 10px;
+  display: flex; align-items: center; gap: 6px;
+  border-radius: 6px;
+  background: var(--surface); color: var(--muted); font-size: 13px;
+}
+.mock-kpis { display: grid; grid-template-columns: repeat(4, 1fr); }
+.mock-kpi { padding: 16px; background: var(--surface); }
+.mock-kpi + .mock-kpi { box-shadow: inset 1px 0 0 var(--raised); }
+.mock-kpi span { display: block; font-size: 13px; color: var(--muted); }
+.mock-kpi b { display: block; margin-top: 6px; font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+.mock-cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 16px; }
+.mock-col { border-radius: 8px; padding: 12px; background: var(--raised); }
+.mock-col h4 { margin: 0 0 10px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.mock-card { border-radius: 6px; padding: 12px; background: var(--surface); margin-bottom: 8px; }
+.mock-card p { margin: 0; font-size: 13px; color: var(--ink); }
+.mock-card small { display: block; margin-top: 6px; font-size: 13px; color: var(--muted); }
+
+.demo-caption { position: relative; z-index: 1; margin: 14px 0 0; font-size: 14px; color: var(--muted); text-align: center; }
+
+/* ================= B. HEADER ================= */
+.header-demo {
+  position: relative;
+  height: 260px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.header-demo + .header-demo { margin-top: 20px; }
+.header-demo .hd-label {
+  position: absolute; top: 12px; left: 16px; z-index: 3;
+  font-size: 13px; color: var(--muted);
+}
+.header-demo .hd-canvas {
+  position: absolute; inset: 0;
+  background: var(--raised);
+}
+
+.nav {
+  position: absolute; inset: 0 0 auto 0; z-index: 2;
+  display: flex; align-items: center; gap: 20px;
+  max-width: 100%; margin-inline: 0;
+  padding: 14px clamp(16px, 4vw, 32px);
+  background: transparent;
+  border-radius: 0;
+  transition:
+    max-width var(--t-pill) var(--ease-out),
+    margin var(--t-pill) var(--ease-out),
+    padding var(--t-pill) var(--ease-out),
+    border-radius var(--t-pill) var(--ease-out),
+    background-color var(--t-pill) var(--ease-out),
+    box-shadow var(--t-pill) var(--ease-out);
+}
+.nav[data-scrolled="true"] {
+  max-width: min(960px, calc(100% - 32px));
+  margin-inline: auto; margin-top: 12px;
+  padding-inline: clamp(10px, 2vw, 18px);
+  border-radius: var(--pill);
+  background: var(--surface);
+  /* Overlay: in production the bar is position: fixed above scrolling content. */
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+}
+
+.nav-brand { display: flex; align-items: center; gap: 9px; margin-right: auto; }
+.nav-mark { width: 28px; height: 28px; border-radius: 4px; background: var(--ink); color: var(--canvas); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
+.nav-name { display: block; font-size: 14px; font-weight: 600; letter-spacing: .01em; line-height: 1.1; color: var(--ink); }
+.nav-sub { display: block; font-size: 13px; color: var(--muted); }
+.nav-links { display: flex; gap: 22px; list-style: none; margin: 0; padding: 0; font-size: 14px; }
+.nav-links a { color: var(--muted); text-decoration: none; }
+.nav-links a:hover { color: var(--ink); }
+.nav-actions { display: flex; gap: 8px; }
+.nav-btn { display: inline-flex; align-items: center; min-height: 36px; padding-inline: 14px; border-radius: 8px; font-size: 14px; text-decoration: none; }
+.nav-btn-quiet { background: var(--raised); color: var(--ink); }
+.nav-btn-solid { background: var(--ink); color: var(--canvas); }
+
+/* ================= C. SURFACES ================= */
+.ramp { display: grid; gap: 10px; margin-bottom: 36px; }
+.ramp-row { display: flex; align-items: center; gap: 16px; }
+.ramp-chip { width: 72px; height: 48px; border-radius: 8px; flex-shrink: 0; }
+.ramp-meta { font-size: 16px; color: var(--body-ink); }
+.ramp-meta b { color: var(--ink); font-weight: 500; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.card { padding: 28px; border-radius: 12px; background: var(--raised); }
+.card--raised { background: var(--overlay); }
+.card h3 { margin: 0 0 10px; font-family: var(--display); font-size: 21px; font-weight: 500; letter-spacing: -0.01em; color: var(--ink); }
+.card p { margin: 0; font-size: 16px; line-height: 1.65; color: var(--body-ink); }
+
+.tagline { margin-top: 36px; padding: 56px 24px; background: var(--raised); border-radius: 12px; text-align: center; }
+.tagline p.big {
+  margin: 0 auto; max-width: 760px;
+  font-family: var(--display); font-size: clamp(22px, 2.8vw, 30px);
+  font-weight: 400; line-height: 1.4; letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.tagline p.foot { margin: 18px auto 0; max-width: 620px; font-size: 16px; color: var(--body-ink); }
+
+.contrast-table { margin-top: 36px; width: 100%; border-collapse: collapse; font-size: 14px; }
+.contrast-table th, .contrast-table td { padding: 10px 12px; text-align: left; }
+.contrast-table th { font-weight: 500; color: var(--muted); }
+.contrast-table tbody tr { background: var(--raised); }
+.contrast-table td.num { font-variant-numeric: tabular-nums; text-align: right; color: var(--ink); }
+.contrast-table td.pass { color: var(--accent); }
+
+/* One shot on load, mirroring the production hero appear. The plate settles;
+ * nothing else moves, and reduced motion renders the finished state. */
+@media (prefers-reduced-motion: no-preference) {
+  .plate { animation: plate-settle var(--t-plate) var(--ease-out) both; }
+  .hero-inner > * { animation: rise 520ms var(--ease-out) both; }
+  .hero-inner > :nth-child(2) { animation-delay: 60ms; }
+  .hero-inner > :nth-child(3) { animation-delay: 120ms; }
+  .hero-inner > :nth-child(4) { animation-delay: 180ms; }
+  .hero-inner > :nth-child(5) { animation-delay: 240ms; }
+}
+@keyframes plate-settle {
+  from { opacity: 0; transform: scale(1.03); }
+  to   { opacity: 0.62; transform: none; }
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Section entrances, one manner per content type — mirrors production.
+ * Hidden start states sit inside no-preference so the reduced page is finished. */
+@media (prefers-reduced-motion: no-preference) {
+  .card[data-enter], .ramp-row[data-enter] {
+    opacity: 0; transform: translateY(18px);
+    transition: opacity 520ms var(--ease-out), transform 520ms var(--ease-out);
+    transition-delay: calc(var(--i, 0) * 70ms);
+  }
+  .tagline[data-enter] { opacity: 0; filter: blur(6px); transition: opacity 640ms var(--ease-out), filter 640ms var(--ease-out); }
+  .card.is-in, .ramp-row.is-in { opacity: 1; transform: none; }
+  .tagline.is-in { opacity: 1; filter: none; }
+}
+
+@media (max-width: 767px) {
+  .plate { inset: -150px -28px -32px; opacity: 0.6; }
+  .nav-links, .nav-actions { display: none; }
+  .mock-search { display: none; }
+  .mock-kpis { grid-template-columns: repeat(2, 1fr); }
+  .mock-cols { grid-template-columns: 1fr; }
+}
+@media (max-width: 430px) {
+  .plate { inset: -110px -18px -24px; opacity: 0.56; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav { transition: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="pv-bar">
+  <strong>Preview · Phase 00</strong>
+  <span>Chưa phải production. Chỉ chứng minh token và hình dạng.</span>
+  <span class="pv-spacer"></span>
+  <button type="button" id="toggle-theme">Chuyển sáng / tối</button>
+  <button type="button" id="toggle-nav">Đổi trạng thái header</button>
+</div>
+
+<p class="pv-note">
+  Token đo được (dark): ink #f1efec 16.80:1 · body #ddd7cc 13.47:1 · muted #b5ada3 8.70:1 ·
+  accent #3b82f6 5.24:1 trên canvas #0f0e0d. Ảnh: dashboard-bg-hero.jpg — grade brightness 0.55,
+  saturation 0.40, 1600×1067, 187 KB.
+</p>
+
+<!-- ============ A ============ -->
+<section class="pv-block">
+  <h2>A. Hero — ảnh phong cảnh sau mockup</h2>
+  <p class="pv-sub">Mask hai lớp giao nhau cộng một scrim trung tính. Mockup phải là vật sáng nhất khối.</p>
+
+  <div class="hero">
+    <div class="hero-inner">
+      <h1 class="hero-title">Quản Trị Nhân Sự &amp;<br />Phân Ca Tự Động</h1>
+      <p class="hero-sub">Guta Workspace tự động hóa xếp ca 24H, đối soát chấm công và trợ lý AI điều phối nhân sự cho chuỗi cà phê — nhanh, không sót ca.</p>
+      <div class="hero-actions">
+        <a class="hero-cta" href="#guta-dashboard">Khám phá dashboard</a>
+        <a class="hero-cta-2" href="#solution">Xem luồng làm việc</a>
+      </div>
+      <p class="hero-status"><span class="dot"></span>F&amp;B Workforce Intelligence · 45 chi nhánh TP.HCM</p>
+    </div>
+
+    <div class="stage">
+      <div class="plate" aria-hidden="true">
+        <img src="assets/dashboard-bg-hero.jpg" alt="" width="1600" height="1067" />
+      </div>
+
+      <div class="mock" data-ui id="guta-dashboard" role="region" aria-label="Minh họa dashboard nhân sự">
+        <div class="mock-top">
+          <div class="mock-brand">
+            <div class="mock-mark">G</div>
+            <div><b>Guta Workspace</b><small>Guta CRM · Quản trị phân ca &amp; nhân sự chuỗi</small></div>
+          </div>
+          <div class="mock-search">Tìm kiếm chi nhánh, barista, ca trực… <span style="margin-left:auto">⌘K</span></div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span style="font-size:13px;padding:4px 8px;border-radius:4px;background:var(--raised)">Admin HR</span>
+          </div>
+        </div>
+        <div class="mock-kpis">
+          <div class="mock-kpi"><span>Tổng nhân sự</span><b>2.439</b></div>
+          <div class="mock-kpi"><span>Lịch trình ca</span><b>18</b></div>
+          <div class="mock-kpi"><span>Hàng đợi duyệt</span><b>4</b></div>
+          <div class="mock-kpi"><span>Gợi ý PhoBERT</span><b>94.2%</b></div>
+        </div>
+        <div class="mock-cols">
+          <div class="mock-col"><h4>Khởi tạo</h4>
+            <div class="mock-card"><p>Định biên nhân sự ca sáng</p><small>Hạn 30/10</small></div>
+          </div>
+          <div class="mock-col"><h4>Đang thực hiện</h4>
+            <div class="mock-card"><p>Chuẩn hóa hồ sơ nhân sự</p><small>Tiến độ 60%</small></div>
+            <div class="mock-card"><p>Chatbot nhắc ca &amp; chốt két</p><small>Tiến độ 85%</small></div>
+          </div>
+          <div class="mock-col"><h4>Hoàn thành</h4>
+            <div class="mock-card"><p>Nghiệm thu ca làm &amp; bàn giao</p><small>Đã chốt két</small></div>
+          </div>
+        </div>
+      </div>
+      <p class="demo-caption">Minh họa giao diện · Dữ liệu mô phỏng vận hành chuỗi cà phê</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ B ============ -->
+<section class="pv-block">
+  <h2>B. Header — full-bleed và viên thuốc</h2>
+  <p class="pv-sub">Cùng một element, hai hình dạng. Bấm “Đổi trạng thái header” để xem chuyển tiếp 280ms.</p>
+
+  <div class="header-demo" data-ui>
+    <span class="hd-label">Đầu trang — full-bleed, không nền</span>
+    <div class="hd-canvas"></div>
+    <nav class="nav" data-scrolled="false" id="nav-a" aria-label="Điều hướng chính (bản xem trước)">
+      <div class="nav-brand">
+        <div class="nav-mark">G</div>
+        <div><span class="nav-name">GUTA WORKSPACE</span><span class="nav-sub">HR &amp; Smart Shift AI</span></div>
+      </div>
+      <ul class="nav-links">
+        <li><a href="#">Nghiệp vụ</a></li>
+        <li><a href="#">Luồng làm việc</a></li>
+        <li><a href="#">Trợ lý AI</a></li>
+        <li><a href="#">Nguyên tắc</a></li>
+      </ul>
+      <div class="nav-actions">
+        <a class="nav-btn nav-btn-quiet" href="#">Đăng nhập</a>
+        <a class="nav-btn nav-btn-solid" href="#">Xem dashboard</a>
+      </div>
+    </nav>
+  </div>
+
+  <div class="header-demo" data-ui>
+    <span class="hd-label">Đã cuộn — pill, nền mờ, bóng đổ của overlay</span>
+    <div class="hd-canvas"></div>
+    <nav class="nav" data-scrolled="true" id="nav-b" aria-label="Điều hướng chính đã cuộn (bản xem trước)">
+      <div class="nav-brand">
+        <div class="nav-mark">G</div>
+        <div><span class="nav-name">GUTA WORKSPACE</span><span class="nav-sub">HR &amp; Smart Shift AI</span></div>
+      </div>
+      <ul class="nav-links">
+        <li><a href="#">Nghiệp vụ</a></li>
+        <li><a href="#">Luồng làm việc</a></li>
+        <li><a href="#">Trợ lý AI</a></li>
+        <li><a href="#">Nguyên tắc</a></li>
+      </ul>
+      <div class="nav-actions">
+        <a class="nav-btn nav-btn-quiet" href="#">Đăng nhập</a>
+        <a class="nav-btn nav-btn-solid" href="#">Xem dashboard</a>
+      </div>
+    </nav>
+  </div>
+</section>
+
+<!-- ============ C ============ -->
+<section class="pv-block">
+  <h2>C. Thang surface — bốn bậc đọc được</h2>
+  <p class="pv-sub">Canvas, surface, raised và overlay khác nhau bằng độ sáng. Đo trên ảnh chụp, không chỉ trong CSS.</p>
+
+  <div class="ramp">
+    <div class="ramp-row"><div class="ramp-chip" style="background: var(--canvas)"></div><div class="ramp-meta"><b>canvas</b> — nền trang</div></div>
+    <div class="ramp-row"><div class="ramp-chip" style="background: var(--surface)"></div><div class="ramp-meta"><b>surface</b> — card, band</div></div>
+    <div class="ramp-row"><div class="ramp-chip" style="background: var(--raised)"></div><div class="ramp-meta"><b>raised</b> — control, card nổi</div></div>
+    <div class="ramp-row"><div class="ramp-chip" style="background: var(--overlay)"></div><div class="ramp-meta"><b>overlay</b> — menu, thanh preview</div></div>
+  </div>
+
+  <div class="cards">
+    <article class="card">
+      <h3>Phân công theo kỹ năng</h3>
+      <p>Barista mới vào ca tối được xếp đúng ô trống; điểm PhoBERT và tải việc hiện ngay cạnh tên.</p>
+    </article>
+    <article class="card">
+      <h3>Đối soát két tiền mặt</h3>
+      <p>Dòng lệch được đánh dấu khi quét; số chênh lệch hiện ra thay vì phải tự trừ.</p>
+    </article>
+    <article class="card card--raised">
+      <h3>Tra cứu chính sách</h3>
+      <p>Hỏi bằng tiếng Việt, nhận câu trả lời kèm nguồn — chưa đủ dữ liệu thì hệ thống hỏi lại.</p>
+    </article>
+  </div>
+
+  <div class="tagline">
+    <p class="big">Một ca thiếu người không còn là cuộc gọi lúc 5 giờ sáng. Hệ thống đã biết trước bốn tiếng.</p>
+    <p class="foot">Cảnh báo thiếu người, gợi ý người thay ca và xác nhận của quản lý — tất cả trước giờ mở cửa.</p>
+  </div>
+
+  <table class="contrast-table">
+    <thead><tr><th>Cặp</th><th style="text-align:right">Tỷ lệ</th><th>Ngưỡng</th></tr></thead>
+    <tbody id="contrast-body"></tbody>
+  </table>
+</section>
+
+<script>
+const root = document.documentElement;
+document.getElementById('toggle-theme').addEventListener('click', () => root.classList.toggle('dark'));
+
+let scrolled = true;
+document.getElementById('toggle-nav').addEventListener('click', () => {
+  scrolled = !scrolled;
+  for (const id of ['nav-a', 'nav-b']) document.getElementById(id).setAttribute('data-scrolled', String(scrolled));
+});
+
+// Contrast measured from computed values, not typed from the plan.
+// The tokens are hex; only fall back to numeric parsing for rgb()/rgba().
+function toRgb(value) {
+  const v = value.trim();
+  const hex = v.match(/^#([0-9a-f]{6})$/i);
+  if (hex) {
+    const n = parseInt(hex[1], 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  return (v.match(/[\d.]+/g) || []).map(Number).slice(0, 3);
+}
+function luminance([r, g, b]) {
+  const f = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+}
+function ratio(a, b) {
+  const [x, y] = [luminance(a), luminance(b)].sort((m, n) => n - m);
+  return (x + 0.05) / (y + 0.05);
+}
+function report() {
+  const cs = getComputedStyle(root);
+  const v = (n) => cs.getPropertyValue(n);
+  const pairs = [
+    ['ink trên canvas', v('--ink'), v('--canvas'), 4.5],
+    ['ink trên surface', v('--ink'), v('--surface'), 4.5],
+    ['body trên surface', v('--body-ink'), v('--surface'), 4.5],
+    ['body trên raised', v('--body-ink'), v('--raised'), 4.5],
+    ['muted trên canvas', v('--muted'), v('--canvas'), 4.5],
+    ['muted trên raised', v('--muted'), v('--raised'), 4.5],
+    ['accent trên canvas', v('--accent'), v('--canvas'), 3],
+    ['white trên accent-solid', '#ffffff', v('--accent-solid'), 4.5],
+  ];
+  document.getElementById('contrast-body').innerHTML = pairs.map(([label, fg, bg, min]) => {
+    const r = ratio(toRgb(fg), toRgb(bg));
+    const pass = r >= min;
+    return '<tr><td>' + label + '</td><td class="num">' + r.toFixed(2) + ':1</td>' +
+           '<td class="' + (pass ? 'pass' : '') + '">' + (pass ? 'đạt' : 'TRƯỢT') + ' (≥ ' + min + ')</td></tr>';
+  }).join('');
+}
+report();
+document.getElementById('toggle-theme').addEventListener('click', () => requestAnimationFrame(report));
+
+// Entrance observer: fires once per element, then unobserves. Same contract as
+// FolioLandingView's section entrances.
+document.querySelectorAll('.card, .ramp-row').forEach((el, i) => {
+  el.setAttribute('data-enter', '');
+  el.style.setProperty('--i', String(i % 4));
+});
+document.querySelector('.tagline')?.setAttribute('data-enter', '');
+const io = 'IntersectionObserver' in window
+  ? new IntersectionObserver((entries, obs) => {
+      for (const e of entries) { if (!e.isIntersecting) continue; e.target.classList.add('is-in'); obs.unobserve(e.target); }
+    }, { rootMargin: '0px 0px -12% 0px', threshold: 0.1 })
+  : null;
+document.querySelectorAll('[data-enter]').forEach((el) => io ? io.observe(el) : el.classList.add('is-in'));
+</script>
+</body>
+</html>

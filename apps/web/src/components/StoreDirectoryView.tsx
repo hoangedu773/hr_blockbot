@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Select } from './ui/Select';
 import type { DashboardOverview, StoreKind, StoreStatus, StoreSummary } from '@hr-blockbot/contracts';
 import { StoreCreateSchema } from '@hr-blockbot/contracts';
 import type { PaginationMeta } from '@hr-blockbot/contracts';
@@ -442,42 +443,40 @@ export const StoreDirectoryView: React.FC<StoreDirectoryViewProps> = ({
           style={{ minWidth: 220 }}
         />
 
-        <select
+        <Select
           value={kind}
-          onChange={(event) => setKind(event.target.value as StoreKind | '')}
+          onChange={(next) => setKind(next as StoreKind | '')}
           aria-label="Lọc theo loại cửa hàng"
-          className="bg-transparent border border-border/70 rounded-xl px-3 py-2 text-xs text-foreground outline-none"
-        >
-          <option value="">Tất cả loại</option>
-          <option value="outlet">Cửa hàng</option>
-          <option value="group">Nhóm</option>
-          <option value="support">Hỗ trợ</option>
-        </select>
+          className="w-auto"
+          options={[
+            { value: '', label: 'Tất cả loại' },
+            { value: 'outlet', label: 'Cửa hàng' },
+            { value: 'group', label: 'Nhóm' },
+            { value: 'support', label: 'Hỗ trợ' },
+          ]}
+        />
 
-        <select
+        <Select
           value={status}
-          onChange={(event) => setStatus(event.target.value as StoreStatus | '')}
+          onChange={(next) => setStatus(next as StoreStatus | '')}
           aria-label="Lọc theo trạng thái"
-          className="bg-transparent border border-border/70 rounded-xl px-3 py-2 text-xs text-foreground outline-none"
-        >
-          <option value="">Tất cả trạng thái</option>
-          <option value="ACTIVE">Đang hoạt động</option>
-          <option value="INACTIVE">Tạm dừng</option>
-        </select>
+          className="w-auto"
+          options={[
+            { value: '', label: 'Tất cả trạng thái' },
+            { value: 'ACTIVE', label: 'Đang hoạt động' },
+            { value: 'INACTIVE', label: 'Tạm dừng' },
+          ]}
+        />
 
         {/* The chrome header owns the "Bộ lọc Quận" cycle button; this select
             mirrors the same lifted value for keyboard/direct selection. */}
-        <select
+        <Select
           value={district}
-          onChange={(event) => onDistrictChange(event.target.value)}
+          onChange={onDistrictChange}
           aria-label="Lọc theo quận"
-          className="bg-transparent border border-border/70 rounded-xl px-3 py-2 text-xs text-foreground outline-none"
-        >
-          <option value="">Tất cả quận</option>
-          {districtOptions.map((option) => (
-            <option key={option} value={option}>{option}</option>
-          ))}
-        </select>
+          className="w-auto"
+          options={[{ value: '', label: 'Tất cả quận' }, ...districtOptions.map((option) => ({ value: option, label: option }))]}
+        />
 
         {isAdmin && (
           <button
@@ -707,34 +706,38 @@ export const StoreDirectoryView: React.FC<StoreDirectoryViewProps> = ({
             </label>
 
             <div className="grid grid-cols-2 gap-3">
-              <label className="block text-xs text-muted-foreground">
-                Loại
-                <select
+              {/* A <label> cannot wrap a combobox button, so the text is a span
+                  and the control is named by aria-label. */}
+              <div className="block text-xs text-muted-foreground">
+                <span id="store-form-kind-label">Loại</span>
+                <Select
                   value={form.kind}
-                  onChange={(event) => setForm({ ...form, kind: event.target.value as StoreKind })}
-                  aria-label="Loại cửa hàng"
-                  className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground outline-none"
-                >
-                  <option value="outlet">Cửa hàng</option>
-                  <option value="group">Nhóm</option>
-                  <option value="support">Hỗ trợ</option>
-                </select>
+                  onChange={(next) => setForm({ ...form, kind: next as StoreKind })}
+                  aria-labelledby="store-form-kind-label"
+                  className="mt-1"
+                  options={[
+                    { value: 'outlet', label: 'Cửa hàng' },
+                    { value: 'group', label: 'Nhóm' },
+                    { value: 'support', label: 'Hỗ trợ' },
+                  ]}
+                />
                 {fieldErrors.kind && <span className="mt-1 block text-[11px]" style={{ color: 'var(--status-late)' }}>{fieldErrors.kind}</span>}
-              </label>
+              </div>
 
-              <label className="block text-xs text-muted-foreground">
-                Trạng thái
-                <select
+              <div className="block text-xs text-muted-foreground">
+                <span id="store-form-status-label">Trạng thái</span>
+                <Select
                   value={form.status}
-                  onChange={(event) => setForm({ ...form, status: event.target.value as StoreStatus })}
-                  aria-label="Trạng thái cửa hàng"
-                  className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground outline-none"
-                >
-                  <option value="ACTIVE">Đang hoạt động</option>
-                  <option value="INACTIVE">Tạm dừng</option>
-                </select>
+                  onChange={(next) => setForm({ ...form, status: next as StoreStatus })}
+                  aria-labelledby="store-form-status-label"
+                  className="mt-1"
+                  options={[
+                    { value: 'ACTIVE', label: 'Đang hoạt động' },
+                    { value: 'INACTIVE', label: 'Tạm dừng' },
+                  ]}
+                />
                 {fieldErrors.status && <span className="mt-1 block text-[11px]" style={{ color: 'var(--status-late)' }}>{fieldErrors.status}</span>}
-              </label>
+              </div>
             </div>
 
             <label className="block text-xs text-muted-foreground">

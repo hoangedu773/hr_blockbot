@@ -85,11 +85,11 @@ test('ChatDrawer renders Markdown/citations, confirms drafts honestly, validates
     const sizes = await dialog.getByRole('button').evaluateAll((buttons) => buttons.map((el) => ({ width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height })));
     assert.ok(sizes.every(({ width, height }) => width >= 44 && height >= 44));
     assert.equal(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth), true);
-    await dialog.getByRole('button', { name: 'Đóng Chat Copilot' }).focus();
+    await dialog.getByRole('button', { name: 'Đóng trợ lý' }).focus();
     await page.keyboard.press('Shift+Tab');
     assert.equal(await input.evaluate((el) => el === document.activeElement), true);
     await page.keyboard.press('Tab');
-    assert.equal(await dialog.getByRole('button', { name: 'Đóng Chat Copilot' }).evaluate((el) => el === document.activeElement), true);
+    assert.equal(await dialog.getByRole('button', { name: 'Đóng trợ lý' }).evaluate((el) => el === document.activeElement), true);
     await page.keyboard.press('Escape');
     assert.equal(await page.getByRole('dialog').count(), 0);
     assert.deepEqual(errors, []);

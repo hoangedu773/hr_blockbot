@@ -237,7 +237,7 @@ const INITIAL_MESSAGES: ChatMessage[] = [
   {
     id: 'msg-0',
     sender: 'assistant',
-    text: 'Xin chào! Tôi là Guta AI Copilot — trợ lý điều hành ca trực và đối soát nhân sự chuỗi 45 chi nhánh. Bạn cần kiểm tra ca trực, nhân sự hay quỹ két nào hôm nay?',
+    text: 'Xin chào! Tôi là trợ lý HR BlockBot — hỗ trợ điều hành ca trực và đối soát nhân sự chuỗi 45 chi nhánh. Bạn cần kiểm tra ca trực, nhân sự hay quỹ két nào hôm nay?',
     timestamp: '08:00',
   },
 ];
@@ -442,14 +442,14 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
         data-state={isOpen ? 'open' : 'closed'}
         role="dialog"
         aria-modal="true"
-        aria-label="Guta AI Copilot Drawer"
+        aria-label="Trợ lý HR BlockBot"
       >
         {/* Header */}
         <div className="guta-chat-drawer-header">
           <button
             type="button"
             onClick={onClose}
-            aria-label="Đóng Chat Copilot"
+            aria-label="Đóng trợ lý"
             className="guta-chat-drawer-close"
           >
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
@@ -475,7 +475,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
             </div>
             <div>
               <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--drawer-text)', letterSpacing: '-0.01em' }}>
-                GUTA AI COPILOT
+                TRỢ LÝ HR BLOCKBOT
               </div>
               <div style={{ fontSize: '11px', color: '#34d399', display: 'flex', alignItems: 'center', gap: '5px', marginTop: '1px' }}>
                 <span style={{ width: '6px', height: '6px', borderRadius: '9999px', backgroundColor: '#10b981' }}></span>
