@@ -356,75 +356,66 @@ export const StoreDirectoryView: React.FC<StoreDirectoryViewProps> = ({
 
   return (
     <div>
-      {/* KPI SUMMARY RIBBON (Frosted Muted Slate Gray) */}
+      {/* KPI strip: one container divided by hairlines. No icon, no gradient,
+          no blur — the 1px gap between cells is the only rule (phase 01). */}
       <div className="crm-kpi-grid">
         <div className="crm-kpi-card">
           <div className="crm-kpi-header">
-            <span className="crm-kpi-title">Tổng Cửa Hàng</span>
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-300"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
+            <span className="crm-kpi-title">Tổng cửa hàng</span>
           </div>
           <div className="crm-kpi-value" title={outletMetric.title}>
-            {outletMetric.text}{' '}
-            <small style={{ fontSize: 13, fontWeight: 400, color: '#94a3b8', fontFamily: 'sans-serif' }}>chi nhánh</small>
+            {outletMetric.text}<span className="crm-kpi-unit">chi nhánh</span>
           </div>
-          <div className="crm-kpi-meta" style={{ color: '#94a3b8' }}>
-            {overview ? (
-              <span>
-                {overview.stores.groups} nhóm · {overview.stores.support} hỗ trợ
-              </span>
-            ) : (
-              <span>{overviewError ? 'Không tải được số liệu tổng quan' : 'Đang tải số liệu…'}</span>
-            )}
+          <div className="crm-kpi-meta">
+            {overview
+              ? `${overview.stores.groups} nhóm · ${overview.stores.support} hỗ trợ`
+              : overviewError ? 'Không tải được số liệu tổng quan' : 'Đang tải số liệu…'}
           </div>
         </div>
 
         <div className="crm-kpi-card">
           <div className="crm-kpi-header">
-            <span className="crm-kpi-title">Nhân Sự Đang Hoạt Động</span>
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-300"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+            <span className="crm-kpi-title">Nhân sự đang hoạt động</span>
           </div>
           <div className="crm-kpi-value" title={staffMetric.title}>
-            {staffMetric.text}{' '}
-            <small style={{ fontSize: 13, fontWeight: 400, color: '#94a3b8', fontFamily: 'sans-serif' }}>nhân sự</small>
+            {staffMetric.text}<span className="crm-kpi-unit">nhân sự</span>
           </div>
-          <div className="crm-kpi-meta" style={{ color: '#94a3b8' }}>
-            {overview ? (
-              <span>
-                {overview.employees.total} tổng · {overview.employees.inactive} tạm dừng
-              </span>
-            ) : (
-              <span>{overviewError ? 'Không tải được số liệu tổng quan' : 'Đang tải số liệu…'}</span>
-            )}
+          <div className="crm-kpi-meta">
+            {overview
+              ? `${overview.employees.total} tổng · ${overview.employees.inactive} tạm dừng`
+              : overviewError ? 'Không tải được số liệu tổng quan' : 'Đang tải số liệu…'}
           </div>
         </div>
 
         <div className="crm-kpi-card">
           <div className="crm-kpi-header">
-            <span className="crm-kpi-title">Doanh Thu Két Sáng</span>
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-300"><circle cx="12" cy="12" r="10" /><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" /><path d="M12 18V6" /></svg>
+            <span className="crm-kpi-title">Doanh thu két sáng</span>
           </div>
-          <div className="crm-kpi-value" style={{ color: '#e4e4e7' }} title={revenueMetric.title}>
+          <div className="crm-kpi-value crm-kpi-value--lead" title={revenueMetric.title}>
             {revenueMetric.text}
           </div>
-          <div className="crm-kpi-meta" style={{ color: '#94a3b8' }}>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {overview ? (overview.revenue.value === null ? (overview.revenue.reason ?? 'Chưa có nguồn dữ liệu') : `Nguồn: ${overview.revenue.source}`) : overviewError ? 'Không tải được số liệu' : 'Đang tải số liệu…'}
-            </span>
+          <div className="crm-kpi-meta">
+            {overview
+              ? (overview.revenue.value === null
+                  ? (overview.revenue.reason ?? 'Chưa có nguồn dữ liệu')
+                  : `Nguồn: ${overview.revenue.source}`)
+              : overviewError ? 'Không tải được số liệu' : 'Đang tải số liệu…'}
           </div>
         </div>
 
         <div className="crm-kpi-card">
           <div className="crm-kpi-header">
-            <span className="crm-kpi-title">Tỷ Lệ Đúng Giờ</span>
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-400"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+            <span className="crm-kpi-title">Tỷ lệ đúng giờ</span>
           </div>
           <div className="crm-kpi-value" title={onTimeMetric.title}>
             {onTimeMetric.text}
           </div>
-          <div className="crm-kpi-meta" style={{ color: '#94a3b8' }}>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {overview ? (overview.onTimeRate.value === null ? (overview.onTimeRate.reason ?? 'Chưa có nguồn dữ liệu') : `Nguồn: ${overview.onTimeRate.source}`) : overviewError ? 'Không tải được số liệu' : 'Đang tải số liệu…'}
-            </span>
+          <div className="crm-kpi-meta">
+            {overview
+              ? (overview.onTimeRate.value === null
+                  ? (overview.onTimeRate.reason ?? 'Chưa có nguồn dữ liệu')
+                  : `Nguồn: ${overview.onTimeRate.source}`)
+              : overviewError ? 'Không tải được số liệu' : 'Đang tải số liệu…'}
           </div>
         </div>
       </div>
@@ -492,7 +483,7 @@ export const StoreDirectoryView: React.FC<StoreDirectoryViewProps> = ({
           <button
             type="button"
             onClick={openCreateForm}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-zinc-700 to-zinc-800 hover:from-zinc-400 hover:to-zinc-700 text-white text-xs font-bold transition shadow-sm cursor-pointer active:scale-95 transition-transform"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-zinc-700 to-zinc-800 hover:from-zinc-400 hover:to-zinc-700 text-white text-xs font-bold transition-colors shadow-sm cursor-pointer active:scale-95 transition-transform"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg>
             <span>Thêm cửa hàng</span>
@@ -500,17 +491,16 @@ export const StoreDirectoryView: React.FC<StoreDirectoryViewProps> = ({
         )}
       </div>
 
-      <div className="crm-table-shell rounded-xl border border-white/[0.08] bg-white/[0.02] backdrop-blur-md shadow-xs overflow-x-auto">
-      <table className="w-full text-left text-xs border-collapse min-w-[960px]">
-        <thead className="crm-table-head bg-neutral-900/60 backdrop-blur-md">
-          <tr className="border-b border-white/[0.06] font-semibold text-muted-foreground">
-            <th className="py-3 px-3 whitespace-nowrap">Mã CH</th>
-            <th className="py-3 px-3 whitespace-nowrap">Tên Cửa Hàng / Chi Nhánh</th>
-            <th className="py-3 px-3 whitespace-nowrap">Khu Vực</th>
-            <th className="py-3 px-3 whitespace-nowrap">Quản Lý</th>
-            <th className="py-3 px-3 text-center whitespace-nowrap">Nhân Sự</th>
-            <th className="py-3 px-3 text-center whitespace-nowrap">Trạng Thái</th>
-            {isAdmin && <th className="py-3 px-3 text-right whitespace-nowrap">Thao Tác</th>}
+      <div className="crm-table-shell overflow-x-auto">
+      <table className="crm-table">
+        <thead className="crm-table-head">
+          <tr>
+            <th scope="col">Cửa hàng</th>
+            <th scope="col">Quản lý</th>
+            <th scope="col" className="crm-num-head">Khu vực</th>
+            <th scope="col" className="crm-num-head">Nhân sự</th>
+            <th scope="col">Trạng thái</th>
+            {isAdmin && <th scope="col" className="crm-num-head">Thao tác</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-border/60 font-medium">
@@ -544,7 +534,7 @@ export const StoreDirectoryView: React.FC<StoreDirectoryViewProps> = ({
                   <button
                     type="button"
                     onClick={() => void loadStores()}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-background hover:bg-muted text-xs font-medium text-foreground transition active:scale-95 cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-background hover:bg-muted text-xs font-medium text-foreground transition-colors active:scale-95 cursor-pointer"
                   >
                     Thử lại
                   </button>
@@ -576,7 +566,7 @@ export const StoreDirectoryView: React.FC<StoreDirectoryViewProps> = ({
                     <button
                       type="button"
                       onClick={resetFilters}
-                      className="reset-filter-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-background hover:bg-muted text-xs font-medium text-foreground transition active:scale-95 cursor-pointer"
+                      className="reset-filter-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-background hover:bg-muted text-xs font-medium text-foreground transition-colors active:scale-95 cursor-pointer"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
                       <span>Đặt lại bộ lọc</span>
@@ -600,46 +590,37 @@ export const StoreDirectoryView: React.FC<StoreDirectoryViewProps> = ({
               data-status={store.status}
               onClick={() => onSelectStore?.(store)}
             >
-              <td className="py-3 px-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">
-                {store.code ?? '—'}
-              </td>
-              <td className="py-3 px-3 font-semibold text-foreground flex items-center gap-2 whitespace-nowrap">
-                <div className="crm-branch-icon size-6 rounded-md bg-white/[0.05] text-neutral-300 flex items-center justify-center shrink-0 border border-white/10">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1" /><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z" /><line x1="6" x2="6" y1="2" y2="4" /><line x1="10" x2="10" y1="2" y2="4" /><line x1="14" x2="14" y1="2" y2="4" /></svg>
-                </div>
-                <span>{store.name}</span>
-              </td>
-              <td className="py-3 px-3 whitespace-nowrap">
-                <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground whitespace-nowrap">
-                  {store.district ?? '—'}
+              <td data-col="store" className="crm-cell-identity">
+                <span className="crm-cell-primary">{store.name}</span>
+                <span className="crm-cell-sub">
+                  <span className="crm-col-code">{store.code ?? '—'}</span> · {store.district ?? '—'}
                 </span>
-                <span className="ml-2 text-[10px] text-muted-foreground">{KIND_LABEL[store.kind]}</span>
               </td>
-              <td className="py-3 px-3 text-foreground/90 whitespace-nowrap">{store.managerName ?? '—'}</td>
-              <td className="py-3 px-3 text-center font-semibold text-foreground whitespace-nowrap">
-                {store.activeEmployeeCount}/{store.employeeCount}
+              <td data-col="sm">
+                <span className="crm-cell-primary">{store.managerName ?? '—'}</span>
               </td>
-              <td className="py-3 px-3 text-center whitespace-nowrap">
-                <span
-                  className={
-                    store.status === 'ACTIVE'
-                      ? 'inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-400 whitespace-nowrap'
-                      : 'inline-flex items-center gap-1.5 rounded-full bg-zinc-500/10 border border-zinc-500/25 px-2.5 py-0.5 text-[11px] font-semibold text-zinc-400 whitespace-nowrap'
-                  }
-                >
-                  <span className={store.status === 'ACTIVE' ? 'size-1.5 rounded-full bg-emerald-500' : 'size-1.5 rounded-full bg-zinc-500'} />
+              <td data-col="district" className="crm-num">
+                <span className="crm-cell-primary">{store.district ?? '—'}</span>
+                <span className="crm-cell-sub">{KIND_LABEL[store.kind]}</span>
+              </td>
+              <td data-col="staff" className="crm-num">
+                <span className="crm-cell-primary">{store.activeEmployeeCount}</span>
+                <span className="crm-cell-sub">/ {store.employeeCount} định biên</span>
+              </td>
+              <td data-col="status">
+                <span className={store.status === 'ACTIVE' ? 'crm-status crm-status--positive' : 'crm-status crm-status--negative'}>
                   {store.status === 'ACTIVE' ? 'Đang hoạt động' : 'Tạm dừng'}
                 </span>
               </td>
               {isAdmin && (
-                <td className="py-3 px-3 text-right whitespace-nowrap">
+                <td data-col="actions" className="crm-num">
                   <button
                     type="button"
                     onClick={(event) => {
                       event.stopPropagation();
                       openEditForm(store);
                     }}
-                    className="px-2 py-1 rounded-md border border-border bg-background hover:bg-muted text-[11px] font-medium text-foreground transition cursor-pointer"
+                    className="crm-icon-btn"
                   >
                     Sửa
                   </button>
@@ -650,8 +631,7 @@ export const StoreDirectoryView: React.FC<StoreDirectoryViewProps> = ({
                       event.stopPropagation();
                       void handleDelete(store);
                     }}
-                    className="ml-2 px-2 py-1 rounded-md text-[11px] font-medium transition cursor-pointer disabled:opacity-50"
-                    style={{ border: '1px solid rgba(244, 63, 94, 0.3)', background: 'rgba(244, 63, 94, 0.1)', color: '#fca5a5' }}
+                    className="crm-icon-btn crm-icon-btn--danger"
                   >
                     {deletingId === store.id ? 'Đang xoá…' : 'Xoá'}
                   </button>
@@ -779,14 +759,14 @@ export const StoreDirectoryView: React.FC<StoreDirectoryViewProps> = ({
                 type="button"
                 onClick={closeForm}
                 disabled={isSaving}
-                className="px-3 py-2 rounded-lg border border-border bg-background hover:bg-muted text-xs font-medium text-foreground transition cursor-pointer disabled:opacity-50"
+                className="px-3 py-2 rounded-lg border border-border bg-background hover:bg-muted text-xs font-medium text-foreground transition-colors cursor-pointer disabled:opacity-50"
               >
                 Huỷ
               </button>
               <button
                 type="submit"
                 disabled={isSaving}
-                className="px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
                 style={{ background: '#ffffff', color: '#000000' }}
               >
                 {isSaving ? 'Đang lưu…' : 'Lưu'}

@@ -225,6 +225,13 @@
   box-shadow: none;
 }
 
+/* The chrome (sidebar + top bar) sits on `--surface-canvas`; the content well
+   it frames recedes to `--surface-sunken`. Without this step the shell reads as
+   one flat slab and the 1px rules carry the whole structure on their own. */
+.crm-main {
+  background: var(--surface-sunken);
+}
+
 /* One container, four hairline-separated cells: the 1px gap *is* the rule,
    so the same rule survives the 2-up reflow without a per-child border. */
 .crm-kpi-grid {

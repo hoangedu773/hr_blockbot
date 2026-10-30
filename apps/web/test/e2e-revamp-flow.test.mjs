@@ -341,42 +341,84 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     const brandColors = await page.locator('.crm-sidebar .tracking-wider.text-foreground, .crm-sidebar .tracking-tight.text-foreground').evaluateAll((labels) => labels.map((label) => getComputedStyle(label).color));
     assert.equal(brandColors.length, 2);
     assert.equal(brandColors[0], brandColors[1], 'GUTA and WORKSPACE must share the foreground color');
-    const glass = await page.evaluate(() => {
+    // Behavioural surface contract (ADR-021): measure what the sheet promises,
+    // not the literals an earlier aesthetic happened to use. The store table is
+    // fed by the API now, so it carries no revenue/punctuality column — those
+    // two figures have no data source (ADR-020) and are asserted at the KPI
+    // strip instead of per row.
+    const surface = await page.evaluate(() => {
       const style = (selector) => getComputedStyle(document.querySelector(selector));
+      const all = [...document.querySelectorAll('*')];
+      const figures = [...document.querySelectorAll('tbody td[data-col="staff"]')];
+      const shell = document.querySelector('.crm-table-shell');
+      const statusCell = document.querySelector('tbody tr[data-id] td[data-col="status"]');
+      const rgb = (value) => (value.match(/\d+(?:\.\d+)?/g) ?? []).slice(0, 3).map(Number);
+      const luminance = (value) => rgb(value)
+        .map((channel) => channel / 255)
+        .map((channel) => (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4))
+        .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+      const contrast = (a, b) => {
+        const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+        return (hi + 0.05) / (lo + 0.05);
+      };
       return {
-        sidebar: style('.crm-sidebar').backdropFilter,
-        header: style('.crm-header-smooth').backdropFilter,
-        kpi: style('.crm-kpi-card').backdropFilter,
-        gradient: style('.crm-kpi-card').backgroundImage,
-        thead: style('.crm-table-head').backdropFilter,
-        logoBackground: style('.crm-sidebar .size-8.rounded-xl').backgroundColor,
-        tableBackground: style('.crm-table-shell').backgroundColor,
-        iconBackground: style('tbody tr[data-id] td:nth-child(2) > div').backgroundColor,
-        iconColor: style('tbody tr[data-id] td:nth-child(2) > div').color,
-        yellow: [...document.querySelectorAll('*')].some((el) => {
+        kpiBackgroundImages: [...document.querySelectorAll('.crm-kpi-card')].map((el) => getComputedStyle(el).backgroundImage),
+        kpiRadius: style('.crm-kpi-card').borderRadius,
+        sidebarBlur: style('.crm-sidebar').backdropFilter,
+        headerBlur: style('.crm-header-smooth').backdropFilter,
+        canvasBg: style('.crm-main').backgroundColor,
+        sidebarBg: style('.crm-sidebar').backgroundColor,
+        headerBg: style('.crm-header-smooth').backgroundColor,
+        logoBoxBg: style('.crm-brand-mark').backgroundColor,
+        navActiveBg: style('.crm-nav-item[aria-current="page"]').backgroundColor,
+        navIdleColor: style('.crm-nav-item:not([aria-current="page"])').color,
+        navActiveColor: style('.crm-nav-item[aria-current="page"]').color,
+        navRuleWidth: getComputedStyle(document.querySelector('.crm-nav-item[aria-current="page"]'), '::before').width,
+        labelContrast: contrast(style('.crm-kpi-title').color, style('.crm-kpi-card').backgroundColor),
+        figureContrast: contrast(style('tbody td[data-col="staff"]').color, style('.crm-main').backgroundColor),
+        // `transition-property` defaults to `all`; only a non-zero duration
+        // turns that into a real blanket transition.
+        transitionAll: all.filter((el) => {
+          const computed = getComputedStyle(el);
+          return computed.transitionProperty === 'all'
+            && computed.transitionDuration.split(',').some((duration) => parseFloat(duration) > 0);
+        }).length,
+        figures: figures.length,
+        tabularFigures: figures.filter((td) => getComputedStyle(td).fontVariantNumeric.includes('tabular-nums')).length,
+        shellScrollsX: shell ? shell.scrollWidth > shell.clientWidth : null,
+        statusRight: statusCell ? Math.round(statusCell.getBoundingClientRect().right) : null,
+        yellow: all.some((el) => {
           const computed = getComputedStyle(el);
           return ['color', 'backgroundColor', 'borderColor', 'backgroundImage', 'boxShadow'].some((key) => /(?:255, 209, 0|234, 179, 8|245, 158, 11)/.test(computed[key]));
         }),
       };
     });
-    assert.equal(glass.sidebar, 'blur(24px)');
-    assert.equal(glass.header, 'blur(24px)');
-    assert.equal(glass.kpi, 'blur(16px)');
-    assert.match(glass.gradient, /linear-gradient/);
-    assert.equal(glass.thead, 'blur(12px)');
-    assert.equal(glass.logoBackground, 'rgba(255, 255, 255, 0.04)');
-    assert.equal(glass.tableBackground, 'rgba(255, 255, 255, 0.02)');
-    await page.locator('.crm-kpi-card').first().hover();
-    await page.waitForFunction(() => getComputedStyle(document.querySelector('.crm-kpi-card')).transform === 'matrix(1, 0, 0, 1, 0, -2)');
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    try {
-      await page.waitForFunction(() => getComputedStyle(document.querySelector('.crm-kpi-card')).transform === 'none');
-    } finally {
-      await page.emulateMedia({ reducedMotion: 'no-preference' });
-    }
-    assert.equal(glass.iconBackground, 'rgba(255, 255, 255, 0.05)');
-    assert.equal(glass.iconColor, 'rgb(203, 213, 225)');
-    assert.equal(glass.yellow, false);
+
+    // Flat surfaces, tiered by lightness rather than blur.
+    assert.equal(surface.sidebarBlur, 'none');
+    assert.equal(surface.headerBlur, 'none');
+    assert.equal(surface.sidebarBg, surface.headerBg, 'sidebar and top bar share one ground');
+    assert.notEqual(surface.sidebarBg, surface.canvasBg, 'chrome and canvas must differ by a lightness step');
+    assert.equal(surface.logoBoxBg, 'rgba(0, 0, 0, 0)', 'logo sits on the ground, not in a tinted tile');
+    assert.equal(surface.navActiveBg, 'rgba(0, 0, 0, 0)', 'active nav is a rule, not a filled pill');
+    assert.notEqual(surface.navActiveColor, surface.navIdleColor);
+    assert.equal(surface.navRuleWidth, '1px');
+
+    // KPI strip: one container, no gradient, no hover lift.
+    assert.deepEqual(surface.kpiBackgroundImages.filter((image) => image !== 'none'), []);
+    assert.equal(surface.kpiRadius, '0px', 'KPI cells are dividers inside one container, not tiles');
+    assert.ok(surface.labelContrast >= 4.5, `KPI label contrast ${surface.labelContrast.toFixed(2)}:1 < 4.5:1`);
+    assert.ok(surface.figureContrast >= 4.5, `figure contrast ${surface.figureContrast.toFixed(2)}:1 < 4.5:1`);
+
+    // Table: no horizontal scroll at 1440, every numeric cell tabular.
+    assert.equal(surface.shellScrollsX, false, 'store table must not scroll horizontally at 1440');
+    assert.ok(surface.statusRight <= 1440, 'status column must stay inside the viewport');
+    assert.ok(surface.figures > 0, 'staff column must render a figure per row');
+    assert.equal(surface.tabularFigures, surface.figures, 'every numeric cell uses tabular figures');
+
+    // Motion: no `all` transitions anywhere on the screen.
+    assert.equal(surface.transitionAll, 0);
+    assert.equal(surface.yellow, false);
 
     await page.reload({ waitUntil: 'networkidle' });
     const backCrmReload = page.getByRole('button', { name: 'Quay lại Vận Hành (CRM)', exact: true });
@@ -432,8 +474,9 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
 
     const row = page.locator(`table tbody tr[data-id="${target.id}"]`);
     await row.hover();
+    // Hover marks the row with an inset ring, not a fill (ADR-021).
     await page.waitForFunction(
-      (id) => getComputedStyle(document.querySelector(`tr[data-id="${id}"]`)).backgroundColor === 'rgba(255, 255, 255, 0.03)',
+      (id) => /inset/.test(getComputedStyle(document.querySelector(`tr[data-id="${id}"]`)).boxShadow),
       target.id
     );
     await row.click();
@@ -444,11 +487,23 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.equal(await page.locator('#d-name').textContent(), target.name);
     assert.equal(await page.locator('#d-district').textContent(), `Quận: ${target.district} • Cửa hàng trưởng: ${target.managerName}`);
     assert.match(await page.locator('#d-staff').textContent(), new RegExp(`${target.activeEmployeeCount} / ${target.employeeCount}`));
-    assert.deepEqual(await page.locator('#detail-drawer').evaluate((el) => {
+
+    // Flat drawer, no blur (ADR-021); wait for 240ms slide-in transition to settle.
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('#detail-drawer')).transform === 'matrix(1, 0, 0, 1, 0, 0)');
+    const drawerSurface = await page.locator('#detail-drawer').evaluate((el) => {
       const style = getComputedStyle(el);
-      return [style.backgroundColor, style.backdropFilter, style.borderLeftColor];
-    }), ['rgba(18, 18, 20, 0.96)', 'blur(40px)', 'rgba(255, 255, 255, 0.08)']);
-    assert.equal(await page.locator('#drawer-backdrop').evaluate((el) => getComputedStyle(el).backdropFilter), 'blur(12px)');
+      return {
+        transform: style.transform,
+        transitionProperty: style.transitionProperty,
+        backdropFilter: style.backdropFilter,
+        borderLeftWidth: style.borderLeftWidth,
+      };
+    });
+    assert.equal(drawerSurface.transform, 'matrix(1, 0, 0, 1, 0, 0)', 'drawer slides in by transform only');
+    assert.equal(drawerSurface.transitionProperty, 'transform');
+    assert.equal(drawerSurface.backdropFilter, 'none', 'flat surface, no glass');
+    assert.equal(drawerSurface.borderLeftWidth, '1px');
+    assert.equal(await page.locator('#drawer-backdrop').evaluate((el) => getComputedStyle(el).backdropFilter), 'none');
   });
 
   it('Bước 6: Bấm nút "Gửi Cảnh Báo Telegram", kiểm tra toast xuất hiện', async () => {
@@ -741,10 +796,10 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       const input = chat.getByRole('textbox', { name: 'Tin nhắn cho Guta AI' });
       const singleLineHeight = await input.evaluate((el) => el.getBoundingClientRect().height);
       await input.fill(Array(12).fill('Dòng kiểm thử').join('\n'));
-      assert.equal(await input.evaluate((el) => el.getBoundingClientRect().height), 192);
+      assert.equal(Math.round(await input.evaluate((el) => el.getBoundingClientRect().height)), 192);
       assert.equal(await input.evaluate((el) => el.scrollHeight > el.clientHeight), true);
       await input.fill('');
-      assert.equal(await input.evaluate((el) => el.getBoundingClientRect().height), singleLineHeight);
+      assert.equal(Math.round(await input.evaluate((el) => el.getBoundingClientRect().height)), Math.round(singleLineHeight));
       await input.fill('<img src=x onerror="window.__chatInjected=true">');
       await input.press('Shift+Enter');
       assert.match(await input.inputValue(), /\n$/);

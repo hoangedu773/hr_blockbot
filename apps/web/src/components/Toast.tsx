@@ -63,7 +63,7 @@ const ToastItem: React.FC<{ toast: ToastMessage; onDismiss: (id: string) => void
       alignItems: 'flex-start',
       gap: '10px',
       backdropFilter: 'blur(12px)',
-      transition: 'all 200ms ease'
+      transition: 'transform 200ms ease, opacity 200ms ease'
     }}>
       <div style={{ flex: 1 }}>
         {toast.title && (

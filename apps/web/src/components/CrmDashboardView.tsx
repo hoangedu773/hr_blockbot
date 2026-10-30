@@ -26,106 +26,95 @@ const CRM_HTML = `
   <div data-slot="sidebar-wrapper" style="--sidebar-width:16rem;--sidebar-width-icon:16rem" class="group/sidebar-wrapper flex min-h-svh w-full h-svh overflow-hidden">
 
     <!-- SIDEBAR -->
-    <aside class="crm-sidebar w-64 border-r border-white/[0.08] bg-neutral-900/70 backdrop-blur-xl flex flex-col justify-between shrink-0 select-none">
+    <aside class="crm-sidebar flex flex-col justify-between shrink-0 select-none">
       <div class="flex flex-col">
-        <!-- Brand Header with HR-BlockBot Logo -->
-        <div class="p-4 border-b border-border/80 flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <div class="flex size-8 items-center justify-center rounded-xl bg-white/[0.04] p-1 border border-white/10 shrink-0">
+        <div class="crm-brand-bar flex items-center justify-between">
+          <div class="flex items-center gap-2.5">
+            <div class="crm-brand-mark flex size-7 items-center justify-center shrink-0">
               <img src="/assets/logos/guta-mark-pure.svg" alt="HR-BlockBot Logo" class="size-6 object-contain" />
             </div>
-            <div class="flex flex-col">
-              <div class="flex items-center gap-1.5 leading-none">
-                <span class="font-black tracking-wider text-foreground text-sm">GUTA</span>
-                <span class="font-semibold tracking-tight text-foreground text-sm">WORKSPACE</span>
-              </div>
+            <div class="flex items-baseline gap-1.5 leading-none">
+              <span class="crm-brand-name tracking-wider text-foreground">GUTA</span>
+              <span class="crm-brand-scope tracking-tight text-foreground">Workspace</span>
             </div>
           </div>
-          <a href="#logout" title="Trở về Trang Chủ" class="text-xs text-muted-foreground hover:text-foreground p-1.5 rounded-lg hover:bg-muted transition">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          <a href="#logout" title="Trở về Trang Chủ" class="crm-icon-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           </a>
         </div>
 
-        <!-- Search Bar Trigger: focuses the directory search below (single owner of the filter state) -->
-        <div class="px-3 pt-3">
-          <div id="crm-search-trigger" role="button" tabindex="0" aria-label="Tìm cửa hàng" class="flex items-center gap-2 px-3 py-2 rounded-xl border border-border/70 bg-background/60 text-xs text-muted-foreground shadow-xs cursor-pointer hover:border-zinc-400/50 transition">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 text-muted-foreground"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            <span class="flex-1 truncate">Lọc theo tên, quận, mã...</span>
-            <kbd class="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-mono border border-border shrink-0">⌘K</kbd>
+        <div class="crm-search-wrap" id="crm-search-trigger" role="button" tabindex="0" aria-label="Tìm cửa hàng">
+          <div class="crm-search">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <span class="crm-search-input flex-1 truncate text-xs text-muted-foreground select-none pointer-events-none">Lọc theo tên, quận, mã...</span>
+            <kbd class="crm-kbd">⌘K</kbd>
           </div>
         </div>
 
-        <!-- Navigation Menu with AI Copilot at TOP -->
-        <nav class="px-2 py-3 space-y-1">
-          <div class="px-2 pb-1.5 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Trợ Lý Thông Minh</div>
+        <nav class="crm-nav" aria-label="Phân hệ vận hành">
+          <p class="crm-nav-label">Trợ lý</p>
 
-          <a href="#" aria-label="Trợ Lý AI (Copilot)" class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold bg-zinc-700/10 text-zinc-300 border border-zinc-400/20 shadow-xs hover:bg-zinc-700/15 transition cursor-pointer mb-3">
-            <div class="size-6 rounded-lg bg-gradient-to-tr from-zinc-700 to-zinc-600 flex items-center justify-center text-white shadow-2xs shrink-0">
-              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
-            </div>
-            <span class="font-bold">Guta Copilot AI</span>
-            <span class="ml-auto inline-flex items-center gap-1.5 text-[10px] font-mono font-semibold bg-zinc-400/20 text-zinc-300 px-2 py-0.5 rounded-full border border-zinc-400/30"><span class="size-1.5 rounded-full bg-emerald-400 animate-pulse" aria-hidden="true"></span>Trợ Lý AI (Copilot)</span>
+          <a href="#" aria-label="Trợ Lý AI (Copilot)" class="crm-copilot">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+            <span class="crm-copilot-name">Guta Copilot AI</span>
+            <span class="crm-dot" aria-hidden="true"></span>
           </a>
 
-          <div class="px-2 pb-1 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Hệ Thống Vận Hành</div>
+          <p class="crm-nav-label">Vận hành</p>
 
-          <button type="button" data-section="stores" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold bg-muted/60 text-foreground border border-border/80 text-left">Chi nhánh / Cửa hàng <span class="ml-auto" id="crm-nav-store-count">—</span></button>
-          <button type="button" data-section="employees" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Nhân sự</button>
-          <button type="button" data-section="profile" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Hồ sơ của tôi</button>
-          <button type="button" data-section="schedules" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Hồ sơ nhân sự</button>
-          <button type="button" data-section="accounts" id="crm-nav-accounts" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Tài khoản</button>
-          <button type="button" data-section="settings" id="crm-nav-settings" class="crm-nav-item flex w-full items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:bg-white/[0.06] text-left">Cài đặt LLM</button>
+          <button type="button" data-section="stores" aria-current="page" class="crm-nav-item">Chi nhánh / Cửa hàng <span class="crm-nav-count" id="crm-nav-store-count">—</span></button>
+          <button type="button" data-section="employees" class="crm-nav-item">Nhân sự</button>
+          <button type="button" data-section="profile" class="crm-nav-item">Hồ sơ của tôi</button>
+          <button type="button" data-section="schedules" class="crm-nav-item">Hồ sơ nhân sự</button>
+          <button type="button" data-section="accounts" id="crm-nav-accounts" class="crm-nav-item">Tài khoản</button>
+          <button type="button" data-section="settings" id="crm-nav-settings" class="crm-nav-item">Cài đặt LLM</button>
         </nav>
       </div>
 
-      <!-- User Profile at bottom -->
-      <div class="p-3 border-t border-border bg-sidebar/50">
-        <div class="flex items-center gap-3 p-2.5 rounded-xl border border-border/60 bg-background/80 shadow-xs">
-          <div class="size-8 rounded-full bg-gradient-to-tr from-zinc-700 to-zinc-600 text-white flex items-center justify-center font-bold text-xs ring-1 ring-border shrink-0">PA</div>
-          <div class="flex-1 min-w-0">
-            <div class="font-bold text-foreground text-xs truncate">Nguyễn Thị Phương Anh</div>
-            <div class="text-[10px] text-muted-foreground truncate" title="Cửa hàng trưởng (SM)">Cửa hàng trưởng (SM)</div>
+      <div class="crm-userbar">
+        <div class="crm-user">
+          <div class="crm-user-avatar">PA</div>
+          <div class="crm-user-meta">
+            <div class="crm-user-name">Nguyễn Thị Phương Anh</div>
+            <div class="crm-user-scope" title="Cửa hàng trưởng (SM)">Cửa hàng trưởng (SM)</div>
           </div>
-          <button type="button" role="button" aria-label="Đăng Xuất Phiên" title="Đăng Xuất Phiên" class="text-muted-foreground hover:text-red-500 p-1.5 rounded-md hover:bg-muted transition cursor-pointer shrink-0">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          <button type="button" role="button" aria-label="Đăng Xuất Phiên" title="Đăng Xuất Phiên" class="crm-icon-btn crm-icon-btn--danger">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           </button>
         </div>
       </div>
     </aside>
 
     <!-- MAIN CONTENT INSET -->
-    <div class="flex flex-col flex-1 h-svh overflow-hidden bg-background">
+    <div class="crm-main flex flex-col flex-1 overflow-hidden">
 
-      <!-- TOP BAR (To hơn, mềm mại hơn) -->
       <header class="crm-header-smooth flex items-center justify-between shrink-0">
-        <div class="flex items-center gap-4">
-          <div class="flex items-center gap-2 text-xs text-muted-foreground font-medium">
-            <span class="text-foreground/90 font-medium text-sm">Guta Workspace</span>
-            <span class="text-muted-foreground/30 font-mono">/</span>
-            <span class="text-foreground font-semibold text-sm">Vận Hành Chi Nhánh & Phân Ca</span>
+        <div class="flex items-center gap-4 min-w-0">
+          <div class="crm-breadcrumb">
+            <span class="crm-breadcrumb-root">Guta Workspace</span>
+            <span class="crm-breadcrumb-sep">/</span>
+            <span class="crm-breadcrumb-current">Vận Hành Chi Nhánh &amp; Phân Ca</span>
           </div>
-          <span class="rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-3.5 py-1 text-xs font-medium flex items-center gap-2 shadow-2xs">
-            <span class="size-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span class="crm-freshness">
+            <span class="crm-dot crm-dot--live" aria-hidden="true"></span>
             <span id="crm-header-store-chip">Đang tải số chi nhánh…</span>
           </span>
         </div>
 
-        <div class="flex items-center gap-3">
-          <div class="flex items-center gap-2.5">
-            <button type="button" class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-border/80 bg-background/80 text-xs font-semibold text-foreground hover:bg-muted transition shadow-2xs cursor-pointer active:scale-95 transition-transform">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-              <span>Bộ lọc Quận</span>
-            </button>
-            <button type="button" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-zinc-700 to-zinc-800 hover:from-zinc-400 hover:to-zinc-700 text-white text-xs font-bold transition shadow-sm cursor-pointer active:scale-95 transition-transform">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-              <span>Tạo Ca Đột Xuất</span>
-            </button>
-          </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <button type="button" class="crm-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            <span>Bộ lọc Quận</span>
+          </button>
+          <button type="button" class="crm-btn crm-btn--primary">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+            <span>Tạo Ca Đột Xuất</span>
+          </button>
         </div>
       </header>
 
       <!-- DATA TABLE AREA -->
-      <main class="flex-1 overflow-auto p-6">
+      <main class="flex-1 overflow-auto px-6 py-5">
         <div id="crm-stores-container">
         <!-- KPI ribbon + store table are rendered by StoreDirectoryView through a React
              portal (see #crm-stores-portal). No DB value is ever interpolated into this
@@ -186,17 +175,17 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
     if (!root) return;
 
     const sidebar = root.querySelector('.crm-sidebar');
-    const userInitials = sidebar?.querySelector('.size-8.rounded-full.bg-gradient-to-tr');
+    const userInitials = sidebar?.querySelector('.crm-user-avatar');
     if (userInitials) {
       userInitials.textContent = userName.split(/\s+/).filter(Boolean).slice(-2).map((part) => part[0]).join('').toUpperCase();
     }
 
-    const userNameEl = sidebar?.querySelector('.font-bold.text-foreground.text-xs');
+    const userNameEl = sidebar?.querySelector('.crm-user-name');
     if (userNameEl) {
       userNameEl.textContent = userName;
     }
 
-    const userScopeEl = sidebar?.querySelector('.text-\\[10px\\].text-muted-foreground.truncate');
+    const userScopeEl = sidebar?.querySelector('.crm-user-scope');
     if (userScopeEl) {
       userScopeEl.textContent = userRole + ' • ' + userScope;
     }
@@ -328,12 +317,10 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
         if (section === 'settings' && userRole !== 'Admin') return;
         if (section === 'accounts' && userRole !== 'Admin') return;
         setActiveView(section);
-        navItems.forEach((item) => {
-          item.classList.remove('bg-muted/60', 'text-foreground', 'border', 'border-border/80');
-          item.classList.add('text-zinc-400');
-        });
-        button.classList.add('bg-muted/60', 'text-foreground', 'border', 'border-border/80');
-        button.classList.remove('text-zinc-400');
+        // The active state is a 1px accent rule on the left edge, driven by
+        // aria-current alone — no filled pill, no per-item class juggling.
+        navItems.forEach((item) => item.removeAttribute('aria-current'));
+        button.setAttribute('aria-current', 'page');
       }, { signal: listeners.signal });
     });
 
@@ -520,7 +507,7 @@ const StoreDetailDrawer: React.FC<StoreDetailDrawerProps> = ({ store, outlets, o
               Quận: {store?.district ?? '—'} • Cửa hàng trưởng: {store?.managerName ?? '—'}
             </p>
           </div>
-          <button type="button" aria-label="Đóng chi tiết" data-close-drawer onClick={onClose} className="size-8 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground flex items-center justify-center transition cursor-pointer shrink-0">
+          <button type="button" aria-label="Đóng chi tiết" data-close-drawer onClick={onClose} className="size-8 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground flex items-center justify-center transition-colors cursor-pointer shrink-0">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
           </button>
         </div>
@@ -567,11 +554,11 @@ const StoreDetailDrawer: React.FC<StoreDetailDrawerProps> = ({ store, outlets, o
             type="button"
             onClick={handleTelegram}
             disabled={!store || isSending}
-            className="flex-1 py-2.5 px-3 rounded-lg bg-zinc-700 hover:bg-zinc-800 text-white font-semibold text-xs transition shadow-sm text-center cursor-pointer disabled:opacity-50"
+            className="flex-1 py-2.5 px-3 rounded-lg bg-zinc-700 hover:bg-zinc-800 text-white font-semibold text-xs transition-colors shadow-sm text-center cursor-pointer disabled:opacity-50"
           >
             {isSending ? 'Đang gửi...' : 'Gửi Cảnh Báo Telegram'}
           </button>
-          <button type="button" aria-label="Đóng" data-close-drawer onClick={onClose} className="py-2.5 px-4 rounded-lg border border-border bg-background hover:bg-muted text-xs font-medium text-foreground transition cursor-pointer">
+          <button type="button" aria-label="Đóng" data-close-drawer onClick={onClose} className="py-2.5 px-4 rounded-lg border border-border bg-background hover:bg-muted text-xs font-medium text-foreground transition-colors cursor-pointer">
             Đóng
           </button>
         </div>
