@@ -52,6 +52,10 @@
   --t-sheet: 240ms;
   --t-reveal: 800ms; /* brand register only */
   --t-open: 1200ms; /* brand register only */
+  /* Header collapse. A shape change, not feedback: it runs once per crossing,
+   * never on hover or press. 280ms stays inside the 300ms live-UI ceiling. */
+  --t-pill: 280ms;
+  --t-plate: 900ms; /* hero photo settle, one shot on load */
 
   --stagger-item: 70ms;
   --stagger-line: 90ms;

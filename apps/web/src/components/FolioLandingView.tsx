@@ -62,23 +62,22 @@ const FOLIO_HTML = `
 <main class="folio-main">
   <section class="folio-hero">
     <div class="folio-hero-inner">
-      <div class="hero-badge" data-load style="--d:120ms">
-        <span class="hero-badge-dot" aria-hidden="true"></span>
-        <a href="#">F&amp;B Workforce Intelligence — Next-Gen HR</a>
-      </div>
       <h1 class="folio-display"><span class="line"><span data-line style="--i:0">Quản Trị Nhân Sự &amp;</span></span> <span class="line"><span data-line style="--i:1">Phân Ca Tự Động</span></span></h1>
       <p class="hero-sub" data-load style="--d:420ms">Guta Workspace tự động hóa xếp ca 24H, đối soát chấm công và trợ lý AI điều phối nhân sự cho chuỗi cà phê — nhanh, không sót ca.</p>
       <div class="hero-actions" data-load style="--d:480ms">
         <a class="hero-cta" href="#guta-dashboard" role="button" aria-label="Khám phá dashboard">Khám phá dashboard</a>
         <a class="hero-cta-secondary" href="#solution">Xem luồng làm việc</a>
       </div>
-      <p class="hero-meta" data-load style="--d:540ms">Bản giới thiệu giao diện Guta Workspace · Quản trị chuỗi F&amp;B 45 chi nhánh TP.HCM</p>
+      <p class="hero-status" data-load style="--d:540ms"><span class="hero-status-dot" aria-hidden="true"></span>F&amp;B Workforce Intelligence · Quản trị chuỗi 45 chi nhánh TP.HCM</p>
     </div>
 
     <div class="hero-stage">
+      <div class="hero-plate" aria-hidden="true">
+        <img src="/assets/folio/images/dashboard-bg-hero.jpg" alt="" width="1600" height="1067" decoding="async" fetchpriority="high" class="hero-plate-img" />
+      </div>
       <div class="hero-stage-frame" data-open>
         <div class="hero-stage-crop">
-          <div class="guta-demo-scroll" tabindex="0" aria-label="Minh họa dashboard nhân sự 21st-CRM, cuộn ngang để xem đầy đủ" role="region" id="dashboard-preview">
+          <div class="guta-demo-scroll" tabindex="0" aria-label="Minh họa dashboard nhân sự 21st-CRM, cuộn ngang để xem đầy đủ" role="region" id="dashboard-preview" data-ui>
             <div class="crm-app" id="guta-dashboard" role="region" aria-label="Minh họa 21st-CRM Dashboard nhân sự HR BlockBot">
               <header class="crm-topbar">
                 <div class="crm-topbar-left">
@@ -202,7 +201,7 @@ const FOLIO_HTML = `
                 <aside class="crm-assistant-panel">
                   <div class="crm-assistant-head">
                     <div class="crm-bot-status"><span class="crm-dot" aria-hidden="true"></span><strong>Trợ lý HR BlockBot</strong></div>
-                    <span class="crm-tag-xs">AI copilot</span>
+                    <span class="crm-tag-xs">Trợ lý</span>
                   </div>
                   <div class="crm-assistant-body">
                     <div class="crm-chat-msg crm-msg-user">
@@ -259,8 +258,9 @@ const FOLIO_HTML = `
   <section class="folio-section" id="features">
     <div class="guta-container">
       <header class="guta-section-head">
-        <span class="guta-label">Từ dữ liệu đến quyết định</span>
+        
         <h2>Bớt hỏi lại. Có chỗ để đối chiếu.</h2>
+        <span class="guta-label">Từ dữ liệu đến quyết định</span>
         <p>Mỗi thông tin đi cùng một việc cần làm, thay vì nằm rải rác trong file và tin nhắn.</p>
       </header>
       <div class="bento-grid">
@@ -269,7 +269,7 @@ const FOLIO_HTML = `
             <h3>Phân công theo kỹ năng</h3>
             <p>Barista mới vào ca tối được xếp đúng ô trống; điểm PhoBERT và tải việc hiện ngay cạnh tên.</p>
           </header>
-          <div class="story story--assign" data-loop aria-hidden="true">
+          <div class="story story--assign" data-loop data-ui aria-hidden="true">
             <div class="story-top"><span class="story-cap">Ca tăng cường · 17:00–21:00</span><span class="story-cap">Điểm PhoBERT</span></div>
             <ul class="assign-list">
               <li class="assign-row-wrap">
@@ -298,7 +298,7 @@ const FOLIO_HTML = `
             <h3>Đối soát két tiền mặt</h3>
             <p>Dòng lệch được đánh dấu khi quét; số chênh lệch hiện ra thay vì phải tự trừ.</p>
           </header>
-          <div class="story story--cash" data-loop aria-hidden="true">
+          <div class="story story--cash" data-loop data-ui aria-hidden="true">
             <div class="story-top"><span class="story-cap">Két ca sáng · 30/10</span><span class="story-cap">POS và két</span></div>
             <div class="cash-table">
               <span class="cash-scan story-anim" aria-hidden="true"></span>
@@ -323,7 +323,7 @@ const FOLIO_HTML = `
             <h3>Tra cứu chính sách</h3>
             <p>Hỏi bằng tiếng Việt, nhận câu trả lời kèm nguồn — chưa đủ dữ liệu thì hệ thống hỏi lại.</p>
           </header>
-          <div class="story story--policy" data-loop aria-hidden="true">
+          <div class="story story--policy" data-loop data-ui aria-hidden="true">
             <div class="story-top"><span class="story-cap">Trợ lý chính sách</span><span class="story-cap">SOP-05</span></div>
             <div class="policy-prompt">
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
@@ -343,7 +343,7 @@ const FOLIO_HTML = `
             <h3>Phân ca 24H</h3>
             <p>Một ca trượt từ “Chờ” sang “Đã giao” ngay khi người nhận xác nhận trong chatbot.</p>
           </header>
-          <div class="story story--shift" data-loop aria-hidden="true">
+          <div class="story story--shift" data-loop data-ui aria-hidden="true">
             <div class="story-top"><span class="story-cap">Ca 24H · 06:00–14:00</span><span class="story-cap">Điều phối</span></div>
             <div class="shift-cols">
               <div class="shift-col">
@@ -375,11 +375,12 @@ const FOLIO_HTML = `
   <section class="folio-section" id="solution">
     <div class="guta-container">
       <header class="guta-section-head">
-        <span class="guta-label">Kiến trúc &amp; luồng xử lý agentic</span>
+        
         <h2>Luồng Vận Hành Tự Động 24/7</h2>
+        <span class="guta-label">Kiến trúc &amp; luồng xử lý agentic</span>
         <p>Hệ thống tự động điều phối luồng hội thoại từ Ingress (Zalo, Telegram, Web), qua Bộ lọc Fast Rule Gate, Phân loại Jev AI, Vòng lặp Agent đến Gemini 3.8 Flash và Cổng xác thực con người 2 bước.</p>
       </header>
-      <div class="workflow-diagram-card">
+      <div class="workflow-diagram-card" data-ui>
         <div class="workflow-toolbar">
           <span class="workflow-status-chip" data-state="play">
             <span class="workflow-dot" aria-hidden="true"></span>
@@ -408,8 +409,9 @@ const FOLIO_HTML = `
   <section class="folio-section" id="product">
     <div class="guta-container">
       <header class="guta-section-head">
-        <span class="guta-label">AI có vai trò cụ thể</span>
+        
         <h2>Gợi ý có lý do. Tra cứu có ngữ cảnh.</h2>
+        <span class="guta-label">AI có vai trò cụ thể</span>
         <p>Hệ thống tối ưu theo quy trình chuỗi F&amp;B thực tế, minh bạch mọi quyết định điều phối ca.</p>
       </header>
       <div class="guta-grid-two">
@@ -430,8 +432,9 @@ const FOLIO_HTML = `
   <section class="folio-section" id="about">
     <div class="guta-container">
       <header class="guta-section-head">
-        <span class="guta-label">Thiết kế để kiểm tra được</span>
+        
         <h2>Không cần tin một cách mù quáng.</h2>
+        <span class="guta-label">Thiết kế để kiểm tra được</span>
         <p>Quy trình điều phối chuẩn hóa, kiểm soát chặt chẽ chấm công máy ZKTeco và két ca.</p>
       </header>
       <div class="guta-grid-three">
@@ -454,8 +457,9 @@ const FOLIO_HTML = `
   <section class="folio-section" id="questions">
     <div class="guta-container">
       <header class="guta-section-head">
-        <span class="guta-label">Trước khi trải nghiệm</span>
+        
         <h2>Những điều cần rõ.</h2>
+        <span class="guta-label">Trước khi trải nghiệm</span>
         <p>Phạm vi và giới hạn được nói ngay trên trang.</p>
       </header>
       <div class="guta-faq">
@@ -508,7 +512,18 @@ export const FolioLandingView: React.FC<FolioLandingViewProps> = ({ onLogin, isA
       toggle.addEventListener('click', handleToggle);
     }
     const nav = root.querySelector('nav');
-    const syncScrolledNav = () => nav?.classList.toggle('nav-scrolled', window.scrollY > 20);
+    // Hysteresis: enter at 24, leave at 8. One threshold flickers when the
+    // user rests the scroll position on it (trackpad inertia, iOS bounce).
+    const NAV_ENTER_AT = 24;
+    const NAV_LEAVE_AT = 8;
+    let navScrolled = false;
+    const syncScrolledNav = () => {
+      const y = window.scrollY;
+      const next = navScrolled ? y > NAV_LEAVE_AT : y > NAV_ENTER_AT;
+      if (next === navScrolled) return;
+      navScrolled = next;
+      nav?.classList.toggle('nav-scrolled', next);
+    };
     syncScrolledNav();
     window.addEventListener('scroll', syncScrolledNav, { passive: true });
     const navLinks = nav?.querySelectorAll('a[href="#features"], a[href="#solution"], a[href="#product"], a[href="#about"]');
