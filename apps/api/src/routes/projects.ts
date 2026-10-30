@@ -19,6 +19,7 @@ import {
   ForbiddenTransitionError,
 } from "../models/Project.js";
 import { authenticateToken, AuthenticatedUser } from "../middlewares/auth.middleware.js";
+import { departmentIdMatch } from "../lib/department-scope.js";
 import {
   assertInScope,
   ActorContext,
@@ -39,6 +40,9 @@ function assertProjectScope(user: AuthenticatedUser, project: Record<string, any
     role: user.role,
     employeeId: user.employeeId ?? null,
     departmentId: user.departmentId ?? null,
+    // Thiếu field này thì `assertInScope` coi global admin là Admin unmapped và
+    // trả 404 cho chính người có toàn quyền đọc mọi project.
+    isGlobalAdmin: user.isGlobalAdmin === true,
   };
   const target: ResourceTarget = {
     employeeId: project.assigneeId ? project.assigneeId.toString() : null,
@@ -61,6 +65,20 @@ function assertProjectScope(user: AuthenticatedUser, project: Record<string, any
 // GET /api/projects - Danh sách đề tài có filter và pagination
 router.get("/projects", authenticateToken, async (req: Request, res: Response) => {
   const user = req.user!;
+
+  // Admin không global mà không có department scope: không nhánh scope nào khớp
+  // phía dưới, `query` ở lại `{}` và `find({})` trả toàn bộ collection. Chặn trước
+  // khi chạm query, đồng bộ với `GET /api/employees` và `GET /api/change-requests`.
+  if (user.role === "Admin" && !user.isGlobalAdmin) {
+    const adminDept = (user.departmentId ?? "").trim();
+    if (adminDept === "") {
+      res.status(403).json({
+        error: { code: "RBAC_DENIED", message: "Admin has no assigned department scope (unmapped)" },
+      });
+      return;
+    }
+  }
+
   const paginationParse = PaginationQuerySchema.safeParse(req.query);
   const { page, limit } = paginationParse.success
     ? paginationParse.data
@@ -71,9 +89,20 @@ router.get("/projects", authenticateToken, async (req: Request, res: Response) =
 
     // Scope: Admin xem theo department, Employee xem việc được giao hoặc cùng dept
     if (user.role === "Admin" && user.departmentId) {
-      query.departmentId = user.departmentId;
+      const adminDept = user.departmentId.trim();
+      // Department chỉ có whitespace: helper trả `null`, mà `{ departmentId: null }`
+      // match project thiếu department của mọi phòng. Filter rỗng để fail-closed,
+      // giữ đúng hành vi cũ (query string "   " vốn trả 0 document).
+      query.departmentId = adminDept === "" ? { $in: [] } : departmentIdMatch(adminDept);
     } else if (user.role === "Employee" && user.employeeId) {
-      query.$or = [{ assigneeId: user.employeeId }, { departmentId: user.departmentId }];
+      const ownScope: Record<string, unknown>[] = [{ assigneeId: user.employeeId }];
+      // Guard này KHÔNG phải guard null: bỏ nó thì `departmentIdMatch(null)` trả `null`
+      // và `{ departmentId: null }` match mọi project null/thiếu departmentId của bất
+      // kỳ phòng ban nào. Không có department ⇒ chỉ thấy việc được giao.
+      if (user.departmentId) {
+        ownScope.push({ departmentId: departmentIdMatch(user.departmentId) });
+      }
+      query.$or = ownScope;
     }
 
     if (req.query.status && typeof req.query.status === "string") {

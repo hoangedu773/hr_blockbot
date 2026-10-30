@@ -9,6 +9,7 @@ import {
 } from "@hr-blockbot/contracts";
 import { EmployeeModel } from "../models/Employee.js";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
+import { departmentIdMatch } from "../lib/department-scope.js";
 
 const router = Router();
 
@@ -59,6 +60,7 @@ router.get("/employees", authenticateToken, async (req: Request, res: Response) 
 
   try {
     const adminDept = user.departmentId?.trim() ?? "";
+    const adminDeptMatch = departmentIdMatch(adminDept);
 
     // Enforce server-injected scope: never trust client to bypass department filter.
     // Global admin không có department scope -> đọc toàn bộ, vẫn lọc được theo query.
@@ -66,7 +68,7 @@ router.get("/employees", authenticateToken, async (req: Request, res: Response) 
       ? {}
       : {
           $or: [
-            { departmentId: adminDept },
+            { departmentId: adminDeptMatch },
             { department: adminDept },
             { store_raw: adminDept },
           ],
@@ -74,7 +76,7 @@ router.get("/employees", authenticateToken, async (req: Request, res: Response) 
 
     if (requestedDept && user.isGlobalAdmin) {
       query.$or = [
-        { departmentId: requestedDept.trim() },
+        { departmentId: departmentIdMatch(requestedDept) },
         { department: requestedDept.trim() },
         { store_raw: requestedDept.trim() },
       ];
@@ -388,7 +390,11 @@ router.get("/change-requests", authenticateToken, async (req: Request, res: Resp
     res.status(403).json({ error: { code: "RBAC_DENIED", message: "Only Admin can list change requests" } });
     return;
   }
-  if (!user.isGlobalAdmin && !user.departmentId) {
+  // Quyết định RBAC, không phải guard null: department chỉ có whitespace cũng là
+  // unmapped. Không chặn ở đây thì `departmentIdMatch` trả `null` và scope
+  // `{ departmentId: null }` match employee thiếu department của phòng khác.
+  const adminDept = user.departmentId?.trim() ?? "";
+  if (!user.isGlobalAdmin && adminDept === "") {
     res.status(403).json({
       error: { code: "RBAC_DENIED", message: "Admin has no assigned department scope (unmapped)" },
     });
@@ -402,7 +408,9 @@ router.get("/change-requests", authenticateToken, async (req: Request, res: Resp
   }
 
   try {
-    const scopeFilter = user.isGlobalAdmin ? {} : { departmentId: user.departmentId };
+    const scopeFilter = user.isGlobalAdmin
+      ? {}
+      : { departmentId: departmentIdMatch(user.departmentId) };
     const employees: any[] = await EmployeeModel.find(scopeFilter)
       .select("fullName full_name profileChangeRequests")
       .lean();

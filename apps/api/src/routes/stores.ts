@@ -20,6 +20,7 @@ import { EmployeeModel } from "../models/Employee.js";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
 import { resolveUserScope } from "../services/user-scope.service.js";
 import { redactSecrets } from "../lib/redact.js";
+import { departmentIdMatch } from "../lib/department-scope.js";
 
 const router = Router();
 
@@ -76,17 +77,10 @@ type StoreScope =
  * hàng bằng đúng bộ $or mà `routes/employees.ts` dùng, rồi áp lên `store_name`.
  */
 async function storeNamesInDepartmentScope(scopeValue: string): Promise<string[]> {
-  // `employees.departmentId` được seed bằng ObjectId nhưng JWT/middleware mang nó
-  // dưới dạng string. Match cả hai dạng, nếu không distinct trả rỗng và mọi Admin
-  // không global thấy 0 cửa hàng (fail-closed nhưng tính năng chết).
-  const departmentIdMatch = mongoose.Types.ObjectId.isValid(scopeValue)
-    ? { $in: [scopeValue, new mongoose.Types.ObjectId(scopeValue)] }
-    : scopeValue;
-
   const [employeeStoreNames, directStoreNames] = await Promise.all([
     EmployeeModel.distinct("store_raw", {
       $or: [
-        { departmentId: departmentIdMatch },
+        { departmentId: departmentIdMatch(scopeValue) },
         { department: scopeValue },
         { store_raw: scopeValue },
       ],

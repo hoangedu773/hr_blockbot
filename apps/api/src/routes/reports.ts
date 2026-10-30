@@ -40,6 +40,9 @@ async function assertReportScope(
     role: user.role,
     employeeId: user.employeeId ?? null,
     departmentId: user.departmentId ?? null,
+    // Thiếu field này thì global admin bị coi là Admin unmapped: report gắn với
+    // project không có departmentId trả 404 dù người gọi có toàn quyền.
+    isGlobalAdmin: user.isGlobalAdmin === true,
   };
   const owner = report.submittedBy ? report.submittedBy.toString() : null;
   const target: ResourceTarget = {
