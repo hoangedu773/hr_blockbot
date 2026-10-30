@@ -9,6 +9,7 @@ import os
 import sys
 from pathlib import Path
 from unittest.mock import patch
+import pytest
 
 AI_SERVICE_DIR = Path(__file__).resolve().parent.parent
 if str(AI_SERVICE_DIR) not in sys.path:
@@ -73,9 +74,17 @@ def test_readiness_endpoint_success():
         assert response.json() == {"status": "ready", "database": "connected"}
 
 
-def test_chat_locked_when_agent_disabled():
+
+@pytest.fixture
+def authenticated_client(monkeypatch):
+    from dataclasses import replace
+    import app.main as main_module
+    monkeypatch.setattr(main_module, "settings", replace(main_module.settings, ai_service_api_key="synthetic-service-key"))
+    return TestClient(app, headers={"x-ai-service-key": "synthetic-service-key"})
+
+def test_chat_locked_when_agent_disabled(authenticated_client):
     with patch("app.main.is_agent_enabled", return_value=False):
-        response = _client().post("/api/v1/chat", json={"message": "lịch ca của tôi"})
+        response = authenticated_client.post("/api/v1/chat", json={"message": "lịch ca của tôi"})
         assert response.status_code == 403
         assert response.json()["detail"]["code"] == "AGENT_DISABLED"
 

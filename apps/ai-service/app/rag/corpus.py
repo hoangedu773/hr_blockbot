@@ -299,8 +299,17 @@ def seed_chunks() -> list[PolicyChunk]:
     return chunks
 
 
-def load_db_chunks(collection: Any, limit: int = 100) -> list[PolicyChunk]:
-    """Read policy chunks from Mongo (read-only). Returns [] when the collection is empty."""
+def load_db_chunks(collection: Any, limit: int = 1000) -> list[PolicyChunk]:
+    """Read policy chunks from Mongo (read-only). Returns [] when the collection is empty.
+
+    BUG (found 2026-10-29 while embedding the 145-doc GUTA portal corpus): the old
+    default `limit=100` silently dropped every document past the first hundred —
+    both here in the seed script AND in the runtime answering path (main.py builds
+    the PolicyEngine through this same function), so with 223 documents in
+    `policies` more than half the corpus never reached retrieval or the embedding
+    writer. 1000 is a ceiling, not a target: ~1000 chunks x a 3072-dim float vector
+    is a few MB in memory.
+    """
     if collection is None:
         return []
     try:

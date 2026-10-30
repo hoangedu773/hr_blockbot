@@ -7,6 +7,7 @@ lands in URL logs.
 from __future__ import annotations
 
 import httpx
+from app.deadline import remaining_seconds
 
 from app.llm.base import (
     ChatMessage,
@@ -41,8 +42,9 @@ class GeminiProvider(LLMProvider):
 
     def _post(self, url: str, payload: dict) -> dict:
         try:
-            response = self._client.post(url, json=payload, headers=self._headers(), timeout=self.timeout)
-        except httpx.TimeoutException as exc:
+            response = self._client.post(url, json=payload, headers=self._headers(), timeout=remaining_seconds(self.timeout))
+            remaining_seconds(self.timeout)
+        except (httpx.TimeoutException, TimeoutError) as exc:
             raise ProviderTimeout("provider timed out", provider_id=self.config.id) from exc
         except httpx.HTTPError as exc:
             raise ProviderError(f"transport error: {type(exc).__name__}", provider_id=self.config.id) from exc
@@ -76,6 +78,11 @@ class GeminiProvider(LLMProvider):
             "generationConfig": {
                 "temperature": opts.temperature,
                 "maxOutputTokens": opts.max_tokens or self.config.max_tokens,
+                # gemini-3-flash-preview is a thinking model: with the default
+                # thinking budget a policy prompt (large in-context injection)
+                # takes 40+s before the first token. thinkingBudget=0 disables
+                # deliberation — measured 3.2s vs 40s on the same prompt.
+                "thinkingConfig": {"thinkingBudget": 0},
             },
         }
         if system_parts:

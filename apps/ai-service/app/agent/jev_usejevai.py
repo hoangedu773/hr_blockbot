@@ -49,9 +49,10 @@ class KeyState:
     cooldown_until: float = 0.0
     uses: int = 0
     failures: int = 0
+    in_flight: int = 0
 
     def available(self, now: float) -> bool:
-        return not self.disabled and self.cooldown_until <= now
+        return not self.disabled and self.cooldown_until <= now and self.in_flight < 3
 
 
 @dataclass
@@ -63,7 +64,14 @@ class UseJevKeyPool:
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def __post_init__(self) -> None:
-        self.keys = [key.strip() for key in self.keys if key and key.strip()]
+        seen: set[str] = set()
+        deduped: list[str] = []
+        for key in self.keys:
+            cleaned = key.strip()
+            if cleaned and cleaned not in seen:
+                seen.add(cleaned)
+                deduped.append(cleaned)
+        self.keys = deduped
         self._states = {key: KeyState() for key in self.keys}
 
     def __bool__(self) -> bool:
@@ -79,14 +87,23 @@ class UseJevKeyPool:
                 state = self._states[key]
                 if state.available(now):
                     state.uses += 1
+                    state.in_flight += 1
                     return key
             raise NoKeyAvailable("all UseJevAI keys are disabled or cooling down")
+
+    def release(self, key: str) -> None:
+        with self._lock:
+            state = self._states.get(key)
+            if state and state.in_flight > 0:
+                state.in_flight -= 1
 
     def report_ok(self, key: str) -> None:
         with self._lock:
             state = self._states.setdefault(key, KeyState())
-            state.cooldown_until = 0.0
-            state.reason = ""
+            now = time.monotonic()
+            if not state.disabled and state.cooldown_until <= now:
+                state.cooldown_until = 0.0
+                state.reason = ""
 
     def report_failure(self, key: str, code: str, status: int | None = None) -> None:
         """`code` is the machine reason: auth | quota | rate | transport | server."""
@@ -114,15 +131,22 @@ class UseJevKeyPool:
                     "cooldown_s": max(0.0, round(state.cooldown_until - now, 1)),
                     "uses": state.uses,
                     "failures": state.failures,
+                    "in_flight": state.in_flight,
                 }
                 for key, state in self._states.items()
             ]
 
 
-def urllib_transport(base_url: str, timeout: float) -> Transport:
+def urllib_transport(base_url: str, default_timeout: float = 15.0) -> Transport:
     """Default transport: stdlib only, with a UA Cloudflare accepts."""
 
-    def send(method: str, path: str, key: str, payload: dict[str, Any] | None) -> tuple[int, str]:
+    def send(
+        method: str,
+        path: str,
+        key: str,
+        payload: dict[str, Any] | None,
+        timeout: float | None = None,
+    ) -> tuple[int, str]:
         import urllib.error
         import urllib.request
 
@@ -138,7 +162,7 @@ def urllib_transport(base_url: str, timeout: float) -> Transport:
             },
         )
         try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
+            with urllib.request.urlopen(request, timeout=default_timeout if timeout is None else timeout) as response:
                 return response.status, response.read().decode("utf-8", "replace")
         except urllib.error.HTTPError as exc:
             return exc.code, exc.read().decode("utf-8", "replace")
@@ -157,7 +181,7 @@ class UseJevClient:
         *,
         transport: Transport | None = None,
         base_url: str = DEFAULT_BASE_URL,
-        timeout_seconds: float = 15.0,
+        timeout_seconds: float = 6.0,
         poll_interval_seconds: float = 0.5,
         sleep: Callable[[float], None] = time.sleep,
         clock: Callable[[], float] = time.monotonic,
@@ -179,55 +203,112 @@ class UseJevClient:
             "idempotencyKey": uuid.uuid4().hex,
             "input": {"state": state, "questions": questions},
         }
-        run_id, key = self._submit(payload)
-        return self._await_result(run_id, key)
+        deadline = self._clock() + self.timeout_seconds
+        run_id, key = self._submit(payload, deadline)
+        try:
+            return self._await_result(run_id, key, deadline)
+        finally:
+            self.pool.release(key)
+
+    def _http_timeout(self, deadline: float) -> float:
+        local_remaining = deadline - self._clock()
+        if local_remaining <= 0:
+            raise UseJevError("timeout", None)
+        try:
+            from app.deadline import remaining_seconds
+            return remaining_seconds(local_remaining)
+        except ImportError:
+            return local_remaining
+        except TimeoutError as exc:
+            raise UseJevError("timeout", None) from exc
 
     # -- internals --------------------------------------------------------------
 
-    def _submit(self, payload: dict[str, Any]) -> tuple[str, str]:
+    def _submit(self, payload: dict[str, Any], deadline: float) -> tuple[str, str]:
         attempts = max(1, len(self.pool.keys))
         last_error = "no_attempt"
         for _ in range(attempts):
-            key = self.pool.acquire()  # NoKeyAvailable propagates
+            http_timeout = self._http_timeout(deadline)
+            key = self.pool.acquire()
             self.last_key = f"{key[:6]}…{key[-4:]}"
-            status, body = self._transport("POST", "/api/v1/runs", key, payload)
+            try:
+                status, body = self._transport("POST", "/api/v1/runs", key, payload, http_timeout)
+            except Exception as exc:
+                self.pool.report_failure(key, "transport", 0)
+                self.pool.release(key)
+                raise UseJevError("transport", 0) from exc
+
+            if self._clock() > deadline:
+                self.pool.release(key)
+                raise UseJevError("timeout", None)
+
             if status in (200, 201, 202):  # the live API answers 202 Accepted
                 try:
-                    run_id = json.loads(body)["data"]["id"]
-                except (KeyError, TypeError, json.JSONDecodeError):
+                    parsed = json.loads(body)
+                    if not isinstance(parsed, dict) or not isinstance(parsed.get("data"), dict):
+                        raise ValueError("Invalid submit response shape")
+                    run_id = parsed["data"].get("id")
+                    if not run_id:
+                        raise ValueError("Missing run id")
+                except (KeyError, TypeError, ValueError, json.JSONDecodeError):
                     self.pool.report_failure(key, "server", status)
+                    self.pool.release(key)
                     last_error = "bad_submit_body"
                     continue
                 self.pool.report_ok(key)
                 return str(run_id), key
+
             code = classify_status(status)
             self.pool.report_failure(key, code, status)
+            self.pool.release(key)
             last_error = code
             if code in ("auth", "quota"):
                 continue  # try the next account immediately
             raise UseJevError(code, status)
         raise UseJevError(last_error, None)
 
-    def _await_result(self, run_id: str, key: str) -> dict[str, Any]:
-        deadline = self._clock() + self.timeout_seconds
+    def _await_result(self, run_id: str, key: str, deadline: float) -> dict[str, Any]:
         while self._clock() < deadline:
-            status, body = self._transport("GET", f"/api/v1/runs/{run_id}", key, None)
+            http_timeout = self._http_timeout(deadline)
+            try:
+                status, body = self._transport("GET", f"/api/v1/runs/{run_id}", key, None, http_timeout)
+            except Exception as exc:
+                self.pool.report_failure(key, "transport", 0)
+                raise UseJevError("transport", 0) from exc
+
             if status == 401:
                 self.pool.report_failure(key, "auth", status)
                 raise UseJevError("auth", status)
+            if status in (402, 403):
+                self.pool.report_failure(key, "quota", status)
+                raise UseJevError("quota", status)
             if status == 429:
                 self.pool.report_failure(key, "rate", status)
                 raise UseJevError("rate", status)
             if status != 200:
-                raise UseJevError(classify_status(status), status)
+                code = classify_status(status)
+                self.pool.report_failure(key, code, status)
+                raise UseJevError(code, status)
+
             try:
-                data = json.loads(body)["data"]
-            except (KeyError, TypeError, json.JSONDecodeError) as exc:
+                parsed = json.loads(body)
+                if not isinstance(parsed, dict) or not isinstance(parsed.get("data"), dict):
+                    raise ValueError("Invalid poll shape")
+                data = parsed["data"]
+            except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
                 raise UseJevError("bad_poll_body", status) from exc
 
             state = str(data.get("status") or "")
             if state == TERMINAL_OK:
-                answers = (data.get("result") or {}).get("response", {}).get("answers")
+                if self._clock() > deadline:
+                    raise UseJevError("timeout", None)
+                result = data.get("result")
+                if not isinstance(result, dict):
+                    raise UseJevError("bad_result_body", status)
+                response = result.get("response")
+                if not isinstance(response, dict):
+                    raise UseJevError("bad_result_body", status)
+                answers = response.get("answers")
                 if not isinstance(answers, dict):
                     raise UseJevError("bad_result_body", status)
                 self.pool.report_ok(key)

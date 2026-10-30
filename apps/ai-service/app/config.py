@@ -14,12 +14,18 @@ from dataclasses import dataclass
 # J-4: load .env here, not only in start.py. `render.yaml` starts the service with
 # `uvicorn app.main:app`, which never imports start.py, so keys/env vars were
 # silently missing on that path and the gate fell back to the rule path.
+# Hermetic suite (ai-test-harness-hermetic phase 01): tests/conftest.py strips all
+# AI_*/JEV_* env vars and sets PYTHON_DOTENV_DISABLED=1; honour that flag, or the
+# .env file re-arms live Jev keys AFTER the strip and the gateway dials out.
 try:
     from pathlib import Path as _Path
 
     from dotenv import load_dotenv as _load_dotenv
 
-    _load_dotenv(_Path(__file__).resolve().parent.parent / ".env")
+    import os as _os
+
+    if not _os.environ.get("PYTHON_DOTENV_DISABLED"):
+        _load_dotenv(_Path(__file__).resolve().parent.parent / ".env")
 except ImportError:  # python-dotenv is optional at runtime
     pass
 

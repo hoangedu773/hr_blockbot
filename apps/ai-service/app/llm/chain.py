@@ -18,9 +18,24 @@ import json
 import logging
 import threading
 import time
+
+# "Key cabinet" cooldown registry — MODULE-LEVEL on purpose: the chat path builds
+# a fresh ProviderChain per request (main.py), so per-instance state would reset
+# every turn and exhausted keys would be retried from scratch each time. Keyed by
+# (provider id, last-4 of key) — no key material is stored in memory here.
+_PROVIDER_COOLDOWN_SECONDS = {
+    "QUOTA_EXCEEDED": 90.0,  # key vừa đốt hạn mức phút — ủ ~1.5 phút
+    "LLM_TIMEOUT": 30.0,     # key treo — ủ ngắn hơn
+}
+_provider_cooldowns: dict[tuple[str, str], float] = {}
+
+
+def _cooldown_key(provider: LLMProvider) -> tuple[str, str]:
+    return (provider.config.id, (provider.config.api_key or "")[-4:])
 from typing import Any
 
 from app.config import settings
+from app.deadline import remaining_seconds, use_deadline
 from app.llm.base import (
     ChatMessage,
     CompletionOptions,
@@ -95,6 +110,7 @@ class ProviderChain:
     def __init__(self, providers: list[LLMProvider], build_errors: list[dict[str, str]] | None = None):
         self._providers = list(providers)
         self.build_errors = list(build_errors or [])
+        self.config_version: Any = None
 
     @property
     def provider_ids(self) -> list[str]:
@@ -108,32 +124,81 @@ class ProviderChain:
         messages: list[ChatMessage],
         opts: CompletionOptions | None = None,
     ) -> CompletionResult:
-        return self._run("complete", self._providers, messages, opts)
+        with use_deadline(None):
+            return self._run_with_deadline("complete", self._providers, messages, opts)
 
     def embed(self, texts: list[str], opts: dict | None = None) -> EmbeddingResult:
-        return self._run("embed", self._providers, texts, opts)
+        with use_deadline(None):
+            return self._run_with_deadline("embed", self._providers, texts, opts)
 
-    def _run(self, op: str, providers: list[LLMProvider], payload: Any, opts: Any):
+    def _run_with_deadline(self, op: str, providers: list[LLMProvider], payload: Any, opts: Any):
         errors: list[dict[str, str]] = list(self.build_errors)
         if not providers:
             raise LLMUnavailable(errors)
-        for provider in providers:
+        group_expiry = 0.0
+        previous_group = None
+        now = time.monotonic()
+        available = [
+            (index, provider)
+            for index, provider in enumerate(providers)
+            if _provider_cooldowns.get(_cooldown_key(provider), 0) <= now
+        ]
+        if not available:
+            # Every key is parked in the cooldown cabinet. Recycle the one that
+            # becomes ready first (best effort) instead of failing instantly —
+            # its own error surfaces honestly if the bucket is still drained.
+            parked = sorted(
+                ((index, provider) for index, provider in enumerate(providers)),
+                key=lambda ip: _provider_cooldowns.get(_cooldown_key(ip[1]), 0),
+            )
+            available = parked[:1]
+        for position, (index, provider) in enumerate(available):
+            config = provider.config
+            group = (config.type, config.model, config.base_url)
             started = time.monotonic()
             try:
-                if op == "complete":
-                    result = provider.complete(payload, opts)
-                else:
-                    result = provider.embed(payload, opts)
-            except ProviderError as exc:
+                remaining = remaining_seconds(15.0)
+                if group != previous_group:
+                    remaining_models = max(
+                        1,
+                        len({(p.config.type, p.config.model, p.config.base_url) for _, p in available[position:]}),
+                    )
+                    group_expiry = time.monotonic() + remaining / remaining_models
+                    previous_group = group
+                budget = min(provider.timeout, max(0.0, group_expiry - time.monotonic()))
+                if budget <= 0:
+                    continue
+                with use_deadline(int(time.time() * 1000 + budget * 1000)):
+                    if op == "complete":
+                        result = provider.complete(payload, opts)
+                    else:
+                        result = provider.embed(payload, opts)
+                    remaining_seconds(provider.timeout)
+            except (ProviderError, TimeoutError) as exc:
                 elapsed = (time.monotonic() - started) * 1000
                 logger.info(
                     "llm provider=%s op=%s ok=false code=%s latency_ms=%.0f",
                     provider.name,
                     op,
-                    exc.code,
+                    getattr(exc, "code", "LLM_TIMEOUT"),
                     elapsed,
                 )
-                errors.append({"providerId": provider.name, "code": exc.code})
+                code = getattr(exc, "code", "LLM_TIMEOUT")
+                if code not in {"PROVIDER_ERROR", "LLM_TIMEOUT", "QUOTA_EXCEEDED", "INVALID_PROVIDER_CONFIG"}:
+                    code = "PROVIDER_ERROR"
+                errors.append({"providerId": provider.name, "code": code})
+                # "Key cabinet" rotation (user-specified model): a key that just
+                # burned its quota (or hung) is parked for a cool-down window and
+                # skipped instantly by the following requests, so the chain stops
+                # paying 0.5s x dead keys + 9s x hung keys on every single turn.
+                if code in _PROVIDER_COOLDOWN_SECONDS:
+                    _provider_cooldowns[_cooldown_key(provider)] = (
+                        time.monotonic() + _PROVIDER_COOLDOWN_SECONDS[code]
+                    )
+                try:
+                    remaining_seconds(provider.timeout)
+                except TimeoutError:
+                    break
                 continue
             elapsed = (time.monotonic() - started) * 1000
             logger.info(
@@ -144,10 +209,10 @@ class ProviderChain:
                 getattr(result, "tokens_in", 0),
                 getattr(result, "tokens_out", 0),
             )
+            if isinstance(result, CompletionResult):
+                result.provider_errors = errors + result.provider_errors
             return result
         raise LLMUnavailable(errors)
-
-
 class ProviderChainCache:
     """Per-configVersion cache with TTL, used so key material stays short-lived."""
 
@@ -168,6 +233,7 @@ class ProviderChainCache:
             if entry is not None and entry[0] > now:
                 return entry[1]
             chain = build_chain(payload)
+            chain.config_version = payload.get("configVersion")
             self.builds += 1
             self._entries[key] = (now + self._ttl, chain)
             while len(self._entries) > self._max_versions:

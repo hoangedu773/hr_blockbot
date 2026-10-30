@@ -7,6 +7,9 @@ from __future__ import annotations
 
 import json
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
+from unittest import mock
 
 from app.agent.jev_usejevai import (
     NoKeyAvailable,
@@ -36,7 +39,7 @@ class FakeTransport:
         self.script = list(script)
         self.calls: list[tuple[str, str, str]] = []
 
-    def __call__(self, method: str, path: str, key: str, payload):
+    def __call__(self, method: str, path: str, key: str, payload, timeout=None):
         self.calls.append((method, path, key))
         if not self.script:
             raise AssertionError("transport called more times than scripted")
@@ -82,6 +85,28 @@ class PoolTests(unittest.TestCase):
     def test_empty_pool_is_falsy(self) -> None:
         self.assertFalse(UseJevKeyPool(["", "  "]))
         self.assertTrue(UseJevKeyPool(KEYS))
+
+    def test_capacity_deduplicates_accounts_and_releases_slots(self) -> None:
+        pool = UseJevKeyPool([" same ", "same"])
+        self.assertEqual(pool.keys, ["same"])
+        with ThreadPoolExecutor(max_workers=12) as executor:
+            def acquire(_):
+                try:
+                    return pool.acquire()
+                except NoKeyAvailable:
+                    return None
+            leases = list(executor.map(acquire, range(12)))
+        self.assertEqual(leases.count("same"), 3)
+        pool.release("same")
+        self.assertEqual(pool.acquire(), "same")
+
+    def test_stale_success_preserves_new_cooldown(self) -> None:
+        pool = UseJevKeyPool(["same"])
+        key = pool.acquire()
+        pool.report_failure(key, "rate")
+        pool.report_ok(key)
+        with self.assertRaises(NoKeyAvailable):
+            pool.acquire()
 
 
 class ClientTests(unittest.TestCase):
@@ -176,6 +201,64 @@ class ClientTests(unittest.TestCase):
             client.decide("text", [])
         self.assertEqual(ctx.exception.code, "bad_result_body")
 
+    def test_submit_and_poll_share_transaction_deadline(self) -> None:
+        now = [0.0]
+        budgets = []
+        def send(method, path, key, payload, timeout=None):
+            budgets.append(timeout)
+            now[0] += 5.5
+            return (202, '{"data":{"id":"run"}}') if method == "POST" else (200, run_body("succeeded", ANSWERS))
+        pool = UseJevKeyPool(["same"])
+        client = UseJevClient(pool, transport=send, timeout_seconds=6, clock=lambda: now[0])
+        with self.assertRaises(UseJevError) as caught:
+            client.decide("text", [])
+        self.assertEqual(caught.exception.code, "timeout")
+        self.assertEqual(budgets, [6, 0.5])
+        self.assertEqual(pool.snapshot()[0]["in_flight"], 0)
+
+    def test_rotation_shares_budget_and_releases_every_attempt(self) -> None:
+        now = [0.0]
+        budgets = []
+        def send(method, path, key, payload, timeout=None):
+            budgets.append(timeout)
+            now[0] += 3
+            return 401, "{}"
+        pool = UseJevKeyPool(KEYS)
+        client = UseJevClient(pool, transport=send, timeout_seconds=6, clock=lambda: now[0])
+        with self.assertRaises(UseJevError) as caught:
+            client.decide("text", [])
+        self.assertEqual(caught.exception.code, "timeout")
+        self.assertEqual(budgets, [6, 3])
+        self.assertTrue(all(item["in_flight"] == 0 for item in pool.snapshot()))
+
+    def test_malformed_poll_shapes_are_contract_errors(self) -> None:
+        for data in (None, [], {"status": "succeeded", "result": []},
+                     {"status": "succeeded", "result": {"response": None}}):
+            with self.subTest(data=data):
+                client, _ = self.client([(202, '{"data":{"id":"run"}}'), (200, json.dumps({"data": data}))])
+                with self.assertRaises(UseJevError):
+                    client.decide("text", [])
+
+    def test_poll_failures_update_pool_and_release(self) -> None:
+        for status in (401, 402, 403, 429):
+            with self.subTest(status=status):
+                client, _ = self.client([(202, '{"data":{"id":"run"}}'), (status, "{}")], ["same"])
+                with self.assertRaises(UseJevError):
+                    client.decide("text", [])
+                snapshot = client.pool.snapshot()[0]
+                self.assertEqual(snapshot["disabled"], status != 429)
+                self.assertEqual(snapshot["in_flight"], 0)
+                with self.assertRaises(NoKeyAvailable):
+                    client.pool.acquire()
+
+    def test_transport_exception_releases_lease(self) -> None:
+        pool = UseJevKeyPool(["same"])
+        client = UseJevClient(pool, transport=mock.Mock(side_effect=OSError("secret upstream")))
+        with self.assertRaises(UseJevError) as caught:
+            client.decide("text", [])
+        self.assertNotIn("secret", str(caught.exception))
+        self.assertEqual(pool.snapshot()[0]["in_flight"], 0)
+
 
 class GatewayMappingTests(unittest.TestCase):
     """JevGateway._usejevai: answers -> TypedDecision, including probabilities."""
@@ -245,6 +328,31 @@ class GatewayMappingTests(unittest.TestCase):
             gateway.decide("text")
         self.assertIn("NO_KEY_AVAILABLE", json.dumps(ctx.exception.__dict__, default=str))
 
+    def test_malformed_primitives_and_numeric_coercions_are_rejected(self) -> None:
+        from app.llm.base import LLMUnavailable
+        for field, value in (("intent", None), ("intent", []),
+                             ("incident_urgency", {"type": "score", "score": True}),
+                             ("incident_urgency", {"type": "score", "score": "0.2"}),
+                             ("needs_manager_approval", {"type": "noul", "noul": "0.2"}),
+                             ("intent", {"type": "choice", "choice": "policy_query", "probabilities": []})):
+            with self.subTest(field=field, value=value):
+                answers = deepcopy(ANSWERS)
+                answers[field] = value
+                gateway, _ = self.gateway([(202, '{"data":{"id":"run"}}'), (200, run_body("succeeded", answers))])
+                with self.assertRaises(LLMUnavailable):
+                    gateway.decide("text")
+
 
 if __name__ == "__main__":
     unittest.main()
+
+def test_default_chain_single_chat_model(monkeypatch):
+    """Tier slider removed (2026-10-30): default_chain configures every pool
+    provider with the single CHAT_MODEL — no per-tier mapping anymore."""
+    import app.agent.jev_gateway as jgw
+
+    monkeypatch.setattr(jgw, "_llm_keys", lambda: ["AQ.testkey123"])
+    chain = jgw.default_chain()
+    assert len(chain._providers) == 1
+    assert chain._providers[0].config.model == jgw.CHAT_MODEL
+    assert jgw.CHAT_MODEL == "gemini-3-flash-preview"

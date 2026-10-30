@@ -22,13 +22,14 @@ from typing import Any, Literal, Optional
 from fastapi import FastAPI, Header, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, StrictInt, ValidationError
 
 from app.agent.jev_gateway import default_chain
 
 from app.agent.loop import AgentLoop, AgentTurn
 from app.agent.tools import TOOL_SPECS, ToolRuntime, UserContext, is_agent_enabled
 from app.config import settings
+from app.deadline import use_deadline
 from app.db import db_client
 from app.llm.base import LLMUnavailable
 from app.llm.chain import ProviderChain, build_chain, provider_cache
@@ -81,6 +82,7 @@ class ChatRequest(BaseModel):
     userContext: dict[str, Any] = Field(default_factory=dict)
     # ADR-017: {"configVersion": n, "providers": [{id,type,model,baseUrl,apiKey,...}]}
     providerConfig: Optional[dict[str, Any]] = None
+    deadlineAtMs: StrictInt | None = None
 
 
 class RagQueryRequest(BaseModel):
@@ -137,7 +139,7 @@ def _llm_unavailable_response(exc: LLMUnavailable) -> JSONResponse:
 def _embedding_chain(llm_chain: ProviderChain) -> ProviderChain:
     """Dedicated chain for embeddings, using an embedding model — never a text model.
 
-    `default_chain()` configures a text model (e.g. `gemini-3.5-flash`); calling
+    `default_chain()` configures a text model (e.g. `gemini-3-flash-preview`); calling
     `batchEmbedContents` with it returns HTTP 400. Google-format keys
     (`AQ.`/`AIzaSy`) get one `gemini-embedding-001` provider per key so a dead or
     rate-limited key falls through to the next. An OpenAI-compatible provider is
@@ -326,8 +328,9 @@ def chat(
     try:
         # Chat never loads DB chunks, embeddings or a retriever. Legacy reads still
         # use the scoped runtime; /rag/query remains an isolated compatibility path.
-        runtime = ToolRuntime(db=db_client.db, policy=policy_engine)
-        turn: AgentTurn = AgentLoop(runtime, chain, strict_provider=True).run(req.message, user_ctx)
+        with use_deadline(req.deadlineAtMs):
+            runtime = ToolRuntime(db=db_client.db, policy=policy_engine)
+            turn: AgentTurn = AgentLoop(runtime, chain, strict_provider=True).run(req.message, user_ctx)
     except LLMUnavailable as exc:
         return _llm_unavailable_response(exc)
     payload = turn.as_dict()

@@ -70,11 +70,52 @@ def load_records(paths: list[Path]) -> tuple[list[dict], list[str]]:
     return records, skipped
 
 
+def _split_text(text: str, max_chars: int = 4000) -> list[str]:
+    """Split long text into pieces <= max_chars, preferring line boundaries.
+
+    gemini-embedding-001 caps its input (~2048 tokens) and silently truncates
+    longer text, so a 63K-char document embedded as one chunk loses everything
+    past the cap in its vector. Splitting at ingest keeps every part of the
+    corpus reachable by retrieval.
+    """
+    if len(text) <= max_chars:
+        return [text]
+    pieces: list[str] = []
+    current: list[str] = []
+    size = 0
+    for line in text.splitlines(keepends=True):
+        while len(line) > max_chars:  # hard-split pathological single lines
+            if current:
+                pieces.append("".join(current))
+                current, size = [], 0
+            pieces.append(line[:max_chars])
+            line = line[max_chars:]
+        if current and size + len(line) > max_chars:
+            pieces.append("".join(current))
+            current, size = [], 0
+        if line:
+            current.append(line)
+            size += len(line)
+    if current:
+        pieces.append("".join(current))
+    return [piece for piece in pieces if piece.strip()]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Ingest knowledge JSONL into Atlas policies.")
     parser.add_argument("--file", action="append", default=[], help="knowledge JSONL (repeatable)")
     parser.add_argument("--apply", action="store_true", help="write to MongoDB (default: dry run)")
     parser.add_argument("--status", action="store_true", help="chỉ thống kê knowledge_status rồi thoát")
+    parser.add_argument(
+        "--crawl-schema",
+        action="store_true",
+        help=(
+            "Input JSONL dùng schema của crawler GUTA portal (document/version/source/"
+            "chunks[{order,article,text}]) thay vì schema knowledge chuẩn. Mỗi record "
+            "được map sang document+articles; knowledge_status gán 'approved' tường minh "
+            "(chỉ dùng sau khi người duyệt chấp nhận nội dung cào)."
+        ),
+    )
     args = parser.parse_args()
 
     paths = [Path(p) for p in args.file] or [DEFAULT_FILE]
@@ -86,6 +127,57 @@ def main() -> int:
     ingested = 0
     documents: list[dict] = []
     for record in records:
+        if args.crawl_schema:
+            # Adapter for the GUTA-portal crawler JSONL: one record = one document
+            # with a single chunk {order, article, text}. Approval is explicit —
+            # this flag is only passed after a human has reviewed the corpus.
+            title = str(record.get("document") or "").strip()
+            chunk = (record.get("chunks") or [{}])[0] if isinstance(record.get("chunks"), list) else {}
+            content = str(chunk.get("text") or chunk.get("article") or "").strip()
+            if not title or not content:
+                skipped.append(f"crawl thiếu document/chunks text: {str(record.get('post_id') or '?')[:40]}")
+                continue
+            statuses["approved"] = statuses.get("approved", 0) + 1
+            if args.status:
+                continue
+            try:
+                department_ids = json.loads(str(record.get("departmentIds") or "[]"))
+            except json.JSONDecodeError:
+                department_ids = []
+            base_article = str(chunk.get("article") or "Nội dung tài liệu")[:100]
+            pieces = _split_text(content)
+            n = len(pieces)
+            articles = [
+                {
+                    "article": base_article if n == 1 else f"{base_article} — phần {i + 1}/{n}",
+                    "text": piece,
+                }
+                for i, piece in enumerate(pieces)
+            ]
+            # Layout-sensitive hash: re-ingesting the same text with a different
+            # split layout must UPDATE the document (otherwise the dedupe check
+            # would skip the resplit forever).
+            documents.append(
+                {
+                    "document": title,
+                    "title": title,
+                    "version": str(record.get("version") or "v1.0"),
+                    "source": str(record.get("attachment_url") or record.get("source") or "guta-portal-crawl"),
+                    "articles": articles,
+                    "contentSha256": text_sha256(json.dumps(articles, ensure_ascii=False)),
+                    "contentType": str(record.get("category") or "portal-document"),
+                    "departmentIds": department_ids if isinstance(department_ids, list) else [],
+                    "provenance": {
+                        "origin": "guta-portal-crawl",
+                        "file": paths[0].name,
+                        "local_path": str(record.get("local_path") or ""),
+                        "approved_by": "user 2026-10-29",
+                    },
+                    "seededBy": SEEDED_BY,
+                }
+            )
+            ingested += 1
+            continue
         title = str(record.get("title") or "").strip()
         content = str(record.get("content") or record.get("text") or "").strip()
         if not title or not content:

@@ -20,15 +20,19 @@ from tests.fakes import FakeCollection, FakeDb
 
 
 @pytest.fixture
-def client() -> TestClient:
-    return TestClient(app)
+def client(monkeypatch) -> TestClient:
+    monkeypatch.setattr(main_module, "settings", dataclasses.replace(settings, ai_service_api_key="synthetic-service-key"))
+    return TestClient(app, headers={"x-ai-service-key": "synthetic-service-key"})
 
 
 @pytest.fixture(autouse=True)
 def _reset_cache():
+    from app.agent.loop import QUERY_CACHE
     main_module.provider_cache.clear()
+    QUERY_CACHE.clear()
     yield
     main_module.provider_cache.clear()
+    QUERY_CACHE.clear()
 
 
 FAKE_PROVIDER_CONFIG = {
@@ -203,3 +207,47 @@ def test_service_key_accepts_correct_key(client, monkeypatch):
         headers={"x-ai-service-key": "secret"},
     )
     assert response.status_code == 200
+
+
+def test_service_key_fails_closed_when_unconfigured(client, monkeypatch):
+    monkeypatch.setattr(main_module, "settings", dataclasses.replace(settings, ai_service_api_key=""))
+    response = client.post("/api/v1/chat", json={"message": "test"})
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "SERVICE_KEY_NOT_CONFIGURED"
+
+
+@pytest.mark.parametrize("deadline", [True, 1.5, "123"])
+def test_chat_rejects_non_integer_deadline(client, monkeypatch, deadline):
+    _enable_agent(monkeypatch)
+    response = client.post("/api/v1/chat", json={
+        "message": "Deadline validation", "deadlineAtMs": deadline,
+        "providerConfig": FAKE_PROVIDER_CONFIG,
+    })
+    assert response.status_code == 422
+
+
+def test_chat_expired_deadline_returns_provider_timeout(client, monkeypatch):
+    _enable_agent(monkeypatch)
+    response = client.post("/api/v1/chat", json={
+        "message": "Chu kỳ tính lương?", "deadlineAtMs": 0,
+        "providerConfig": FAKE_PROVIDER_CONFIG,
+    })
+    assert response.status_code == 503
+    assert response.json()["error"]["providers"] == [{"providerId": "fake", "code": "LLM_TIMEOUT"}]
+
+
+def test_chat_handler_establishes_default_and_clamped_deadline(client, monkeypatch):
+    from app.agent.loop import AgentTurn
+    seen = []
+    def run(self, message, user_ctx):
+        from app.deadline import remaining_seconds
+        seen.append(remaining_seconds(30))
+        return AgentTurn(intent="general_chat", intent_id="general_chat", reply="ok")
+    _enable_agent(monkeypatch)
+    monkeypatch.setattr(main_module.AgentLoop, "run", run)
+    for extra in ({}, {"deadlineAtMs": 9_000_000_000_000}):
+        response = client.post("/api/v1/chat", json={
+            "message": "Deadline context", "providerConfig": FAKE_PROVIDER_CONFIG, **extra,
+        })
+        assert response.status_code == 200
+    assert all(0 < seconds <= 15 for seconds in seen)

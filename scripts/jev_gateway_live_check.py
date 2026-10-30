@@ -73,10 +73,12 @@ def main() -> int:
             decision = gateway.decide(message)
         except Exception as exc:  # noqa: BLE001 - report, do not hide
             failures += 1
-            print(f"FAIL  {type(exc).__name__}: {exc}  ← {message}")
+            print(f"FAIL  {type(exc).__name__}  ← {message}")
             continue
         elapsed = (time.monotonic() - started) * 1000
         mark = "ok  " if expected in (None, decision.intent) else "MISS"
+        if mark == "MISS":
+            failures += 1
         print(
             f"{mark}  intent={decision.intent:<16} approval={decision.needs_manager_approval:.2f} "
             f"urgency={decision.incident_urgency:.2f} p={decision.intent_confidence:.2f} "

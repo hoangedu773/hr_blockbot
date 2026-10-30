@@ -54,6 +54,7 @@ class CompletionResult:
     tokens_in: int = 0
     tokens_out: int = 0
     tool_calls: list[ToolCall] = field(default_factory=list)
+    provider_errors: list[dict[str, str]] = field(default_factory=list)
 
 
 @dataclass

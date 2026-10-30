@@ -27,6 +27,22 @@ def _enable_agent(monkeypatch):
     monkeypatch.setattr("app.agent.tools.is_agent_enabled", lambda: True)
 
 
+@pytest.fixture(autouse=True)
+def _no_jev(monkeypatch):
+    # Deterministic offline tests: .env carries real JEV_USEJEVAI_KEYS on this
+    # machine, which would route every turn through the live Jev gate (steps=2
+    # instead of 1, network dependency). `settings` is a frozen dataclass, so
+    # replace it wholesale on the gateway module the loop reads it from.
+    from dataclasses import replace
+
+    import app.agent.jev_gateway as jgw
+    from app.config import settings as real_settings
+
+    monkeypatch.setattr(
+        jgw, "settings", replace(real_settings, jev_api_key="", jev_usejevai_keys="")
+    )
+
+
 def _runtime(db: FakeDb | None = None) -> ToolRuntime:
     return ToolRuntime(
         db=db or FakeDb(),

@@ -310,6 +310,16 @@ def test_answer_pipeline_degrades_when_all_providers_fail():
     class _Broken:
         name = "broken"
 
+        # J-1 deadline grouping (chain._run_with_deadline) reads .config and
+        # .timeout off every provider before calling it — the fake must honour
+        # the provider protocol, not just complete()/embed().
+        from app.llm.base import ProviderConfig as _ProviderConfig
+
+        config = _ProviderConfig(
+            id="broken", type="fake", model="fake-hashing-embedder", timeout_ms=1000
+        )
+        timeout = 1.0
+
         def complete(self, messages, opts=None):
             from app.llm.base import ProviderRateLimited
 

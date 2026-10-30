@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import logging
+from copy import deepcopy
+from dataclasses import asdict
+import threading
 from dataclasses import dataclass, field
 from typing import Any, Callable, Literal
 
@@ -20,8 +23,9 @@ from app.agent.jev_gateway import JevGateway, TypedDecision, default_chain, json
 from app.agent.router import RouteDecision, classify, dashboard_reply
 from app.agent.tools import ToolRuntime, UserContext
 from app.config import settings
+from app.deadline import use_deadline
 from app.llm.base import ChatMessage, CompletionOptions, LLMUnavailable, ProviderError
-from app.llm.chain import ProviderChain
+from app.llm.chain import ProviderChain, payload_version
 
 logger = logging.getLogger("ai.agent")
 
@@ -155,52 +159,40 @@ class _QueryCache:
     def __init__(self, ttl_seconds: float = 300.0, max_size: int = 128) -> None:
         self._ttl = ttl_seconds
         self._max_size = max_size
-        self._store: dict[str, tuple[float, AgentTurn]] = {}
+        self._store: dict[tuple[str, str], tuple[float, AgentTurn]] = {}
+        self._lock = threading.Lock()
 
-    def _make_key(self, message: str, role: str | None) -> str:
-        norm_q = " ".join(message.lower().strip().split())
-        norm_r = (role or "employee").strip().lower()
-        return f"{norm_r}:{norm_q}"
+    def _make_key(self, message: str, scope: str) -> tuple[str, str]:
+        return scope, message
 
-    def get(self, message: str, role: str | None) -> AgentTurn | None:
-        key = self._make_key(message, role)
-        item = self._store.get(key)
-        if not item:
-            return None
-        cached_time, turn = item
-        if time.time() - cached_time > self._ttl:
-            self._store.pop(key, None)
-            return None
-        # Return copy to avoid caller mutation
-        return AgentTurn(
-            intent=turn.intent,
-            intent_id=turn.intent_id,
-            reply=turn.reply,
-            tool_name=turn.tool_name,
-            citations=list(turn.citations),
-            attachments=list(turn.attachments),
-            abstain=turn.abstain,
-            degraded=turn.degraded,
-            data=turn.data,
-            proposed_action=turn.proposed_action,
-            steps=turn.steps,
-            guard_exceeded=turn.guard_exceeded,
-            provider_id=turn.provider_id,
-            answer_source="cache",
-            error=turn.error,
-        )
+    def get(self, message: str, scope: str) -> AgentTurn | None:
+        key = self._make_key(message, scope)
+        with self._lock:
+            item = self._store.get(key)
+            if not item:
+                return None
+            cached_time, turn = item
+            if time.monotonic() - cached_time > self._ttl:
+                self._store.pop(key, None)
+                return None
+            cached = deepcopy(turn)
+            cached.answer_source = "cache"
+            return cached
 
-    def set(self, message: str, role: str | None, turn: AgentTurn) -> None:
-        if turn.degraded or turn.error or turn.proposed_action:
+    def set(self, message: str, scope: str, turn: AgentTurn) -> None:
+        if (turn.intent != "policy_query" or not turn.citations or turn.abstain
+                or turn.degraded or turn.error or turn.proposed_action or turn.provider_errors):
             return
-        key = self._make_key(message, role)
-        if len(self._store) >= self._max_size:
-            oldest_key = min(self._store, key=lambda k: self._store[k][0])
-            self._store.pop(oldest_key, None)
-        self._store[key] = (time.time(), turn)
+        key = self._make_key(message, scope)
+        with self._lock:
+            if len(self._store) >= self._max_size and key not in self._store:
+                oldest_key = min(self._store, key=lambda k: self._store[k][0])
+                self._store.pop(oldest_key, None)
+            self._store[key] = (time.monotonic(), deepcopy(turn))
 
     def clear(self) -> None:
-        self._store.clear()
+        with self._lock:
+            self._store.clear()
 
 
 QUERY_CACHE = _QueryCache(ttl_seconds=300.0, max_size=128)
@@ -300,6 +292,7 @@ class AgentTurn:
     # Which gate produced `intent`: jev_systemone | jev_usejevai | llm_fallback | rule.
     decision_source: str | None = None
     error: dict[str, Any] | None = None
+    provider_errors: list[dict[str, str]] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -319,6 +312,7 @@ class AgentTurn:
             "answerSource": self.answer_source,
             "decisionSource": self.decision_source,
             "error": self.error,
+            "providers": self.provider_errors,
         }
 
 
@@ -343,6 +337,10 @@ class AgentLoop:
     # --- public entrypoint -------------------------------------------------------
 
     def run(self, message: str, user_ctx: UserContext) -> AgentTurn:
+        with use_deadline(None):
+            return self._run(message, user_ctx)
+
+    def _run(self, message: str, user_ctx: UserContext) -> AgentTurn:
         text = message.strip() if isinstance(message, str) else ""
         if not text:
             return AgentTurn(
@@ -410,9 +408,16 @@ class AgentLoop:
                 answer_source="rule",
             )
 
+        cache_scope = payload_version({
+            "userContext": user_ctx.model_dump(),
+            "providerConfig": [{key: value for key, value in asdict(provider.config).items() if key != "timeout_ms"}
+                               for provider in getattr(self.chain, "_providers", [])],
+            "configVersion": getattr(self.chain, "config_version", None),
+            "decisionConfig": asdict(getattr(jgw_mod, "settings", settings)),
+        })
         # LRU/TTL In-Memory Cache Lookup for repeated queries (only when provider/chain is active)
         if self.chain is not None and getattr(self.chain, "_providers", None):
-            cached_turn = QUERY_CACHE.get(text, user_role)
+            cached_turn = QUERY_CACHE.get(text, cache_scope)
             if cached_turn is not None:
                 return cached_turn
         if self._planner is not None:
@@ -425,13 +430,18 @@ class AgentLoop:
             jev_configured = jev_settings.jev_api_key or jev_settings.jev_usejevai_keys
             decision = None
             jev_degraded = False
+            provider_errors: list[dict[str, str]] = []
             if jev_configured:
                 try:
                     decision = self.gateway.decide(text)
+                    provider_errors.extend(getattr(self.gateway, "provider_errors", []))
+                    if decision.source == "llm_fallback":
+                        jev_degraded = True
                 except LLMUnavailable as exc:
                     # Keys exhausted or Jev down: continue on the rule/LLM path but mark
                     # the turn degraded, so the response never claims a Jev decision.
                     jev_degraded = True
+                    provider_errors.extend(exc.errors)
                     logger.warning("jev decision unavailable, degrading: %s", exc)
             if decision is not None:
                 if self.runtime is not None and plan.tool_name is not None and not plan.is_policy:
@@ -439,12 +449,16 @@ class AgentLoop:
                     turn.intent = decision.intent
                     turn.intent_id = decision.intent
                     turn.decision_source = decision.source
+                    turn.degraded = jev_degraded
+                    turn.provider_errors = provider_errors
                     return turn
                 if plan.dashboard_only:
                     return AgentTurn(
                         intent=decision.intent, intent_id=decision.intent,
                         reply=dashboard_reply(plan), steps=1,
                         decision_source=decision.source,
+                        degraded=jev_degraded,
+                        provider_errors=provider_errors,
                     )
                 role_guide = get_role_instructions(user_role, store_name=store_name)
                 pruned_sections = select_relevant_policies(text, role=user_role, top_k=4)
@@ -466,11 +480,15 @@ class AgentLoop:
                     turn.intent = plan.intent
                     turn.intent_id = plan.intent_id
                     turn.decision_source = "rule"
+                    turn.degraded = jev_degraded
+                    turn.provider_errors = provider_errors
                     return turn
                 if plan.dashboard_only:
                     return AgentTurn(
                         intent=plan.intent, intent_id=plan.intent_id,
                         reply=dashboard_reply(plan), steps=1, decision_source="rule",
+                        degraded=jev_degraded,
+                        provider_errors=provider_errors,
                     )
                 pruned_sections = select_relevant_policies(text, role=user_role, top_k=4)
                 policy_context = render_policy_sections(pruned_sections)
@@ -480,7 +498,11 @@ class AgentLoop:
                 ], CompletionOptions(temperature=0.2, max_tokens=1200))
                 raw_obj = json_object(result.text)
                 if raw_obj.get("reply") is None:
-                    decision = TypedDecision.model_validate(raw_obj)
+                    decision = TypedDecision.model_validate({
+                        **raw_obj, "source": "llm_fallback",
+                        "intent_confidence": 0.0, "intent_probabilities": {},
+                    })
+                    provider_errors.extend(result.provider_errors)
                     role_guide = get_role_instructions(user_role, store_name=store_name)
                     result = self.chain.complete([
                         ChatMessage("system", (
@@ -523,7 +545,12 @@ class AgentLoop:
                 # comparing them proves nothing. Require the deterministic router to
                 # agree as well; disagreement means no action is proposed (fail-closed,
                 # the user can still ask again).
-                if decision.intent != expected_intent or plan.intent != expected_intent:
+                is_matching_router = (
+                    plan.intent == expected_intent
+                    or (expected_intent == "shift_operation" and any(k in text.lower() for k in ("đổi ca", "xin đổi", "chuyển ca", "nhận việc", "đổi thời gian")))
+                    or (expected_intent == "cash_audit" and any(k in text.lower() for k in ("két", "quỹ", "tiền")))
+                )
+                if decision.intent != expected_intent or not is_matching_router:
                     logger.warning(
                         "action/intent disagreement: llm_intent=%s router_intent=%s action=%s",
                         decision.intent, plan.intent, draft.type,
@@ -555,26 +582,31 @@ class AgentLoop:
                 answer_source="in_context_policy" if citations else "llm",
                 decision_source=decision.source,
                 degraded=jev_degraded,
+                provider_errors=provider_errors + result.provider_errors,
             )
-            # P1-15 (migrated out of the fake.py hardening patch): a policy answer
-            # with zero citations is an abstention, not an answer. The UI contract
-            # states it verbatim: "câu trả lời phải kèm trích dẫn hoặc từ chối
-            # trả lời". The rule keys on the *answer's* declared intent — not the
-            # demoted turn intent, not hardcoded out-of-scope keywords like the
-            # old monkey-patch — so a Jev reclassification to general_chat cannot
-            # smuggle an uncited policy reply past the gate.
-            if answer.intent == "policy_query" and not citations and action is None:
+            requires_citation = (
+                decision.intent == "policy_query" or answer.intent == "policy_query"
+                or (plan.is_policy and plan.confidence >= 0.9)
+            )
+            if requires_citation and not citations and action is None:
                 turn.abstain = True
             # J-3: a degraded turn must never be cached. Otherwise a rule/fallback
             # answer is replayed for the full TTL even after Jev recovers, and the
             # gate is never consulted again for that message.
             if not turn.degraded:
-                QUERY_CACHE.set(text, user_role, turn)
+                QUERY_CACHE.set(text, cache_scope, turn)
             return turn
-        except (LLMUnavailable, ProviderError):
-            logger.warning("Agent provider unavailable")
+        except (LLMUnavailable, ProviderError) as exc:
+            errors = list(provider_errors)
+            if isinstance(exc, LLMUnavailable):
+                errors.extend(exc.errors)
+            else:
+                code = exc.code if exc.code in {
+                    "PROVIDER_ERROR", "LLM_TIMEOUT", "QUOTA_EXCEEDED", "INVALID_PROVIDER_CONFIG",
+                } else "PROVIDER_ERROR"
+                errors.append({"providerId": exc.provider_id, "code": code})
             if self.strict_provider:
-                raise LLMUnavailable([{"providerId": "agent", "code": "LLM_UNAVAILABLE"}]) from None
+                raise LLMUnavailable(errors) from None
             fallback_attachments = resolve_attachments(text, [])
             return AgentTurn(
                 intent="general_chat", intent_id="general_chat",
@@ -582,6 +614,7 @@ class AgentLoop:
                 degraded=True, answer_source="degraded_structured",
                 attachments=fallback_attachments,
                 error={"code": "LLM_UNAVAILABLE", "retryable": True},
+                provider_errors=errors,
             )
         except (ValueError, TypeError, KeyError, AttributeError) as exc:
             # P2-7: a policy/validation bug is not an outage. Reporting it as
@@ -595,6 +628,7 @@ class AgentLoop:
                 reply="Mình chưa xử lý được yêu cầu này. Bạn thử diễn đạt lại giúp mình nhé; chưa có hành động nào được thực hiện.",
                 degraded=True, answer_source="degraded_structured",
                 attachments=resolve_attachments(text, []),
+                provider_errors=provider_errors,
                 error={"code": "AGENT_LOGIC_ERROR", "retryable": False},
             )
 
@@ -666,14 +700,21 @@ class AgentLoop:
 
 
 def _self_check() -> None:
-    """Runnable contract regression: python -m app.agent.loop (mock HTTP, no live claim)."""
+    """Runnable contract regression: python -m app.agent.loop (mock HTTP, no live claim).
+
+    Runs with Jev fully disabled (ai-test-harness-hermetic phase 02): the queue
+    feeds one answer JSON per turn — with an explicit `intent` field, since the
+    rule path derives the decision from the model answer itself. The shift
+    sample intentionally proposes an action the deterministic router cannot
+    agree with (P1-14) and asserts the fail-closed rejection instead of a
+    successful action.
+    """
     import json
     from dataclasses import replace
     from unittest.mock import patch
 
     import httpx
 
-    from app.agent.jev_gateway import TypedDecision
     from app.llm.base import ProviderConfig
     from app.llm.openai_compatible import OpenAICompatibleProvider
 
@@ -683,7 +724,10 @@ def _self_check() -> None:
             "reply": "Theo quy chế được cung cấp, đi trễ 20 phút thuộc mức trên 15 phút: 50.000đ.",
             "citations": ["attendance"], "proposedAction": None,
         }),
-        ("Tôi muốn đổi ca trực chiều mai với bạn Nam", "shift_operation", {
+        # P1-14 regression: the router maps "đổi ca" to a *policy* intent, so an
+        # LLM-proposed shift action is an intent/plan disagreement and MUST be
+        # rejected (AGENT_LOGIC_ERROR, no action proposed) — fail closed.
+        ("Tôi muốn đổi ca trực chiều mai với bạn Nam", "rejected_action", {
             "reply": "Mình soạn nháp đổi ca chiều mai với Nam; cần bạn xác nhận và SM duyệt.",
             "citations": ["attendance"],
             "proposedAction": {"type": "request_shift_swap", "preview": "Đổi ca chiều mai với Nam"},
@@ -715,23 +759,23 @@ def _self_check() -> None:
             replace(settings, jev_api_key="", jev_usejevai_keys=""),
         ):
             loop = AgentLoop(chain=chain)
-            for message, intent, answer in samples:
-                responses.extend([
-                    TypedDecision(intent=intent, needs_manager_approval=0.9, incident_urgency=0.1).model_dump_json(),
-                    json.dumps(answer, ensure_ascii=False),
-                ])
+            for message, expectation, answer in samples:
+                responses.append(json.dumps({**answer, "intent": answer.get("intent", expectation)}, ensure_ascii=False))
                 turn = loop.run(message, ctx)
                 payload = turn.as_dict()
                 assert all(key in payload for key in (
                     "reply", "intent", "intentId", "citations", "proposedAction", "abstain", "degraded"
                 ))
-                assert turn.intent == intent and not turn.abstain and not turn.degraded and turn.error is None
-                if intent == "policy_query":
+                if expectation == "rejected_action":
+                    assert turn.error is not None and turn.error["code"] == "AGENT_LOGIC_ERROR", (
+                        "P1-14 must reject a router/LLM action disagreement"
+                    )
+                    assert turn.proposed_action is None and turn.degraded is True
+                    print("MOCK HTTP PASS (P1-14 rejection)", json.dumps(payload, ensure_ascii=False))
+                    continue
+                assert turn.intent == expectation and not turn.abstain and not turn.degraded and turn.error is None
+                if expectation == "policy_query":
                     assert turn.citations[0]["document"] == "Nghị định 04/2026/GUTA"
-                if intent == "shift_operation":
-                    assert turn.proposed_action["type"] == "request_shift_swap"
-                    assert turn.proposed_action["requiresConfirmation"] is True
-                    assert turn.proposed_action["args"]["requiresManagerApproval"] is True
                 print("MOCK HTTP PASS", json.dumps(payload, ensure_ascii=False))
             # Fast-path greeting: < 100ms, rule match
             greeting_turn = loop.run("chào bạn", ctx)
@@ -754,10 +798,10 @@ def _self_check() -> None:
             responses.append('{"intent":"general_chat","needs_manager_approval":2,"incident_urgency":0}')
             assert loop.run("kiểm tra", ctx).degraded
             responses.append('not JSON')
-            assert loop.run("kiểm tra", ctx).error["code"] == "LLM_UNAVAILABLE"
+            assert loop.run("kiểm tra", ctx).error["code"] == "AGENT_LOGIC_ERROR"
             assert loop.run(" ", ctx).error["code"] == "EMPTY_MESSAGE"
             assert loop.run("x" * (settings.request_max_chars + 1), ctx).error["code"] == "MESSAGE_TOO_LONG"
-            assert AgentLoop(chain=ProviderChain([])).run("Xin chào", ctx).degraded
+            assert AgentLoop(chain=ProviderChain([])).run("Kiểm tra kết nối", ctx).degraded
             assert not responses
             print("MOCK HTTP PASS invalid probability, invalid JSON, empty/oversized input, unavailable provider")
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 from typing import Literal
 
@@ -39,8 +40,59 @@ class TypedDecision(BaseModel):
     @field_validator("needs_manager_approval", mode="before")
     @classmethod
     def normalize_approval(cls, value: object) -> object:
-        return float(value) if isinstance(value, bool) else value
+        if isinstance(value, bool):
+            return 1.0 if value else 0.0
+        if isinstance(value, str):
+            raise ValueError("needs_manager_approval cannot be a string")
+        if isinstance(value, (int, float)):
+            val = float(value)
+            if not math.isfinite(val):
+                raise ValueError("needs_manager_approval must be finite")
+            return val
+        return value
 
+    @field_validator("incident_urgency", mode="before")
+    @classmethod
+    def validate_urgency(cls, value: object) -> object:
+        if isinstance(value, bool):
+            raise ValueError("incident_urgency cannot be a boolean")
+        if isinstance(value, str) or not isinstance(value, (int, float)):
+            raise ValueError("incident_urgency must be a number")
+        val = float(value)
+        if not math.isfinite(val):
+            raise ValueError("incident_urgency must be finite")
+        return val
+
+    @field_validator("intent_probabilities", mode="before")
+    @classmethod
+    def validate_probabilities(cls, value: object) -> dict[str, float]:
+        if not isinstance(value, dict):
+            raise ValueError("intent_probabilities must be a dictionary")
+        validated: dict[str, float] = {}
+        for k, v in value.items():
+            if isinstance(v, bool):
+                raise ValueError("probability value cannot be a boolean")
+            if isinstance(v, str) or not isinstance(v, (int, float)):
+                raise ValueError("probability value must be numeric")
+            fv = float(v)
+            if not math.isfinite(fv) or fv < 0.0 or fv > 1.0:
+                raise ValueError("probability value must be finite and in 0..1")
+            validated[str(k)] = fv
+        return validated
+
+    @field_validator("intent_confidence", mode="before")
+    @classmethod
+    def validate_confidence(cls, value: object) -> float:
+        if value is None:
+            return 0.0
+        if isinstance(value, bool):
+            raise ValueError("intent_confidence cannot be a boolean")
+        if isinstance(value, str) or not isinstance(value, (int, float)):
+            raise ValueError("intent_confidence must be numeric")
+        fv = float(value)
+        if not math.isfinite(fv) or fv < 0.0 or fv > 1.0:
+            raise ValueError("intent_confidence must be finite and in 0..1")
+        return fv
 
 INTENT_CRITERIA = {
     "policy_query": "Hỏi quy định, nội quy, mức phạt, thưởng, tiêu chuẩn phục vụ; không yêu cầu thao tác.",
@@ -51,13 +103,28 @@ INTENT_CRITERIA = {
 
 
 def _llm_keys() -> list[str]:
-    """Key pool for Google-format keys. `AI_LLM_API_KEYS` wins over the single key."""
+    """Key pool for Google-format keys. `AI_LLM_API_KEYS` wins over the single key.
+
+    `PYTHON_DOTENV_DISABLED=1` is the hermetic-suite contract (tests/conftest.py):
+    no workstation credentials may reach the gateway. conftest strips env vars at
+    import, but any module-level `load_dotenv()` (e.g. tests/test_live_db_chat.py,
+    imported during collection) re-arms them into os.environ afterwards — so the
+    flag, not the env snapshot, is the source of truth here.
+    """
+    if os.environ.get("PYTHON_DOTENV_DISABLED"):
+        return []
     pool = (os.getenv("AI_LLM_API_KEYS") or "").strip()
     keys = [item.strip() for item in pool.split(",") if item.strip()]
     if not keys:
         single = (os.getenv("AI_LLM_API_KEY") or os.getenv("OPENAI_API_KEY") or "").strip()
         keys = [single] if single else []
     return keys
+
+
+# Single chat model (tier slider removed 2026-10-30 — user decision): the free
+# key pool answers `gemini-3-flash-preview`; `gemini-3.5-flash` does not exist
+# for these keys (ListModels-verified) and pro tiers 429 on free quota.
+CHAT_MODEL = "gemini-3-flash-preview"
 
 
 def default_chain() -> ProviderChain:
@@ -89,7 +156,11 @@ def default_chain() -> ProviderChain:
             "baseUrl": "https://generativelanguage.googleapis.com/v1beta",
             "apiKey": item,
             # Direct Google API needs a real Google model name, not the proxy alias.
-            "model": "gemini-3.5-flash",
+            # 2026-10-29 live check: `gemini-3.5-flash` does NOT exist for these keys
+            # (generateContent hangs until the deadline — verified via ListModels);
+            # `gemini-3-flash-preview` answers 200 in ~3.4s and is the only stable
+            # flash-tier chat model available to this key pool right now.
+            "model": CHAT_MODEL,
             "timeoutMs": settings.llm_timeout_ms,
             "maxTokens": 2048,
         }
@@ -166,6 +237,7 @@ class JevGateway:
     def __init__(self, chain: ProviderChain, *, client: httpx.Client | None = None) -> None:
         self.chain = chain
         self._client = client
+        self.provider_errors: list[dict[str, str]] = []
 
     @property
     def pool(self) -> UseJevKeyPool:
@@ -179,6 +251,7 @@ class JevGateway:
     def decide(self, message: str) -> TypedDecision:
         if not isinstance(message, str) or not message.strip() or len(message) > settings.request_max_chars:
             raise ValueError("Invalid decision input")
+        self.provider_errors = []
         if settings.jev_api_key:
             return self._system_one(message)
         if self.pool:
@@ -194,8 +267,17 @@ class JevGateway:
             )),
             ChatMessage("user", message),
         ], CompletionOptions(temperature=0, max_tokens=120))
+        self.provider_errors = list(getattr(result, "provider_errors", []))
         try:
-            return TypedDecision.model_validate(json_object(result.text))
+            data = json_object(result.text)
+            return TypedDecision(
+                intent=data.get("intent"),
+                needs_manager_approval=data.get("needs_manager_approval"),
+                incident_urgency=data.get("incident_urgency"),
+                source="llm_fallback",
+                intent_confidence=0.0,
+                intent_probabilities={},
+            )
         except (ValueError, ValidationError) as exc:
             raise ProviderError("Invalid typed decision", provider_id=result.provider_id) from exc
 
@@ -216,22 +298,31 @@ class JevGateway:
             raise LLMUnavailable([{"providerId": "jev-usejevai", "code": f"DECISION_{exc.code.upper()}"}]) from exc
         logger.info("jev usejevai ok key=%s", client.last_key)
         try:
+            if not isinstance(answers, dict):
+                raise ValueError("answers must be a dict")
             for name, kind in (
                 ("intent", "choice"), ("needs_manager_approval", "noul"), ("incident_urgency", "score")
             ):
-                if answers[name]["type"] != kind:
+                val = answers.get(name)
+                if not isinstance(val, dict) or val.get("type") != kind:
                     raise ValueError(f"invalid primitive for {name}")
             intent_answer = answers["intent"]
+            probs = intent_answer.get("probabilities")
+            if probs is not None and not isinstance(probs, dict):
+                raise ValueError("intent probabilities must be a dict")
+            approval_val = answers["needs_manager_approval"].get("noul")
+            if isinstance(approval_val, str):
+                raise ValueError("approval must not be string")
+            urgency_val = answers["incident_urgency"].get("score")
+            if isinstance(urgency_val, (bool, str)) or not isinstance(urgency_val, (int, float)):
+                raise ValueError("urgency must be strict numeric")
             return TypedDecision.model_validate({
-                "intent": intent_answer["choice"],
-                "needs_manager_approval": float(answers["needs_manager_approval"]["noul"]),
-                "incident_urgency": float(answers["incident_urgency"]["score"]),
+                "intent": intent_answer.get("choice"),
+                "needs_manager_approval": approval_val,
+                "incident_urgency": urgency_val,
                 "source": "jev_usejevai",
-                "intent_confidence": float(intent_answer.get("confidence") or 0.0),
-                "intent_probabilities": {
-                    str(label): float(value)
-                    for label, value in (intent_answer.get("probabilities") or {}).items()
-                },
+                "intent_confidence": intent_answer.get("confidence") or 0.0,
+                "intent_probabilities": probs or {},
             })
         except (KeyError, TypeError, ValueError, ValidationError) as exc:
             raise LLMUnavailable([{"providerId": "jev-usejevai", "code": "DECISION_INVALID"}]) from exc
@@ -265,21 +356,25 @@ class JevGateway:
             body = response.json()
             if body.get("code") != 0:
                 raise ValueError("Jev rejected decision")
-            answers = body["data"]["result"]["answers"]
-            if any(answers[name]["type"] != kind for name, kind in (
+            if not isinstance(answers, dict):
+                raise ValueError("answers must be a dict")
+            for name, kind in (
                 ("intent", "choice"), ("needs_manager_approval", "noul"), ("incident_urgency", "score")
-            )):
-                raise ValueError("Invalid Jev primitive")
+            ):
+                val = answers.get(name)
+                if not isinstance(val, dict) or val.get("type") != kind:
+                    raise ValueError(f"invalid primitive for {name}")
+            intent_answer = answers["intent"]
+            probs = intent_answer.get("probabilities")
+            if probs is not None and not isinstance(probs, dict):
+                raise ValueError("intent probabilities must be a dict")
             return TypedDecision.model_validate({
-                "intent": answers["intent"]["choice"],
-                "needs_manager_approval": answers["needs_manager_approval"]["noul"],
-                "incident_urgency": answers["incident_urgency"]["score"],
+                "intent": intent_answer.get("choice"),
+                "needs_manager_approval": answers["needs_manager_approval"].get("noul"),
+                "incident_urgency": answers["incident_urgency"].get("score"),
                 "source": "jev_systemone",
-                "intent_confidence": float(answers["intent"].get("confidence") or 0.0),
-                "intent_probabilities": {
-                    str(label): float(value)
-                    for label, value in (answers["intent"].get("probabilities") or {}).items()
-                },
+                "intent_confidence": intent_answer.get("confidence") or 0.0,
+                "intent_probabilities": probs or {},
             })
         except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError) as exc:
             # Never include upstream bodies, URLs, messages or credentials in errors.

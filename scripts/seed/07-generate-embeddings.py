@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -38,6 +39,14 @@ from app.rag.corpus import load_db_chunks  # noqa: E402
 
 DEFAULT_MODEL = "gemini-embedding-001"
 BATCH = 16
+# 429 post-mortem (2026-10-29, verified against the live API): the failure was a
+# *per-minute* token bucket, not a daily quota — a fixed batch of 16 crawl
+# chunks (single chunks up to 63K chars) makes a ~1MB request, and one run
+# fires ~10 of those across 10 keys within seconds, draining the bucket for
+# every key before the first sleep. Pack batches by character budget and pace
+# requests instead.
+MAX_CHARS_PER_BATCH = 32_000
+REQUEST_GAP_SECONDS = 2.0
 API = "https://generativelanguage.googleapis.com/v1beta/models/{model}:batchEmbedContents"
 
 
@@ -65,11 +74,21 @@ def embed_batch(model: str, texts: list[str], keys: list[str]) -> list[list[floa
         if response.status_code == 200:
             return [item["values"] for item in response.json()["embeddings"]]
         last_error = f"HTTP {response.status_code}"
+        if response.status_code == 429:
+            # Rate limited: honour Google's retry-after hint (or a sane default)
+            # before rotating — rotating instantly just burns every key on the
+            # same drained bucket.
+            wait = 15.0
+            try:
+                retry_after = float(response.headers.get("retry-after", ""))
+                wait = max(wait, retry_after)
+            except ValueError:
+                pass
+            print(f"    key {key[:6]}…{key[-4:]} rate limited — waiting {wait:.0f}s (last_error={last_error})")
+            time.sleep(wait)
+            continue
         if response.status_code in (401, 403):
             print(f"    key {key[:6]}…{key[-4:]} rejected ({last_error}) — trying next key")
-            continue
-        if response.status_code == 429:
-            print(f"    key {key[:6]}…{key[-4:]} rate limited — trying next key")
             continue
         # 400: surface Google's field violations (generic validation text, no secrets)
         try:
@@ -114,12 +133,29 @@ def main() -> int:
         return 0
 
     vectors: dict[str, list[float]] = {}
-    for start in range(0, len(todo), BATCH):
-        batch = todo[start : start + BATCH]
-        result = embed_batch(args.model, [chunk.text for chunk in batch], keys)
-        for chunk, vector in zip(batch, result):
+    # Pack by character budget: 16 long crawl chunks can be ~1MB per request,
+    # which alone trips the per-minute token bucket (see 429 post-mortem above).
+    batch: list = []
+    batch_chars = 0
+    batches: list[list] = []
+    for chunk in todo:
+        text_len = len(chunk.text)
+        if batch and (len(batch) >= BATCH or batch_chars + text_len > MAX_CHARS_PER_BATCH):
+            batches.append(batch)
+            batch, batch_chars = [], 0
+        batch.append(chunk)
+        batch_chars += text_len
+    if batch:
+        batches.append(batch)
+
+    for index, current in enumerate(batches):
+        result = embed_batch(args.model, [chunk.text for chunk in current], keys)
+        for chunk, vector in zip(current, result):
             vectors[chunk.chunk_id] = vector
-        print(f"  embedded {min(start + BATCH, len(todo))}/{len(todo)} (model={args.model})")
+        print(f"  embedded {sum(len(b) for b in batches[: index + 1])}/{len(todo)} "
+              f"(batch {index + 1}/{len(batches)}, {sum(len(c.text) for c in current)} chars)")
+        if index + 1 < len(batches):
+            time.sleep(REQUEST_GAP_SECONDS)
 
     dims = {len(v) for v in vectors.values()}
     if len(dims) != 1:
@@ -135,17 +171,21 @@ def main() -> int:
     written = 0
     for doc in collection.find({}):
         doc_chunks = doc.get("chunks")
-        if not doc_chunks:
-            # Documents seeded via `articles` (06 script) carry no `chunks` array; the
-            # reader prefers `articles`, so migrating to `chunks` is required or the
-            # vectors would never be read back.
-            articles = doc.get("articles") or []
-            if not articles:
-                continue
+        articles = doc.get("articles") or []
+        if articles:
+            # The reader (chunks_from_documents) PREFERS `articles` over `chunks`,
+            # so after a re-ingest with a different split layout the stale chunks
+            # array no longer matches the live chunk ids. Always rebuild from
+            # articles when present — the end state is chunks-only with vectors.
             doc_chunks = [
                 {"article": a.get("article"), "text": a.get("text"), "order": index}
                 for index, a in enumerate(articles)
             ]
+        elif not doc_chunks:
+            # Documents seeded via `articles` (06 script) carry no `chunks` array; the
+            # reader prefers `articles`, so migrating to `chunks` is required or the
+            # vectors would never be read back.
+            continue
         changed = False
         for index, chunk in enumerate(doc_chunks):
             cid = f"{doc.get('title') or doc.get('document')}|{doc.get('version')}|{chunk.get('order', index)}"
