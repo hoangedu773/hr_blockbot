@@ -151,3 +151,16 @@ def test_degraded_mode_returns_extractive_answer_without_provider():
 def test_empty_message_is_rejected():
     turn = AgentLoop(_runtime(), None).run("   ", CTX)
     assert turn.error["code"] == "EMPTY_MESSAGE"
+
+
+def test_chitchat_rule_path_answers_without_llm():
+    """User hit the scary degraded message live for "hi có gì mới không" when
+    the free key pool was drained. Chit-chat phrases must answer from rules —
+    zero LLM calls, honest answer_source="rule"."""
+    turn = AgentLoop(_runtime(), None, strict_provider=True).run("hi có gì mới không", CTX)
+    assert turn.intent == "general_chat"
+    assert turn.answer_source == "rule"
+    assert turn.steps == 1
+    assert turn.degraded is False
+    assert turn.abstain is False
+    assert "chưa có tin mới" in turn.reply

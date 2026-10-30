@@ -40,6 +40,25 @@ GREETING_WORDS: frozenset[str] = frozenset({
     "test",
 })
 
+# Chit-chat phrases answered by rule (exact normalized match) — zero LLM calls,
+# so greetings like "hi có gì mới không" still get a friendly reply when the
+# free key pool is quota-drained (user hit this live on 2026-10-30).
+CHAT_RULE_WORDS: frozenset[str] = frozenset({
+    "hi có gì mới không",
+    "hello có gì mới không",
+    "chào có gì mới không",
+    "có gì mới không",
+    "có gì mới",
+    "hôm nay có gì mới không",
+    "hôm nay có gì mới",
+    "hôm nay có gì mới vậy",
+    "tin gì mới không",
+    "có tin gì mới không",
+    "bạn khỏe không",
+    "bạn dạo này thế nào",
+    "dạo này thế nào",
+})
+
 
 class ActionDraft(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -399,6 +418,19 @@ class AgentLoop:
                 "Chào Quản lý! Mình là trợ lý HR-BlockBot hỗ trợ SM/AOM. Bạn cần kiểm tra checklist bàn giao ca, phê duyệt đổi ca hay đối soát quỹ két hôm nay?"
                 if is_manager_role(user_role)
                 else "Chào bạn! Mình là trợ lý HR-BlockBot. Bạn cần hỗ trợ gì về ca trực, hướng dẫn biểu mẫu bàn giao hay giải trình két Guta hôm nay?"
+            )
+            return AgentTurn(
+                intent="general_chat",
+                intent_id="general_chat",
+                reply=reply,
+                steps=1,
+                answer_source="rule",
+            )
+        if normalized_greeting in CHAT_RULE_WORDS:
+            reply = (
+                "Chào Quản lý! Hôm nay chưa có tin mới nào mình được cập nhật. Mình luôn sẵn sàng: tra quy chế, checklist bàn giao ca, phê duyệt đổi ca hay đối soát quỹ két."
+                if is_manager_role(user_role)
+                else "Chào bạn! Hôm nay chưa có tin mới nào mình được cập nhật. Bạn cứ hỏi mình về quy chế làm việc, ca trực hay giải trình két Guta nhé."
             )
             return AgentTurn(
                 intent="general_chat",
