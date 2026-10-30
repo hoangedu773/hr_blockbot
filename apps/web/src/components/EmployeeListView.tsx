@@ -14,6 +14,12 @@ export const EmployeeListView: React.FC = () => {
   const latestRequestRef = useRef<number>(0);
 
   useEffect(() => {
+    // Empty query (initial load / cleared input) resolves immediately — only
+    // real keystrokes pay the debounce delay.
+    if (searchTerm === '') {
+      setDebouncedTerm('');
+      return;
+    }
     const timer = setTimeout(() => setDebouncedTerm(searchTerm), 300);
     return () => clearTimeout(timer);
   }, [searchTerm]);
