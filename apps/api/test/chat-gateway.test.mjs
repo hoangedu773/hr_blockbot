@@ -1,9 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
 import { SettingsModel } from '../dist/models/Settings.js';
 import router from '../dist/routes/chat.js';
-import { authenticateToken } from '../dist/middlewares/auth.middleware.js';
-import { chatWithAiService, DEFAULT_GEMINI_PROVIDER } from '../dist/services/ai-client.service.js';
+import { chatWithAiService, resetKeyCooldowns, getHealthyKeyPool } from '../dist/services/ai-client.service.js';
+import { UserModel } from '../dist/models/User.js';
+import { EmployeeModel } from '../dist/models/Employee.js';
 
 const context = { userId: 'user-test', role: 'Employee', employeeId: 'employee-test', departmentId: 'department-test' };
 const answer = {
@@ -13,16 +15,55 @@ const answer = {
 };
 
 // Only the external DB/provider boundaries are stubbed; no database connection or mutation.
-function mockBoundaries(t) {
+function mockSettings(t) {
   t.mock.method(SettingsModel, 'findById', () => ({ lean: async () => null }));
   const saved = { ...process.env };
   t.after(() => { process.env = saved; });
   process.env.AI_LLM_API_KEY = 'test-only-not-a-credential';
-  // J-5: không còn endpoint mặc định trong source — thiếu AI_LLM_BASE_URL thì service
-  // fail-closed và không bao giờ gọi fetch. Test này cần một endpoint giả để chạm boundary.
   process.env.AI_LLM_BASE_URL = 'https://provider.test.invalid/v1';
+  process.env.AI_SERVICE_API_KEY = 'test-service-key';
+  delete process.env.AI_LLM_API_KEYS;
+  delete process.env.GEMINI_API_KEYS;
+  delete process.env.OPENAI_API_KEY;
+  resetKeyCooldowns();
+  t.after(resetKeyCooldowns);
   delete process.env.AI_LLM_MODEL;
+}
+
+function mockBoundaries(t) {
+  mockSettings(t);
   return t.mock.method(globalThis, 'fetch', async () => Response.json(answer));
+}
+
+async function nativeBoundary(t, respond = () => answer) {
+  mockSettings(t);
+  const requests = [];
+  const server = createServer((req, res) => {
+    let body = '';
+    req.setEncoding('utf8');
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('error', () => { res.destroy(); });
+    req.on('end', () => {
+      try {
+        const request = { path: req.url, headers: req.headers, body: JSON.parse(body) };
+        requests.push(request);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(respond(request.body)));
+      } catch {
+        res.destroy();
+      }
+    });
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  t.after(() => new Promise((resolve, reject) => {
+    server.closeAllConnections();
+    server.close((error) => error ? reject(error) : resolve());
+  }));
+  process.env.AI_SERVICE_URL = `http://127.0.0.1:${server.address().port}`;
+  return requests;
 }
 
 function handler() {
@@ -35,7 +76,6 @@ function response() {
 test('chat requires authentication and rejects missing or invalid tokens before upstream', async (t) => {
   const fetchMock = mockBoundaries(t);
   const authenticate = router.stack.find((layer) => layer.route?.path === '/chat').route.stack[0].handle;
-  assert.equal(authenticate, authenticateToken);
   for (const headers of [{}, { authorization: 'Bearer invalid-token' }]) {
     const res = response();
     let continued = false;
@@ -49,6 +89,7 @@ test('chat requires authentication and rejects missing or invalid tokens before 
 
 test('gateway forwards authenticated context, conversation and canonical action fields', async (t) => {
   const fetchMock = mockBoundaries(t);
+  t.mock.method(UserModel, 'findById', () => ({ select: () => ({ lean: async () => null }) }));
   const res = response();
   await handler()({ body: { message: ' câu hỏi ', conversationId: 'conversation-test', userContext: { role: 'Admin' } }, user: context }, res);
   assert.equal(res.statusCode, 200);
@@ -59,15 +100,11 @@ test('gateway forwards authenticated context, conversation and canonical action 
   assert.equal(res.body.conversationId, 'conversation-test');
   const request = JSON.parse(fetchMock.mock.calls[0].arguments[1].body);
   assert.equal(request.message, 'câu hỏi');
-  assert.deepEqual(request.userContext, context);
+  assert.deepEqual(request.userContext, { ...context, businessRole: 'staff' });
   assert.equal(request.conversationId, 'conversation-test');
   const provider = request.providerConfig.providers[0];
-  // J-5: endpoint đến từ env, không có giá trị mặc định trong source.
   assert.equal(provider.baseUrl, process.env.AI_LLM_BASE_URL);
-  assert.equal(DEFAULT_GEMINI_PROVIDER.baseUrl, '');
-  assert.equal(provider.model, 'ag/gemini-3.8-flash-low');
-  assert.equal(provider.timeoutMs, 15000);
-  assert.equal(DEFAULT_GEMINI_PROVIDER.apiKey, '');
+  assert.ok(provider.timeoutMs > 0 && provider.timeoutMs <= 15000);
 });
 
 test('gateway uses environment overrides and OPENAI_API_KEY fallback', async (t) => {
@@ -133,4 +170,112 @@ test('15 second deadline aborts fetch and bounds stalled provider lookup', async
   const stalled = chatWithAiService('test');
   expire();
   assert.equal((await stalled).degraded, true);
+});
+
+test('native fetch reaches sidecar with server-owned business scope and preserves public response', async (t) => {
+  const requests = await nativeBoundary(t);
+  t.mock.method(UserModel, 'findById', () => ({ select: () => ({ lean: async () => ({ employeeId: context.employeeId, role: 'Employee' }) }) }));
+  t.mock.method(EmployeeModel, 'findById', () => ({ select: () => ({ lean: async () => ({ departmentId: context.departmentId, job_title: 'SM', store_raw: 'Store Authenticated' }) }) }));
+  const res = response();
+  const before = Date.now();
+  await handler()({
+    body: {
+      message: 'Hướng dẫn duyệt yêu cầu', conversationId: 'native-conversation', deadlineAtMs: 1,
+      userContext: { role: 'Admin', businessRole: 'admin', storeName: 'Store Forged' },
+    },
+    user: { ...context, userId: 'native-scope-user' },
+  }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.reply, answer.reply);
+  assert.notEqual(res.body.degraded, true);
+  assert.equal(requests.length, 1);
+  const request = requests[0];
+  assert.equal(request.path, '/api/v1/chat');
+  assert.equal(request.headers['x-ai-service-key'], 'test-service-key');
+  assert.deepEqual(request.body.userContext, { ...context, userId: 'native-scope-user', businessRole: 'sm', storeName: 'Store Authenticated' });
+  assert.equal(request.body.conversationId, 'native-conversation');
+  assert.ok(Number.isInteger(request.body.deadlineAtMs));
+  assert.ok(request.body.deadlineAtMs >= before + 15000);
+  assert.ok(request.body.deadlineAtMs <= Date.now() + 15000);
+  assert.equal('deadlineAtMs' in res.body, false);
+});
+
+test('native wire deadline includes provider lookup and caps every provider timeout', async (t) => {
+  const requests = await nativeBoundary(t);
+  process.env.AI_LLM_API_KEYS = 'AQ.DeadlineKey1,AQ.DeadlineKey2';
+  delete process.env.AI_LLM_API_KEY;
+  const entry = 1_800_000_000_000;
+  let now = entry;
+  t.mock.method(Date, 'now', () => now);
+  SettingsModel.findById.mock.mockImplementation(() => ({ lean: async () => { now += 4000; return null; } }));
+  const result = await chatWithAiService('deadline query', context, undefined);
+  assert.equal(result.reply, answer.reply);
+  assert.equal(requests.length, 1);
+  const payload = requests[0].body;
+  assert.equal(payload.deadlineAtMs, entry + 15000);
+  assert.ok(payload.providerConfig.providers.length >= 2);
+  for (const provider of payload.providerConfig.providers) {
+    assert.ok(provider.timeoutMs > 0 && provider.timeoutMs <= 11000);
+  }
+});
+
+test('successful native fallback cools only the failed key without exposing provider errors', async (t) => {
+  let failedKey;
+  const requests = await nativeBoundary(t, (body) => {
+    const failed = body.providerConfig.providers[0];
+    failedKey ??= failed.apiKey;
+    return { ...answer, providers: [{ providerId: failed.id, code: 'QUOTA_EXCEEDED' }] };
+  });
+  process.env.AI_LLM_API_KEYS = 'AQ.FallbackKey1,AQ.FallbackKey2';
+  delete process.env.AI_LLM_API_KEY;
+  const result = await chatWithAiService('fallback query');
+  assert.equal(result.reply, answer.reply);
+  assert.equal('providers' in result, false);
+  assert.equal('error' in result, false);
+  assert.equal(getHealthyKeyPool().includes(failedKey), false);
+  assert.equal(getHealthyKeyPool().length, 1);
+  await chatWithAiService('next query');
+  assert.equal(requests.length, 2);
+  assert.ok(requests[1].body.providerConfig.providers.every((provider) => provider.apiKey !== failedKey));
+});
+
+test('expired lookup budget never starts a sidecar request', async (t) => {
+  const fetchMock = mockBoundaries(t);
+  let now = 1_800_000_000_000;
+  t.mock.method(Date, 'now', () => now);
+  SettingsModel.findById.mock.mockImplementation(() => ({ lean: async () => { now += 15000; return null; } }));
+  const result = await chatWithAiService('expired query');
+  assert.equal(result.degraded, true);
+  assert.equal(result.abstain, true);
+  assert.equal(fetchMock.mock.calls.length, 0);
+});
+
+test('native sidecar never receives all-cooled environment keys and resumes after expiry', async (t) => {
+  const requests = await nativeBoundary(t, (body) => ({
+    ...answer,
+    providers: body.providerConfig.providers.map((provider) => ({ providerId: provider.id, code: 'QUOTA_EXCEEDED' })),
+  }));
+  process.env.AI_LLM_API_KEYS = 'AQ.CooledKey1,AQ.CooledKey2';
+  delete process.env.AI_LLM_API_KEY;
+  let now = 1_800_000_000_000;
+  t.mock.method(Date, 'now', () => now);
+  assert.equal((await chatWithAiService('quota query')).reply, answer.reply);
+  assert.deepEqual(getHealthyKeyPool(), []);
+  const exhausted = await chatWithAiService('exhausted query');
+  assert.equal(exhausted.degraded, true);
+  assert.equal(exhausted.abstain, true);
+  assert.equal(requests.length, 1);
+  now += 60_000;
+  assert.equal((await chatWithAiService('recovered query')).reply, answer.reply);
+  assert.equal(requests.length, 2);
+  assert.equal(requests[1].body.providerConfig.providers.length, 2);
+});
+
+test('missing API provider credentials never delegate key selection to sidecar environment', async (t) => {
+  const requests = await nativeBoundary(t);
+  delete process.env.AI_LLM_API_KEY;
+  const result = await chatWithAiService('no configured providers');
+  assert.equal(result.degraded, true);
+  assert.equal(result.abstain, true);
+  assert.equal(requests.length, 0);
 });

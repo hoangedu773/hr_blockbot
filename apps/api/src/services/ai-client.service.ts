@@ -16,18 +16,6 @@ export const DEFAULT_GEMINI_PROVIDER: ActiveProviderConfig = {
   priority: 1,
 };
 
-export const MODEL_TIER_MAP = {
-  low: "ag/gemini-3.8-flash-low",
-  medium: "ag/gemini-3.8-flash-medium",
-  high: "ag/gemini-3.8-flash-high",
-} as const;
-
-export const GEMINI_DIRECT_TIER_MAP = {
-  low: "gemini-3.1-flash-lite",
-  medium: "gemini-3.5-flash",
-  high: "gemini-3.8-flash",
-} as const;
-
 /** Key Pool Google Gemini nạp an toàn qua biến môi trường AI_LLM_API_KEYS */
 export function getGeminiKeyPool(): string[] {
   const envRaw = process.env.AI_LLM_API_KEYS || process.env.GEMINI_API_KEYS || process.env.AI_LLM_API_KEY;
@@ -76,8 +64,7 @@ export function getHealthyKeyPool(): string[] {
     }
   }
 
-  const healthy = fullPool.filter((key) => !keyCooldownMap.has(key));
-  return healthy.length > 0 ? healthy : fullPool;
+  return fullPool.filter((key) => !keyCooldownMap.has(key));
 }
 
 let keyRotationCounter = 0;
@@ -137,11 +124,6 @@ export function extractAndMarkRateLimitedKeys(payload: unknown, providers: Activ
   }
 }
 
-export type ModelTier = keyof typeof MODEL_TIER_MAP;
-
-export interface ChatOptions {
-  modelTier?: ModelTier;
-}
 export interface UserContextPayload {
   userId?: string | null;
   role?: "Admin" | "Employee";
@@ -207,9 +189,9 @@ export interface ChatResult {
 export async function chatWithAiService(
   message: string,
   userContext: UserContextPayload = {},
-  conversationId?: string,
-  options: ChatOptions = {}
+  conversationId?: string
 ): Promise<ChatResult> {
+  const deadlineAtMs = Date.now() + 15000;
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<never>((_, reject) => {
@@ -252,9 +234,15 @@ export async function chatWithAiService(
         } else {
           // Google Gemini Direct: Multi-Key Pool & Multi-Model Failover
           const pool = getRotatedKeyPool();
-          const targetModel = options.modelTier
-            ? GEMINI_DIRECT_TIER_MAP[options.modelTier]
-            : (process.env.AI_LLM_MODEL?.trim() || "gemini-3.5-flash");
+          if (pool.length === 0) {
+            throw new Error(getGeminiKeyPool().length > 0
+              ? "AI_PROVIDER_KEYS_COOLING_DOWN"
+              : "AI_PROVIDER_KEYS_NOT_CONFIGURED");
+          }
+          // Single chat model (tier slider removed 2026-10-30): the pool keys
+          // answer `gemini-3-flash-preview` — `gemini-3.5-flash` does not exist
+          // for these keys (ListModels-verified) and pro tiers 429 on free quota.
+          const targetModel = process.env.AI_LLM_MODEL?.trim() || "gemini-3-flash-preview";
 
           activeProviders = pool.map((key, idx) => ({
             id: `google-gemini-slot-${idx + 1}`,
@@ -267,35 +255,16 @@ export async function chatWithAiService(
             timeoutMs: 30000,
             priority: idx + 1,
           }));
-
-          // Multi-model resilience: nếu yêu cầu High Tier (gemini-3.8-flash), thêm fallback gemini-3.5-flash
-          if (targetModel === "gemini-3.8-flash" && pool.length > 0) {
-            activeProviders.push({
-              id: "google-gemini-fallback-3.5",
-              name: "Google Gemini 3.5 Flash Fallback",
-              type: "gemini",
-              baseUrl: "https://generativelanguage.googleapis.com/v1beta",
-              model: "gemini-3.5-flash",
-              apiKey: pool[0],
-              maxTokens: 2048,
-              timeoutMs: 30000,
-              priority: activeProviders.length + 1,
-            });
-          }
         }
-      } else if (options.modelTier && activeProviders.length > 0) {
-        activeProviders = activeProviders.map((provider) => {
-          const tierMap = provider.type === "gemini" ? GEMINI_DIRECT_TIER_MAP : MODEL_TIER_MAP;
-          return {
-            ...provider,
-            model: tierMap[options.modelTier!],
-          };
-        });
       }
+      const remainingMs = deadlineAtMs - Date.now();
+      if (remainingMs <= 0) throw new Error("AI_SERVICE_TIMEOUT");
+      activeProviders = activeProviders.map((provider) => ({
+        ...provider,
+        timeoutMs: Math.min(provider.timeoutMs, remainingMs),
+      }));
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        "Connection": "keep-alive",
-        "Keep-Alive": "timeout=15, max=1000",
       };
       warnIfServiceKeyMissing();
       if (process.env.AI_SERVICE_API_KEY) {
@@ -305,15 +274,17 @@ export async function chatWithAiService(
       const response = await fetch(`${aiServiceUrl}/api/v1/chat`, {
         method: "POST",
         headers,
-        keepalive: true,
         body: JSON.stringify({
           message,
+          deadlineAtMs,
           conversationId,
           userContext: {
             userId: userContext.userId ?? undefined,
             role: userContext.role ?? "Employee",
             employeeId: userContext.employeeId ?? undefined,
             departmentId: userContext.departmentId ?? undefined,
+            businessRole: userContext.businessRole ?? undefined,
+            storeName: userContext.storeName ?? undefined,
           },
           providerConfig: {
             configVersion: activeProviders[0]?.model ? `1-${activeProviders[0].model}` : 1,

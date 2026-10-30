@@ -556,7 +556,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       assert.equal(requests.length, 1);
       assert.equal(requests[0].message, '<img src=x onerror="window.__chatInjected=true">');
       assert.equal(requests[0].role, 'Employee');
-      assert.equal(requests[0].modelTier, 'medium');
+      assert.equal(requests[0].modelTier, undefined); // tier slider removed (2026-10-30)
       assert.deepEqual(requests[0].userContext, { role: 'Employee' });
       assert.equal(await chat.locator('[data-sender="user"]').count(), 1);
       assert.equal(await chat.getByRole('region', { name: 'Trích dẫn' }).isVisible(), true);
@@ -744,13 +744,13 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       await page.locator('nav [data-section="employees"]').click();
       await page.getByRole('heading', { name: 'Danh Sách Nhân Sự Điểm Bán (Allowlist Only)' }).waitFor({ state: 'visible' });
       const portal = page.locator('#crm-custom-view-portal');
-      assert.equal(await portal.getByText('Trương Quốc Thái').isVisible(), true);
+      await portal.getByText('Trương Quốc Thái').waitFor({ state: 'visible' });
       assert.equal(await page.locator('nav [data-entrypoint="coming-soon"]').count(), 0);
 
       // 2. "Hồ sơ nhân sự" -> đúng heading RosterView, không còn nhãn "Phân ca" lệch nội dung
       await page.locator('nav [data-section="schedules"]').click();
       await page.getByRole('heading', { name: 'Hồ Sơ Nhân Sự (F1)' }).waitFor({ state: 'visible' });
-      assert.equal(await portal.getByText('Trương Quốc Thái').isVisible(), true);
+      await portal.getByText('Trương Quốc Thái').waitFor({ state: 'visible' });
       assert.equal(await portal.getByRole('tab', { name: 'Hàng đợi duyệt' }).count(), 1);
 
       // 3. Nghiệp vụ đề tài khóa luận không còn trong nav demo

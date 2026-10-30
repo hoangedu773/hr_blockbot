@@ -723,7 +723,6 @@ export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export const ChatRequestSchema = z.object({
   message: z.string().trim().min(1).max(2000),
   conversationId: z.string().trim().min(1).max(200).optional(),
-  modelTier: z.enum(["low", "medium", "high"]).optional(),
 });
 export type ChatRequest = z.infer<typeof ChatRequestSchema>;
 

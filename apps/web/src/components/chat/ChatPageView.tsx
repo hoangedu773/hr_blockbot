@@ -5,14 +5,9 @@ import {
   type Citation,
   type ProposedAction,
   type Attachment,
-  type ModelTier,
-  MODEL_TIER_CONFIG,
-  getSafeModelTier,
   ROLE_CONFIG,
   ROLE_QUICK_REPLIES,
-  ModelPickerPopover,
 } from './ChatDrawer';
-export { type ModelTier, MODEL_TIER_CONFIG, getSafeModelTier };
 
 interface ChatPageViewProps {
   onSwitchTab: (tab: 'crm' | 'chat') => void;
@@ -23,16 +18,12 @@ interface ChatComposerProps {
   isTyping: boolean;
   onSend: (text: string) => void;
   inputRef?: React.RefObject<HTMLTextAreaElement>;
-  modelTier: ModelTier;
-  onModelTierChange: (tier: ModelTier) => void;
 }
 
 export const ChatComposer: React.FC<ChatComposerProps> = ({
   isTyping,
   onSend,
   inputRef: externalRef,
-  modelTier,
-  onModelTierChange,
 }) => {
   const [input, setInput] = useState('');
   const internalRef = useRef<HTMLTextAreaElement>(null);
@@ -81,7 +72,6 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
       </form>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px', padding: '0 4px', gap: '8px', flexWrap: 'wrap' }}>
         <p className="guta-chat-note" style={{ margin: 0, textAlign: 'left' }}>AI có thể nhầm lẫn. Kiểm tra nguồn trước khi quyết định.</p>
-        <ModelPickerPopover tier={modelTier} onChange={onModelTierChange} />
       </div>
     </div>
   );
@@ -236,9 +226,6 @@ const styles = `
 .guta-chat-header span { font-size: 12px; color: var(--chat-muted); }
 .guta-chat-header-actions { display: flex; align-items: center; gap: 12px; }
 .guta-verified-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 9999px; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--chat-border); font-size: 11px; }
-.guta-chat-model-tier { display: inline-flex; align-items: center; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--chat-border); border-radius: 9999px; padding: 3px; gap: 2px; }
-.guta-chat-model-btn:hover:not(:disabled) { color: var(--chat-text); background: var(--chat-hover); }
-.guta-chat-model-btn[data-active="true"] { background: var(--chat-accent) !important; color: #000000 !important; font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); }
 .guta-chat-header .chat-menu { display: none; }
 .guta-chat-body { flex: 1; min-height: 0; overflow-y: auto; padding: 24px; }
 .guta-chat-banner { margin: 0 24px 8px; padding: 12px 16px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.14); }
@@ -340,7 +327,6 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   const { user } = useAuth();
   const currentRole: 'Admin' | 'Employee' = user?.role === 'Admin' ? 'Admin' : 'Employee';
   const [messages, setMessages] = useState<Message[]>([]);
-  const [modelTier, setModelTier] = useState<ModelTier>(getSafeModelTier);
   const [isTyping, setIsTyping] = useState(false);
   const [serviceUnavailable, setServiceUnavailable] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -406,8 +392,6 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
           body: JSON.stringify({
             message: text,
             conversationId: conversationId.current,
-            modelTier,
-            model: MODEL_TIER_CONFIG[modelTier].id,
             role: currentRole,
             userContext: { role: currentRole },
           }),
@@ -445,11 +429,6 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
       isTyping={isTyping}
       onSend={(text) => send(text)}
       inputRef={inputRef}
-      modelTier={modelTier}
-      onModelTierChange={(newTier) => {
-        setModelTier(newTier);
-        try { localStorage.setItem('guta_model_tier', newTier); } catch { /* ignore quota/private */ }
-      }}
     />
   );
 
@@ -492,7 +471,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
             <button className="chat-menu" type="button" aria-label="Menu Copilot" aria-expanded={sidebarOpen} aria-controls="copilot-sidebar" onClick={() => setSidebarOpen(!sidebarOpen)}><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg></button>
             <div className="guta-chat-header-title">
               <strong>HR-BlockBot AI Copilot</strong>
-              <span>{ROLE_CONFIG[currentRole].label} · {MODEL_TIER_CONFIG[modelTier].desc}</span>
+              <span>{ROLE_CONFIG[currentRole].label}</span>
             </div>
           </div>
           <div className="guta-chat-header-actions">

@@ -39,8 +39,8 @@ router.post("/chat", authenticateToken, async (req: Request, res: Response) => {
       storeName: scope.storeName,
     });
 
-    const { message, conversationId, modelTier } = parsed.data;
-    const result = await chatWithAiService(message, userContext, conversationId, { modelTier });
+    const { message, conversationId } = parsed.data;
+    const result = await chatWithAiService(message, userContext, conversationId);
 
     res.status(200).json({
       reply: result.reply,

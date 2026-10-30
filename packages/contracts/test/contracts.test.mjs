@@ -829,24 +829,21 @@ describe("Contracts: WS event schemas — nguồn chuẩn docs/06 §4.2", () => 
 });
 
 describe("Contracts: REST chat request (P2-10 — một nguồn duy nhất cho REST + WS)", () => {
-  it("chấp nhận message 1-2000 ký tự, conversationId/modelTier tùy chọn", () => {
+  it("chấp nhận message 1-2000 ký tự, conversationId tùy chọn", () => {
     const parsed = ChatRequestSchema.parse({ message: "  Chu kỳ tính lương?  " });
     assert.equal(parsed.message, "Chu kỳ tính lương?");
     assert.equal(parsed.conversationId, undefined);
-    assert.equal(parsed.modelTier, undefined);
 
     const full = ChatRequestSchema.parse({
       message: "x",
       conversationId: "c".repeat(200),
-      modelTier: "high",
     });
-    assert.equal(full.modelTier, "high");
+    assert.equal(full.conversationId, "c".repeat(200));
   });
 
-  it("từ chối message rỗng, quá 2000 ký tự, modelTier lạ, conversationId > 200", () => {
+  it("từ chối message rỗng, quá 2000 ký tự, conversationId > 200", () => {
     assert.throws(() => ChatRequestSchema.parse({ message: "   " }));
     assert.throws(() => ChatRequestSchema.parse({ message: "x".repeat(2001) }));
-    assert.throws(() => ChatRequestSchema.parse({ message: "hi", modelTier: "ultra" }));
     assert.throws(() => ChatRequestSchema.parse({ message: "hi", conversationId: "c".repeat(201) }));
     assert.throws(() => ChatRequestSchema.parse({}));
   });
