@@ -4,6 +4,7 @@ import type { LoginRequest } from '@hr-blockbot/contracts';
 import { AccountLoginModal } from './AccountLoginModal';
 import type { NotifyFn } from './Toast';
 import { TaglineReveal, TAGLINE_COPY } from './landing/TaglineReveal';
+import { ORG_CHART_SVG } from './landing/org-chart-svg';
 
 export interface FolioLandingViewProps {
   onLogin: (credentials: LoginRequest) => Promise<void>;
@@ -27,7 +28,7 @@ const FOLIO_HTML = `
   <nav data-state="false" aria-label="Điều hướng chính">
     <div class="folio-nav">
       <a class="folio-nav-brand" href="#" aria-label="Guta Workspace home">
-        <img src="/assets/logos/guta-mark-pure.svg" alt="HR-BlockBot Logo" class="folio-nav-logo" />
+        <span class="folio-nav-logo" aria-hidden="true"></span>
         <span class="folio-nav-wordmark">
           <span class="folio-nav-name"><b>GUTA</b> WORKSPACE</span>
           <span class="folio-nav-sub">HR &amp; Smart Shift AI</span>
@@ -386,18 +387,10 @@ const FOLIO_HTML = `
             <span class="workflow-dot" aria-hidden="true"></span>
             <span class="workflow-status-text">Luồng tín hiệu: đang chạy liên tục (Live Loop)</span>
           </span>
-          <div class="workflow-actions">
-            <button type="button" class="workflow-btn-fit" title="Khớp khung hình sơ đồ (Fit View)" aria-label="Khớp khung hình sơ đồ">Khớp khung hình (Fit View)</button>
-            <button type="button" class="workflow-btn-toggle" title="Tạm dừng / Tiếp tục luồng tín hiệu (Space)" aria-label="Tạm dừng luồng" data-state="play">
-              <svg class="workflow-icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5v14M15 5v14"></path></svg>
-              <svg class="workflow-icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"></path></svg>
-              <span class="workflow-toggle-text">Tạm dừng</span>
-            </button>
-            <a href="/diagrams/chatbot-architecture.html" target="_blank" rel="noopener noreferrer" class="workflow-btn-fullscreen" title="Mở toàn màn hình hoặc tab mới" aria-label="Mở toàn màn hình mới">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
-              <span>Mở toàn màn hình mới</span>
-            </a>
-          </div>
+          <a href="/diagrams/chatbot-architecture.html" target="_blank" rel="noopener noreferrer" class="workflow-btn-fullscreen" title="Mở sơ đồ ở tab mới" aria-label="Mở sơ đồ ở tab mới">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
+            <span>Mở tab mới</span>
+          </a>
         </div>
         <div class="workflow-iframe-wrapper">
           <iframe id="workflow-diagram-iframe" src="/diagrams/chatbot-architecture.html" title="HR BlockBot - Chatbot &amp; Agentic Architecture" class="workflow-iframe" loading="lazy" allow="fullscreen"></iframe>
@@ -450,6 +443,23 @@ const FOLIO_HTML = `
           <h3>Giữ dấu vết thay đổi</h3>
           <p>Trạng thái điểm danh, lý do đi trễ và hiệu chỉnh công ca phải có nhật ký kiểm soát rõ ràng.</p>
         </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="folio-section folio-org" id="org">
+    <div class="guta-container">
+      <header class="guta-section-head">
+        <h2>Ai quyết việc gì.</h2>
+        <span class="guta-label">Cơ cấu tổ chức</span>
+        <p>Năm bậc quyền hạn, hai hệ thống vận hành. Mọi phân quyền trong sản phẩm bám theo sơ đồ này, không tự đặt thêm cấp.</p>
+      </header>
+
+      <div class="org-figure" data-ui>
+        <div class="org-scroll" tabindex="0" role="region" aria-label="Sơ đồ cơ cấu tổ chức, cuộn ngang để xem đầy đủ">
+          ${ORG_CHART_SVG}
+        </div>
+        <p class="org-caption">Sơ đồ theo vai trò. Tên cá nhân không hiển thị trên trang công khai.</p>
       </div>
     </div>
   </section>
@@ -612,65 +622,36 @@ export const FolioLandingView: React.FC<FolioLandingViewProps> = ({ onLogin, isA
     };
     solutionLinks.forEach((link) => link.addEventListener('click', handleSolutionClick));
 
-    // 6. Interactive controls for embedded workflow diagram
+    // 6. The diagram runs on its own loop. The only outer control is the
+    // "open in a new tab" link: pause/fit buttons duplicated the diagram's own
+    // affordances and gave the toolbar a second place to break.
     const iframe = root.querySelector('#workflow-diagram-iframe') as HTMLIFrameElement | null;
-    const btnFit = root.querySelector('.workflow-btn-fit');
-    const btnToggle = root.querySelector('.workflow-btn-toggle');
-    const btnFullscreen = root.querySelector('.workflow-btn-fullscreen');
-    const container = root.querySelector('.workflow-diagram-card') || root.querySelector('.workflow-diagram-container');
-    const diagramSrc = '/diagrams/chatbot-architecture.html';
     const statusText = root.querySelector('.workflow-status-text');
     const statusChip = root.querySelector('.workflow-status-chip');
-    const toggleText = root.querySelector('.workflow-toggle-text');
 
-    let isDiagramPlaying = true;
-    const postToDiagramIframe = (msg: { type: string; [key: string]: unknown }) => {
-      if (iframe && iframe.contentWindow) {
-        iframe.contentWindow.postMessage(msg, '*');
-      }
-    };
-
-    const handleFitClick = () => postToDiagramIframe({ type: 'FIT_VIEW' });
-    const handleToggleClick = () => {
-      postToDiagramIframe({ type: 'TOGGLE_MOTION' });
-    };
-    const handleFullscreenClick = (e: Event) => {
-      e.preventDefault();
-      if (container && typeof container.requestFullscreen === 'function') {
-        container.requestFullscreen().catch(() => {
-          window.open(diagramSrc, '_blank', 'noopener,noreferrer');
-        });
-      } else {
-        window.open(diagramSrc, '_blank', 'noopener,noreferrer');
-      }
-    };
-
-    btnFit?.addEventListener('click', handleFitClick);
-    btnToggle?.addEventListener('click', handleToggleClick);
-    btnFullscreen?.addEventListener('click', handleFullscreenClick);
     const handleDiagramMessage = (event: MessageEvent) => {
       if (iframe && event.source !== iframe.contentWindow) return;
       const data = event.data;
       if (!data || typeof data !== 'object') return;
-      if (data.type === 'DIAGRAM_MOTION_CHANGE') {
-        if (typeof data.state === 'string') {
-          isDiagramPlaying = data.state === 'play';
-        }
+      // The diagram reports its own state (including a reduced-motion pause);
+      // the chip mirrors it so the copy never claims a loop that is not running.
+      if (data.type === 'DIAGRAM_MOTION_CHANGE' && typeof data.state === 'string') {
+        const playing = data.state === 'play';
         if (statusText) {
-          statusText.textContent = isDiagramPlaying
+          statusText.textContent = playing
             ? 'Luồng tín hiệu: đang chạy liên tục (Live Loop)'
-            : 'Luồng tín hiệu: đã tạm dừng';
+            : 'Luồng tín hiệu: tạm dừng theo tuỳ chọn giảm chuyển động';
         }
-        if (statusChip) statusChip.setAttribute('data-state', isDiagramPlaying ? 'play' : 'paused');
-        if (btnToggle) btnToggle.setAttribute('data-state', isDiagramPlaying ? 'play' : 'paused');
-        if (toggleText) toggleText.textContent = isDiagramPlaying ? 'Tạm dừng' : 'Tiếp tục';
-      } else if (data.type === 'DIAGRAM_READY') {
-        postToDiagramIframe({ type: 'GET_STATE' });
+        statusChip?.setAttribute('data-state', playing ? 'play' : 'paused');
       }
     };
     window.addEventListener('message', handleDiagramMessage);
 
     // 7. Section entrances: one observer, fire once, unobserve. No scroll listener.
+    // The org chart joins the same observer so it reveals once, in view, and
+    // never animates while off-screen.
+    const orgSection = root.querySelector<HTMLElement>('.folio-org');
+    if (orgSection) orgSection.setAttribute('data-enter', 'org');
     const enterTargets = root.querySelectorAll<HTMLElement>('[data-enter]');
     const entranceObserver = 'IntersectionObserver' in window
       ? new IntersectionObserver((entries, observer) => {
@@ -698,6 +679,7 @@ export const FolioLandingView: React.FC<FolioLandingViewProps> = ({ onLogin, isA
 
     return () => {
       window.removeEventListener('scroll', syncScrolledNav);
+      window.removeEventListener('message', handleDiagramMessage);
       navLinks?.forEach((link) => link.removeEventListener('click', closeMobileMenu));
       if (handleToggle && toggle) toggle.removeEventListener('click', handleToggle);
       loginTriggers.forEach((el) => el.removeEventListener('click', handleLoginClick));
@@ -706,9 +688,6 @@ export const FolioLandingView: React.FC<FolioLandingViewProps> = ({ onLogin, isA
       lightBtn?.removeEventListener('click', setLight);
       darkBtn?.removeEventListener('click', setDark);
       solutionLinks.forEach((link) => link.removeEventListener('click', handleSolutionClick));
-      btnFit?.removeEventListener('click', handleFitClick);
-      btnToggle?.removeEventListener('click', handleToggleClick);
-      btnFullscreen?.removeEventListener('click', handleFullscreenClick);
       window.removeEventListener('message', handleDiagramMessage);
       entranceObserver?.disconnect();
       loopObserver?.disconnect();

@@ -57,26 +57,32 @@
  * ------------------------------------------------------------------ */
 
 [data-register="product"] {
-  --surface-canvas: #0a0a0a;
-  --surface-card: #171717;
-  --surface-raised: #262626;
-  --surface-sidebar: #171717;
-  --surface-sunken: #090a0f;
+  /* Warm graphite, not neutral black. The shell, the canvas and the raised
+   * surfaces sit one lightness step apart so structure reads without borders;
+   * every text pair below was measured against --surface-sunken (the content
+   * well) and --surface-canvas (the chrome). */
+  --surface-canvas: #0c0d10;
+  --surface-card: #14161a;
+  --surface-raised: #1c1f25;
+  --surface-sidebar: #0e1014;
+  --surface-sunken: #08090b;
 
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-control: rgba(255, 255, 255, 0.15);
-  --border-focus: #737373;
+  --border-subtle: rgba(255, 255, 255, 0.10);
+  --border-control: rgba(255, 255, 255, 0.18);
+  --border-focus: #8f9aab;
 
-  --text-primary: #fafafa;
-  --text-secondary: #a1a1a1;
-  --text-muted: #737373;
+  /* 17.95:1 · 8.89:1 · 5.71:1 on --surface-canvas. */
+  --text-primary: #f4f6f9;
+  --text-secondary: #a8b0bd;
+  --text-muted: #828c9a;
 
-  --accent-solid: #e5e5e5;
-  --accent-solid-fg: #171717;
-  --accent-action: var(--sapphire-500);
+  --accent-solid: #e8ebf0;
+  --accent-solid-fg: #14161a;
+  --accent-action: #6f9bff;
+  --accent-quiet: rgba(111, 155, 255, 0.14);
 
   --status-ok: var(--emerald-500);
-  --status-bad: #ff6568;
+  --status-bad: #ff7b7e;
 
   --row-height: 42px;
   --control-height: 34px;
@@ -201,17 +207,14 @@
   box-shadow: none;
 }
 
-/* The mark paints `currentColor`, which resolves to black inside an <img>
-   sandbox and disappears on a dark ground. Normalise then invert so the
-   asset stays the single source of the glyph. */
+/* The mark is theme-painted at the asset level (BrandMark). Keeping a filter
+   here would double-invert the already-white glyph and wash out the petals. */
 .crm-sidebar .crm-brand-mark {
   background: none;
   border: 0;
-  color: var(--text-primary);
 }
 
 .crm-sidebar .crm-brand-mark img {
-  filter: brightness(0) invert(1);
   opacity: 0.92;
 }
 
@@ -516,7 +519,10 @@
   font-weight: 600;
 }
 
-/* 1px accent rule on the sidebar's left edge, spanning the item's own extent. */
+/* 1px accent rule on the sidebar's left edge, spanning the item's own extent.
+ * It grows from the centre instead of appearing whole: scaleY on a 1px
+ * pseudo-element is compositor work, where animating `width` would relayout the
+ * whole nav on every tab change. */
 .crm-nav-item::before {
   content: "";
   position: absolute;
@@ -525,10 +531,14 @@
   bottom: 0;
   width: 1px;
   background: transparent;
+  transform: scaleY(0);
+  transform-origin: center top;
+  transition: transform 200ms var(--ease-out), background-color 160ms var(--ease-out);
 }
 
 .crm-nav-item[aria-current="page"]::before {
   background: var(--accent-action);
+  transform: scaleY(1);
 }
 
 .table-row-hover {
@@ -537,6 +547,34 @@
 }
 
 /* ---- Shell primitives -------------------------------------------- */
+
+/* Motion for the operating shell. Everything here is one-shot or hover-scoped
+ * and stays under 300ms, except the KPI entrance which is a single reveal on
+ * first paint. Only transform/opacity are animated; the reduced-motion block at
+ * the end of this file zeroes the durations, so the finished state still shows. */
+@keyframes crm-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes crm-sheen {
+  from { opacity: 0; transform: translateX(-12%); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.crm-kpi-card {
+  animation: crm-rise 420ms var(--ease-out) both;
+  animation-delay: calc(var(--kpi-index, 0) * 55ms);
+}
+
+.crm-kpi-grid { --kpi-index: 0; }
+.crm-kpi-card:nth-child(2) { --kpi-index: 1; }
+.crm-kpi-card:nth-child(3) { --kpi-index: 2; }
+.crm-kpi-card:nth-child(4) { --kpi-index: 3; }
+
+.crm-table tbody tr[data-id] {
+  transition: background-color 140ms var(--ease-out);
+}
 
 .crm-brand-bar {
   height: var(--topbar-height);
@@ -1191,9 +1229,9 @@
 .guta-splash-logo {
   width: 76px;
   height: 76px;
-  /* The SVG path is dark by default: invert it to crisp luminous white so
-   * the flower petals are actually visible on the dark ground. */
-  filter: brightness(0) invert(1) drop-shadow(0 0 28px rgba(59, 130, 246, 0.5));
+  /* The asset is already painted white (guta-mark-white.svg); the glow is the
+   * only treatment applied here. */
+  filter: drop-shadow(0 0 28px rgba(59, 130, 246, 0.5));
   animation: guta-splash-spin 2.2s linear infinite;
 }
 
@@ -1483,6 +1521,41 @@
   text-align: left;
   cursor: pointer;
   transition: border-color 160ms var(--ease-out), background 160ms var(--ease-out);
+}
+
+/* The trigger defaults to full width because it lives inside `.field` blocks in
+ * forms. Inline filter bars ask for `w-auto`, but this file is unlayered and
+ * therefore outranks `@layer utilities`, so the utility silently lost and each
+ * filter took a full row. Honour the intent here, in the same layer. */
+.select-trigger.w-auto {
+  width: auto;
+  min-width: 148px;
+  flex: 0 0 auto;
+}
+
+/* Phones: the search field and three filters cannot share a wrapped row without
+ * pushing the table down a screen. Below 640px the bar becomes one horizontally
+ * scrollable line, the pattern the table itself already uses. */
+@media (max-width: 640px) {
+  .crm-filter-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .crm-filter-bar > * {
+    flex: 0 0 auto;
+  }
+
+  .crm-filter-bar > input {
+    flex: 0 0 auto;
+    min-width: 200px !important;
+  }
+
+  .crm-filter-bar .select-trigger.w-auto {
+    min-width: 132px;
+  }
 }
 
 .select-trigger:hover:not(:disabled) {
@@ -3128,6 +3201,7 @@ button:active:not(:disabled),
 @media (hover: hover) and (pointer: fine) {
   .table-row-hover:hover {
     box-shadow: inset 0 0 0 1px var(--border-control);
+    background-color: color-mix(in oklab, var(--surface-raised) 55%, transparent);
   }
 
   .crm-nav-item:hover {
@@ -3291,15 +3365,22 @@ button:active:not(:disabled),
   }
 
   .crm-sidebar {
+    /* `aside { display: none }` above was never overridden here, so the whole
+       sidebar — and with it every nav item — vanished on phones. The strip only
+       works if the element is actually laid out. */
+    display: flex;
     width: 100%;
     height: auto;
     border-right: 0;
     border-bottom: 1px solid var(--border-subtle);
   }
 
+  .crm-sidebar > div:first-child {
+    width: 100%;
+  }
+
   .crm-brand-bar,
   .crm-search-wrap,
-  .crm-copilot,
   .crm-nav-label,
   .crm-userbar {
     display: none;
@@ -3307,11 +3388,29 @@ button:active:not(:disabled),
 
   .crm-nav {
     display: flex;
+    align-items: center;
     gap: 4px;
     padding: 6px 10px;
     overflow-x: auto;
     scrollbar-width: none;
     --crm-nav-inset: 10px;
+  }
+
+  /* Chat used to be hidden with the rest of the sidebar chrome, which left the
+     assistant unreachable on phones: every CRM section collapsed into the strip
+     and no control remained to open the conversation. It stays in the strip as
+     an icon + label, and the label drops under 400px. */
+  .crm-copilot {
+    flex: none;
+    height: 32px;
+    gap: 6px;
+    padding: 0 10px;
+    border-radius: var(--radius-control-sm);
+    border-color: transparent;
+  }
+
+  .crm-copilot .crm-dot {
+    display: none;
   }
 
   .crm-nav-item {
@@ -3328,6 +3427,12 @@ button:active:not(:disabled),
     bottom: -7px;
     width: auto;
     height: 1px;
+    transform: scaleX(0);
+    transform-origin: left center;
+  }
+
+  .crm-nav-item[aria-current="page"]::before {
+    transform: scaleX(1);
   }
 
   .crm-main {
@@ -3461,6 +3566,15 @@ button:active:not(:disabled),
   #drawer-backdrop,
   .table-row-hover,
   .crm-nav-item {
+    transition: none;
+  }
+
+  .crm-kpi-card {
+    animation: none;
+  }
+
+  .crm-nav-item::before {
+    transform: scaleY(1);
     transition: none;
   }
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import type { LoginRequest } from '@hr-blockbot/contracts';
 import { useAuth } from './context/AuthContext';
 import { ToastContainer, type ToastMessage, type NotifyFn } from './components/Toast';
+import { BrandMark } from './components/BrandMark';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
 const FolioLandingView = React.lazy(() =>
   import('./components/FolioLandingView').then((m) => ({ default: m.FolioLandingView }))
@@ -20,7 +21,10 @@ export const AppContent: React.FC = () => {
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isSplashFading, setIsSplashFading] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'crm' | 'chat'>('chat');
+  // The workspace opens on the operating surface, not on the assistant. CRM is
+  // where the shift and roster decisions live; chat is a secondary tool reached
+  // from the sidebar.
+  const [activeTab, setActiveTab] = useState<'crm' | 'chat'>('crm');
 
   useEffect(() => {
     if (!isBootstrapping) return;
@@ -76,12 +80,12 @@ export const AppContent: React.FC = () => {
 
   const handleLogin = async (credentials: LoginRequest) => {
     await login(credentials);
-    setActiveTab('chat');
+    setActiveTab('crm');
     addToast('Bạn đã đăng nhập vào Guta Workspace.', 'success', 'Đăng nhập thành công');
   };
 
   const handleLogout = useCallback(async () => {
-    setActiveTab('chat');
+    setActiveTab('crm');
     await logout();
     addToast('Đã đăng xuất phiên làm việc an toàn.', 'info');
   }, [logout, addToast]);
@@ -102,7 +106,9 @@ export const AppContent: React.FC = () => {
     return (
       <div className={`guta-splash${isSplashFading && !isLoading ? ' guta-splash-fading' : ''}`} data-testid="guta-splash" role="status" aria-label="Đang khởi động HR-BlockBot">
         <div className="guta-splash-inner">
-          <img src="/assets/logos/guta-mark-pure.svg" alt="HR-BlockBot Logo" className="guta-splash-logo" />
+          {/* The splash ground is #0a0908 in every theme, so the mark is pinned
+              to its white variant instead of following the document class. */}
+          <BrandMark alt="HR-BlockBot Logo" className="guta-splash-logo" tone="dark" fetchPriority="high" />
           <div className="guta-splash-meta">
             <span className="guta-splash-title">HR-BLOCKBOT</span>
             <span className="guta-splash-sub">Workforce Intelligence</span>

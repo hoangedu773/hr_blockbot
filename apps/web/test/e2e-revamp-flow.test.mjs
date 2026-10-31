@@ -230,7 +230,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     if (server) server.close();
   });
 
-  // The workspace opens on the chat tab, so CRM-only steps must return first.
+  // The workspace opens on the CRM tab; chat is reached from the sidebar.
   const returnToCrm = async () => {
     if (await page.getByTestId('chat-page').count()) {
       await page.getByRole('button', { name: 'Quay lại Vận Hành (CRM)', exact: true }).click();
@@ -254,7 +254,6 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     await page.getByLabel('Tên đăng nhập', { exact: true }).fill(username);
     await page.getByLabel('Mật khẩu', { exact: true }).fill('fixture-password');
     await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
-    await page.getByRole('button', { name: 'Quay lại Vận Hành (CRM)', exact: true }).click();
     await returnToCrm();
   };
 
@@ -301,23 +300,15 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.equal(await modalHeading.isVisible(), true);
   });
 
-  it('Bước 3: đăng nhập bằng tài khoản, mở Chat rồi chuyển vào CRM Dashboard', async () => {
+  it('Bước 3: đăng nhập bằng tài khoản, mở thẳng CRM Dashboard rồi vào Chat', async () => {
     await page.getByLabel('Tên đăng nhập', { exact: true }).fill('employee');
     await page.getByLabel('Mật khẩu', { exact: true }).fill('fixture-password');
     await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
 
-    // First View: khung chat hiển thị đầu tiên
-    const chatHeading = page.getByRole('heading', { name: 'Chào mừng đến HR BlockBot' });
-    await chatHeading.waitFor({ state: 'visible', timeout: 5000 });
-    assert.equal(await chatHeading.isVisible(), true);
-
-    // Chuyển sang bảng Vận Hành Chi Nhánh (CRM)
-    const backCrmBtn = page.getByRole('button', { name: 'Quay lại Vận Hành (CRM)', exact: true });
-    await backCrmBtn.click();
-
-    // Đợi dashboard hiển thị bảng chi nhánh
+    // First View: the operating surface (CRM), not the assistant.
     const headerTitle = page.getByText(/Vận Hành Chi Nhánh & Phân Ca/i);
     await headerTitle.waitFor({ state: 'visible', timeout: 5000 });
+    assert.equal(await page.getByTestId('chat-page').count(), 0, 'login must land on CRM, not chat');
     assert.equal(await headerTitle.isVisible(), true);
 
     // The directory is API-backed now: wait for real rows before reading any
@@ -335,8 +326,8 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     const sidebarUser = page.locator('.crm-sidebar').getByText('employee', { exact: true });
     assert.equal(await sidebarUser.count() > 0, true);
     const logo = page.locator('.crm-sidebar img');
-    assert.equal(await logo.getAttribute('src'), '/assets/logos/guta-mark-pure.svg');
-    assert.match(await logo.getAttribute('alt'), /^(?:HR-BlockBot|Guta) Logo$/);
+    assert.equal(await logo.getAttribute('src'), '/assets/logos/guta-mark-white.svg');
+    assert.match(await logo.getAttribute('alt'), /^Guta Workspace$/);
     assert.equal(await logo.evaluate((img) => img.complete && img.naturalWidth > 0), true);
     const brandColors = await page.locator('.crm-sidebar .tracking-wider.text-foreground, .crm-sidebar .tracking-tight.text-foreground').evaluateAll((labels) => labels.map((label) => getComputedStyle(label).color));
     assert.equal(brandColors.length, 2);
@@ -421,8 +412,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.equal(surface.yellow, false);
 
     await page.reload({ waitUntil: 'networkidle' });
-    const backCrmReload = page.getByRole('button', { name: 'Quay lại Vận Hành (CRM)', exact: true });
-    if (await backCrmReload.isVisible()) await backCrmReload.click();
+    // A reload restores the session and re-enters on CRM; no tab hop needed.
     await page.getByText(/Vận Hành Chi Nhánh & Phân Ca/i).waitFor({ state: 'visible' });
     await page.getByTestId('guta-splash').waitFor({ state: 'detached', timeout: 1000 });
   });
@@ -558,6 +548,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       STORE_FIXTURE_ITEMS.length
     );
     await page.locator('nav a.crm-copilot').click();
+    await page.getByTestId('chat-page').waitFor({ state: 'visible' });
     await page.keyboard.press('Escape');
     assert.equal(await page.getByTestId('chat-page').count(), 0);
     // Returning to CRM remounts the view, so the portal + first fetch are async.
@@ -602,7 +593,6 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     await page.getByLabel('Tên đăng nhập', { exact: true }).fill('employee');
     await page.getByLabel('Mật khẩu', { exact: true }).fill('fixture-password');
     await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
-    await page.getByRole('button', { name: 'Quay lại Vận Hành (CRM)', exact: true }).click();
     await page.getByRole('table').waitFor({ state: 'visible' });
   });
 
@@ -616,15 +606,18 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       const style = getComputedStyle(h1);
       return [style.outlineStyle === 'none' || style.outlineWidth === '0px', style.borderTopWidth, style.boxShadow];
     }), [true, '0px', 'none']);
-    assert.equal(await chat.getByText('Trợ lý HR BlockBot', { exact: true }).count(), 1);
-    assert.equal(await chat.getByText('HR-BlockBot Workspace', { exact: true }).count(), 1);
+    // The surface names itself "Chat"; the role label sits beneath it.
+    assert.equal(await chat.locator('.guta-chat-header-title strong').innerText(), 'Chat');
+    assert.equal(await chat.getByText('Guta Workspace', { exact: true }).count(), 1);
+    // The mark must be the white variant on the dark product ground; the old
+    // `currentColor` asset resolved to black inside an <img> and vanished.
     assert.deepEqual(await chat.locator('img').evaluateAll((images) => images.map((img) => ({ src: img.getAttribute('src'), loaded: img.complete && img.naturalWidth > 0 }))), [
-      { src: '/assets/logos/guta-mark-pure.svg', loaded: true },
-      { src: '/assets/logos/guta-mark-pure.svg', loaded: true },
+      { src: '/assets/logos/guta-mark-white.svg', loaded: true },
+      { src: '/assets/logos/guta-mark-white.svg', loaded: true },
     ]);
     assert.equal(await chat.locator('.guta-chat-hero img').evaluate((img) => img.getBoundingClientRect().width), 48);
     assert.equal(await page.getByRole('dialog').count(), 0);
-    assert.equal(await chat.getByRole('navigation', { name: 'Chủ đề mẫu' }).getByRole('button').count(), 3);
+    assert.equal(await chat.getByRole('navigation', { name: 'Câu hỏi nhanh' }).getByRole('button').count(), 3);
     const width = await chat.locator('.guta-chat-width').first().evaluate((el) => el.getBoundingClientRect().width);
     assert.ok(width >= 768 && width <= 800);
     const input = chat.getByRole('textbox', { name: 'Tin nhắn cho Guta AI' });
@@ -688,7 +681,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     }), ['rgb(222, 222, 222)', 'rgb(0, 0, 0)']);
     const offlineChat = (route) => route.abort('connectionrefused');
     await page.route('**/api/chat', offlineChat);
-    await chat.getByRole('navigation', { name: 'Chủ đề mẫu' }).getByRole('button', { name: 'Gợi ý điều động ca' }).click();
+    await chat.getByRole('navigation', { name: 'Câu hỏi nhanh' }).getByRole('button', { name: 'Gợi ý điều động ca' }).click();
     assert.equal(await send.isDisabled(), true);
     await chat.getByText('Demo an toàn · Dịch vụ AI chưa khả dụng', { exact: true }).waitFor();
     assert.equal(await chat.getByRole('button', { name: 'Xác Nhận (Confirm)' }).count(), 0);
@@ -731,8 +724,8 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     };
     await page.route('**/api/chat', onlineChat);
     try {
-      await chat.getByRole('button', { name: '+ New Chat', exact: true }).click();
-      await chat.getByRole('navigation', { name: 'Chủ đề mẫu' }).getByRole('button', { name: 'Gợi ý điều động ca' }).click();
+      await chat.getByRole('button', { name: 'Hội thoại mới', exact: true }).click();
+      await chat.getByRole('navigation', { name: 'Câu hỏi nhanh' }).getByRole('button', { name: 'Gợi ý điều động ca' }).click();
       await chat.getByText('Đề xuất điều động ca trực cho chi nhánh đang thiếu người.', { exact: true }).waitFor();
       const confirm = chat.getByRole('button', { name: 'Xác Nhận (Confirm)' });
       assert.deepEqual(await confirm.evaluate((el) => {
@@ -741,16 +734,16 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       }), ['rgb(255, 255, 255)', 'rgb(0, 0, 0)']);
       await confirm.click();
       assert.equal(await chat.getByText('Đã xác nhận đề xuất. Chưa thực thi.', { exact: true }).isVisible(), true);
-      await chat.getByRole('button', { name: '+ New Chat', exact: true }).click();
-      await chat.getByRole('navigation', { name: 'Chủ đề mẫu' }).getByRole('button', { name: 'Gợi ý điều động ca' }).click();
+      await chat.getByRole('button', { name: 'Hội thoại mới', exact: true }).click();
+      await chat.getByRole('navigation', { name: 'Câu hỏi nhanh' }).getByRole('button', { name: 'Gợi ý điều động ca' }).click();
       await chat.getByRole('button', { name: 'Từ Chối', exact: true }).click();
       assert.equal(await chat.getByText('Đã từ chối hành động. Không có dữ liệu nào bị thay đổi.', { exact: true }).isVisible(), true);
-      await chat.getByRole('button', { name: '+ New Chat', exact: true }).click();
-      await chat.getByRole('navigation', { name: 'Chủ đề mẫu' }).getByRole('button', { name: 'Quy định kỷ luật' }).click();
+      await chat.getByRole('button', { name: 'Hội thoại mới', exact: true }).click();
+      await chat.getByRole('navigation', { name: 'Câu hỏi nhanh' }).getByRole('button', { name: 'Quy định kỷ luật' }).click();
       await chat.getByRole('region', { name: 'Trích dẫn' }).waitFor();
       assert.match(await chat.getByRole('log').textContent(), /không phải chính sách có hiệu lực/);
-      await chat.getByRole('button', { name: '+ New Chat', exact: true }).click();
-      await chat.getByRole('navigation', { name: 'Chủ đề mẫu' }).getByRole('button', { name: 'Báo cáo két ca' }).click();
+      await chat.getByRole('button', { name: 'Hội thoại mới', exact: true }).click();
+      await chat.getByRole('navigation', { name: 'Câu hỏi nhanh' }).getByRole('button', { name: 'Báo cáo két ca' }).click();
       await chat.getByText(/Không có số doanh thu đã xác thực/).waitFor();
       assert.match(await chat.getByRole('region', { name: 'Trích dẫn' }).textContent(), /không phải báo cáo thực tế/);
     } finally {
@@ -857,7 +850,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       await page.getByRole('textbox', { name: 'Tin nhắn cho Guta AI' }).fill('Kiểm tra fetch');
       await page.keyboard.press('Enter');
       await started;
-      await page.getByRole('button', { name: '+ New Chat', exact: true }).click();
+      await page.getByRole('button', { name: 'Hội thoại mới', exact: true }).click();
       assert.equal(await page.evaluate(() => window.__chatAborts), 1);
       releaseResponse();
       await page.waitForTimeout(100);
@@ -1122,8 +1115,6 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       await page.getByLabel('Tên đăng nhập', { exact: true }).fill(username);
       await page.getByLabel('Mật khẩu', { exact: true }).fill('fixture-password');
       await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
-      const backCrm = page.getByRole('button', { name: 'Quay lại Vận Hành (CRM)', exact: true });
-      await backCrm.click();
       await page.getByRole('table').waitFor({ state: 'visible' });
       assert.equal(await page.evaluate(() => sessionStorage.getItem('guta_user')), null);
       assert.equal(await page.evaluate(() => localStorage.getItem('guta_user')), null);
@@ -1148,8 +1139,10 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
   });
 
   it('Chặn liên kết chết href="#" trên Landing Page và kiểm tra sạch ngữ cảnh học thuật', async () => {
-    const badgeLink = page.locator('a[href="#"]').filter({ hasText: /F&B Workforce Intelligence/i });
-    await badgeLink.click();
+    // The hero status line is a <p>, not a link; clicking it must not surface
+    // an unavailable-feature toast.
+    const heroStatus = page.locator('.hero-status').filter({ hasText: /F&B Workforce Intelligence/i });
+    await heroStatus.click();
     assert.equal(await page.locator('#zkteco-sync-toast').count(), 0);
 
     // Kiểm tra sạch các từ khóa học thuật/khóa luận

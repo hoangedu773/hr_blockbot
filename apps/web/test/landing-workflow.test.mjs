@@ -21,11 +21,12 @@ describe('Landing Page Workflow Architecture: Continuous Flow & Acceptance Verif
       'Cần cấu hình animation: ak-edge-flow vô hạn infinite trên .ak-edge-flow',
     );
 
-    // Kiểm tra hiệu ứng breathing pulse trên node
+    // Kiểm tra hiệu ứng breathing trên node (đổi tên từ ak-node-pulse khi
+    // dựng lại sơ đồ; vẫn là một nhịp lặp vô hạn, không phải hiệu ứng một lần).
     assert.match(
       diagramHtml,
-      /ak-node-pulse[\s\S]*?infinite/i,
-      'Cần có hiệu ứng pulse tuần hoàn ak-node-pulse lặp vô hạn trên node',
+      /ak-node-breathe[\s\S]*?infinite/i,
+      'Cần có hiệu ứng breathing tuần hoàn ak-node-breathe lặp vô hạn trên node',
     );
 
     // Kiểm tra data-motion="play" mặc định khi tải trang
@@ -35,11 +36,17 @@ describe('Landing Page Workflow Architecture: Continuous Flow & Acceptance Verif
       'Sơ đồ cần mặc định ở trạng thái data-motion="play" khi tải trang',
     );
 
-    // Kiểm tra nút toggle Pause/Resume trong toolbar
+    // The in-diagram toolbar was removed: the embedding section owns the only
+    // pause control, and the diagram runs continuously by default.
+    assert.equal(
+      /ak-diagram-toolbar|ak-btn-reach-down|Search \(\/\)/.test(diagramHtml),
+      false,
+      'Sơ đồ không được tự dựng toolbar điều khiển riêng',
+    );
     assert.match(
       diagramHtml,
-      /ak-btn-motion[\s\S]*?Tạm dừng/i,
-      'Cần có nút điều khiển chuyển động Pause / Resume trên toolbar',
+      /TOGGLE_MOTION/,
+      'Vẫn phải nhận lệnh TOGGLE_MOTION từ section bao ngoài',
     );
 
     // Kiểm tra cơ chế giao tiếp postMessage với parent iframe
@@ -48,22 +55,17 @@ describe('Landing Page Workflow Architecture: Continuous Flow & Acceptance Verif
     assert.equal(diagramHtml.includes('DIAGRAM_MOTION_CHANGE'), true, 'Cần bắn thông báo DIAGRAM_MOTION_CHANGE');
     assert.equal(diagramHtml.includes('DIAGRAM_READY'), true, 'Cần bắn thông báo DIAGRAM_READY');
 
-    // Kiểm tra responsive toolbar CSS cho màn hình hẹp (320px)
+    // Dưới 900px, sơ đồ chuyển sang danh sách dọc đọc được thay vì thu nhỏ chữ.
     assert.match(
       diagramHtml,
-      /\.ak-diagram-toolbar[\s\S]*?overflow-x:\s*auto/,
-      'Toolbar cần overflow-x: auto để cuộn mượt trên mobile',
-    );
-    assert.match(
-      diagramHtml,
-      /@media\s*\(\s*max-width:\s*768px\s*\)[\s\S]*?\.ak-diagram-search-input\s*\{[^}]*display:\s*none/,
-      'Toolbar cần ẩn search-input trên mobile',
+      /@media\s*\(\s*max-width:\s*900px\s*\)[\s\S]*?\.ak-stack\s*\{[^}]*display:\s*block/,
+      'Sơ đồ cần bản xếp tầng dễ đọc cho màn hình hẹp',
     );
 
     // Kiểm tra wheel event: tránh scroll-jacking, chỉ zoom khi có ctrlKey hoặc metaKey
     assert.match(
       diagramHtml,
-      /e\.ctrlKey\s*\|\|\s*e\.metaKey/,
+      /event\.ctrlKey\s*\|\|\s*event\.metaKey/,
       'Wheel event chỉ zoom khi giữ Ctrl hoặc Meta để không chặn cuộn trang tự nhiên',
     );
 
@@ -91,8 +93,11 @@ describe('Landing Page Workflow Architecture: Continuous Flow & Acceptance Verif
     // Kiểm tra iframe container và controls
     assert.match(code, /chatbot-architecture\.html/, 'Phải nhúng iframe chatbot-architecture.html');
     assert.match(code, /workflow-status-chip/, 'Phải có status chip hiển thị trạng thái luồng');
-    assert.match(code, /Fit View/i, 'Phải có nút Fit View');
-    assert.match(code, /Tạm dừng|Tiếp tục/, 'Phải có nút Pause / Resume');
+    // The section no longer duplicates the diagram's pause/fit controls: the
+    // diagram runs continuously and owns them. The one outer control is a link
+    // that opens the diagram in its own tab.
+    assert.match(code, /Mở tab mới/, 'Phải có liên kết mở sơ đồ ở tab mới');
+    assert.equal(/workflow-btn-toggle|workflow-btn-fit/.test(code), false, 'Không dựng lại nút pause/fit trùng với sơ đồ');
 
     // Kiểm tra postMessage validation & type guards
     assert.match(
@@ -104,13 +109,6 @@ describe('Landing Page Workflow Architecture: Continuous Flow & Acceptance Verif
       code,
       /typeof\s+data\.state\s*===\s*['"]string['"]/,
       'WorkflowSection phải kiểm tra chặt chẽ type của data.state',
-    );
-
-    // Kiểm tra iOS Safari feature-detection cho Fullscreen
-    assert.match(
-      code,
-      /typeof\s+container\.requestFullscreen\s*===\s*['"]function['"]/,
-      'WorkflowSection phải feature-detection requestFullscreen trước khi gọi',
     );
   });
 
@@ -152,13 +150,6 @@ describe('Landing Page Workflow Architecture: Continuous Flow & Acceptance Verif
       landingCode,
       /typeof\s+data\.state\s*===\s*['"]string['"]/,
       'FolioLandingView phải kiểm tra chặt chẽ typeof data.state === "string"',
-    );
-
-    // Kiểm tra iOS Safari feature-detection cho Fullscreen trong FolioLandingView
-    assert.match(
-      landingCode,
-      /typeof\s+container\.requestFullscreen\s*===\s*['"]function['"]/,
-      'FolioLandingView phải feature-detection requestFullscreen trước khi gọi',
     );
   });
 

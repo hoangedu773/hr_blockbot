@@ -39,6 +39,9 @@ try {
       await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
       const login = await (await loginResponse).json();
       assert.ok(['Admin', 'Employee'].includes(login.user.role));
+      // Login lands on the CRM operating surface; chat is a sidebar action.
+      await page.locator('.crm-sidebar').waitFor();
+      await page.locator('nav a.crm-copilot').click();
       await page.getByTestId('chat-page').waitFor();
       const cookie = (await context.cookies(`${api}/auth/refresh`)).find((item) => item.name === 'refreshToken');
       assert.ok(cookie?.httpOnly && cookie.secure);
@@ -52,6 +55,8 @@ try {
       const refresh = page.waitForResponse((response) => response.url() === `${api}/auth/refresh` && response.status() === 200);
       await page.reload({ waitUntil: 'networkidle' });
       await refresh;
+      await page.locator('.crm-sidebar').waitFor();
+      await page.locator('nav a.crm-copilot').click();
       await page.getByTestId('chat-page').waitFor();
       const chatResponse = page.waitForResponse((response) => response.url() === `${api}/chat`);
       await page.getByRole('textbox', { name: 'Tin nhắn cho Guta AI' }).fill('chào');

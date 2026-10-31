@@ -164,11 +164,13 @@ html.dark {
  *
  * All shape and style changes live on the inner `.folio-nav` container:
  *   - At top: centered capsule at max-width 1152px, transparent background
- *   - Scrolled: fluidly tucks in to 920px with frosted-glass blur and border
- *   - Pulling up: smoothly expands back to 1152px with cubic-bezier(0.16, 1, 0.3, 1)
+ *   - Scrolled: tucks in to 1040px with frosted-glass blur and border
  *
- * Links are centered with `position: absolute; inset: 0; margin: auto; width: fit-content;`
- * exactly like folio-topaz-delta.vercel.app: ZERO horizontal drifting. */
+ * Links are centred by flex, not by `position: absolute`. Absolute centring
+ * ignores the brand and action widths, so when the bar contracts the links
+ * ran underneath the theme switch and the CTA pair — the layout the report
+ * described as "co lại làm dồng bố cục". Flex centring sizes the gap from the
+ * space that is actually free, at every bar width. */
 .folio-preview > header nav {
   position: fixed;
   inset: 0 0 auto 0;
@@ -185,10 +187,11 @@ html.dark {
   width: 100%;
   max-width: min(1152px, calc(100% - 16px));
   margin: 8px auto 0;
-  padding: 10px 24px;
+  padding: 10px 20px;
   display: flex;
+  flex-wrap: nowrap;
   align-items: center;
-  justify-content: space-between;
+  gap: 16px;
   border-radius: 16px;
   border: 1px solid transparent;
   background: transparent;
@@ -207,30 +210,14 @@ html.dark {
 }
 
 .folio-preview > header nav.nav-scrolled .folio-nav {
-  max-width: min(920px, calc(100% - 24px));
+  max-width: min(1040px, calc(100% - 24px));
   border-radius: 9999px;
-  padding: 8px 20px;
+  padding: 8px 18px;
   background: color-mix(in oklab, var(--folio-canvas) 80%, transparent);
   border-color: var(--folio-border);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
-}
-
-@media (min-width: 1024px) {
-  /* Absolute centring like folio-topaz: mathematically centered in the bar
-   * at both 1152px and 920px. Never drifts when the bar width transitions. */
-  .folio-nav-links {
-    position: absolute;
-    inset: 0;
-    margin: auto;
-    width: fit-content;
-    height: fit-content;
-    display: flex;
-    gap: 28px;
-    list-style: none;
-    padding: 0;
-  }
 }
 
 /* Open mobile menu expands full width */
@@ -259,25 +246,32 @@ html.dark {
   .folio-nav { transition: none !important; }
 }
 
-.folio-nav {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px 24px;
-  padding-block: 12px;
-}
-
 .folio-nav-brand {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-right: auto;
+  flex-shrink: 0;
+  min-width: 0;
 }
 
+/* The mark is painted as a mask, not an <img>: a mask takes its colour from
+ * `currentColor`, so one element follows the theme toggle with no second asset
+ * and no `filter: invert()` — the filter left the glyph black wherever a
+ * consumer forgot to repeat it. The alpha channel of the glyph is the mask. */
 .folio-nav-logo {
+  display: block;
+  flex-shrink: 0;
   width: 30px;
   height: 30px;
-  object-fit: contain;
+  background-color: var(--folio-ink);
+  -webkit-mask-image: url("/assets/logos/guta-mark-white.svg");
+  mask-image: url("/assets/logos/guta-mark-white.svg");
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
 }
 
 .folio-nav-wordmark {
@@ -326,7 +320,15 @@ html.dark {
 .folio-nav-actions {
   display: none;
   align-items: center;
+  flex-shrink: 0;
   gap: 8px;
+}
+
+/* The open mobile menu stacks links and actions under the brand, so the bar has
+ * to wrap there. Desktop keeps `nowrap` — a wrapped pill is the "co lại làm
+ * dồng bố cục" failure. */
+.folio-preview nav[data-state="active"] .folio-nav {
+  flex-wrap: wrap;
 }
 
 .folio-nav-burger {
@@ -398,11 +400,17 @@ html.dark {
   }
 
   /* Centred by flex, not by absolute positioning. Absolute centring ignores the
-   * brand and action widths, so when the bar contracts to a pill the links run
-   * under the buttons. Auto margins centre them in the space that is actually
-   * free, at any bar width. */
+   * brand and action widths, so when the bar contracts to a pill the links ran
+   * under the theme switch. Auto margins centre them in the space that is
+   * actually free, at any bar width. */
   .folio-nav-links {
+    flex-shrink: 0;
     margin-inline: auto;
+    gap: clamp(18px, 2vw, 28px);
+  }
+
+  .folio-nav-links a {
+    white-space: nowrap;
   }
 }
 
@@ -446,57 +454,11 @@ html:not(.dark) .folio-preview > header nav.nav-scrolled {
   border-bottom-color: rgba(0, 0, 0, 0.08) !important;
 }
 
-.folio-preview header nav div.relative.flex.flex-wrap {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-}
-
-.folio-preview header nav div.absolute.inset-0 {
-  position: static !important;
-  inset: auto !important;
-  margin: 0 auto !important;
-  display: none;
-}
-
-@media (min-width: 1024px) {
-  .folio-preview header nav div.absolute.inset-0 {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    flex: 1 1 auto !important;
-  }
-
-  .folio-preview header nav div.absolute.inset-0 ul {
-    display: flex !important;
-    align-items: center !important;
-    gap: 1.75rem !important;
-  }
-}
-
-.folio-preview header nav div.flex.w-full.flex-col.gap-3.sm:flex-row.sm:items-center.lg:w-auto {
-  align-items: center !important;
-  gap: 8px !important;
-  flex-shrink: 0 !important;
-}
-
-.folio-preview header nav a[data-slot="button"] {
-  min-height: 34px !important;
-  height: 34px !important;
-  line-height: 34px !important;
-  padding-block: 0 !important;
-  border-radius: var(--folio-radius-control) !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-
-.folio-preview .nav-wordmark-sub {
-  font-size: 11px;
-  letter-spacing: 0;
-  color: var(--folio-muted);
-}
-
+/* The nav's older markup was a Tailwind utility tree (`.absolute.inset-0`,
+ * `.sm:flex-row`) patched from this sheet. The markup is now semantic
+ * (`.folio-nav-links`, `.folio-nav-actions`), so these overrides targeted
+ * nothing — and `.sm:flex-row` inside a class selector is not valid CSS, which
+ * the build reported as a parse error on every run. */
 .folio-preview [data-theme-toggle] {
   display: inline-flex !important;
   align-items: center !important;
@@ -1490,6 +1452,102 @@ html:not(.dark) .folio-preview [data-theme-toggle] button[aria-label="Light them
   .guta-grid-three { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* Org chart ---------------------------------------------------------
+ * A 2200px-wide diagram cannot shrink to 390px without losing its labels, so
+ * the figure scrolls horizontally inside its own region. The scroll container
+ * is focusable and labelled: keyboard users get the same access as drag/scroll.
+ */
+.folio-org {
+  background: var(--folio-surface);
+  border-block: 1px solid var(--folio-border);
+}
+
+/* The chart is wider than the page measure on purpose: squeezing 2400px of
+ * diagram into the 1120px text column dropped every label to ~7px. The figure
+ * breaks out to the viewport width so the same SVG renders ~30% larger, and the
+ * caption stays inside the measure so the prose still reads in one column. */
+.org-figure {
+  margin: 0;
+  width: 100%;
+  border: 1px solid var(--folio-border);
+  border-radius: var(--folio-radius-panel);
+  background: var(--folio-canvas);
+  overflow: hidden;
+}
+
+@media (min-width: 1280px) {
+  .org-figure {
+    width: min(1600px, calc(100vw - 48px));
+    margin-inline: calc((100% - min(1600px, calc(100vw - 48px))) / 2);
+  }
+}
+
+.org-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 20px 16px 8px;
+  scrollbar-width: thin;
+  overscroll-behavior-x: contain;
+}
+
+.org-scroll:focus-visible {
+  outline: 2px solid var(--folio-accent);
+  outline-offset: -2px;
+}
+
+.org-scroll .org-chart {
+  min-width: 1040px;
+}
+
+.org-caption {
+  margin: 0;
+  padding: 0 18px 16px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--folio-muted);
+}
+
+@media (min-width: 1024px) {
+  /* Wide screens fit the whole chart; the scroll region stops being needed. */
+  .org-scroll .org-chart { min-width: 0; }
+}
+
+/* Reveal: one tier at a time, parents before reports. This is a single
+ * entrance on scroll, not a loop — a chart that keeps moving would make the
+ * reporting lines harder to trace. */
+@media (prefers-reduced-motion: no-preference) {
+  html.js .folio-org .oc-card {
+    opacity: 0;
+    transform: translateY(10px);
+    transition:
+      opacity 460ms var(--ease-out),
+      transform 460ms var(--ease-out);
+    transition-delay: calc(var(--t, 0) * 90ms);
+  }
+
+  html.js .folio-org .oc-link {
+    opacity: 0;
+    transition: opacity 400ms var(--ease-out) calc(var(--t, 0) * 90ms + 60ms);
+  }
+
+  html.js .folio-org.is-in .oc-card {
+    opacity: 1;
+    transform: none;
+  }
+
+  html.js .folio-org.is-in .oc-link {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .folio-org .oc-card,
+  .folio-org .oc-link {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
 /* FAQ */
 .guta-faq {
   max-width: 760px;
@@ -1555,8 +1613,6 @@ html:not(.dark) .folio-preview [data-theme-toggle] button[aria-label="Light them
 }
 
 .workflow-status-chip,
-.workflow-toggle-icon,
-.workflow-toggle-text,
 .workflow-status-text {
   display: inline-flex;
   align-items: center;
@@ -1573,8 +1629,6 @@ html:not(.dark) .folio-preview [data-theme-toggle] button[aria-label="Light them
   background: var(--folio-canvas);
 }
 
-.workflow-btn-toggle,
-.workflow-btn-fit,
 .workflow-btn-fullscreen {
   cursor: pointer;
   display: inline-flex;
@@ -1591,13 +1645,10 @@ html:not(.dark) .folio-preview [data-theme-toggle] button[aria-label="Light them
   transition: background-color 0.15s ease;
 }
 
-.workflow-btn-toggle:hover,
-.workflow-btn-fit:hover,
 .workflow-btn-fullscreen:hover {
   background: var(--folio-surface-raised);
 }
 
-.workflow-btn-toggle svg,
 .workflow-btn-fullscreen svg {
   width: 16px;
   height: 16px;
@@ -1644,22 +1695,6 @@ html:not(.dark) .folio-preview [data-theme-toggle] button[aria-label="Light them
 
 @media (min-width: 1024px) {
   .workflow-iframe { height: 680px; }
-}
-
-.workflow-icon-play {
-  display: none;
-}
-
-.workflow-btn-toggle[data-state="paused"] .workflow-icon-pause {
-  display: none;
-}
-
-.workflow-btn-toggle[data-state="paused"] .workflow-icon-play {
-  display: block;
-}
-
-.workflow-btn-toggle[data-state="paused"] .workflow-icon-play {
-  fill: none;
 }
 
 /* Footer */

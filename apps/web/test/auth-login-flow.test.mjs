@@ -120,7 +120,7 @@ describe('Account login and session lifecycle (isolated browser fixtures)', () =
 
   async function openChat(page) {
     if (!await page.locator('.guta-chat').count()) {
-      await page.locator('nav a').filter({ hasText: /Trợ lý HR BlockBot/i }).click();
+      await page.locator('nav a.crm-copilot').click();
     }
     await page.getByPlaceholder('Hỏi AI về ca trực, nhân sự, tiền két...').waitFor();
   }
@@ -139,7 +139,6 @@ describe('Account login and session lifecycle (isolated browser fixtures)', () =
   it('đăng nhập theo quyền server và gửi Bearer token khi hỏi chatbot', async () => {
     const { page, state, errors } = await fixture();
     await signIn(page);
-    await page.getByRole('button', { name: 'Quay lại Vận Hành (CRM)', exact: true }).click();
     const roleBadge = page.getByText('Nhân viên', { exact: true });
     await roleBadge.waitFor({ state: 'visible' });
     assert.equal(await roleBadge.count(), 1);

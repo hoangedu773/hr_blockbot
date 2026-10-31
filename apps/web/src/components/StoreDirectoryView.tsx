@@ -431,7 +431,7 @@ export const StoreDirectoryView: React.FC<StoreDirectoryViewProps> = ({
         <div className="text-xs font-medium text-muted-foreground whitespace-nowrap">{pagingLabel}</div>
       </div>
 
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      <div className="crm-filter-bar mb-3 flex flex-wrap items-center gap-2">
         <input
           ref={searchInputRef}
           type="text"

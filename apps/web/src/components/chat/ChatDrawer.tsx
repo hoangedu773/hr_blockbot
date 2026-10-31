@@ -471,7 +471,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
                 color: '#ffffff',
               }}
             >
-              <img src="/assets/logos/guta-mark-pure.svg" alt="Guta Logo" style={{ width: '22px', height: '22px', objectFit: 'contain' }} />
+              <img src="/assets/logos/guta-mark-white.svg" alt="" style={{ width: '22px', height: '22px', objectFit: 'contain' }} />
             </div>
             <div>
               <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--drawer-text)', letterSpacing: '-0.01em' }}>
@@ -845,7 +845,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose }) => {
           {isTyping && (
             <div role="status" className="guta-chat-status">
               <div className="guta-thinking-avatar" aria-hidden="true">
-                <img src="/assets/logos/guta-mark-pure.svg" alt="" style={{ width: '18px', height: '18px', objectFit: 'contain' }} />
+                <img src="/assets/logos/guta-mark-white.svg" alt="" style={{ width: '18px', height: '18px', objectFit: 'contain' }} />
               </div>
               <div className="guta-thinking-content">
                 <div className="guta-thinking-header">

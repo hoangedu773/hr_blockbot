@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { BrandMark } from '../BrandMark';
 import { apiFetch, API_BASE } from '../../services/auth';
 import {
   type Citation,
@@ -303,7 +304,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   return (
     <div className="guta-chat" data-testid="chat-page">
             <aside id="copilot-sidebar" className="guta-chat-sidebar" data-open={sidebarOpen} aria-label="Điều hướng hội thoại">
-        <div className="guta-chat-brand"><img className="guta-chat-logo" src="/assets/logos/guta-mark-pure.svg" alt="" />HR-BlockBot Workspace</div>
+        <div className="guta-chat-brand"><BrandMark className="guta-chat-logo" alt="" />Guta Workspace</div>
         <button className="chat-new" type="button" onClick={newChat}>Hội thoại mới</button>
         {/* One nav, not two. The role quick replies already render in the centre
             column where the user is looking; repeating them here made the
@@ -321,12 +322,12 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
           <button type="button" aria-label="Đăng Xuất Phiên" onClick={onLogout}>Đăng xuất</button>
         </footer>
       </aside>
-      <main className="guta-chat-main" aria-label="Trợ lý HR BlockBot">
+      <main className="guta-chat-main" aria-label="Chat">
         <header className="guta-chat-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button className="chat-menu" type="button" aria-label="Mở danh sách hội thoại" aria-expanded={sidebarOpen} aria-controls="copilot-sidebar" onClick={() => setSidebarOpen(!sidebarOpen)}><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg></button>
             <div className="guta-chat-header-title">
-              <strong>Trợ lý HR BlockBot</strong>
+              <strong>Chat</strong>
               <span>{ROLE_CONFIG[currentRole].label}</span>
             </div>
           </div>
@@ -350,7 +351,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
           <section className="guta-chat-empty" aria-label="Bắt đầu hội thoại">
             <div className="guta-chat-width">
               <div className="guta-chat-hero">
-                <img src="/assets/logos/guta-mark-pure.svg" alt="HR-BlockBot Logo" />
+                <BrandMark alt="Guta Workspace" width={48} height={48} />
                 <h1 ref={headingRef} tabIndex={-1}>Chào mừng đến HR BlockBot</h1>
                 <p>Cùng bạn điều phối ca trực, tra cứu nhân sự và đối soát tiền két.</p>
               </div>
@@ -470,7 +471,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
                 {isTyping && (
                   <div className="guta-chat-status" role="status">
                     <div className="guta-thinking-avatar" aria-hidden="true">
-                      <img src="/assets/logos/guta-mark-pure.svg" alt="" />
+                      <img src="/assets/logos/guta-mark-white.svg" alt="" />
                     </div>
                     <div className="guta-thinking-content">
                       <div className="guta-thinking-header">
