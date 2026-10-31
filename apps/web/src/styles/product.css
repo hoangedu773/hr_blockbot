@@ -284,8 +284,9 @@ html:not(.dark)[data-register="product"] {
   box-shadow: none;
 }
 
-/* The mark is theme-painted at the asset level (BrandMark). Keeping a filter
-   here would double-invert the already-white glyph and wash out the petals. */
+/* In dark mode, the white asset paints crisp against the dark sidebar with no
+ * filter needed. In light mode, the white asset must invert to black against the
+ * light sidebar (#fbfbfc); otherwise white-on-white makes the logo invisible. */
 .crm-sidebar .crm-brand-mark {
   background: none;
   border: 0;
@@ -293,6 +294,11 @@ html:not(.dark)[data-register="product"] {
 
 .crm-sidebar .crm-brand-mark img {
   opacity: 0.92;
+}
+
+html:not(.dark) .crm-sidebar .crm-brand-mark img,
+html:not(.dark) .guta-thinking-avatar img {
+  filter: brightness(0);
 }
 
 .crm-header-smooth {

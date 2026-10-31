@@ -121,6 +121,21 @@ try {
     JSON.stringify({ before, ...after }),
   );
 
+  // 2b. CRM mark in light mode is inverted to black (brightness(0))
+  const crmLogoLight = await page.evaluate(() => {
+    const img = document.querySelector('.crm-brand-mark img');
+    return {
+      filter: getComputedStyle(img).filter,
+      src: img.getAttribute('src'),
+      loaded: img.complete && img.naturalWidth > 0,
+    };
+  });
+  check(
+    'CRM logo in light mode is black via filter: brightness(0)',
+    crmLogoLight.filter.includes('brightness(0)') && crmLogoLight.loaded,
+    JSON.stringify(crmLogoLight),
+  );
+
   // 3. contrast of key text pairs in light mode
   const contrast = await page.evaluate(`(() => {
     const cr = ${CONTRAST_FN};
