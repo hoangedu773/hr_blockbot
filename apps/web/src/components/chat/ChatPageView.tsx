@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { BrandMark } from '../BrandMark';
+import { ThemeToggle } from '../ThemeToggle';
 import { apiFetch, API_BASE } from '../../services/auth';
 import {
   type Citation,
@@ -338,6 +339,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
                 {user?.role === 'Admin' ? 'Quản trị viên (Admin)' : 'Nhân viên (Employee)'}
               </span>
             </div>
+            <ThemeToggle className="theme-toggle--chat" />
             <button type="button" aria-label="Quay lại CRM" onClick={() => onSwitchTab('crm')}>CRM</button>
           </div>
         </header>

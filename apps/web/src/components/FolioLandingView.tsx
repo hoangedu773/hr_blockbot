@@ -597,15 +597,21 @@ export const FolioLandingView: React.FC<FolioLandingViewProps> = ({ onLogin, isA
     // 4. Dark / Light Theme Toggle
     const lightBtn = root.querySelector('[data-theme-toggle] button[aria-label="Light theme"]');
     const darkBtn = root.querySelector('[data-theme-toggle] button[aria-label="Dark theme"]');
+    // Same key and class contract as ThemeToggle.tsx, so a choice made on the
+    // landing carries into the signed-in shell and survives a reload.
+    const persistTheme = (theme: 'light' | 'dark') => {
+      document.documentElement.classList.toggle('dark', theme === 'dark');
+      document.documentElement.classList.toggle('light', theme === 'light');
+      document.documentElement.style.colorScheme = theme;
+      try { window.localStorage.setItem('guta-theme', theme); } catch { /* storage blocked */ }
+    };
     const setLight = (e: Event) => {
       e.preventDefault();
-      document.documentElement.classList.remove('dark');
-      document.documentElement.classList.add('light');
+      persistTheme('light');
     };
     const setDark = (e: Event) => {
       e.preventDefault();
-      document.documentElement.classList.remove('light');
-      document.documentElement.classList.add('dark');
+      persistTheme('dark');
     };
     lightBtn?.addEventListener('click', setLight);
     darkBtn?.addEventListener('click', setDark);

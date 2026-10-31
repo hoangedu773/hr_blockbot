@@ -53,12 +53,12 @@ const ToastItem: React.FC<{ toast: ToastMessage; onDismiss: (id: string) => void
   return (
     <div style={{
       pointerEvents: 'auto',
-      background: 'rgba(18, 18, 20, 0.96)',
-      border: '1px solid rgba(255, 255, 255, 0.1)',
+      background: 'var(--surface-raised)',
+      border: '1px solid var(--border-control)',
       borderLeft: `3px solid ${borderColor}`,
       borderRadius: '8px',
       padding: '12px 14px',
-      boxShadow: '0 12px 30px rgba(0,0,0,0.85)',
+      boxShadow: 'var(--shadow-float)',
       display: 'flex',
       alignItems: 'flex-start',
       gap: '10px',
@@ -67,11 +67,11 @@ const ToastItem: React.FC<{ toast: ToastMessage; onDismiss: (id: string) => void
     }}>
       <div style={{ flex: 1 }}>
         {toast.title && (
-          <div style={{ fontSize: '12px', fontWeight: 700, color: '#fff', marginBottom: '2px' }}>
+          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '2px' }}>
             {toast.title}
           </div>
         )}
-        <div style={{ fontSize: '12px', color: '#cbd5e1', lineHeight: 1.4 }}>
+        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
           {toast.message}
         </div>
       </div>
@@ -80,7 +80,7 @@ const ToastItem: React.FC<{ toast: ToastMessage; onDismiss: (id: string) => void
         style={{
           background: 'none',
           border: 'none',
-          color: '#64748b',
+          color: 'var(--text-muted)',
           cursor: 'pointer',
           padding: '2px',
           fontSize: '14px',

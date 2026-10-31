@@ -9,6 +9,7 @@ import { EmployeeProfileView } from './EmployeeProfileView';
 import { ProjectListView } from './ProjectListView';
 import { RosterView } from './RosterView';
 import { StoreDirectoryView } from './StoreDirectoryView';
+import { ThemeToggle } from './ThemeToggle';
 
 export type ActiveCrmView = 'stores' | 'employees' | 'profile' | 'schedules' | 'projects' | 'settings' | 'accounts';
 export interface CrmDashboardViewProps {
@@ -102,6 +103,7 @@ const CRM_HTML = `
         </div>
 
         <div class="flex items-center gap-2 shrink-0">
+          <div id="crm-theme-portal"></div>
           <button type="button" class="crm-btn">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
             <span>Bộ lọc Quận</span>
@@ -143,6 +145,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
   onNotify,
 }) => {
   const [activeView, setActiveView] = useState<ActiveCrmView>('stores');
+  const [themePortalEl, setThemePortalEl] = useState<HTMLElement | null>(null);
   const [storesPortalEl, setStoresPortalEl] = useState<HTMLElement | null>(null);
   const [customViewPortalEl, setCustomViewPortalEl] = useState<HTMLElement | null>(null);
   const [drawerRootEl, setDrawerRootEl] = useState<HTMLElement | null>(null);
@@ -305,6 +308,8 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
       accountsNav.style.display = 'none';
     }
 
+    const themePortal = root.querySelector('#crm-theme-portal') as HTMLElement | null;
+    if (themePortal) setThemePortalEl(themePortal);
     const storesPortal = root.querySelector('#crm-stores-portal') as HTMLElement | null;
     if (storesPortal) setStoresPortalEl(storesPortal);
     const customViewPortal = root.querySelector('#crm-custom-view-portal') as HTMLElement | null;
@@ -414,6 +419,8 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
         className="min-h-full flex flex-col bg-background text-foreground antialiased"
         dangerouslySetInnerHTML={{ __html: CRM_HTML }}
       />
+      {themePortalEl &&
+        createPortal(<ThemeToggle />, themePortalEl)}
       {storesPortalEl &&
         createPortal(
           <StoreDirectoryView
@@ -495,8 +502,8 @@ const StoreDetailDrawer: React.FC<StoreDetailDrawerProps> = ({ store, outlets, o
         aria-label="Chi tiết vận hành chi nhánh"
         className={
           open
-            ? 'fixed inset-y-0 right-0 z-50 w-full max-w-md bg-neutral-900/95 backdrop-blur-2xl border-l border-white/[0.08] shadow-2xl flex flex-col h-full drawer-open'
-            : 'fixed inset-y-0 right-0 z-50 w-full max-w-md bg-neutral-900/95 backdrop-blur-2xl border-l border-white/[0.08] shadow-2xl flex flex-col h-full transform translate-x-full transition-transform duration-200'
+            ? 'fixed inset-y-0 right-0 z-50 w-full max-w-md bg-[var(--surface-card)] backdrop-blur-2xl border-l border-[var(--border-subtle)] shadow-2xl flex flex-col h-full drawer-open'
+            : 'fixed inset-y-0 right-0 z-50 w-full max-w-md bg-[var(--surface-card)] backdrop-blur-2xl border-l border-[var(--border-subtle)] shadow-2xl flex flex-col h-full transform translate-x-full transition-transform duration-200'
         }
       >
         <div className="p-6 border-b border-border flex items-start justify-between bg-muted/20 shrink-0">
@@ -551,12 +558,12 @@ const StoreDetailDrawer: React.FC<StoreDetailDrawerProps> = ({ store, outlets, o
           </div>
         </div>
 
-        <div className="p-4 border-t border-border bg-neutral-900/95 flex items-center gap-2.5 shrink-0 z-10">
+        <div className="p-4 border-t border-border bg-[var(--surface-card)] flex items-center gap-2.5 shrink-0 z-10">
           <button
             type="button"
             onClick={handleTelegram}
             disabled={!store || isSending}
-            className="flex-1 py-2.5 px-3 rounded-lg bg-zinc-700 hover:bg-zinc-800 text-white font-semibold text-xs transition-colors shadow-sm text-center cursor-pointer disabled:opacity-50"
+            className="flex-1 py-2.5 px-3 rounded-lg bg-[var(--accent-solid)] hover:opacity-90 text-[var(--accent-solid-fg)] font-semibold text-xs transition-colors shadow-sm text-center cursor-pointer disabled:opacity-50"
           >
             {isSending ? 'Đang gửi...' : 'Gửi Cảnh Báo Telegram'}
           </button>

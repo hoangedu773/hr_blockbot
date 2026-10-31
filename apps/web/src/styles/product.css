@@ -84,6 +84,31 @@
   --status-ok: var(--emerald-500);
   --status-bad: #ff7b7e;
 
+  /* One token per distinct hairline alpha, so a component never hardcodes a
+   * white-on-black wash. The light block redefines the same names as
+   * black-on-white at the same alpha — identical geometry, inverted ink. */
+  --tint-0_02: rgba(255, 255, 255, 0.02);
+  --tint-0_03: rgba(255, 255, 255, 0.03);
+  --tint-0_04: rgba(255, 255, 255, 0.04);
+  --tint-0_05: rgba(255, 255, 255, 0.05);
+  --tint-0_06: rgba(255, 255, 255, 0.06);
+  --tint-0_07: rgba(255, 255, 255, 0.07);
+  --tint-0_08: rgba(255, 255, 255, 0.08);
+  --tint-0_09: rgba(255, 255, 255, 0.09);
+  --tint-0_1: rgba(255, 255, 255, 0.1);
+  --tint-0_12: rgba(255, 255, 255, 0.12);
+  --tint-0_16: rgba(255, 255, 255, 0.16);
+  --tint-0_18: rgba(255, 255, 255, 0.18);
+  --tint-0_2: rgba(255, 255, 255, 0.2);
+  --tint-0_25: rgba(255, 255, 255, 0.25);
+  --tint-0_28: rgba(255, 255, 255, 0.28);
+  --tint-0_3: rgba(255, 255, 255, 0.3);
+  --tint-0_6: rgba(255, 255, 255, 0.6);
+  --scrim: rgba(0, 0, 0, 0.62);
+  --shadow-panel: 0 24px 60px rgba(0, 0, 0, 0.6);
+  --shadow-float: 0 10px 30px rgba(0, 0, 0, 0.5);
+  --code-surface: #111111;
+
   --row-height: 42px;
   --control-height: 34px;
   --sidebar-width: 224px;
@@ -100,6 +125,58 @@
   --radius-panel: 14px;
   --radius-panel-lg: 16px;
   --radius-panel-xl: 24px;
+}
+
+/* Light counterpart. Same names, same roles; only values change.
+ * No descendant space after `html:not(.dark)`: `data-register` is set on <html>
+ * itself, so a descendant selector matches nothing and the shell stays dark.
+ * Measured on the light surfaces: primary 16.6-17.8:1, secondary 6.8-8.0:1,
+ * muted 4.9-6.1:1. Muted is #5f6673 rather than #6b7280 because the lighter
+ * value fell to 4.10:1 on the sunken well, under AA for 12px labels. */
+html:not(.dark)[data-register="product"] {
+  --surface-canvas: #f7f7f8;
+  --surface-card: #ffffff;
+  --surface-raised: #f0f0f2;
+  --surface-sidebar: #fbfbfc;
+  --surface-sunken: #ececef;
+
+  --border-subtle: rgba(0, 0, 0, 0.09);
+  --border-control: rgba(0, 0, 0, 0.16);
+  --border-focus: #5f6673;
+
+  --text-primary: #16181d;
+  --text-secondary: #4a5160;
+  --text-muted: #5f6673;
+
+  --accent-solid: #16181d;
+  --accent-solid-fg: #ffffff;
+  --accent-action: #1d4ed8;
+  --accent-quiet: rgba(29, 78, 216, 0.10);
+
+  --status-ok: #047857;
+  --status-bad: #b91c1c;
+
+  --tint-0_02: rgba(0, 0, 0, 0.02);
+  --tint-0_03: rgba(0, 0, 0, 0.03);
+  --tint-0_04: rgba(0, 0, 0, 0.04);
+  --tint-0_05: rgba(0, 0, 0, 0.05);
+  --tint-0_06: rgba(0, 0, 0, 0.06);
+  --tint-0_07: rgba(0, 0, 0, 0.07);
+  --tint-0_08: rgba(0, 0, 0, 0.08);
+  --tint-0_09: rgba(0, 0, 0, 0.09);
+  --tint-0_1: rgba(0, 0, 0, 0.1);
+  --tint-0_12: rgba(0, 0, 0, 0.12);
+  --tint-0_16: rgba(0, 0, 0, 0.16);
+  --tint-0_18: rgba(0, 0, 0, 0.18);
+  --tint-0_2: rgba(0, 0, 0, 0.2);
+  --tint-0_25: rgba(0, 0, 0, 0.25);
+  --tint-0_28: rgba(0, 0, 0, 0.28);
+  --tint-0_3: rgba(0, 0, 0, 0.3);
+  --tint-0_6: rgba(0, 0, 0, 0.6);
+  --scrim: rgba(17, 20, 26, 0.42);
+  --shadow-panel: 0 24px 60px rgba(16, 20, 28, 0.16);
+  --shadow-float: 0 10px 30px rgba(16, 20, 28, 0.12);
+  --code-surface: #f2f2f4;
 }
 
 /* ------------------------------------------------------------------ *
@@ -164,7 +241,7 @@
   --surface: #121214;
   --surface-hover: var(--surface-raised);
   --border: var(--border-subtle);
-  --border-strong: rgba(255, 255, 255, 0.16);
+  --border-strong: var(--tint-0_16);
   --border-highlight: rgba(37, 99, 235, 0.35);
   --text: var(--text-primary);
   --text-faint: var(--text-muted);
@@ -604,7 +681,7 @@
 .crm-page-head,
 .crm-table,
 #detail-drawer {
-  --crm-ink-muted: #8a8a8a;
+  --crm-ink-muted: var(--text-secondary);
 }
 
 .crm-icon-btn {
@@ -952,7 +1029,7 @@
   position: fixed;
   inset: 0;
   z-index: 240;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--scrim);
   backdrop-filter: none;
   opacity: 0;
   pointer-events: none;
@@ -1373,7 +1450,7 @@
 .timeline-row {
   display: grid;
   grid-template-columns: 180px 1fr;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--tint-0_04);
   padding: 10px 12px;
   align-items: center;
   cursor: pointer;
@@ -1415,9 +1492,9 @@
 }
 
 .btn--danger {
-  border-color: rgba(244, 63, 94, 0.4);
-  background: rgba(244, 63, 94, 0.12);
-  color: #fda4af;
+  border-color: color-mix(in oklab, var(--status-bad) 40%, transparent);
+  background: color-mix(in oklab, var(--status-bad) 12%, transparent);
+  color: var(--status-bad);
 }
 
 .btn--ghost {
@@ -1600,7 +1677,7 @@
   /* Menu at card level, active option at raised level: if the menu used the
      raised tone the highlight would be invisible. */
   background: var(--surface-card);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-float);
   animation: select-in 125ms var(--ease-out);
   outline: none;
 }
@@ -1666,7 +1743,7 @@
 
 .field__error {
   font-size: 11px;
-  color: #fda4af;
+  color: var(--status-bad);
 }
 
 .card {
@@ -1691,7 +1768,7 @@
   padding: 2px 8px;
   border-radius: var(--radius-pill);
   border: 1px solid var(--border-subtle);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--tint-0_05);
   color: var(--text-secondary);
   font-size: 10px;
   font-weight: 700;
@@ -1713,9 +1790,9 @@
 }
 
 .chip--err {
-  border-color: rgba(244, 63, 94, 0.4);
-  background: rgba(244, 63, 94, 0.12);
-  color: #fda4af;
+  border-color: color-mix(in oklab, var(--status-bad) 40%, transparent);
+  background: color-mix(in oklab, var(--status-bad) 12%, transparent);
+  color: var(--status-bad);
 }
 
 .chip--info {
@@ -1775,7 +1852,7 @@
 
 .table td {
   padding: 11px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--tint-0_05);
   vertical-align: middle;
 }
 
@@ -1809,7 +1886,7 @@
   position: relative;
   height: 6px;
   border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--tint-0_08);
   overflow: hidden;
 }
 
@@ -1850,7 +1927,7 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.25);
+  border: 2px solid var(--tint-0_25);
   border-top-color: currentColor;
   animation: spin 700ms linear infinite;
 }
@@ -1879,9 +1956,9 @@
   overflow-y: auto;
   padding: 20px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--tint-0_12);
   background: var(--surface-card);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  box-shadow: var(--shadow-panel);
   animation: sheet-enter 200ms var(--ease-out);
 }
 
@@ -2134,6 +2211,74 @@
   --chat-hairline: var(--border-subtle);
 }
 
+/* --- Theme toggle (shared by CRM and chat) ------------------------ */
+
+/* Same two-button segmented control as the landing, rebuilt on product tokens
+ * so it inherits the shell's borders and text colours. */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 34px;
+  padding: 2px;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-pill);
+  background: var(--surface-raised);
+  flex-shrink: 0;
+}
+
+.theme-toggle button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 140ms var(--ease-out), background-color 140ms var(--ease-out);
+}
+
+.theme-toggle button:hover {
+  color: var(--text-primary);
+  background: var(--tint-0_05);
+}
+
+.theme-toggle button[aria-pressed="true"] {
+  background: var(--surface-card);
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px var(--tint-0_2);
+}
+
+.theme-toggle button:focus-visible {
+  outline: 2px solid var(--accent-action);
+  outline-offset: 1px;
+}
+
+.theme-toggle svg {
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
+.theme-toggle--chat {
+  height: 30px;
+  padding: 1px;
+}
+
+.theme-toggle--chat button {
+  width: 26px;
+  height: 26px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-toggle button { transition: none; }
+}
+
 /* --- Chat page ---------------------------------------------------- */
 
 .guta-chat {
@@ -2142,10 +2287,10 @@
   --chat-card: #1e1e1e;
   --chat-text: #f5f5f5;
   --chat-muted: #b4b4b4;
-  --chat-border: rgba(255, 255, 255, 0.1);
+  --chat-border: var(--tint-0_1);
   --chat-accent: #ffffff;
-  --chat-focus: rgba(255, 255, 255, 0.3);
-  --chat-hover: rgba(255, 255, 255, 0.08);
+  --chat-focus: var(--tint-0_3);
+  --chat-hover: var(--tint-0_08);
   --chat-font: var(--font-sans, "Geist", system-ui, sans-serif);
   display: flex;
   height: 100dvh;
@@ -2154,6 +2299,18 @@
   color: var(--chat-text);
   font: 16px/1.6 var(--chat-font);
   color-scheme: dark;
+}
+
+/* Light chat. `color-scheme` follows the theme so native controls (scrollbars,
+ * pickers) stop rendering dark chrome on a white page. */
+html:not(.dark) .guta-chat {
+  --chat-bg: #ffffff;
+  --chat-sidebar: #f7f7f8;
+  --chat-card: #f2f2f4;
+  --chat-text: #16181d;
+  --chat-muted: #5f6673;
+  --chat-accent: #16181d;
+  color-scheme: light;
 }
 
 .guta-chat *,
@@ -2445,15 +2602,15 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--tint-0_05);
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--tint-0_12);
   border-radius: var(--radius-pill);
   padding: 6px 8px 6px 14px;
 }
 
 .guta-chat-composer:focus-within {
-  border-color: rgba(255, 255, 255, 0.28);
+  border-color: var(--tint-0_28);
 }
 
 .guta-chat .sr-only {
@@ -2513,7 +2670,7 @@
 }
 
 .guta-chat .chat-attach-btn {
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--tint-0_6);
   background: transparent;
 }
 
@@ -2528,8 +2685,8 @@
 
 .guta-chat .chat-send:disabled {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.3);
+  background: var(--tint-0_08);
+  color: var(--tint-0_3);
 }
 
 .guta-chat-note {
@@ -2804,7 +2961,7 @@
   position: fixed;
   inset: 0;
   z-index: 240;
-  background: rgba(0, 0, 0, 0.65);
+  background: var(--scrim);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -2885,7 +3042,7 @@
 }
 
 .guta-chat-drawer .guta-verified-badge {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--tint-0_06);
   border-color: var(--drawer-border);
 }
 
@@ -2912,8 +3069,8 @@
   justify-content: center;
   flex-shrink: 0;
   border-radius: var(--radius-control);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--tint-0_08);
+  background: var(--tint-0_05);
   color: var(--drawer-muted);
   cursor: pointer;
   transition: color var(--t-press) var(--ease-out),
@@ -2928,8 +3085,8 @@
   flex-wrap: wrap;
   min-width: 0;
   padding: 8px 14px;
-  background: rgba(255, 255, 255, 0.02);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--tint-0_02);
+  border-bottom: 1px solid var(--tint-0_06);
 }
 
 /* Message log. `contain` stops the drawer's scroll chaining from dragging the
@@ -2948,7 +3105,7 @@
   padding: 12px 16px;
   border-radius: 16px;
   background: var(--drawer-raised);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--tint-0_07);
   color: var(--drawer-text);
   font-size: 13.5px;
   line-height: 1.6;
@@ -2976,8 +3133,8 @@
   margin-top: 10px;
   padding: 10px 12px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--tint-0_04);
+  border: 1px solid var(--tint-0_12);
 }
 
 .guta-chat-citations {
@@ -2992,8 +3149,8 @@
   min-height: 44px;
   padding: 10px 14px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: var(--tint-0_04);
+  border: 1px solid var(--tint-0_09);
   color: var(--drawer-text);
   font-size: 12.5px;
   cursor: pointer;
@@ -3007,8 +3164,8 @@
 
 .guta-chat-prompt--ghost {
   padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.03);
-  border-color: rgba(255, 255, 255, 0.07);
+  background: var(--tint-0_03);
+  border-color: var(--tint-0_07);
 }
 
 .guta-chat-drawer-composer {
@@ -3025,8 +3182,8 @@
   min-width: 0;
   padding: 10px 14px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--tint-0_04);
+  border: 1px solid var(--tint-0_1);
   color: var(--drawer-text);
   font-size: 13px;
   outline: none;
@@ -3141,16 +3298,16 @@
 
   .guta-chat-prompts button:hover,
   .guta-chat-sidebar nav button:hover {
-    border-color: rgba(255, 255, 255, 0.2);
+    border-color: var(--tint-0_2);
   }
 
   .guta-chat-drawer .guta-chat-drawer-close:hover {
     color: var(--drawer-text);
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: var(--tint-0_1);
   }
 
   .guta-chat-drawer .guta-chat-prompt:hover:not(:disabled) {
-    background-color: rgba(255, 255, 255, 0.07);
+    background-color: var(--tint-0_07);
   }
 }
 
@@ -3227,12 +3384,12 @@ button:active:not(:disabled),
   }
 
   .timeline-row:hover {
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--tint-0_02);
   }
 
   .btn:hover:not(:disabled) {
     background: var(--surface-raised);
-    border-color: rgba(255, 255, 255, 0.18);
+    border-color: var(--tint-0_18);
   }
 
   .btn--primary:hover:not(:disabled) {
@@ -3248,7 +3405,7 @@ button:active:not(:disabled),
   .input:hover:not(:disabled),
   .select:hover:not(:disabled),
   .textarea:hover:not(:disabled) {
-    border-color: rgba(255, 255, 255, 0.2);
+    border-color: var(--tint-0_2);
   }
 
   .card--interactive:hover {
@@ -3262,7 +3419,7 @@ button:active:not(:disabled),
 
   .nav-item:hover:not([aria-current="page"]) {
     color: var(--text-primary);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--tint-0_04);
   }
 
   .citation-chip:hover {
@@ -3502,7 +3659,7 @@ button:active:not(:disabled),
     align-items: stretch;
     gap: 6px;
     padding: 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--tint-0_08);
   }
 
   .timeline-track-cell {

@@ -10,6 +10,20 @@
     <!-- The landing's entrance animations only hide their start state behind `html.js`.
          With scripting off (or the script blocked) the page renders finished. -->
     <script>document.documentElement.classList.add('js');</script>
+    <!-- Apply the stored theme before first paint. Without this the shell paints
+         dark and then flips, which is a visible flash on every load for anyone
+         who chose light. Kept inline and dependency-free for that reason. -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('guta-theme');
+          var theme = stored === 'light' || stored === 'dark' ? stored : 'dark';
+          document.documentElement.classList.toggle('dark', theme === 'dark');
+          document.documentElement.classList.toggle('light', theme === 'light');
+          document.documentElement.style.colorScheme = theme;
+        } catch (e) { /* storage blocked: keep the dark default from the html tag */ }
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="/assets/logos/guta-mark-ink.svg" media="(prefers-color-scheme: light)" />
     <link rel="icon" type="image/svg+xml" href="/assets/logos/guta-mark-white.svg" media="(prefers-color-scheme: dark)" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />

@@ -482,7 +482,7 @@ export const StoreDirectoryView: React.FC<StoreDirectoryViewProps> = ({
           <button
             type="button"
             onClick={openCreateForm}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-zinc-700 to-zinc-800 hover:from-zinc-400 hover:to-zinc-700 text-white text-xs font-bold transition-colors shadow-sm cursor-pointer active:scale-95 transition-transform"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--accent-solid)] hover:opacity-90 text-[var(--accent-solid-fg)] text-xs font-bold transition-colors shadow-sm cursor-pointer active:scale-95 transition-transform"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg>
             <span>Thêm cửa hàng</span>
