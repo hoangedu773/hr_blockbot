@@ -2,7 +2,7 @@ import { Router } from "express";
 import { DashboardOverviewSchema } from "@hr-blockbot/contracts";
 import { EmployeeModel } from "../models/Employee.js";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
-import { workflowEndpoint as endpoint } from "./projects.js";
+import { endpoint as endpoint } from "../lib/endpoint.js";
 import { allowedStoreIds, employeeScopeQuery } from "../services/authorization-scope.service.js";
 const router = Router();
 router.get("/dashboard/overview", authenticateToken, endpoint(async (req, res) => {

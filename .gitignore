@@ -6,6 +6,8 @@ node_modules/
 # Build output
 dist/
 build/
+# Generated verification bundle (was tracked by mistake; `pnpm --filter web build` owns dist/)
+apps/web/dist-verify/
 .next/
 out/
 coverage/

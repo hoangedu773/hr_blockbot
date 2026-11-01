@@ -41,6 +41,7 @@ pnpm --filter @hr-blockbot/contracts test
 pnpm --filter api test
 pnpm --filter web test
 apps/ai-service/.venv-authz-v1/Scripts/python.exe -m pytest -q -ra
+apps/ai-service/.venv-authz-v1/Scripts/python.exe -m pytest -q -m legacy
 node apps/web/test/authorization-v1.integration.mjs
 node apps/web/test/crm-completion-v1.integration.mjs
 node apps/web/test/crm-workflow.integration.mjs

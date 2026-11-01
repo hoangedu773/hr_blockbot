@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
-import { workflowEndpoint as endpoint } from "./projects.js";
+import { endpoint as endpoint } from "../lib/endpoint.js";
 import { pageInitialReporting, getInitialReporting, initialReportingOptions, initialReportingManagers, proposeInitialReporting, approveInitialReporting, resumeInitialReporting } from "../services/onboarding-reporting.service.js";
 const router = Router();
 router.use("/initial-reporting", authenticateToken);

@@ -5,7 +5,7 @@ import {
 } from "@hr-blockbot/contracts";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
 import { ProjectModel } from "../models/Project.js";
-import { workflowEndpoint as endpoint } from "./projects.js";
+import { endpoint as endpoint } from "../lib/endpoint.js";
 import { WorkflowError, projectReadScope, visibleProject, projectDtos, assertProjectManagement } from "../services/project-workflow.service.js";
 import { allowedStoreIds, hasCapability } from "../services/authorization-scope.service.js";
 import { respondToAssignment, reviewAssignment, confirmHandover, assignmentMessage, effectiveAssignment } from "../services/assignment.service.js";

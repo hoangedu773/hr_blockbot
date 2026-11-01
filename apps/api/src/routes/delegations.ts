@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
-import { workflowEndpoint } from "./projects.js";
+import { endpoint as workflowEndpoint } from "../lib/endpoint.js";
 import { createDelegation, delegationDto, delegationRecipients, pageDelegations, getDelegation, reviewDelegation, revokeDelegation } from "../services/delegation.service.js";
 import { WorkflowError } from "../services/project-workflow.service.js";
 const router = Router();

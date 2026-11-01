@@ -4,7 +4,7 @@ import { EmployeeCreateSchema, DepartmentCreateSchema, DepartmentUpdateSchema, D
 import { authenticateToken } from "../middlewares/auth.middleware.js";
 import { EmployeeModel } from "../models/Employee.js";
 import { DepartmentModel } from "../models/Department.js";
-import { workflowEndpoint as endpoint } from "./projects.js";
+import { endpoint as endpoint } from "../lib/endpoint.js";
 import { WorkflowError, assertDepartmentWrite, referenceMatch, objectId } from "../services/project-workflow.service.js";
 import { employeeDepartment, employeeDepartmentScope, employeeDto, canActOnEmployee } from "../services/employee-profile.service.js";
 import { requireCapability, resourceScope } from "../services/authorization-scope.service.js";

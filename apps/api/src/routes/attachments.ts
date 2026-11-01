@@ -4,7 +4,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
 import { authorizeAttachment } from "../services/document-authorization.service.js";
-import { workflowEndpoint as endpoint } from "./projects.js";
+import { endpoint as endpoint } from "../lib/endpoint.js";
 
 const router = Router();
 

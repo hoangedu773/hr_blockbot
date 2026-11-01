@@ -13,7 +13,7 @@ import {
 import { EmployeeModel } from "../models/Employee.js";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
 import { departmentIdMatch } from "../lib/department-scope.js";
-import { workflowEndpoint as endpoint } from "./projects.js";
+import { endpoint as endpoint } from "../lib/endpoint.js";
 import { WorkflowError, objectId } from "../services/project-workflow.service.js";
 import { hasCapability, requireCapability, employeeScopeQuery, resourceScope, AuthorizationDeniedError } from "../services/authorization-scope.service.js";
 import { canActOnEmployee, employeeDepartmentScope, employeeDto, saveProfile, toProfileChangeRequest } from "../services/employee-profile.service.js";

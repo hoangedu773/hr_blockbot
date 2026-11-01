@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { ChatRequestSchema } from "@hr-blockbot/contracts";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
-import { workflowEndpoint as endpoint } from "./projects.js";
+import { endpoint as endpoint } from "../lib/endpoint.js";
 import { authorizedChat } from "../services/chat-authorization.service.js";
 import { WorkflowError } from "../services/project-workflow.service.js";
 const router = Router();

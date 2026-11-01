@@ -3,11 +3,11 @@ import { useAuth } from '../../context/AuthContext';
 import { BrandMark } from '../BrandMark';
 import { ThemeToggle } from '../ThemeToggle';
 import { apiFetch, API_BASE } from '../../services/auth';
-import {
-  type Citation,
-  type ProposedAction,
-  type Attachment,
-} from './ChatDrawer';
+import type {
+  Citation,
+  ProposedAction,
+  Attachment,
+} from '../../types/chat';
 
 interface ChatPageViewProps {
   onSwitchTab: (tab: 'crm' | 'chat') => void;

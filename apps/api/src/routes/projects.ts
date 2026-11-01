@@ -1,6 +1,7 @@
-import { Router, Request, Response, NextFunction } from "express";
+import { Router, Request, Response } from "express";
 import mongoose from "mongoose";
 import { z } from "zod";
+import { endpoint } from "../lib/endpoint.js";
 import {
   ProjectCreateSchema, ProjectUpdateSchema, ProjectAssignSchema, ProjectTransitionSchema,
   ProjectProgressSchema, PaginationQuerySchema, ProjectStatusSchema, PaginatedProjectsResponseSchema,
@@ -27,17 +28,6 @@ const filtersSchema = PaginationQuerySchema.extend({
   dueFrom: z.string().datetime({ offset: true }).optional(), dueTo: z.string().datetime({ offset: true }).optional(),
   assignmentView: z.enum(["AWAITING_ACCEPTANCE", "PENDING_REQUESTS", "HANDOVER"]).optional(),
 });
-const endpoint = (handler: (req: Request, res: Response) => Promise<void>) =>
-  async (req: Request, res: Response, next: NextFunction) => {
-    try { await handler(req, res); } catch (error: any) {
-      if (error instanceof z.ZodError || error?.name === "ZodError" && Array.isArray(error.issues)) {
-        res.status(400).json({ error: { code: "VALIDATION_FAILED", message: "Tham số không hợp lệ; kiểm tra bộ lọc và phân trang." } });
-      } else if (error instanceof WorkflowError || (error && typeof error.status === "number" && error.code)) {
-        res.status(error.status).json({ error: { code: error.code, message: error.message } });
-      } else next(error);
-    }
-  };
-export { endpoint as workflowEndpoint };
 
 async function validateAssignee(user: NonNullable<Express.Request["user"]>, id: string, project: any): Promise<void> {
   const employee: any = await EmployeeModel.findById(objectId(id)).lean();

@@ -1010,7 +1010,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     );
     assert.equal(await page.getByText(/581 Sư Vạn Hạnh/i).isVisible(), true);
 
-    // 4. ChatDrawer Trigger Button State
+    // 4. Chat composer trigger button state
     await page.locator('nav a.crm-copilot').click();
     const chatInput = page.getByPlaceholder('Hỏi AI về ca trực, nhân sự, tiền két...');
     const sendBtn = page.getByRole('button', { name: 'Gửi', exact: true });

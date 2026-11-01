@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { workflowEndpoint as endpoint } from "./projects.js";
+import { endpoint as endpoint } from "../lib/endpoint.js";
 import { executeGatewayTool, serviceKeyValid } from "../services/chat-authorization.service.js";
 import { WorkflowError } from "../services/project-workflow.service.js";
 import mongoose from "mongoose";

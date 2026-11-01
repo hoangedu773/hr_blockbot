@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { ActivationRequestSchema } from "@hr-blockbot/contracts";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
-import { workflowEndpoint as endpoint } from "./projects.js";
+import { endpoint as endpoint } from "../lib/endpoint.js";
 import { WorkflowError } from "../services/project-workflow.service.js";
 import { createLifecycle, reviewLifecycle, confirmLifecycle, resumeLifecycle, activateLifecycle, pageLifecycle, getLifecycle, lifecycleDto } from "../services/employee-lifecycle.service.js";
 const router = Router();

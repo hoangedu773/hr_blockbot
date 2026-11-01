@@ -3,7 +3,7 @@ import { z } from "zod";
 import { PaginationQuerySchema } from "@hr-blockbot/contracts";
 import { UserModel } from "../models/User.js";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
-import { workflowEndpoint as endpoint } from "./projects.js";
+import { endpoint as endpoint } from "../lib/endpoint.js";
 import { requireCapability, resolveCanonicalContext } from "../services/authorization-scope.service.js";
 import { EmployeeModel } from "../models/Employee.js";
 import { accountMetadata, setAccountStatus, redactedSecurityAudit } from "../services/account-security.service.js";

@@ -2,7 +2,7 @@ import { Router, type Request } from "express";
 import { z } from "zod";
 import { OnboardingReviewSchema, ActivationRequestSchema } from "@hr-blockbot/contracts";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
-import { workflowEndpoint as endpoint } from "./projects.js";
+import { endpoint as endpoint } from "../lib/endpoint.js";
 import { createOnboarding, reviewOnboarding, pageOnboarding, getOnboarding, resubmitOnboarding, resumeOnboarding, submitOnboarding, activateOnboarding, onboardingDto, type OnboardingOptions } from "../services/onboarding.service.js";
 import { WorkflowError } from "../services/project-workflow.service.js";
 import { completePasswordRecovery } from "../services/password-recovery.service.js";

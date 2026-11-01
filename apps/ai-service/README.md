@@ -35,13 +35,23 @@ python start.py
 
 ## Kiểm thử:
 
+Two lanes, both required before a merge that touches `apps/ai-service`:
+
 ```bash
-# Chạy toàn bộ test probes
-pytest tests/ -v
+# Default lane: only what app.authorization_gateway:app actually mounts
+pytest -q
+
+# Legacy lane: app.main, agent loop, RAG corpus — offline regression only
+pytest -q -m legacy
 
 # Hermetic V1 transport tests (mock API/provider, no database or real account)
 pytest tests/test_authorization_gateway.py -q
 ```
+
+`pytest.ini` sets `addopts = -m "not legacy and not eval"`; `tests/conftest.py`
+assigns the `legacy` marker by module name. `tests/test_v1_runtime_boundary.py`
+fails if the gateway ever starts importing `app.main`, `app.agent`, `app.rag` or
+`app.db`.
 
 Cross-language HTTP integration (from the repository root, after building API):
 

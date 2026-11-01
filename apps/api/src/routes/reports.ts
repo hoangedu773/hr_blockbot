@@ -4,7 +4,7 @@ import { ReportSubmitSchema, ReportReviewSchema, PaginationQuerySchema, ReportSt
 import { ProjectModel } from "../models/Project.js";
 import { ReportModel } from "../models/Report.js";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
-import { workflowEndpoint as endpoint } from "./projects.js";
+import { endpoint as endpoint } from "../lib/endpoint.js";
 import {
   WorkflowError, visibleProject, assertProjectWrite, assertProjectManagement, objectId,
   reportDto, referenceMatch, versionFilter, conflict, historyEntry, assertExecutionAllowed,
