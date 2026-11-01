@@ -1,5 +1,7 @@
 # 04 — Mô hình miền (Domain Model)
 
+> Cập nhật 31/10/2026: quy tắc tiếp nhận/trách nhiệm/từ chối/giao lại tại §4.6, BR-21 và Q-10/Q-11 bên dưới được thay thế bởi [ADR-021](03-decision-records/ADR-021-assignment-consent-handover-hash-proof.md), theo quyết định chủ dự án. Chưa tiếp nhận không phát sinh trách nhiệm; chuyển giao đang làm cần quản lý duyệt và hai bên xác nhận. Các đoạn PROPOSED cũ giữ làm lịch sử thiết kế, không còn là chính sách áp dụng cho luồng mới.
+
 Khóa luận KLCN133 — *Xây dựng Chatbot chuyển đổi số quản lý nhân sự*.
 File này định nghĩa **ngôn ngữ thống nhất**, **ranh giới miền nghiệp vụ**, **machine trạng thái vòng đời
 đề tài** và **quy tắc nghiệp vụ**. File kế tiếp (`05-data-model.md`) dịch các khái niệm ở đây sang

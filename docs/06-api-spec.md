@@ -1,5 +1,11 @@
 # 06 — Đặc tả API (REST + WebSocket + hợp đồng nội bộ)
 
+> **Tiếp nối F1:** đã có POST `/api/employees` (Admin đúng đơn vị), GET `/api/employees/:id/management` (admin allowlist riêng cho edit), POST `/api/departments` (global Admin), GET/PATCH `/api/departments/:id` (Admin đúng đơn vị/global, `expectedVersion`). Không có delete/transfer/rename-code không kiểm soát; managerId là metadata, không cấp role. Unique keys cho creates mới phải có index sẵn, kiểm mã legacy trước insert; [báo cáo và giới hạn rollout](../plans/261031-crm-technical-review/personnel-admin-report.md).
+
+> **Implementation delta 31/10 — có hiệu lực trên các bảng baseline cũ bên dưới:** PATCH `/api/employees/:id` đã triển khai cho thông tin thường, yêu cầu `expectedVersion` từ own DTO `profileVersion`; field nhạy cảm/ngoài allowlist bị chặn. POST `/api/employees/:id/change-requests`, GET lịch sử và GET `/api/change-requests?status=` đã có; POST `/api/employees/:id/change-requests/:requestId/review` duyệt/từ chối thật, bắt lý do khi từ chối, CAS/snapshot/no-self-approval/scope. Request bị từ chối được gửi lại bằng `previousRequestId`; chưa có push/nhắc hồ sơ hàng ngày. New project create bắt buộc `dueDate`; legacy không có hạn vẫn đọc được. Hai đường confirm socket chưa có executor, không được báo đã thực thi. Schema thực thi tại shared Zod; [review và khoảng trống FR](../plans/261031-crm-technical-review/review-report.md).
+
+> Bổ sung có hiệu lực 31/10/2026: API tiếp nhận/từ chối/xin đổi/phê duyệt/bàn giao/trao đổi/chuyển cấp/hash proof tại [ADR-021 §6](03-decision-records/ADR-021-assignment-consent-handover-hash-proof.md). Shared Zod là schema thực thi; các enum PROPOSED cũ cho nhánh chưa đặc tả không ghi đè quy trình mới được chủ dự án phê duyệt.
+
 Khóa luận KLCN133 — *Xây dựng Chatbot chuyển đổi số quản lý nhân sự*. File này là **hợp đồng** giữa
 `apps/web`, `apps/api` và `apps/ai-service`: bảng endpoint theo module, error catalog, 9 event Socket.IO, và
 biên nội bộ Node → Python.

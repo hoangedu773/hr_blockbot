@@ -117,7 +117,7 @@ const FOLIO_HTML = `
                   <div class="crm-metric-foot">Cần Admin đối chiếu &amp; xác nhận</div>
                 </div>
                 <div class="crm-metric-box">
-                  <div class="crm-metric-head"><span>Gợi ý PhoBERT</span><span class="crm-tag-success">Semantic match</span></div>
+                  <div class="crm-metric-head"><span>Gợi ý nhân sự</span><span class="crm-tag-success">Semantic match</span></div>
                   <div class="crm-metric-value">94.2% <small>độ tương đồng</small></div>
                   <div class="crm-metric-foot">Khớp kỹ năng hồ sơ với yêu cầu việc</div>
                 </div>
@@ -141,7 +141,7 @@ const FOLIO_HTML = `
                     <div class="crm-stage-header"><span class="crm-stage-name">2. Đã giao</span><span class="crm-stage-count">1</span></div>
                     <div class="crm-cards-list">
                       <div class="crm-card" data-enter="card-in-col" style="--i:0">
-                        <div class="crm-card-tags"><span class="crm-pill crm-pill-green">PhoBERT 95%</span><span class="crm-pill crm-pill-gray">SOP-04</span></div>
+                        <div class="crm-card-tags"><span class="crm-pill crm-pill-green">Gợi ý tham khảo</span><span class="crm-pill crm-pill-gray">SOP-04</span></div>
                         <h4 class="crm-card-title">Rà soát quy chế ca 24H</h4>
                         <p class="crm-card-desc">Cập nhật quy định chấm công ZKTeco và phụ cấp ca đêm.</p>
                         <div class="crm-card-meta"><div class="crm-avatar">VA</div><span>Nguyễn Văn An (Senior)</span></div>
@@ -215,7 +215,7 @@ const FOLIO_HTML = `
                       <div class="crm-msg-cite">Quy định vận hành F&amp;B: xác nhận trước khi chốt két</div>
                     </div>
                     <div class="crm-recommendation-box">
-                      <div class="crm-rec-label">Gợi ý phân công PhoBERT</div>
+                      <div class="crm-rec-label">Gợi ý phân công</div>
                       <h5>Ca trực: tăng cường barista giờ cao điểm</h5>
                       <div class="crm-rec-candidate">
                         <div class="crm-avatar-sm">LC</div>
@@ -268,10 +268,10 @@ const FOLIO_HTML = `
         <article class="bento-card" data-enter="card" style="--i:0">
           <header>
             <h3>Phân công theo kỹ năng</h3>
-            <p>Barista mới vào ca tối được xếp đúng ô trống; điểm PhoBERT và tải việc hiện ngay cạnh tên.</p>
+            <p>Barista mới vào ca tối được xếp đúng ô trống; điểm gợi ý và tải việc hiện ngay cạnh tên.</p>
           </header>
           <div class="story story--assign" data-loop data-ui aria-hidden="true">
-            <div class="story-top"><span class="story-cap">Ca tăng cường · 17:00–21:00</span><span class="story-cap">Điểm PhoBERT</span></div>
+            <div class="story-top"><span class="story-cap">Ca tăng cường · 17:00–21:00</span><span class="story-cap">Điểm tham khảo</span></div>
             <ul class="assign-list">
               <li class="assign-row-wrap">
                 <span class="assign-slot story-anim">Ô trống — chờ xếp người</span>

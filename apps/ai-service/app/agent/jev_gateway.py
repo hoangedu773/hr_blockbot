@@ -17,7 +17,8 @@ from app.agent.jev_usejevai import (
     UseJevError,
     UseJevKeyPool,
 )
-from app.config import settings
+from app.config import Settings, settings
+from app.deadline import remaining_seconds
 from app.llm.base import ChatMessage, CompletionOptions, LLMUnavailable, ProviderError
 from app.llm.chain import ProviderChain, build_chain
 
@@ -171,13 +172,14 @@ def default_chain() -> ProviderChain:
 _POOLS: dict[str, UseJevKeyPool] = {}
 
 
-def usejevai_pool() -> UseJevKeyPool:
+def usejevai_pool(config: Settings | None = None) -> UseJevKeyPool:
     """One pool per key string, so rotation state survives across requests.
 
     An empty setting yields an empty pool (`bool(pool) is False`), which keeps the
     old behaviour: no UseJevAI keys -> straight to the LLM fallback.
     """
-    raw = settings.jev_usejevai_keys.strip()
+    config = config if config is not None else settings
+    raw = config.jev_usejevai_keys.strip()
     if not raw:
         return UseJevKeyPool([])
     pool = _POOLS.get(raw)
@@ -185,7 +187,7 @@ def usejevai_pool() -> UseJevKeyPool:
         # J-6: keep exactly one pool. Rotating the key set must not leave the previous
         # pool (with its dead-key state) alive for the process lifetime.
         _POOLS.clear()
-        pool = UseJevKeyPool(raw.split(","), cooldown_seconds=settings.jev_usejevai_cooldown_seconds)
+        pool = UseJevKeyPool(raw.split(","), cooldown_seconds=config.jev_usejevai_cooldown_seconds)
         _POOLS[raw] = pool
     return pool
 
@@ -234,25 +236,32 @@ def json_object(text: str) -> dict[str, object]:
 
 
 class JevGateway:
-    def __init__(self, chain: ProviderChain, *, client: httpx.Client | None = None) -> None:
+    def __init__(self, chain: ProviderChain, *, client: httpx.Client | None = None, settings_override: Settings | None = None) -> None:
         self.chain = chain
         self._client = client
+        # Optional instance-local dependency for hermetic adapters; never mutate
+        # module settings or use workstation credentials for a synthetic request.
+        self._settings_override = settings_override
         self.provider_errors: list[dict[str, str]] = []
 
     @property
+    def config(self) -> Settings:
+        return self._settings_override if self._settings_override is not None else settings
+
+    @property
     def pool(self) -> UseJevKeyPool:
-        return usejevai_pool()
+        return usejevai_pool(self.config)
 
     @property
     def enabled(self) -> bool:
         """True when a real Jev path is configured (single key or rotating trial keys)."""
-        return bool(settings.jev_api_key) or bool(self.pool)
+        return bool(self.config.jev_api_key) or bool(self.pool)
 
     def decide(self, message: str) -> TypedDecision:
-        if not isinstance(message, str) or not message.strip() or len(message) > settings.request_max_chars:
+        if not isinstance(message, str) or not message.strip() or len(message) > self.config.request_max_chars:
             raise ValueError("Invalid decision input")
         self.provider_errors = []
-        if settings.jev_api_key:
+        if self.config.jev_api_key:
             return self._system_one(message)
         if self.pool:
             return self._usejevai(message)
@@ -285,8 +294,8 @@ class JevGateway:
         """Queued run API on rotating trial keys; never falls through to the LLM."""
         client = UseJevClient(
             self.pool,
-            base_url=settings.jev_usejevai_base_url,
-            timeout_seconds=settings.jev_usejevai_timeout_ms / 1000,
+            base_url=self.config.jev_usejevai_base_url,
+            timeout_seconds=self.config.jev_usejevai_timeout_ms / 1000,
         )
         try:
             answers = client.decide(message, usejevai_questions())
@@ -329,7 +338,7 @@ class JevGateway:
 
     def _system_one(self, message: str) -> TypedDecision:
         payload = {
-            "model": settings.jev_model,
+            "model": self.config.jev_model,
             "state": message,
             "questions": {
                 "intent": {"type": "choice", "instructions": "Phân loại ý định người dùng.", "criteria": INTENT_CRITERIA},
@@ -377,15 +386,14 @@ class JevGateway:
                 "intent_confidence": intent_answer.get("confidence") or 0.0,
                 "intent_probabilities": probs or {},
             })
-        except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError) as exc:
+        except (httpx.HTTPError, TimeoutError, ValueError, KeyError, TypeError, AttributeError) as exc:
             # Never include upstream bodies, URLs, messages or credentials in errors.
             raise LLMUnavailable([{"providerId": "jev-system-one", "code": "DECISION_UNAVAILABLE"}]) from exc
 
-    @staticmethod
-    def _post(client: httpx.Client, payload: dict[str, object]) -> httpx.Response:
+    def _post(self, client: httpx.Client, payload: dict[str, object]) -> httpx.Response:
         return client.post(
             "https://thejevai.com/v1/systemone",
             json=payload,
-            headers={"Authorization": f"Bearer {settings.jev_api_key}"},
-            timeout=max(settings.decision_timeout_ms, 1) / 1000,
+            headers={"Authorization": f"Bearer {self.config.jev_api_key}"},
+            timeout=remaining_seconds(max(self.config.decision_timeout_ms, 1) / 1000),
         )

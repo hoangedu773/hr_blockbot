@@ -3,5 +3,7 @@ packages:
   - 'packages/*'
 allowBuilds:
   argon2: true
+  bufferutil: false
   esbuild: true
   mongodb-memory-server: true
+  utf-8-validate: false

@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
+import { AuthorizationStateSchema, type AuthorizationState } from "@hr-blockbot/contracts";
 
 /**
  * Định danh đăng nhập là `username` (mã nhân viên cấp sẵn), KHÔNG phải email:
@@ -10,12 +11,19 @@ export interface IUser extends Document {
   email?: string | null;
   passwordHash: string;
   role: "Admin" | "Employee";
-  /** Bản sao `employees.businessRole` tại thời điểm cấp phát (admin = "admin"). */
+  status: "active" | "disabled" | "pending_activation";
+  provisioningRequestId?: mongoose.Types.ObjectId | null;
+  lifecycleAppliedRequestId?: string | null;
+  securityAudit?: any[];
+  passwordRecovery?: any;
+  securityVersion: number;
+  authorization?: AuthorizationState | null;
+  /** Legacy display label only; not an authorization profile or a capability grant. */
   businessRole?: string | null;
   employeeId?: mongoose.Types.ObjectId | null;
   /**
-   * Admin không gắn hồ sơ nhân viên (Ban điều hành / văn phòng) -> toàn quyền hệ thống.
-   * Mặc định false: Admin có hồ sơ vẫn bị giới hạn theo department scope.
+   * Legacy CRM flag, retained until route cutover. It does not assign system_admin,
+   * HR authority or any capability in the new policy engine.
    */
   isGlobalAdmin: boolean;
   /** True khi mật khẩu vẫn là mật khẩu tạm do quản lý phát. */
@@ -45,6 +53,15 @@ const UserSchema = new Schema<IUser>(
     },
     passwordHash: { type: String, required: true },
     role: { type: String, enum: ["Admin", "Employee"], required: true },
+    status: { type: String, enum: ["active", "disabled", "pending_activation"], default: "active" },
+    provisioningRequestId: { type: Schema.Types.ObjectId, default: null },
+    lifecycleAppliedRequestId: { type: String, default: null },
+    securityAudit: { type: [Schema.Types.Mixed], default: [] },
+    passwordRecovery: { type: Schema.Types.Mixed, default: null },
+    securityVersion: { type: Number, min: 0, default: 0, validate: Number.isSafeInteger },
+    // No automatic role/title migration. Null means the new policy is NOT configured.
+    authorization: { type: Schema.Types.Mixed, default: null,
+      validate: (value: unknown) => value == null || AuthorizationStateSchema.safeParse(value).success },
     businessRole: {
       type: String,
       enum: ["admin", "aom", "sm", "am", "ptch", "staff"],
@@ -65,6 +82,7 @@ const UserSchema = new Schema<IUser>(
 
 // Email unique nhưng phải sparse: gần như toàn bộ tài khoản không có email.
 UserSchema.index({ email: 1 }, { unique: true, sparse: true });
+UserSchema.index({ "passwordRecovery.tokenHash": 1 }, { unique: true, partialFilterExpression: { "passwordRecovery.tokenHash": { $type: "string" } } });
 
 // Mỗi hồ sơ nhân viên chỉ được gắn tối đa một tài khoản. Partial (không phải sparse)
 // vì admin được ghi `employeeId: null` — sparse vẫn tính null là "có giá trị" và sẽ

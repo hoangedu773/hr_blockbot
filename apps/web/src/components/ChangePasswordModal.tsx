@@ -60,7 +60,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ userna
         <h2 id="change-password-title" style={{ margin: '20px 0 8px', fontSize: 24, fontWeight: 600 }}>Đổi mật khẩu lần đầu</h2>
         <p style={{ margin: '0 0 20px', fontSize: 14, lineHeight: 1.6, color: '#b4b4b4' }}>
           {username ? <>Tài khoản <strong style={{ color: '#f5f5f5' }}>{username}</strong> đang dùng mật khẩu tạm.</> : 'Tài khoản đang dùng mật khẩu tạm.'}{' '}
-          Vui lòng đặt mật khẩu riêng trước khi tiếp tục.
+          Vui lòng đặt mật khẩu riêng trước khi tiếp tục. Sau khi đổi, hãy đăng nhập lại bằng mật khẩu mới.
         </p>
 
         <form onSubmit={handleSubmit} aria-busy={isSubmitting} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

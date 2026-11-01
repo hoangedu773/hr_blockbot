@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "status": "PROPOSED_NOT_APPROVED",
+  "purpose": "Synthetic F4 ranking evaluation only; not company authorization or HR policy",
+  "rubric": {
+    "0": "Không có bằng chứng hữu ích đáp ứng yêu cầu nhiệm vụ; không kết luận người đó kém năng lực ngoài dữ liệu.",
+    "1": "Có bằng chứng đáp ứng một phần yêu cầu hoặc một phần nội dung của yêu cầu, nhưng chưa đủ bằng chứng cho tất cả yêu cầu đã nêu. Phải ghi phần đáp ứng và phần còn thiếu.",
+    "2": "Có bằng chứng đáp ứng tất cả yêu cầu đã nêu; cách diễn đạt tương đương cần người chấm giải thích. Không suy thêm kỹ năng, chứng chỉ hoặc kinh nghiệm."
+  },
+  "uncertain": "Để relevance=null, ghi câu hỏi trong reason. Không ép thành 0 hoặc 1 để đủ số lượng.",
+  "evidence": "Chỉ requiredSkills, description và candidate.skills. Không KPI, workload, chức danh, dự đoán model hoặc phiếu người còn lại.",
+  "metrics": {
+    "binaryRelevantMin": 1,
+    "precisionAt": [1, 3, 5],
+    "recallAt": 5,
+    "mrr": "first relevant rank over all 10 candidates",
+    "ndcgAt": 5,
+    "ndcgGain": "2^relevance-1",
+    "zeroRelevantQueries": "score zero, retain in macro average and report their count",
+    "aggregation": "macro average over tasks, with dev and test reported separately"
+  },
+  "selection": {
+    "alphaGrid": [0, 0.25, 0.5, 0.75, 1],
+    "metric": "dev.NDCG@5",
+    "tieBreak": "lowest alpha",
+    "testUsage": "evaluation only after alpha is fixed; no re-selection from test results",
+    "rankingTieBreak": "same Node score quantization, workload then stable candidate ID; missing skills last"
+  },
+  "disagreement": "BLOCK. Retain both original packets and list every disagreement. No averaging, majority by title, model vote or silent label replacement. Any adjudication process needs separate human approval before tool support."
+}

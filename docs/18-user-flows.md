@@ -1,5 +1,7 @@
 # 18 — User flows: hành trình & luồng thao tác 2 vai
 
+> Luồng UF-05 2a–2c và trách nhiệm khi từ chối đã được chủ dự án chốt lại ngày 31/10/2026 tại [ADR-021](03-decision-records/ADR-021-assignment-consent-handover-hash-proof.md). Không dùng giả định cũ “chưa nhận vẫn chịu trách nhiệm”; theo dõi assignmentStatus riêng và xác nhận bàn giao hai bên. ADR ghi rõ phần web/API đã triển khai và phần AI/Blockchain vận hành chưa triển khai.
+
 - **Nguồn duy nhất của nội dung nghiệp vụ:** [`docs/research/NOTES-01.md`](research/NOTES-01.md), mục
   **"## B0 — Chuẩn ngành HRM → user flow"** (flow inventory UF-01..UF-10, catalog 28 intent, notification
   matrix), cộng phần dữ liệu kỹ thuật ở **B3** (RBAC: `role` vs `level`), **B4** (state machine + collections),

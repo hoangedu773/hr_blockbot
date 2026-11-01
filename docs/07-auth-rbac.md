@@ -1,5 +1,11 @@
 # 07 — Auth & Phân quyền (RBAC)
 
+> **V1 implementation notice (31/10/2026):** The role/global/department authorization assumptions below are historical design notes, not the current access-control policy. See [Authorization V1 runtime](authorization-v1-runtime.md) and the server policy registry. `Admin`, `isGlobalAdmin`, titles and grades do not grant authority. The current local implementation remains `MIGRATING`; this notice is not a deployment or acceptance claim. Historical descriptions of direct active employee creation, promotion approval, a global escalation reviewer, or chatbot write execution must not be used to enable those paths.
+
+> Tiếp nối F1: tạo nhân viên và mở `/employees/:id/management` chỉ Admin đúng scope/global; management DTO riêng được xem phone/hiredAt để chỉnh hồ sơ, không nới summary cho directory/matching/chat. Tạo phòng ban chỉ global Admin; scoped Admin sửa metadata đơn vị hiện hữu, không tự mở rộng scope. managerId là thông tin tổ chức, không cấp role/quyền tài khoản. Không có API archive/transfer/delete không có chính sách.
+
+> Bổ sung quyền nhánh phân công ngày 31/10/2026: [ADR-021](03-decision-records/ADR-021-assignment-consent-handover-hash-proof.md). Admin không tiếp nhận/xác nhận bàn giao thay nhân viên; chỉ quản lý đúng scope duyệt và không tự duyệt yêu cầu. Chuyển cấp cần global admin độc lập. Quyền registrar trên chain không tự mở quyền HR và AI không tự reassign/trừ KPI.
+
 Khóa luận KLCN133. File này đặc tả **mô hình quyền 2 trục**, **vòng đời token với Refresh Token Rotation
 (RTR)**, **password hashing**, **permission matrix cho tool catalog** và **checklist bảo mật theo OWASP**.
 Nó thi hành các quy tắc BR-05, BR-06, BR-19 đã chốt ở `04-domain-model.md` §5 và dùng đúng schema

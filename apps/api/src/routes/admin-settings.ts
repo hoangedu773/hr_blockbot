@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { UpdateLLMProvidersRequestSchema } from "@hr-blockbot/contracts";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
+import { hasCapability } from "../services/authorization-scope.service.js";
 import {
   getProvidersResponse,
   testProvider,
@@ -14,11 +15,11 @@ import {
 const router = Router();
 
 function requireAdmin(req: Request, res: Response): boolean {
-  if (!req.user || req.user.role !== "Admin") {
+  if (!req.user || !hasCapability(req.user, "provider_settings.manage")) {
     res.status(403).json({
       error: {
         code: "RBAC_DENIED",
-        message: "Only Admin can manage LLM provider settings",
+        message: "Capability provider_settings.manage is required",
       },
     });
     return false;

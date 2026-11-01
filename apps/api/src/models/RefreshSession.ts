@@ -3,6 +3,7 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface IRefreshSession extends Document {
   userId: mongoose.Types.ObjectId;
   familyId: string;
+  securityVersion?: number;
   tokenHash: string;
   expiresAt: Date;
   revokedAt?: Date | null;
@@ -17,6 +18,7 @@ const RefreshSessionSchema = new Schema<IRefreshSession>(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     familyId: { type: String, required: true, index: true },
+    securityVersion: { type: Number, min: 0 },
     tokenHash: { type: String, required: true, unique: true, index: true },
     expiresAt: { type: Date, required: true },
     revokedAt: { type: Date, default: null },

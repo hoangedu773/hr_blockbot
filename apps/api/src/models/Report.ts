@@ -12,6 +12,7 @@ export interface IReport extends Document {
   reviewedBy?: mongoose.Types.ObjectId | string | null;
   reviewedAt?: Date | null;
   reason?: string | null;
+  projectVersion?: number;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -33,6 +34,7 @@ const ReportSchema = new Schema<IReport>(
     reviewedBy: { type: Schema.Types.Mixed, default: null },
     reviewedAt: { type: Date, default: null },
     reason: { type: String, default: null },
+    projectVersion: { type: Number, default: 0 },
   },
   {
     collection: "reports",

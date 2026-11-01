@@ -7,8 +7,6 @@ import {
   type Citation,
   type ProposedAction,
   type Attachment,
-  ROLE_CONFIG,
-  ROLE_QUICK_REPLIES,
 } from './ChatDrawer';
 
 interface ChatPageViewProps {
@@ -57,7 +55,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           id="copilot-message"
           ref={textareaRef}
           rows={1}
-          maxLength={4000}
+          maxLength={2000}
           value={input}
           onChange={(event) => setInput(event.target.value)}
           placeholder="Hỏi AI về ca trực, nhân sự, tiền két..."
@@ -195,7 +193,8 @@ function parseReply(value: unknown): Omit<Message, 'id' | 'sender'> & { conversa
 
 export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogout }) => {
   const { user } = useAuth();
-  const currentRole: 'Admin' | 'Employee' = user?.role === 'Admin' ? 'Admin' : 'Employee';
+  const profileLabel = user?.authorization?.profile || 'Chưa cấp profile';
+  const quickReplies = ['Tóm tắt nhiệm vụ tôi được phép xem', 'Xem thông tin hồ sơ của tôi', 'Tra cứu tài liệu đã được duyệt'].map((label) => ({ label, prompt: label }));
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [serviceUnavailable, setServiceUnavailable] = useState(false);
@@ -243,7 +242,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
 
   const send = (prompt: string) => {
     const text = prompt.trim();
-    if (!text || text.length > 4000 || pending.current) return;
+    if (!text || text.length > 2000 || pending.current) return;
     const controller = new AbortController();
     pending.current = controller;
     setMessages((previous) => [...previous, { id: ++nextId.current, sender: 'user', text }]);
@@ -262,8 +261,6 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
           body: JSON.stringify({
             message: text,
             conversationId: conversationId.current,
-            role: currentRole,
-            userContext: { role: currentRole },
           }),
           signal: controller.signal,
         });
@@ -329,14 +326,14 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
             <button className="chat-menu" type="button" aria-label="Mở danh sách hội thoại" aria-expanded={sidebarOpen} aria-controls="copilot-sidebar" onClick={() => setSidebarOpen(!sidebarOpen)}><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg></button>
             <div className="guta-chat-header-title">
               <strong>Chat</strong>
-              <span>{ROLE_CONFIG[currentRole].label}</span>
+              <span>{profileLabel}</span>
             </div>
           </div>
           <div className="guta-chat-header-actions">
             <div className="guta-verified-badge">
               <span style={{ width: '6px', height: '6px', borderRadius: '9999px', backgroundColor: '#10b981' }} />
               <span style={{ fontWeight: 600, color: 'var(--chat-text)' }}>
-                {user?.role === 'Admin' ? 'Quản trị viên (Admin)' : 'Nhân viên (Employee)'}
+                {profileLabel}
               </span>
             </div>
             <ThemeToggle className="theme-toggle--chat" />
@@ -360,9 +357,9 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
               {composer}
               <div className="guta-chat-prompts" aria-label="Gợi ý hành động nhanh theo vai trò">
                 <div style={{ width: '100%', textAlign: 'center', marginBottom: '8px', fontSize: '11px', color: 'var(--chat-muted)', letterSpacing: '0.04em' }}>
-                  GỢI Ý NHANH CHO {ROLE_CONFIG[currentRole].label.toUpperCase()} ({ROLE_CONFIG[currentRole].badge}):
+                  GỢI Ý TRONG PHẠM VI ĐƯỢC CẤP ({profileLabel}):
                 </div>
-                {ROLE_QUICK_REPLIES[currentRole].map((item) => (
+                {quickReplies.map((item) => (
                   <button
                     type="button"
                     key={item.label}

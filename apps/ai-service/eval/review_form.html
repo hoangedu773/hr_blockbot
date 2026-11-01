@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<title>Phiếu đánh giá F4 độc lập</title>
+<style>
+:root{font:16px/1.55 system-ui,sans-serif;color:#18302e;background:#f3f6f5}*{box-sizing:border-box}body{margin:0}main{max-width:1000px;margin:auto;padding:24px}h1{font-size:1.65rem;margin:0}h2{font-size:1.2rem}small{overflow-wrap:anywhere}button,input,textarea,select{font:inherit}button,select{padding:10px;border:1px solid #637b75;border-radius:6px;background:white;color:inherit}button{cursor:pointer}button:disabled{opacity:.5;cursor:default}button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid #167d7f;outline-offset:2px}.notice{padding:16px;background:#fff2d8;border:1px solid #a07727;border-radius:8px}.panel,fieldset{background:#fff;border:1px solid #c1ceca;border-radius:8px;margin:16px 0;padding:18px}legend{font-weight:650;overflow-wrap:anywhere}.bar{display:flex;gap:12px;flex-wrap:wrap;align-items:center}.meta{display:grid;grid-template-columns:1fr 1fr;gap:12px}label{display:block}input[type=text],textarea{width:100%;padding:10px;border:1px solid #738880;border-radius:5px}textarea{min-height:80px}.choices{display:flex;gap:22px;flex-wrap:wrap;margin:14px 0}.choices label,.attest{display:flex;gap:8px;align-items:flex-start}input[type=radio],input[type=checkbox]{min-width:20px;min-height:20px;accent-color:#126561}.primary{background:#155e54;color:white}#status{min-height:1.5em;color:#8a240f}#progress{font-weight:650}.muted{color:#4b625a}details{margin:16px 0}#task-select{max-width:100%}@media(max-width:600px){main{padding:14px}.meta{grid-template-columns:1fr}.bar>*{max-width:100%}fieldset{padding:12px}}
+</style></head><body><main>
+<h1>Đánh giá F4 — phiếu <span id="slot"></span></h1>
+<p class="muted">20 nhiệm vụ hư cấu · 200 cặp · chấm độc lập, không có gợi ý từ mô hình</p>
+<div class="notice">Rubric đang là <strong>đề xuất chờ duyệt</strong>. Chỉ chấm chính thức sau khi nhóm xác nhận đúng phiên bản. Không xem phiếu người còn lại. Trang không gửi dữ liệu lên mạng, không tự lưu; hãy tải bản nháp trước khi đóng.</div>
+<details><summary>Rubric 0 / 1 / 2 và cách xử lý khi chưa rõ</summary><div id="rubric"></div></details>
+<section class="panel"><div class="meta">
+<label>Mã người chấm (tự nhập)<input id="reviewer" type="text" maxlength="100" autocomplete="off"></label>
+<label>Thời điểm hoàn tất (tự nhập ISO, có múi giờ)<input id="completed-at" type="text" placeholder="YYYY-MM-DDTHH:mm:ss+07:00" autocomplete="off"></label>
+</div><p><small id="fingerprint"></small></p>
+<div class="bar"><button id="download" class="primary">Tải JSON bản nháp / đã chấm</button><button id="validate">Kiểm tra đủ điều kiện bàn giao</button><label>Nhập lại JSON của chính mình<input id="import" type="file" accept=".json,application/json"></label></div>
+<p id="status" role="status" aria-live="polite"></p><div id="progress" aria-live="polite"></div></section>
+<nav class="bar" aria-label="Điều hướng nhiệm vụ"><button id="previous">Trước</button><label>Nhiệm vụ<select id="task-select"></select></label><button id="next">Sau</button></nav>
+<section class="panel"><h2 id="task-title"></h2><p id="description"></p><strong>Yêu cầu đã nêu</strong><ul id="required"></ul></section>
+<div id="candidates"></div>
+<p class="muted">null/chưa chọn ≠ mức 0. Không suy kỹ năng ngoài bằng chứng. Không tự điền thời gian hoặc xác nhận hộ người khác.</p>
+</main><script id="packet-data" type="application/json">__PACKET_JSON__</script>
+<script id="protocol-data" type="application/json">__PROTOCOL_JSON__</script>
+<script>
+'use strict';
+const original=JSON.parse(document.getElementById('packet-data').textContent);
+const protocol=JSON.parse(document.getElementById('protocol-data').textContent);
+let packet=structuredClone(original), index=0, dirty=false;
+const el=id=>document.getElementById(id);
+function node(tag,text){const item=document.createElement(tag);if(text!==undefined)item.textContent=text;return item;}
+function changed(){dirty=true;progress();}
+function complete(row){return Number.isInteger(row.relevance)&&[0,1,2].includes(row.relevance)&&row.reason.trim()&&row.independentHumanAttestation===true;}
+function progress(){const rows=packet.tasks.flatMap(task=>task.candidates);el('progress').textContent=`Đã đủ nhãn + lý do + xác nhận: ${rows.filter(complete).length}/200. Chưa chọn nhãn: ${rows.filter(row=>row.relevance===null).length}/200.`;}
+function render(){
+ const task=packet.tasks[index];el('task-select').value=String(index);el('previous').disabled=index===0;el('next').disabled=index===packet.tasks.length-1;
+ el('task-title').textContent=`${index+1}/20 — ${task.title} (${task.id})`;el('description').textContent=task.description;
+ el('required').replaceChildren(...task.requiredSkills.map(skill=>node('li',skill)));
+ const cards=task.candidates.map((row,position)=>{
+  const card=node('fieldset');card.append(node('legend',row.id));card.append(node('p',`Bằng chứng kỹ năng: ${row.skills.length?row.skills.join(' · '):'Không có kỹ năng được cung cấp'}`));
+  const choices=node('div');choices.className='choices';
+  for(const value of [0,1,2]){const label=node('label');const radio=node('input');radio.type='radio';radio.name=`relevance-${position}`;radio.value=String(value);radio.checked=row.relevance===value;radio.setAttribute('aria-label',`Mức ${value} cho ${row.id}`);radio.addEventListener('change',()=>{row.relevance=value;changed();});label.append(radio,node('span',String(value)));choices.append(label);}card.append(choices);
+  const reasonLabel=node('label','Lý do / bằng chứng đáp ứng / yêu cầu còn thiếu / điều chưa rõ');const reason=node('textarea');reason.value=row.reason;reason.maxLength=4000;reason.setAttribute('aria-label',`Lý do cho ${row.id}`);reason.addEventListener('input',()=>{row.reason=reason.value;changed();});reasonLabel.append(reason);card.append(reasonLabel);
+  const attestLabel=node('label');attestLabel.className='attest';const attest=node('input');attest.type='checkbox';attest.checked=row.independentHumanAttestation===true;attest.setAttribute('aria-label',`Tôi tự chấm độc lập ${row.id}`);attest.addEventListener('change',()=>{row.independentHumanAttestation=attest.checked;changed();});attestLabel.append(attest,node('span','Tôi đã tự đánh giá độc lập cặp này, không nhờ AI hoặc xem phiếu người khác.'));card.append(attestLabel);
+  const clear=node('button','Đưa riêng cặp này về chưa chấm');clear.type='button';clear.addEventListener('click',()=>{if(!confirm('Xóa nhãn, lý do và xác nhận đang có của riêng cặp này?'))return;row.relevance=null;row.reason='';row.independentHumanAttestation=false;changed();render();});card.append(clear);return card;
+ });el('candidates').replaceChildren(...cards);progress();
+}
+function fixed(value){const copy=structuredClone(value);delete copy.reviewer;delete copy.completedAt;for(const task of copy.tasks){for(const row of task.candidates){delete row.relevance;delete row.reason;delete row.independentHumanAttestation;}task.candidates.sort((a,b)=>a.id.localeCompare(b.id));}copy.tasks.sort((a,b)=>a.id.localeCompare(b.id));return canonical(copy);}
+function canonical(value){if(Array.isArray(value))return value.map(canonical);if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])]));return value;}
+function validateInput(value){
+ if(JSON.stringify(fixed(value))!==JSON.stringify(fixed(original)))throw Error('Sai phiếu, ID, fingerprint hoặc bằng chứng nguồn. Không nhập phiếu người khác.');
+ if(typeof value.reviewer!=='string'||value.reviewer.length>100||!(value.completedAt===null||typeof value.completedAt==='string'))throw Error('Metadata không hợp lệ.');
+ for(const row of value.tasks.flatMap(task=>task.candidates)){if(!(row.relevance===null||Number.isInteger(row.relevance)&&[0,1,2].includes(row.relevance))||typeof row.reason!=='string'||row.reason.length>4000||typeof row.independentHumanAttestation!=='boolean')throw Error('Nhãn/lý do/xác nhận không hợp lệ.');}
+}
+el('reviewer').addEventListener('input',event=>{packet.reviewer=event.target.value;changed();});
+el('completed-at').addEventListener('input',event=>{packet.completedAt=event.target.value||null;changed();});
+el('download').addEventListener('click',()=>{try{validateInput(packet);const blob=new Blob([JSON.stringify(packet,null,2)],{type:'application/json;charset=utf-8'});const url=URL.createObjectURL(blob);const a=node('a');a.href=url;a.download=`reviewer-${packet.reviewerSlot}-draft.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);dirty=false;el('status').textContent='Đã xuất đúng dữ liệu bạn nhập; không tự xác nhận hoàn tất hoặc điền thời gian. Giữ các phiên bản cũ.';}catch(error){el('status').textContent=error.message;}});
+el('validate').addEventListener('click',()=>{const count=packet.tasks.flatMap(task=>task.candidates).filter(complete).length;const time=packet.completedAt||'';const validTime=/T.*(?:Z|[+-]\d\d:\d\d)$/.test(time)&&Number.isFinite(Date.parse(time));el('status').textContent=count===200&&packet.reviewer.trim()&&validTime?'Đủ trường để gửi điều phối viên; CHƯA phải phê duyệt rubric/nhãn hoặc benchmark.':`Chưa hoàn tất: ${count}/200 cặp đủ trường; cần mã người chấm và thời gian tự nhập có múi giờ. Không tự điền các trường còn thiếu.`;});
+el('import').addEventListener('change',async event=>{try{const file=event.target.files[0];if(!file)return;if(file.size>1500000)throw Error('File quá lớn.');const value=JSON.parse(await file.text());validateInput(value);if(dirty&&!confirm('Bạn chưa xuất bản nháp hiện tại. Thay bằng JSON vừa chọn?'))return;packet=value;el('reviewer').value=packet.reviewer;el('completed-at').value=packet.completedAt||'';dirty=false;render();el('status').textContent='Đã nhập đúng phiếu và ID. Chưa có phê duyệt hoặc xác nhận nào được thêm tự động.';}catch(error){el('status').textContent='Không nhập: '+error.message;}finally{event.target.value='';}});
+el('slot').textContent=packet.reviewerSlot;el('fingerprint').textContent=`Nguồn SHA256: ${packet.sourceDatasetSha256} · Protocol đề xuất: ${packet.proposedProtocolSha256}`;
+for(const [key,value] of Object.entries(protocol.rubric))el('rubric').append(node('p',`${key}: ${value}`));el('rubric').append(node('p',protocol.uncertain),node('p',protocol.evidence));
+packet.tasks.forEach((task,i)=>{const option=node('option',`${i+1}. ${task.title} (${task.id})`);option.value=String(i);el('task-select').append(option);});
+el('task-select').addEventListener('change',event=>{index=Number(event.target.value);render();});el('previous').addEventListener('click',()=>{index--;render();});el('next').addEventListener('click',()=>{index++;render();});
+window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue='';}});render();
+</script></body></html>

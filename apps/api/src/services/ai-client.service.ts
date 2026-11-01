@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DecisionAnalysisSchema, type DecisionAnalysis } from "@hr-blockbot/contracts";
 import { getActiveProviderConfig, ActiveProviderConfig } from "./settings.service.js";
 
 export const DEFAULT_GEMINI_PROVIDER: ActiveProviderConfig = {
@@ -166,6 +167,7 @@ const chatResultSchema = z.object({
   // Provenance of the typed decision: jev_systemone | jev_usejevai | llm_fallback | rule.
   // Kept so a demo/report can tell whether Jev actually ran (docs/21 §6.1.3).
   decisionSource: z.string().optional(),
+  decisionAnalysis: DecisionAnalysisSchema.optional().catch(undefined),
   conversationId: z.string().trim().min(1).max(200).optional(),
   attachments: z.array(attachmentSchema).default([]),
 });
@@ -182,6 +184,7 @@ export interface ChatResult {
   abstain: boolean;
   degraded?: boolean;
   decisionSource?: string;
+  decisionAnalysis?: DecisionAnalysis;
   conversationId?: string;
   attachments: Attachment[];
 }
@@ -189,7 +192,8 @@ export interface ChatResult {
 export async function chatWithAiService(
   message: string,
   userContext: UserContextPayload = {},
-  conversationId?: string
+  conversationId?: string,
+  authorization?: { requestId: string; delegationToken: string }
 ): Promise<ChatResult> {
   const deadlineAtMs = Date.now() + 15000;
   const controller = new AbortController();
@@ -202,6 +206,7 @@ export async function chatWithAiService(
   });
 
   try {
+    if (!authorization) throw new Error("SCOPED_GATEWAY_REQUIRED");
     return await Promise.race([deadline, (async (): Promise<ChatResult> => {
       let activeProviders: ActiveProviderConfig[];
       try {
@@ -271,21 +276,15 @@ export async function chatWithAiService(
         headers["x-ai-service-key"] = process.env.AI_SERVICE_API_KEY;
       }
       const aiServiceUrl = (process.env.AI_SERVICE_URL || "http://localhost:8000").replace(/\/+$/, "");
-      const response = await fetch(`${aiServiceUrl}/api/v1/chat`, {
+      const response = await fetch(`${aiServiceUrl}/api/v1/authorized-chat`, {
         method: "POST",
         headers,
         body: JSON.stringify({
           message,
           deadlineAtMs,
           conversationId,
-          userContext: {
-            userId: userContext.userId ?? undefined,
-            role: userContext.role ?? "Employee",
-            employeeId: userContext.employeeId ?? undefined,
-            departmentId: userContext.departmentId ?? undefined,
-            businessRole: userContext.businessRole ?? undefined,
-            storeName: userContext.storeName ?? undefined,
-          },
+          requestId: authorization.requestId,
+          delegationToken: authorization.delegationToken,
           providerConfig: {
             configVersion: activeProviders[0]?.model ? `1-${activeProviders[0].model}` : 1,
             providers: activeProviders,
@@ -317,6 +316,7 @@ export async function chatWithAiService(
         abstain: data.abstain,
         degraded: data.degraded,
         decisionSource: data.decisionSource,
+        ...(data.decisionAnalysis ? { decisionAnalysis: data.decisionAnalysis } : {}),
         conversationId: data.conversationId ?? conversationId,
         attachments: data.attachments ?? [],
       };

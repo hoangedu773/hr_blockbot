@@ -4,6 +4,7 @@ import { useAuth } from './context/AuthContext';
 import { ToastContainer, type ToastMessage, type NotifyFn } from './components/Toast';
 import { BrandMark } from './components/BrandMark';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
+import { ActivationView } from './components/ActivationView';
 const FolioLandingView = React.lazy(() =>
   import('./components/FolioLandingView').then((m) => ({ default: m.FolioLandingView }))
 );
@@ -25,6 +26,13 @@ export const AppContent: React.FC = () => {
   // where the shift and roster decisions live; chat is a secondary tool reached
   // from the sidebar.
   const [activeTab, setActiveTab] = useState<'crm' | 'chat'>('crm');
+  const [activationToken, setActivationToken] = useState(() => {
+    const parameters = new URLSearchParams(window.location.hash.slice(1));
+    const token = parameters.get('activate') || parameters.get('reactivate') || parameters.get('recover');
+    if (token) window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
+    return token && /^[a-f0-9]{64}$/.test(token) ? { token, purpose: parameters.has('recover') ? 'recovery' as const : parameters.has('reactivate') ? 'reactivation' as const : 'onboarding' as const } : null;
+  });
+  useEffect(() => { if (hasSession && !user?.authorization?.capabilities.includes('chatbot.data_read')) setActiveTab('crm'); }, [hasSession, user?.authorization]);
 
   useEffect(() => {
     if (!isBootstrapping) return;
@@ -92,15 +100,16 @@ export const AppContent: React.FC = () => {
 
   const handleSendTelegramAlert = useCallback((storeId: string) => {
     addToast(
-      `Đã gửi cảnh báo khẩn cấp tới Telegram Bot của Cửa hàng trưởng chi nhánh [${storeId}]!`,
-      'success',
-      'Telegram Bot Dispatch'
+      `Chưa gửi cảnh báo cho cửa hàng [${storeId}]. Hệ thống chưa cấu hình kênh Telegram.`,
+      'info',
+      'Chưa kết nối Telegram'
     );
   }, [addToast]);
 
   const handleSwitchTab = useCallback((tab: 'crm' | 'chat') => {
+    if (tab === 'chat' && !user?.authorization?.capabilities.includes('chatbot.data_read')) { addToast('Tài khoản chưa được cấp quyền chatbot.', 'info'); return; }
     setActiveTab(tab);
-  }, []);
+  }, [user?.authorization, addToast]);
 
   if (isBootstrapping || isLoading) {
     return (
@@ -118,6 +127,7 @@ export const AppContent: React.FC = () => {
     );
   }
 
+  if (activationToken) return <ActivationView token={activationToken.token} purpose={activationToken.purpose} onDone={() => setActivationToken(null)} />;
   // 1. Unauthenticated: Render Folio Landing Page (Exact Ruixen UI Design)
   if (!hasSession) {
     return (
@@ -142,8 +152,8 @@ export const AppContent: React.FC = () => {
           ) : (
             <CrmDashboardView
               userName={('username' in user && typeof user.username === 'string' && user.username) || (user.role === 'Admin' ? 'Quản trị viên' : 'Nhân viên')}
-              userRole={user.role}
-              userScope={('departmentId' in user && typeof user.departmentId === 'string' && user.departmentId) ? 'Phòng ban ' + user.departmentId : 'Toàn chuỗi GUTA'}
+              userRole={user.authorization?.profile || 'Chưa cấp profile'}
+              userScope={('departmentId' in user && typeof user.departmentId === 'string' && user.departmentId) ? 'Phòng ban ' + user.departmentId : 'Theo phạm vi tài khoản được cấp'}
               onLogout={handleLogout}
               onTelegramAlert={handleSendTelegramAlert}
               onSwitchTab={handleSwitchTab}

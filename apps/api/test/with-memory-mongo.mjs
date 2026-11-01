@@ -13,13 +13,12 @@
  * (`!(handle->flags & UV_HANDLE_CLOSING)`) after the assertions already passed, turning
  * a green file into exit 1. Teardown now closes sockets instead.
  *
- * If something already listens on 127.0.0.1:27017 that server is reused (a file that
- * wedges it will still break the next one — the operator's server, the operator's call).
+ * Always provision our own mongod, even if a developer's MongoDB is already on
+ * port 27017. A test_ prefix alone does not authorize deleting their databases.
  *
  * Usage: node test/with-memory-mongo.mjs test/a.test.mjs test/b.test.mjs ...
  */
 
-import net from "node:net";
 import { spawn } from "node:child_process";
 
 const TEST_FILES = process.argv.slice(2);
@@ -28,33 +27,13 @@ if (TEST_FILES.length === 0) {
   process.exit(1);
 }
 
-function portOpen(port) {
-  return new Promise((resolve) => {
-    const socket = net.connect({ port, host: "127.0.0.1" });
-    socket.once("connect", () => {
-      socket.destroy();
-      resolve(true);
-    });
-    socket.once("error", () => resolve(false));
-    socket.setTimeout(800, () => {
-      socket.destroy();
-      resolve(false);
-    });
-  });
-}
-
 // The npmmirror path this used to hardcode (`/-/binary/mongodb/`) now returns 404,
 // which made `npm test` fail before any test ran. mongodb-memory-server's own default
 // (fastdl.mongodb.org) works; a mirror can still be forced by exporting
 // MONGOMS_DOWNLOAD_MIRROR before running the suite.
 
-const reuseExternal = await portOpen(27017);
-const memoryServer = reuseExternal ? null : await import("mongodb-memory-server");
-console.log(
-  reuseExternal
-    ? "[test-mongo] reuse MongoDB already running on 127.0.0.1:27017"
-    : "[test-mongo] in-memory MongoDB per file (first run downloads a small binary)"
-);
+const memoryServer = await import("mongodb-memory-server");
+console.log("[test-mongo] owned in-memory MongoDB per file; never reuse an external server");
 
 function databaseFor(baseUri, file) {
   const slug = file
@@ -70,12 +49,8 @@ function databaseFor(baseUri, file) {
 
 let failed = false;
 for (const file of TEST_FILES) {
-  let server = null;
-  let baseUri = "mongodb://127.0.0.1:27017/test_hr";
-  if (memoryServer) {
-    server = await memoryServer.MongoMemoryServer.create();
-    baseUri = server.getUri("test_hr");
-  }
+  const server = await memoryServer.MongoMemoryServer.create();
+  const baseUri = server.getUri("test_hr");
 
   console.log(`\n[test-mongo] running ${file}`);
   const env = {
@@ -87,6 +62,9 @@ for (const file of TEST_FILES) {
   // The guard copies TEST_MONGODB_URI into MONGODB_URI, but a shell-level
   // MONGODB_DB_NAME would still redirect mongoose to another database.
   delete env.MONGODB_DB_NAME;
+  // Chain integration tests provision their own loopback EVM. Never inherit a
+  // developer's real RPC/registry settings into a hermetic API test process.
+  for (const key of ["ASSIGNMENT_CHAIN_RPC_URL", "ASSIGNMENT_CHAIN_ID", "ASSIGNMENT_REGISTRY_ADDRESS", "ASSIGNMENT_CHAIN_CONFIRMATIONS"]) delete env[key];
 
   // No `--test-force-exit`: on Node 24 it aborts the process with
   // "Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)" after the tests have

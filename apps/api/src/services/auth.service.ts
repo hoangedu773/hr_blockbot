@@ -3,6 +3,7 @@ import argon2 from "argon2";
 import { SignJWT, jwtVerify } from "jose";
 import { UserModel, IUser } from "../models/User.js";
 import { RefreshSessionModel, IRefreshSession } from "../models/RefreshSession.js";
+import { loadAccount, securityVersion, PrincipalUnavailableError } from "./principal.service.js";
 
 // Argon2id configuration per OWASP / KLCN133 spec: ~19 MiB memory, 2 iterations, parallelism 1
 export const ARGON2_CONFIG: argon2.Options = {
@@ -57,6 +58,7 @@ export const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 export interface TokenClaims {
   sub: string;
   role: "Admin" | "Employee";
+  securityVersion?: number;
 }
 
 /**
@@ -93,8 +95,9 @@ export function generateTemporaryPassword(length = 12): string {
  * Sign Access Token using jose (memory-only on client)
  */
 export async function signAccessToken(claims: TokenClaims): Promise<string> {
-  return new SignJWT({ role: claims.role, sub: claims.sub })
+  return new SignJWT({ role: claims.role, sub: claims.sub, av: claims.securityVersion ?? 0 })
     .setProtectedHeader({ alg: "HS256" })
+    .setAudience("hr-blockbot-api")
     .setIssuedAt()
     .setExpirationTime(ACCESS_TOKEN_TTL)
     .sign(getJwtSecret());
@@ -106,6 +109,7 @@ export async function signAccessToken(claims: TokenClaims): Promise<string> {
 export async function verifyAccessToken(token: string): Promise<TokenClaims> {
   const { payload } = await jwtVerify(token, getJwtSecret(), {
     algorithms: ["HS256"],
+    audience: "hr-blockbot-api",
   });
 
   if (!payload.sub || typeof payload.sub !== "string") {
@@ -115,10 +119,14 @@ export async function verifyAccessToken(token: string): Promise<TokenClaims> {
   if (payload.role !== "Admin" && payload.role !== "Employee") {
     throw new Error("Invalid role claim");
   }
+  if (!Number.isSafeInteger(payload.av) || (payload.av as number) < 0) {
+    throw new Error("Legacy or invalid security version; sign in again");
+  }
 
   return {
     sub: payload.sub,
     role: payload.role,
+    securityVersion: payload.av as number,
   };
 }
 
@@ -175,6 +183,11 @@ export async function createLoginSession(
   user: IUser,
   ctx: SessionContext
 ): Promise<{ accessToken: string; rawRefreshToken: string; familyId: string }> {
+  const { user: currentUser } = await loadAccount(String(user._id));
+  // Password verification and session creation may race a reset/disable.
+  if (currentUser.passwordHash !== user.passwordHash || securityVersion(currentUser) !== securityVersion(user)) {
+    throw new Error("Account changed during sign in");
+  }
   const familyId = crypto.randomUUID();
   const rawRefreshToken = crypto.randomBytes(32).toString("hex");
   const tokenHash = hashToken(rawRefreshToken);
@@ -182,6 +195,7 @@ export async function createLoginSession(
 
   await RefreshSessionModel.create({
     userId: user._id,
+    securityVersion: securityVersion(user),
     familyId,
     tokenHash,
     expiresAt: new Date(now.getTime() + REFRESH_TOKEN_TTL_MS),
@@ -194,6 +208,7 @@ export async function createLoginSession(
   const accessToken = await signAccessToken({
     sub: user._id.toString(),
     role: user.role,
+    securityVersion: securityVersion(user),
   });
 
   return { accessToken, rawRefreshToken, familyId };
@@ -287,8 +302,14 @@ export async function rotateRefreshToken(
   }
 
   // 4. Load user
-  const user = await UserModel.findById(updatedSession.userId);
-  if (!user) {
+  let user: IUser;
+  try {
+    ({ user } = await loadAccount(String(updatedSession.userId)));
+  } catch (err) {
+    if (!(err instanceof PrincipalUnavailableError)) throw err;
+    return { success: false, error: { code: "UNAUTHENTICATED", message: "Account unavailable" } };
+  }
+  if (updatedSession.securityVersion !== securityVersion(user)) {
     return {
       success: false,
       error: {
@@ -302,6 +323,7 @@ export async function rotateRefreshToken(
   try {
     await RefreshSessionModel.create({
       userId: user._id,
+      securityVersion: securityVersion(user),
       familyId: updatedSession.familyId,
       tokenHash: nextTokenHash,
       expiresAt: new Date(now.getTime() + REFRESH_TOKEN_TTL_MS),
@@ -341,6 +363,7 @@ export async function rotateRefreshToken(
   const accessToken = await signAccessToken({
     sub: user._id.toString(),
     role: user.role,
+    securityVersion: securityVersion(user),
   });
 
   return {

@@ -26,7 +26,7 @@ Báo cáo audit của agent team lúc 17:58 có độ chính xác kỹ thuật *
 - **Vị trí**: `apps/ai-service/tests/test_live_db_chat.py:41` và `:88`
 - **Mã nguồn quan sát**:
   ```python
-  api_key=os.getenv("AI_LLM_API_KEY", "sk-6391717b21217848-40w3qp-d43413fb")
+  api_key=os.getenv("AI_LLM_API_KEY", "[REDACTED_LEGACY_KEY]")
   base_url=os.getenv("AI_LLM_BASE_URL", "https://rbnvqls.abc-tunnel.us/v1")
   ```
 - **Kiểm chứng Git**: `git ls-files apps/ai-service/tests/test_live_db_chat.py` trả về đường dẫn file (file được track trực tiếp trong repository).

@@ -7,11 +7,17 @@ import { UserAccountsView } from './UserAccountsView';
 import { EmployeeListView } from './EmployeeListView';
 import { EmployeeProfileView } from './EmployeeProfileView';
 import { ProjectListView } from './ProjectListView';
-import { RosterView } from './RosterView';
 import { StoreDirectoryView } from './StoreDirectoryView';
 import { ThemeToggle } from './ThemeToggle';
+import { useAuthorization } from '../context/useAuthorization';
+import { OnboardingView } from './OnboardingView';
+import { DelegationView } from './DelegationView';
+import { WorkDirectoryView } from './WorkDirectoryView';
+import { EmployeeLifecycleView } from './EmployeeLifecycleView';
+import { AuthorizationStatus } from './AuthorizationStatus';
+import { InitialReportingView } from './InitialReportingView';
 
-export type ActiveCrmView = 'stores' | 'employees' | 'profile' | 'schedules' | 'projects' | 'settings' | 'accounts';
+export type ActiveCrmView = 'stores' | 'employees' | 'profile' | 'schedules' | 'projects' | 'settings' | 'accounts' | 'onboarding' | 'delegations' | 'directory' | 'lifecycle' | 'authorization' | 'initialReporting';
 export interface CrmDashboardViewProps {
   userName: string;
   userRole: string;
@@ -67,8 +73,15 @@ const CRM_HTML = `
           <button type="button" data-section="employees" class="crm-nav-item">Nhân sự</button>
           <button type="button" data-section="profile" class="crm-nav-item">Hồ sơ của tôi</button>
           <button type="button" data-section="schedules" class="crm-nav-item">Hồ sơ nhân sự</button>
+          <button type="button" data-section="projects" class="crm-nav-item">Công việc & nghiệm thu</button>
+          <button type="button" data-section="onboarding" class="crm-nav-item">Tiếp nhận nhân viên</button>
+          <button type="button" data-section="initialReporting" class="crm-nav-item">Quản lý ban đầu</button>
+          <button type="button" data-section="directory" class="crm-nav-item">Danh bạ công việc</button>
+          <button type="button" data-section="lifecycle" class="crm-nav-item">Điều chuyển & trạng thái</button>
+          <button type="button" data-section="delegations" class="crm-nav-item">Ủy quyền nghiệp vụ</button>
           <button type="button" data-section="accounts" id="crm-nav-accounts" class="crm-nav-item">Tài khoản</button>
           <button type="button" data-section="settings" id="crm-nav-settings" class="crm-nav-item">Cài đặt LLM</button>
+          <button type="button" data-section="authorization" class="crm-nav-item">Quyền của tài khoản</button>
         </nav>
       </div>
 
@@ -144,8 +157,16 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
   onSwitchTab,
   onNotify,
 }) => {
+  const { can, summary: authorization } = useAuthorization();
+  const allowedViews: Record<ActiveCrmView, boolean> = { stores: can('stores.read'), employees: can('employees.read_operational'), profile: can('profile.read_self'),
+    schedules: can('employees.review'), projects: can('projects.read_assigned') || can('projects.read_managed') || can('projects.create') || can('reports.review'),
+    settings: can('provider_settings.manage'), accounts: can('accounts.manage'), onboarding: can('onboarding.propose') || can('onboarding.draft') || can('onboarding.review'),
+    delegations: can('authorization.inspect_self') || can('delegations.request') || can('delegations.review') || !!authorization?.delegations.length, directory: can('directory.read_store'),
+    lifecycle: can('employees.lifecycle_request') || can('employees.lifecycle_review') || can('employees.transfer_confirm'), authorization: can('authorization.inspect_self'), initialReporting: can('onboarding.reporting_propose') || can('onboarding.reporting_review') };
+  const authorizationKey = JSON.stringify(allowedViews);
   const [activeView, setActiveView] = useState<ActiveCrmView>('stores');
   const [themePortalEl, setThemePortalEl] = useState<HTMLElement | null>(null);
+  useEffect(() => { if (!allowedViews[activeView]) setActiveView((Object.keys(allowedViews) as ActiveCrmView[]).find((view) => allowedViews[view]) ?? 'profile'); }, [authorizationKey, activeView]);
   const [storesPortalEl, setStoresPortalEl] = useState<HTMLElement | null>(null);
   const [customViewPortalEl, setCustomViewPortalEl] = useState<HTMLElement | null>(null);
   const [drawerRootEl, setDrawerRootEl] = useState<HTMLElement | null>(null);
@@ -251,18 +272,10 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
 
     const emergencyBtn = Array.from(root.querySelectorAll('button')).find((btn) => btn.textContent?.includes('Tạo Ca Đột Xuất'));
     if (emergencyBtn) {
-      emergencyBtn.addEventListener('click', (event) => {
-        event.preventDefault();
-        if (emergencyBtn.disabled) return;
-        const originalContent = emergencyBtn.innerHTML;
-        emergencyBtn.innerHTML = `${SPINNER_SVG} Đang khởi tạo...`;
-        emergencyBtn.disabled = true;
-        onTelegramAlertRef.current('EMERGENCY_SHIFT');
-        timers.push(setTimeout(() => {
-          emergencyBtn.innerHTML = originalContent;
-          emergencyBtn.disabled = false;
-        }, 800));
-      }, { signal: listeners.signal });
+      // Scheduling remains a dormant503 surface. Do not advertise a fake write
+      // or turn a Telegram placeholder into an operational scheduling action.
+      emergencyBtn.hidden = true;
+      emergencyBtn.style.display = 'none';
     }
 
     const logoutLinks = root.querySelectorAll('a[href="#logout"], a[title="Trở về Trang Chủ"], [aria-label="Đăng Xuất Phiên"]');
@@ -300,11 +313,11 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
 
     const navItems = root.querySelectorAll<HTMLButtonElement>('nav [data-section]');
     const settingsNav = root.querySelector('#crm-nav-settings') as HTMLElement | null;
-    if (settingsNav && userRole !== 'Admin') {
+    if (settingsNav && !allowedViews.settings) {
       settingsNav.style.display = 'none';
     }
     const accountsNav = root.querySelector('#crm-nav-accounts') as HTMLElement | null;
-    if (accountsNav && userRole !== 'Admin') {
+    if (accountsNav && !allowedViews.accounts) {
       accountsNav.style.display = 'none';
     }
 
@@ -318,11 +331,12 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
     if (drawerRoot) setDrawerRootEl(drawerRoot);
 
     navItems.forEach((button) => {
+      button.hidden = !allowedViews[button.dataset.section as ActiveCrmView];
+      button.style.display = button.hidden ? 'none' : '';
       button.addEventListener('click', () => {
         const section = button.dataset.section as ActiveCrmView;
         if (!section) return;
-        if (section === 'settings' && userRole !== 'Admin') return;
-        if (section === 'accounts' && userRole !== 'Admin') return;
+        if (!allowedViews[section]) return;
         setActiveView(section);
         // The active state is a 1px accent rule on the left edge, driven by
         // aria-current alone — no filled pill, no per-item class juggling.
@@ -344,7 +358,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
       window.removeEventListener('keydown', handleGlobalKeydown);
       timers.forEach(clearTimeout);
     };
-  }, [userName, userRole, userScope]);
+  }, [userName, userRole, userScope, authorizationKey]);
 
   useEffect(() => {
     const root = containerRef.current;
@@ -353,8 +367,15 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
     const customViewPortal = root.querySelector('#crm-custom-view-portal') as HTMLElement | null;
     if (storesPortal) storesPortal.style.display = activeView === 'stores' ? 'block' : 'none';
     if (customViewPortal) customViewPortal.style.display = activeView === 'stores' ? 'none' : 'block';
+    const districtButton = Array.from(root.querySelectorAll('button')).find((button) => button.textContent?.includes('Bộ lọc Quận') || button.textContent?.includes('Quận: '));
+    if (districtButton) districtButton.style.display = activeView === 'stores' && allowedViews.stores ? '' : 'none';
   }, [activeView]);
 
+  useEffect(() => {
+    const chip = containerRef.current?.querySelector('#crm-header-store-chip');
+    if (chip && !allowedViews.stores) chip.textContent = 'Không áp dụng tổng quan cửa hàng';
+    else if (chip && !can('dashboard.read')) chip.textContent = 'Phạm vi cửa hàng được cấp';
+  }, [authorizationKey, activeView]);
   useEffect(() => {
     if (!overview) return;
     const root = containerRef.current;
@@ -421,7 +442,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
       />
       {themePortalEl &&
         createPortal(<ThemeToggle />, themePortalEl)}
-      {storesPortalEl &&
+      {storesPortalEl && activeView === 'stores' && allowedViews.stores &&
         createPortal(
           <StoreDirectoryView
             userRole={userRole}
@@ -438,19 +459,31 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
         )}
       {customViewPortalEl &&
         createPortal(
-          activeView === 'employees' ? (
+          activeView === 'employees' && allowedViews.employees ? (
             <EmployeeListView />
-          ) : activeView === 'profile' ? (
+          ) : activeView === 'profile' && allowedViews.profile ? (
             <EmployeeProfileView onLogout={onLogout} onNotify={safeNotify} />
-          ) : activeView === 'schedules' ? (
-            <RosterView onNotify={safeNotify} />
-          ) : activeView === 'projects' ? (
+          ) : activeView === 'schedules' && allowedViews.schedules ? (
+            <EmployeeListView />
+          ) : activeView === 'projects' && allowedViews.projects ? (
             <ProjectListView onNotify={safeNotify} />
-          ) : activeView === 'settings' && userRole === 'Admin' ? (
+          ) : activeView === 'onboarding' && allowedViews.onboarding ? (
+            <OnboardingView />
+          ) : activeView === 'initialReporting' && allowedViews.initialReporting ? (
+            <InitialReportingView />
+          ) : activeView === 'delegations' && allowedViews.delegations ? (
+            <DelegationView />
+          ) : activeView === 'directory' && allowedViews.directory ? (
+            <WorkDirectoryView />
+          ) : activeView === 'lifecycle' && allowedViews.lifecycle ? (
+            <EmployeeLifecycleView />
+          ) : activeView === 'authorization' && allowedViews.authorization ? (
+            <AuthorizationStatus />
+          ) : activeView === 'settings' && allowedViews.settings ? (
             <AdminSettingsView onNotify={safeNotify} />
-          ) : activeView === 'accounts' && userRole === 'Admin' ? (
+          ) : activeView === 'accounts' && allowedViews.accounts ? (
             <UserAccountsView onNotify={safeNotify} />
-          ) : null,
+          ) : <p role="status">{authorization?.configured ? 'Chưa có capability cho màn hình này.' : 'Tài khoản chưa được cấu hình quyền V1. Không suy ra quyền từ chức danh.'}</p>,
           customViewPortalEl
         )}
       {drawerRootEl &&

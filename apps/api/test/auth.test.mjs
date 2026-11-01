@@ -50,6 +50,8 @@ import { connectDB, disconnectDB } from "../dist/db.js";
 import { UserModel } from "../dist/models/User.js";
 import { EmployeeModel } from "../dist/models/Employee.js";
 import { RefreshSessionModel } from "../dist/models/RefreshSession.js";
+import { StoreModel } from "../dist/models/Store.js";
+import { testGrant, SELF_CAPS } from './helpers/authorization-v1-fixture.mjs';
 import {
   hashPassword,
   verifyPassword,
@@ -158,6 +160,11 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
     });
     testEmpEmployee.userId = testEmpUser._id;
     await testEmpEmployee.save();
+    const stores = await StoreModel.create([{ store_name: 'Isolated P2 TECH', kind: 'outlet', status: 'ACTIVE', scopeApprovalRef: 'isolated-reviewed-tech' }, { store_name: 'Isolated P2 OTHER', kind: 'outlet', status: 'ACTIVE', scopeApprovalRef: 'isolated-reviewed-other' }]);
+    await EmployeeModel.updateMany({ _id: { $in: [testAdminEmployee._id, testEmpEmployee._id] } }, { $set: { storeId: stores[0]._id, storeMappingRef: 'isolated-tech-mapping' } });
+    await EmployeeModel.updateOne({ _id: testOtherEmployee._id }, { $set: { storeId: stores[1]._id, storeMappingRef: 'isolated-other-mapping' } });
+    await UserModel.updateOne({ _id: testAdminUser._id }, { $set: { authorization: { schemaVersion: 1, profile: 'sm', grants: [testGrant('sm', { kind: 'self' }, SELF_CAPS, testAdminUser._id), testGrant('sm', { kind: 'organization', storeIds: [String(stores[0]._id)] }, ['employees.read_operational'], testAdminUser._id)] } } });
+    await UserModel.updateOne({ _id: testEmpUser._id }, { $set: { authorization: { schemaVersion: 1, profile: 'staff', grants: [testGrant('staff', { kind: 'self' }, SELF_CAPS, testAdminUser._id)] } } });
   });
 
   after(async () => {
@@ -221,7 +228,7 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
   });
 
   describe("3. Scope Guard (assertInScope)", () => {
-    test("Employee chỉ được truy cập hồ sơ chính mình ('own')", () => {
+    test("Guard role-only đã nghỉ: kể cả own cũng phải chuyển sang kernel V1", () => {
       const actor = {
         userId: "u1",
         role: "Employee",
@@ -230,7 +237,7 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
       };
 
       // Own profile: allow
-      assert.doesNotThrow(() => {
+      assert.throws(() => {
         assertInScope(actor, { employeeId: "e1", userId: "u1" });
       });
 
@@ -239,11 +246,11 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
         () => {
           assertInScope(actor, { employeeId: "e2", userId: "u2" });
         },
-        (err) => err instanceof RbacDeniedError && err.code === "RBAC_DENIED"
+        (err) => err instanceof RbacDeniedError && err.code === "LEGACY_AUTHORIZATION_DISABLED"
       );
     });
 
-    test("Admin chỉ được truy cập trong department scope được gán", () => {
+    test("Không tái sử dụng Admin/department guard dù metadata nói cùng đơn vị", () => {
       const actor = {
         userId: "uAdmin",
         role: "Admin",
@@ -252,7 +259,7 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
       };
 
       // In-scope: allow
-      assert.doesNotThrow(() => {
+      assert.throws(() => {
         assertInScope(actor, { departmentId: "DEPT_TECH" });
       });
 
@@ -261,7 +268,7 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
         () => {
           assertInScope(actor, { departmentId: "DEPT_SALES" });
         },
-        (err) => err instanceof RbacDeniedError && err.code === "RBAC_DENIED"
+        (err) => err instanceof RbacDeniedError && err.code === "LEGACY_AUTHORIZATION_DISABLED"
       );
 
       // Admin unmapped (không có departmentId): deny
@@ -274,7 +281,7 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
         () => {
           assertInScope(unmappedAdmin, { departmentId: "DEPT_TECH" });
         },
-        (err) => err instanceof RbacDeniedError && err.code === "RBAC_DENIED"
+        (err) => err instanceof RbacDeniedError && err.code === "LEGACY_AUTHORIZATION_DISABLED"
       );
     });
   });
@@ -653,13 +660,13 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
       assert.equal(hasOtherDept, false);
     });
 
-    test("GET /api/employees - Admin yêu cầu xem phòng ban ngoài scope bị 403 RBAC_DENIED", async () => {
+    test("GET /api/employees - bộ lọc phòng ban giao với store grant, không mở rộng scope", async () => {
       const res = await httpFetch(`${baseUrl}/api/employees?departmentId=DEPT_OTHER`, {
         headers: { Authorization: `Bearer ${adminToken}` },
       });
-      assert.equal(res.status, 403);
+      assert.equal(res.status, 200);
       const data = await res.json();
-      assert.equal(data.error.code, "RBAC_DENIED");
+      assert.deepEqual(data.items, []);
     });
 
     test("GET /api/employees/:id - Employee xem hồ sơ của CHÍNH MÌNH (own) thành công với EmployeeDetailSchema", async () => {
@@ -699,17 +706,17 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
       assert.equal("bank_name" in data, false);
     });
 
-    test("GET /api/employees/:id - Admin xem nhân sự ngoài scope bị 403 RBAC_DENIED", async () => {
+    test("GET /api/employees/:id - quản lý không thấy nhân sự ngoài store grant", async () => {
       const res = await httpFetch(`${baseUrl}/api/employees/${testOtherEmployee._id}`, {
         headers: { Authorization: `Bearer ${adminToken}` },
       });
-      assert.equal(res.status, 403);
+      assert.equal(res.status, 404);
       const data = await res.json();
-      assert.equal(data.error.code, "RBAC_DENIED");
+      assert.equal(data.error.code, "RESOURCE_NOT_FOUND");
     });
   });
 
-  describe("7b. Global Admin (không gắn hồ sơ nhân viên) — hàng đợi duyệt toàn hệ thống", () => {
+  describe("7b. Legacy Global Admin không có capability V1 — không được mở nghiệp vụ toàn hệ thống", () => {
     let globalToken;
     let scopedUnmappedToken;
 
@@ -737,22 +744,22 @@ describe("Phase 2: Auth, RBAC, Data Minimization & Security Lockdown Test Suite"
       await UserModel.deleteMany({ username: { $in: ["test-p2-global", "test-p2-unmapped"] } });
     });
 
-    test("Admin toàn quyền xem được hàng đợi duyệt dù không có departmentId", async () => {
+    test("Cờ Global Admin không cấp quyền xem hàng đợi HR", async () => {
       const res = await httpFetch(`${baseUrl}/api/change-requests?status=PENDING`, {
         headers: { Authorization: `Bearer ${globalToken}` },
       });
-      assert.equal(res.status, 200);
+      assert.equal(res.status, 403);
       const data = await res.json();
-      assert.ok(Array.isArray(data.items));
+      assert.equal(data.error.code, 'RBAC_DENIED');
     });
 
-    test("Admin toàn quyền xem được danh sách nhân sự toàn hệ thống", async () => {
+    test("Cờ Global Admin không cấp quyền xem danh sách nhân sự toàn hệ thống", async () => {
       const res = await httpFetch(`${baseUrl}/api/employees?limit=5`, {
         headers: { Authorization: `Bearer ${globalToken}` },
       });
-      assert.equal(res.status, 200);
+      assert.equal(res.status, 403);
       const data = await res.json();
-      assert.ok(data.paging.totalItems >= 3);
+      assert.equal(data.error.code, 'RBAC_DENIED');
     });
 
     test("Admin không có cờ isGlobalAdmin và không có departmentId vẫn bị 403 (fail-closed)", async () => {

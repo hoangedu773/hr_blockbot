@@ -17,7 +17,12 @@ import {
   ReviewProfileChangeRequestSchema,
   ReportReviewSchema,
   DepartmentCreateSchema,
+  DepartmentUpdateSchema, EmployeeCreateSchema, EmployeeUpdateSchema,
   ProjectCreateSchema,
+  AssignmentResponseSchema, AssignmentReviewSchema, AssignmentHandoverSchema, AssignmentMessageSchema,
+  ProjectUpdateSchema,
+  ProjectProgressSchema,
+  ReportSubmitSchema,
   ErrorCodeSchema,
   RagQueryRequestSchema,
   RagAnswerResponseSchema,
@@ -47,6 +52,53 @@ import {
   ReportUpdatedPayloadSchema,
   KpiUpdatedPayloadSchema,
 } from "../dist/index.js";
+
+describe("Contracts: CRM workflow boundaries", () => {
+  it("requires explicit consent and reasons for rejection/change/review/handover, never accepts executable AI decisions", () => {
+    assert.equal(AssignmentResponseSchema.parse({ action: 'ACCEPT', expectedVersion: 2 }).action, 'ACCEPT');
+    for (const action of ['DECLINE', 'REQUEST_CHANGE']) assert.throws(() => AssignmentResponseSchema.parse({ action, expectedVersion: 2 }));
+    assert.throws(() => AssignmentReviewSchema.parse({ action: 'REJECT', expectedVersion: 2 }));
+    assert.throws(() => AssignmentReviewSchema.parse({ action: 'APPROVE', reason: 'yes', expectedVersion: 2 }));
+    assert.throws(() => AssignmentHandoverSchema.parse({ action: 'CONFIRM', reason: ' ', expectedVersion: 2 }));
+    assert.throws(() => AssignmentMessageSchema.parse({ message: ' ', expectedVersion: 2 }));
+    assert.throws(() => AssignmentResponseSchema.parse({ action: 'AUTO_REASSIGN', expectedVersion: 2 }));
+    const reviewed = AssignmentReviewSchema.parse({ action: 'APPROVE', reason: 'Fit', replacementId: 'a'.repeat(24), expectedVersion: 3, kpiPenalty: -10 });
+    assert.equal('kpiPenalty' in reviewed, false);
+  });
+  it("normalizes work text and accepts only real ISO deadlines", () => {
+    const work = ProjectCreateSchema.parse({ title: "  Kiểm tra cửa hàng  ", departmentId: "  dept-1 ", dueDate: "2026-11-01T23:59:59+07:00" });
+    assert.equal(work.title, "Kiểm tra cửa hàng");
+    assert.equal(work.departmentId, "dept-1");
+    assert.throws(() => ProjectCreateSchema.parse({ title: "  ", departmentId: "dept-1" }));
+    assert.throws(() => ProjectCreateSchema.parse({ title: "Work", departmentId: "dept-1", dueDate: "not-a-date" }));
+    assert.throws(() => ProjectCreateSchema.parse({ title: "x".repeat(201), departmentId: "dept-1" }));
+    assert.deepEqual(ProjectCreateSchema.parse({ title: "Work", departmentId: "dept-1", dueDate: "2026-11-15T00:00:00Z", requiredSkills: ["  Bàn giao "] }).requiredSkills, ["Bàn giao"]);
+    assert.throws(() => ProjectCreateSchema.parse({ title: "Work", departmentId: "dept-1" }));
+    assert.throws(() => ProjectCreateSchema.parse({ title: "Work", departmentId: "dept-1", requiredSkills: [""] }));
+    assert.throws(() => ProjectCreateSchema.parse({ title: "Work", departmentId: "dept-1", requiredSkills: Array(31).fill("Skill") }));
+  });
+
+  it("requires an expected version for edits and progress", () => {
+    assert.throws(() => ProjectUpdateSchema.parse({ title: "Updated" }));
+    assert.throws(() => ProjectProgressSchema.parse({ progress: 80 }));
+    assert.equal(ProjectUpdateSchema.safeParse({ title: "Updated", dueDate: null, expectedVersion: 1 }).success, false, "G06 keeps non-null deadline");
+    assert.equal(ProjectUpdateSchema.parse({ title: "Updated", dueDate: "2026-11-16T00:00:00Z", expectedVersion: 1 }).dueDate, "2026-11-16T00:00:00Z");
+    assert.equal(ProjectProgressSchema.parse({ progress: 80, expectedVersion: 2 }).progress, 80);
+    for (const progress of [-1, 101, 0.5]) assert.throws(() => ProjectProgressSchema.parse({ progress, expectedVersion: 2 }));
+  });
+
+  it("bounds report bodies and allows at most ten HTTP evidence links", () => {
+    const report = ReportSubmitSchema.parse({ projectId: "project-1", content: "  Đã hoàn thành  ", expectedVersion: 2 });
+    assert.equal(report.content, "Đã hoàn thành");
+    assert.deepEqual(report.attachments, []);
+    for (const link of ["javascript:alert(1)", "file:///C:/secret", "data:text/html,x", "not-a-url"]) {
+      assert.throws(() => ReportSubmitSchema.parse({ ...report, attachments: [link] }));
+    }
+    assert.throws(() => ReportSubmitSchema.parse({ ...report, attachments: Array(11).fill("https://example.test/evidence") }));
+    assert.throws(() => ReportSubmitSchema.parse({ ...report, content: " ", attachments: [] }));
+    assert.equal(ReportSubmitSchema.parse({ ...report, attachments: ["https://example.test/evidence"] }).attachments.length, 1);
+  });
+});
 
 describe("Contracts: Auth & RBAC Schemas", () => {
   it("chấp nhận đúng 2 role hệ thống: Admin và Employee", () => {
@@ -214,6 +266,16 @@ describe("Contracts: Employee Data Minimization & PII Elimination", () => {
 });
 
 describe("Contracts: F1 Profile Change Request & Department Schemas", () => {
+  it("personnel/department administration is bounded and cannot inject roles, transfer or rename codes", () => {
+    const created = EmployeeCreateSchema.parse({ employeeCode: ' NEW-01 ', fullName: ' Nhân viên mới ', departmentId: 'unit', level: 'Junior' });
+    assert.equal(created.employeeCode, 'NEW-01'); assert.equal(created.fullName, 'Nhân viên mới');
+    assert.throws(() => EmployeeCreateSchema.parse({ ...created, role: 'Admin' }));
+    assert.throws(() => EmployeeCreateSchema.parse({ ...created, hiredAt: 'yesterday' }));
+    assert.throws(() => EmployeeUpdateSchema.parse({ departmentId: 'other-unit', expectedVersion: 1 }));
+    assert.throws(() => DepartmentCreateSchema.parse({ name: ' ', code: 'NEW' }));
+    assert.throws(() => DepartmentUpdateSchema.parse({ code: 'RENAMED', expectedVersion: 1 }));
+    assert.equal(DepartmentUpdateSchema.parse({ managerId: null, expectedVersion: 1 }).managerId, null);
+  });
   it("DepartmentCreateSchema yêu cầu name và code", () => {
     const dept = DepartmentCreateSchema.parse({
       name: "Phòng Công Nghệ",
@@ -284,6 +346,7 @@ describe("Contracts: F2 Project Lifecycle & Report Schemas", () => {
     const proj = ProjectCreateSchema.parse({
       title: "Nâng cấp bảo mật Auth",
       departmentId: "DEPT_TECH",
+      dueDate: "2026-11-15T00:00:00Z",
     });
     assert.equal(proj.title, "Nâng cấp bảo mật Auth");
   });

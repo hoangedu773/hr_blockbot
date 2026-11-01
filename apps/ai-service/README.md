@@ -1,9 +1,29 @@
 # HR BlockBot — AI Service
 
-FastAPI service cung cấp:
-1. **Policy RAG Engine:** Tra cứu quy chế, nội quy lao động, quy định chấm công & kiểm quỹ của Guta Cafe kèm trích dẫn văn bản (BR-15: document, version, article, score) và cơ chế từ chối đoán (Abstention Rule FR-018).
-2. **Agent Function Calling & Mock Tools:** Khóa an toàn theo mặc định (`AI_AGENT_ENABLED=false`) để bảo vệ dữ liệu nhân sự trong giai đoạn bootstrap.
-3. **Trung thực trong Liveness & Readiness:** Phân biệt tiến trình hoạt động (`/health/live`) và kết nối MongoDB Atlas thật (`/health/ready`), không báo xanh giả khi mất kết nối DB.
+## Authorization V1 runtime (local implementation, not a deployment claim)
+
+`python start.py` starts `app.authorization_gateway:app`. This transport adapter
+reuses the existing provider chain without changing matching/PhoBERT algorithms.
+It does not import the legacy Mongo/tool runtime or retrieve a local policy corpus.
+
+- The Express API authenticates the signed-in user, opens a short-lived,
+  audience/request/security-version-bound receipt, then calls
+  `POST /api/v1/authorized-chat` with a separate service key.
+- This adapter calls only allowlisted tools on the trusted
+  `AUTHORIZATION_API_ORIGIN` configured by the operator. Identity, scope, fields,
+  document ACLs and final output validation are controlled by the API, not prompts.
+- Documents without approved ACL classification are denied before content retrieval.
+  Provider-generated citations, attachments and write actions are not trusted;
+  the API emits only revalidated server receipts. Writes remain proposal-only.
+- Legacy `/api/v1/chat` and `/api/v1/rag/query` return 403 in this entrypoint.
+  Direct calls without service authentication and a valid end-user delegation fail.
+- The V1 service does not require or receive `MONGODB_URI`. Configure the separate
+  service key and trusted API origin using `.env.example`; never commit credentials.
+
+`app.main` and legacy evaluation/probe scripts are retained for offline regression
+of the other member's AI work. They are **not** the V1 application entrypoint and
+must not be mounted as a fallback to bypass authorization. The old agent flag does
+not authorize the V1 transport to execute writes.
 
 ## Cài đặt & Chạy:
 
@@ -19,15 +39,28 @@ python start.py
 # Chạy toàn bộ test probes
 pytest tests/ -v
 
-# Chạy kiểm tra liveness/readiness và mock lockdown
-python tests/test_health_probe.py
-
-# Probe tra cứu văn bản chính sách & kiểm định Vector capability
-python tests/test_vector_probe.py --query "Chu kỳ tính lương của Guta"
+# Hermetic V1 transport tests (mock API/provider, no database or real account)
+pytest tests/test_authorization_gateway.py -q
 ```
 
+Cross-language HTTP integration (from the repository root, after building API):
+
+```powershell
+pnpm --filter api test:authorization-python
+```
+
+This separate gate needs the isolated Python environment
+`apps/ai-service/.venv-authz-v1` (or an explicit `AUTHORIZATION_TEST_PYTHON` path).
+It launches real Express/Python processes and its own throwaway MongoDB; an owned
+HTTP proxy serves a synthetic provider. No production URL guard is bypassed or
+changed, no real model is called, and Python receives no Mongo credentials.
+
 Endpoints:
-- Swagger API Docs: `http://localhost:8000/docs`
+- Interactive Swagger/Redoc are disabled in the V1 entrypoint.
 - Health check: `http://localhost:8000/health`
 - Liveness probe: `http://localhost:8000/health/live`
 - Readiness probe: `http://localhost:8000/health/ready`
+
+Liveness only proves that the process responds. Readiness verifies the configured
+API dependency; it does not assert provider availability, user permissions, public
+blockchain anchoring or that a production rollout/migration has taken place.

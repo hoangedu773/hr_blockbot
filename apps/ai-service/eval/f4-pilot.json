@@ -1,0 +1,1862 @@
+{
+  "version": 1,
+  "synthetic": true,
+  "annotationStatus": "PENDING_INDEPENDENT_HUMAN_REVIEW",
+  "rubricStatus": "PROPOSED_FOR_REVIEW",
+  "rubric": {
+    "0": "Không có bằng chứng kỹ năng phù hợp",
+    "1": "Phù hợp một phần theo bằng chứng kỹ năng; ghi rõ thiếu gì",
+    "2": "Phù hợp các yêu cầu, kể cả diễn đạt tương đương được người đánh giá xác nhận"
+  },
+  "tasks": [
+    {
+      "id": "synthetic-task-1",
+      "split": "dev",
+      "group": "inventory",
+      "title": "Kiểm kê nguyên liệu",
+      "description": "Nhiệm vụ hư cấu: Kiểm kê nguyên liệu. Chỉ đánh giá từ kỹ năng được cung cấp.",
+      "requiredSkills": [
+        "Kiểm kê",
+        "Quản lý kho"
+      ],
+      "candidates": [
+        {
+          "id": "synthetic-task-1-person-1",
+          "skills": [
+            "Kiểm kê",
+            "Quản lý kho"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-1-person-2",
+          "skills": [
+            "Kiểm kê",
+            "Quản lý kho"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-1-person-3",
+          "skills": [
+            "Quản lý kho"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-1-person-4",
+          "skills": [],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-1-person-5",
+          "skills": [
+            "Kiểm kê tại cửa hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-1-person-6",
+          "skills": [
+            "Kiểm đếm hàng tồn"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-1-person-7",
+          "skills": [
+            "Phục vụ"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-1-person-8",
+          "skills": [
+            "Sơ chế"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-1-person-9",
+          "skills": [
+            "Bán hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-1-person-10",
+          "skills": [
+            "Sắp xếp"
+          ],
+          "workload": 1,
+          "judgments": []
+        }
+      ],
+      "scenario": "exact_with_workload_tie"
+    },
+    {
+      "id": "synthetic-task-2",
+      "split": "dev",
+      "group": "espresso",
+      "title": "Chuẩn bị espresso",
+      "description": "Nhiệm vụ hư cấu: Chuẩn bị espresso. Chỉ đánh giá từ kỹ năng được cung cấp.",
+      "requiredSkills": [
+        "Pha chế",
+        "Vệ sinh máy"
+      ],
+      "candidates": [
+        {
+          "id": "synthetic-task-2-person-1",
+          "skills": [
+            "Barista",
+            "Làm sạch thiết bị pha chế"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-2-person-2",
+          "skills": [
+            "Pha chế"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-2-person-3",
+          "skills": [
+            "Vệ sinh máy"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-2-person-4",
+          "skills": [],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-2-person-5",
+          "skills": [
+            "Pha chế tại cửa hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-2-person-6",
+          "skills": [
+            "Barista"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-2-person-7",
+          "skills": [
+            "Phục vụ"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-2-person-8",
+          "skills": [
+            "Sơ chế"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-2-person-9",
+          "skills": [
+            "Bán hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-2-person-10",
+          "skills": [
+            "Sắp xếp"
+          ],
+          "workload": 1,
+          "judgments": []
+        }
+      ],
+      "scenario": "paraphrase_requires_human_verification"
+    },
+    {
+      "id": "synthetic-task-3",
+      "split": "dev",
+      "group": "service",
+      "title": "Đón tiếp khách",
+      "description": "Nhiệm vụ hư cấu: Đón tiếp khách. Chỉ đánh giá từ kỹ năng được cung cấp.",
+      "requiredSkills": [
+        "Chăm sóc khách hàng",
+        "Giao tiếp"
+      ],
+      "candidates": [
+        {
+          "id": "synthetic-task-3-person-1",
+          "skills": [],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-3-person-2",
+          "skills": [
+            "Kỹ năng khác chưa xác minh"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-3-person-3",
+          "skills": [
+            "Kỹ năng khác chưa xác minh"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-3-person-4",
+          "skills": [],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-3-person-5",
+          "skills": [
+            "Chăm sóc khách hàng tại cửa hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-3-person-6",
+          "skills": [
+            "Chăm sóc khách"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-3-person-7",
+          "skills": [
+            "Phục vụ"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-3-person-8",
+          "skills": [
+            "Sơ chế"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-3-person-9",
+          "skills": [
+            "Bán hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-3-person-10",
+          "skills": [
+            "Sắp xếp"
+          ],
+          "workload": 1,
+          "judgments": []
+        }
+      ],
+      "scenario": "insufficient_or_partial_evidence"
+    },
+    {
+      "id": "synthetic-task-4",
+      "split": "dev",
+      "group": "opening",
+      "title": "Mở quầy đầu ngày",
+      "description": "Nhiệm vụ hư cấu: Mở quầy đầu ngày. Chỉ đánh giá từ kỹ năng được cung cấp.",
+      "requiredSkills": [
+        "Mở ca",
+        "Kiểm tra thiết bị"
+      ],
+      "candidates": [
+        {
+          "id": "synthetic-task-4-person-1",
+          "skills": [
+            "Mở ca",
+            "Kiểm tra thiết bị"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-4-person-2",
+          "skills": [
+            "Mở ca",
+            "Kiểm tra thiết bị"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-4-person-3",
+          "skills": [
+            "Kiểm tra thiết bị"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-4-person-4",
+          "skills": [],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-4-person-5",
+          "skills": [
+            "Mở ca tại cửa hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-4-person-6",
+          "skills": [
+            "Chuẩn bị mở quầy"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-4-person-7",
+          "skills": [
+            "Phục vụ"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-4-person-8",
+          "skills": [
+            "Sơ chế"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-4-person-9",
+          "skills": [
+            "Bán hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-4-person-10",
+          "skills": [
+            "Sắp xếp"
+          ],
+          "workload": 1,
+          "judgments": []
+        }
+      ],
+      "scenario": "exact_with_workload_tie"
+    },
+    {
+      "id": "synthetic-task-5",
+      "split": "dev",
+      "group": "cleaning",
+      "title": "Vệ sinh quầy pha chế",
+      "description": "Nhiệm vụ hư cấu: Vệ sinh quầy pha chế. Chỉ đánh giá từ kỹ năng được cung cấp.",
+      "requiredSkills": [
+        "Vệ sinh",
+        "An toàn thực phẩm"
+      ],
+      "candidates": [
+        {
+          "id": "synthetic-task-5-person-1",
+          "skills": [
+            "Làm sạch quầy",
+            "Vệ sinh thực phẩm"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-5-person-2",
+          "skills": [
+            "Vệ sinh"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-5-person-3",
+          "skills": [
+            "An toàn thực phẩm"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-5-person-4",
+          "skills": [],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-5-person-5",
+          "skills": [
+            "Vệ sinh tại cửa hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-5-person-6",
+          "skills": [
+            "Làm sạch quầy"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-5-person-7",
+          "skills": [
+            "Phục vụ"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-5-person-8",
+          "skills": [
+            "Sơ chế"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-5-person-9",
+          "skills": [
+            "Bán hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-5-person-10",
+          "skills": [
+            "Sắp xếp"
+          ],
+          "workload": 1,
+          "judgments": []
+        }
+      ],
+      "scenario": "paraphrase_requires_human_verification"
+    },
+    {
+      "id": "synthetic-task-6",
+      "split": "dev",
+      "group": "training",
+      "title": "Hướng dẫn nhân viên mới",
+      "description": "Nhiệm vụ hư cấu: Hướng dẫn nhân viên mới. Chỉ đánh giá từ kỹ năng được cung cấp.",
+      "requiredSkills": [
+        "Đào tạo",
+        "Pha chế"
+      ],
+      "candidates": [
+        {
+          "id": "synthetic-task-6-person-1",
+          "skills": [],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-6-person-2",
+          "skills": [
+            "Kỹ năng khác chưa xác minh"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-6-person-3",
+          "skills": [
+            "Kỹ năng khác chưa xác minh"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-6-person-4",
+          "skills": [],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-6-person-5",
+          "skills": [
+            "Đào tạo tại cửa hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-6-person-6",
+          "skills": [
+            "Hướng dẫn nghiệp vụ"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-6-person-7",
+          "skills": [
+            "Phục vụ"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-6-person-8",
+          "skills": [
+            "Sơ chế"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-6-person-9",
+          "skills": [
+            "Bán hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-6-person-10",
+          "skills": [
+            "Sắp xếp"
+          ],
+          "workload": 1,
+          "judgments": []
+        }
+      ],
+      "scenario": "insufficient_or_partial_evidence"
+    },
+    {
+      "id": "synthetic-task-7",
+      "split": "dev",
+      "group": "queue",
+      "title": "Điều phối hàng chờ",
+      "description": "Nhiệm vụ hư cấu: Điều phối hàng chờ. Chỉ đánh giá từ kỹ năng được cung cấp.",
+      "requiredSkills": [
+        "Điều phối",
+        "Giao tiếp"
+      ],
+      "candidates": [
+        {
+          "id": "synthetic-task-7-person-1",
+          "skills": [
+            "Điều phối",
+            "Giao tiếp"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-7-person-2",
+          "skills": [
+            "Điều phối",
+            "Giao tiếp"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-7-person-3",
+          "skills": [
+            "Giao tiếp"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-7-person-4",
+          "skills": [],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-7-person-5",
+          "skills": [
+            "Điều phối tại cửa hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-7-person-6",
+          "skills": [
+            "Sắp xếp luồng khách"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-7-person-7",
+          "skills": [
+            "Phục vụ"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-7-person-8",
+          "skills": [
+            "Sơ chế"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-7-person-9",
+          "skills": [
+            "Bán hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-7-person-10",
+          "skills": [
+            "Sắp xếp"
+          ],
+          "workload": 1,
+          "judgments": []
+        }
+      ],
+      "scenario": "exact_with_workload_tie"
+    },
+    {
+      "id": "synthetic-task-8",
+      "split": "dev",
+      "group": "restock",
+      "title": "Bổ sung vật tư quầy",
+      "description": "Nhiệm vụ hư cấu: Bổ sung vật tư quầy. Chỉ đánh giá từ kỹ năng được cung cấp.",
+      "requiredSkills": [
+        "Quản lý kho",
+        "Sắp xếp vật tư"
+      ],
+      "candidates": [
+        {
+          "id": "synthetic-task-8-person-1",
+          "skills": [
+            "Quản lý tồn kho",
+            "Bố trí dụng cụ"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-8-person-2",
+          "skills": [
+            "Quản lý kho"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-8-person-3",
+          "skills": [
+            "Sắp xếp vật tư"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-8-person-4",
+          "skills": [],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-8-person-5",
+          "skills": [
+            "Quản lý kho tại cửa hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-8-person-6",
+          "skills": [
+            "Bổ sung tồn kho"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-8-person-7",
+          "skills": [
+            "Phục vụ"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-8-person-8",
+          "skills": [
+            "Sơ chế"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-8-person-9",
+          "skills": [
+            "Bán hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-8-person-10",
+          "skills": [
+            "Sắp xếp"
+          ],
+          "workload": 1,
+          "judgments": []
+        }
+      ],
+      "scenario": "paraphrase_requires_human_verification"
+    },
+    {
+      "id": "synthetic-task-9",
+      "split": "dev",
+      "group": "complaint",
+      "title": "Tiếp nhận phản hồi",
+      "description": "Nhiệm vụ hư cấu: Tiếp nhận phản hồi. Chỉ đánh giá từ kỹ năng được cung cấp.",
+      "requiredSkills": [
+        "Chăm sóc khách hàng",
+        "Xử lý phản hồi"
+      ],
+      "candidates": [
+        {
+          "id": "synthetic-task-9-person-1",
+          "skills": [],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-9-person-2",
+          "skills": [
+            "Kỹ năng khác chưa xác minh"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-9-person-3",
+          "skills": [
+            "Kỹ năng khác chưa xác minh"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-9-person-4",
+          "skills": [],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-9-person-5",
+          "skills": [
+            "Chăm sóc khách hàng tại cửa hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-9-person-6",
+          "skills": [
+            "Giải quyết phản ánh"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-9-person-7",
+          "skills": [
+            "Phục vụ"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-9-person-8",
+          "skills": [
+            "Sơ chế"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-9-person-9",
+          "skills": [
+            "Bán hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-9-person-10",
+          "skills": [
+            "Sắp xếp"
+          ],
+          "workload": 1,
+          "judgments": []
+        }
+      ],
+      "scenario": "insufficient_or_partial_evidence"
+    },
+    {
+      "id": "synthetic-task-10",
+      "split": "dev",
+      "group": "handover",
+      "title": "Lập biên bản bàn giao",
+      "description": "Nhiệm vụ hư cấu: Lập biên bản bàn giao. Chỉ đánh giá từ kỹ năng được cung cấp.",
+      "requiredSkills": [
+        "Bàn giao",
+        "Ghi chép"
+      ],
+      "candidates": [
+        {
+          "id": "synthetic-task-10-person-1",
+          "skills": [
+            "Bàn giao",
+            "Ghi chép"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-10-person-2",
+          "skills": [
+            "Bàn giao",
+            "Ghi chép"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-10-person-3",
+          "skills": [
+            "Ghi chép"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-10-person-4",
+          "skills": [],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-10-person-5",
+          "skills": [
+            "Bàn giao tại cửa hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-10-person-6",
+          "skills": [
+            "Chuyển giao ca"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-10-person-7",
+          "skills": [
+            "Phục vụ"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-10-person-8",
+          "skills": [
+            "Sơ chế"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-10-person-9",
+          "skills": [
+            "Bán hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-10-person-10",
+          "skills": [
+            "Sắp xếp"
+          ],
+          "workload": 1,
+          "judgments": []
+        }
+      ],
+      "scenario": "exact_with_workload_tie"
+    },
+    {
+      "id": "synthetic-task-11",
+      "split": "test",
+      "group": "delivery",
+      "title": "Kiểm nhận hàng nhà cung cấp",
+      "description": "Nhiệm vụ hư cấu: Kiểm nhận hàng nhà cung cấp. Chỉ đánh giá từ kỹ năng được cung cấp.",
+      "requiredSkills": [
+        "Nhận hàng",
+        "Đối chiếu chứng từ"
+      ],
+      "candidates": [
+        {
+          "id": "synthetic-task-11-person-1",
+          "skills": [
+            "Kiểm nhận hàng",
+            "Đối soát giấy giao hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-11-person-2",
+          "skills": [
+            "Nhận hàng"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-11-person-3",
+          "skills": [
+            "Đối chiếu chứng từ"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-11-person-4",
+          "skills": [],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-11-person-5",
+          "skills": [
+            "Nhận hàng tại cửa hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-11-person-6",
+          "skills": [
+            "Ghi chép"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-11-person-7",
+          "skills": [
+            "Phục vụ"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-11-person-8",
+          "skills": [
+            "Sơ chế"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-11-person-9",
+          "skills": [
+            "Bán hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-11-person-10",
+          "skills": [
+            "Sắp xếp"
+          ],
+          "workload": 1,
+          "judgments": []
+        }
+      ],
+      "scenario": "paraphrase_requires_human_verification"
+    },
+    {
+      "id": "synthetic-task-12",
+      "split": "test",
+      "group": "storage",
+      "title": "Sắp xếp hạn sử dụng",
+      "description": "Nhiệm vụ hư cấu: Sắp xếp hạn sử dụng. Chỉ đánh giá từ kỹ năng được cung cấp.",
+      "requiredSkills": [
+        "Bảo quản thực phẩm",
+        "FIFO"
+      ],
+      "candidates": [
+        {
+          "id": "synthetic-task-12-person-1",
+          "skills": [],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-12-person-2",
+          "skills": [
+            "Kỹ năng khác chưa xác minh"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-12-person-3",
+          "skills": [
+            "Kỹ năng khác chưa xác minh"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-12-person-4",
+          "skills": [],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-12-person-5",
+          "skills": [
+            "Bảo quản thực phẩm tại cửa hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-12-person-6",
+          "skills": [
+            "Ghi chép"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-12-person-7",
+          "skills": [
+            "Phục vụ"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-12-person-8",
+          "skills": [
+            "Sơ chế"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-12-person-9",
+          "skills": [
+            "Bán hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-12-person-10",
+          "skills": [
+            "Sắp xếp"
+          ],
+          "workload": 1,
+          "judgments": []
+        }
+      ],
+      "scenario": "insufficient_or_partial_evidence"
+    },
+    {
+      "id": "synthetic-task-13",
+      "split": "test",
+      "group": "takeaway",
+      "title": "Đóng gói đơn mang đi",
+      "description": "Nhiệm vụ hư cấu: Đóng gói đơn mang đi. Chỉ đánh giá từ kỹ năng được cung cấp.",
+      "requiredSkills": [
+        "Đóng gói",
+        "Kiểm tra đơn hàng"
+      ],
+      "candidates": [
+        {
+          "id": "synthetic-task-13-person-1",
+          "skills": [
+            "Đóng gói",
+            "Kiểm tra đơn hàng"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-13-person-2",
+          "skills": [
+            "Đóng gói",
+            "Kiểm tra đơn hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-13-person-3",
+          "skills": [
+            "Kiểm tra đơn hàng"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-13-person-4",
+          "skills": [],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-13-person-5",
+          "skills": [
+            "Đóng gói tại cửa hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-13-person-6",
+          "skills": [
+            "Ghi chép"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-13-person-7",
+          "skills": [
+            "Phục vụ"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-13-person-8",
+          "skills": [
+            "Sơ chế"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-13-person-9",
+          "skills": [
+            "Bán hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-13-person-10",
+          "skills": [
+            "Sắp xếp"
+          ],
+          "workload": 1,
+          "judgments": []
+        }
+      ],
+      "scenario": "exact_with_workload_tie"
+    },
+    {
+      "id": "synthetic-task-14",
+      "split": "test",
+      "group": "repair",
+      "title": "Ghi nhận sự cố máy pha",
+      "description": "Nhiệm vụ hư cấu: Ghi nhận sự cố máy pha. Chỉ đánh giá từ kỹ năng được cung cấp.",
+      "requiredSkills": [
+        "Báo cáo sự cố",
+        "Kiểm tra thiết bị"
+      ],
+      "candidates": [
+        {
+          "id": "synthetic-task-14-person-1",
+          "skills": [
+            "Ghi nhận lỗi máy",
+            "Rà soát máy móc"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-14-person-2",
+          "skills": [
+            "Báo cáo sự cố"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-14-person-3",
+          "skills": [
+            "Kiểm tra thiết bị"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-14-person-4",
+          "skills": [],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-14-person-5",
+          "skills": [
+            "Báo cáo sự cố tại cửa hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-14-person-6",
+          "skills": [
+            "Ghi chép"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-14-person-7",
+          "skills": [
+            "Phục vụ"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-14-person-8",
+          "skills": [
+            "Sơ chế"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-14-person-9",
+          "skills": [
+            "Bán hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-14-person-10",
+          "skills": [
+            "Sắp xếp"
+          ],
+          "workload": 1,
+          "judgments": []
+        }
+      ],
+      "scenario": "paraphrase_requires_human_verification"
+    },
+    {
+      "id": "synthetic-task-15",
+      "split": "test",
+      "group": "waste",
+      "title": "Phân loại rác trong quán",
+      "description": "Nhiệm vụ hư cấu: Phân loại rác trong quán. Chỉ đánh giá từ kỹ năng được cung cấp.",
+      "requiredSkills": [
+        "Phân loại rác",
+        "An toàn vệ sinh"
+      ],
+      "candidates": [
+        {
+          "id": "synthetic-task-15-person-1",
+          "skills": [],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-15-person-2",
+          "skills": [
+            "Kỹ năng khác chưa xác minh"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-15-person-3",
+          "skills": [
+            "Kỹ năng khác chưa xác minh"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-15-person-4",
+          "skills": [],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-15-person-5",
+          "skills": [
+            "Phân loại rác tại cửa hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-15-person-6",
+          "skills": [
+            "Ghi chép"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-15-person-7",
+          "skills": [
+            "Phục vụ"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-15-person-8",
+          "skills": [
+            "Sơ chế"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-15-person-9",
+          "skills": [
+            "Bán hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-15-person-10",
+          "skills": [
+            "Sắp xếp"
+          ],
+          "workload": 1,
+          "judgments": []
+        }
+      ],
+      "scenario": "insufficient_or_partial_evidence"
+    },
+    {
+      "id": "synthetic-task-16",
+      "split": "test",
+      "group": "safety",
+      "title": "Kiểm tra lối thoát hiểm",
+      "description": "Nhiệm vụ hư cấu: Kiểm tra lối thoát hiểm. Chỉ đánh giá từ kỹ năng được cung cấp.",
+      "requiredSkills": [
+        "An toàn cửa hàng",
+        "Kiểm tra an toàn"
+      ],
+      "candidates": [
+        {
+          "id": "synthetic-task-16-person-1",
+          "skills": [
+            "An toàn cửa hàng",
+            "Kiểm tra an toàn"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-16-person-2",
+          "skills": [
+            "An toàn cửa hàng",
+            "Kiểm tra an toàn"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-16-person-3",
+          "skills": [
+            "Kiểm tra an toàn"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-16-person-4",
+          "skills": [],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-16-person-5",
+          "skills": [
+            "An toàn cửa hàng tại cửa hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-16-person-6",
+          "skills": [
+            "Ghi chép"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-16-person-7",
+          "skills": [
+            "Phục vụ"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-16-person-8",
+          "skills": [
+            "Sơ chế"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-16-person-9",
+          "skills": [
+            "Bán hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-16-person-10",
+          "skills": [
+            "Sắp xếp"
+          ],
+          "workload": 1,
+          "judgments": []
+        }
+      ],
+      "scenario": "exact_with_workload_tie"
+    },
+    {
+      "id": "synthetic-task-17",
+      "split": "test",
+      "group": "meeting",
+      "title": "Tổng hợp nội dung họp ca",
+      "description": "Nhiệm vụ hư cấu: Tổng hợp nội dung họp ca. Chỉ đánh giá từ kỹ năng được cung cấp.",
+      "requiredSkills": [
+        "Ghi biên bản",
+        "Tổng hợp thông tin"
+      ],
+      "candidates": [
+        {
+          "id": "synthetic-task-17-person-1",
+          "skills": [
+            "Ghi nội dung họp",
+            "Tóm tắt thông tin"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-17-person-2",
+          "skills": [
+            "Ghi biên bản"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-17-person-3",
+          "skills": [
+            "Tổng hợp thông tin"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-17-person-4",
+          "skills": [],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-17-person-5",
+          "skills": [
+            "Ghi biên bản tại cửa hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-17-person-6",
+          "skills": [
+            "Ghi chép"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-17-person-7",
+          "skills": [
+            "Phục vụ"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-17-person-8",
+          "skills": [
+            "Sơ chế"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-17-person-9",
+          "skills": [
+            "Bán hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-17-person-10",
+          "skills": [
+            "Sắp xếp"
+          ],
+          "workload": 1,
+          "judgments": []
+        }
+      ],
+      "scenario": "paraphrase_requires_human_verification"
+    },
+    {
+      "id": "synthetic-task-18",
+      "split": "test",
+      "group": "checklist",
+      "title": "Đối soát checklist đóng quầy",
+      "description": "Nhiệm vụ hư cấu: Đối soát checklist đóng quầy. Chỉ đánh giá từ kỹ năng được cung cấp.",
+      "requiredSkills": [
+        "Đóng ca",
+        "Đối chiếu checklist"
+      ],
+      "candidates": [
+        {
+          "id": "synthetic-task-18-person-1",
+          "skills": [],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-18-person-2",
+          "skills": [
+            "Kỹ năng khác chưa xác minh"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-18-person-3",
+          "skills": [
+            "Kỹ năng khác chưa xác minh"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-18-person-4",
+          "skills": [],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-18-person-5",
+          "skills": [
+            "Đóng ca tại cửa hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-18-person-6",
+          "skills": [
+            "Ghi chép"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-18-person-7",
+          "skills": [
+            "Phục vụ"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-18-person-8",
+          "skills": [
+            "Sơ chế"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-18-person-9",
+          "skills": [
+            "Bán hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-18-person-10",
+          "skills": [
+            "Sắp xếp"
+          ],
+          "workload": 1,
+          "judgments": []
+        }
+      ],
+      "scenario": "insufficient_or_partial_evidence"
+    },
+    {
+      "id": "synthetic-task-19",
+      "split": "test",
+      "group": "event",
+      "title": "Chuẩn bị bàn phục vụ nhóm",
+      "description": "Nhiệm vụ hư cấu: Chuẩn bị bàn phục vụ nhóm. Chỉ đánh giá từ kỹ năng được cung cấp.",
+      "requiredSkills": [
+        "Sắp xếp bàn",
+        "Phục vụ nhóm"
+      ],
+      "candidates": [
+        {
+          "id": "synthetic-task-19-person-1",
+          "skills": [
+            "Sắp xếp bàn",
+            "Phục vụ nhóm"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-19-person-2",
+          "skills": [
+            "Sắp xếp bàn",
+            "Phục vụ nhóm"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-19-person-3",
+          "skills": [
+            "Phục vụ nhóm"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-19-person-4",
+          "skills": [],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-19-person-5",
+          "skills": [
+            "Sắp xếp bàn tại cửa hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-19-person-6",
+          "skills": [
+            "Ghi chép"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-19-person-7",
+          "skills": [
+            "Phục vụ"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-19-person-8",
+          "skills": [
+            "Sơ chế"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-19-person-9",
+          "skills": [
+            "Bán hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-19-person-10",
+          "skills": [
+            "Sắp xếp"
+          ],
+          "workload": 1,
+          "judgments": []
+        }
+      ],
+      "scenario": "exact_with_workload_tie"
+    },
+    {
+      "id": "synthetic-task-20",
+      "split": "test",
+      "group": "labels",
+      "title": "Rà soát nhãn vật tư",
+      "description": "Nhiệm vụ hư cấu: Rà soát nhãn vật tư. Chỉ đánh giá từ kỹ năng được cung cấp.",
+      "requiredSkills": [
+        "Kiểm tra nhãn",
+        "Quản lý vật tư"
+      ],
+      "candidates": [
+        {
+          "id": "synthetic-task-20-person-1",
+          "skills": [
+            "Rà soát thông tin nhãn",
+            "Theo dõi vật tư"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-20-person-2",
+          "skills": [
+            "Kiểm tra nhãn"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-20-person-3",
+          "skills": [
+            "Quản lý vật tư"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-20-person-4",
+          "skills": [],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-20-person-5",
+          "skills": [
+            "Kiểm tra nhãn tại cửa hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-20-person-6",
+          "skills": [
+            "Ghi chép"
+          ],
+          "workload": 1,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-20-person-7",
+          "skills": [
+            "Phục vụ"
+          ],
+          "workload": 2,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-20-person-8",
+          "skills": [
+            "Sơ chế"
+          ],
+          "workload": 3,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-20-person-9",
+          "skills": [
+            "Bán hàng"
+          ],
+          "workload": 0,
+          "judgments": []
+        },
+        {
+          "id": "synthetic-task-20-person-10",
+          "skills": [
+            "Sắp xếp"
+          ],
+          "workload": 1,
+          "judgments": []
+        }
+      ],
+      "scenario": "paraphrase_requires_human_verification"
+    }
+  ]
+}

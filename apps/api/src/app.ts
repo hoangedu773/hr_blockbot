@@ -14,6 +14,15 @@ import chatRouter from "./routes/chat.js";
 import attachmentsRouter from "./routes/attachments.js";
 import storesRouter from "./routes/stores.js";
 import dashboardRouter from "./routes/dashboard.js";
+import assignmentRouter from "./routes/assignment.js";
+import personnelAdminRouter from "./routes/personnel-admin.js";
+import onboardingRouter from "./routes/onboarding.js";
+import authorizationGatewayRouter from "./routes/authorization-gateway.js";
+import delegationsRouter from "./routes/delegations.js";
+import employeeLifecycleRouter from "./routes/employee-lifecycle.js";
+import onboardingReportingRouter from "./routes/onboarding-reporting.js";
+import type { OnboardingOptions } from "./services/onboarding.service.js";
+import type { RecoveryOptions } from "./services/password-recovery.service.js";
 import { isInfrastructureError } from "./middlewares/auth.middleware.js";
 import { redactSecrets } from "./lib/redact.js";
 
@@ -44,8 +53,10 @@ function sanitize(err: unknown): string {
 dotenv.config();
 dotenv.config({ path: "../../.env" });
 
-export function createApp(): Express {
+export function createApp(options: { onboarding?: OnboardingOptions; recovery?: RecoveryOptions } = {}): Express {
   const app = express();
+  app.locals.onboardingOptions = options.onboarding ?? {};
+  app.locals.recoveryOptions = options.recovery ?? {};
 
   // Strict CORS: frontend origin whitelist + credentials
   const allowedOrigin = process.env.FRONTEND_URL || "http://localhost:5173";
@@ -65,10 +76,16 @@ export function createApp(): Express {
 
   app.use(cookieParser());
   app.use(express.json());
+  app.use("/api", (_req, res, next) => { res.setHeader("Cache-Control", "private, no-store"); res.vary("Authorization"); next(); });
 
   // Mount Canonical Endpoints under /api prefix
   app.use("/api", healthRouter);
   app.use("/api", authRouter);
+  app.use("/api", onboardingRouter);
+  app.use("/api", onboardingReportingRouter);
+  app.use("/api", authorizationGatewayRouter);
+  app.use("/api", delegationsRouter);
+  app.use("/api", employeeLifecycleRouter);
   app.use("/api", employeesRouter);
   app.use("/api", projectsRouter);
   app.use("/api", reportsRouter);
@@ -78,6 +95,8 @@ export function createApp(): Express {
   app.use("/api", attachmentsRouter);
   app.use("/api", storesRouter);
   app.use("/api", dashboardRouter);
+  app.use("/api", assignmentRouter);
+  app.use("/api", personnelAdminRouter);
 
   // Security lockdown: Safely disable legacy endpoints outside bootstrap
   const disabledLegacyHandler = (_req: Request, res: Response) => {

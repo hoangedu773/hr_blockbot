@@ -4,6 +4,10 @@ export type StoreKind = "outlet" | "group" | "support";
 export type StoreStatus = "ACTIVE" | "INACTIVE";
 
 export interface IStore extends Document {
+  scopeApprovalRef?: string | null;
+  departmentId?: mongoose.Types.ObjectId | null;
+  regionId?: mongoose.Types.ObjectId | null;
+  regionApprovalRef?: string | null;
   store_name: string;
   employee_count: number;
   /** Mã cửa hàng do vận hành đặt; legacy rows không có. */
@@ -26,6 +30,10 @@ export interface IStore extends Document {
 
 const StoreSchema = new Schema<IStore>(
   {
+    scopeApprovalRef: { type: String, default: null },
+    departmentId: { type: Schema.Types.ObjectId, default: null },
+    regionId: { type: Schema.Types.ObjectId, default: null },
+    regionApprovalRef: { type: String, default: null },
     store_name: { type: String, required: true, unique: true, index: true },
     employee_count: { type: Number, default: 0 },
     // sparse: 133/144 cửa hàng legacy không có mã, index đặc sẽ phình vô ích.

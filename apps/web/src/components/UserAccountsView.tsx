@@ -1,626 +1,97 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import type { AdminUser, BusinessRoleName } from '@hr-blockbot/contracts';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AuthorizationProfileSchema, type AuthorizationCapability, type AuthorizationGrant, type AuthorizationProfile } from '@hr-blockbot/contracts';
+import { requestJson } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import type { EmployeeSummary } from '@hr-blockbot/contracts';
-import {
-  ApiError,
-  createAdminUser,
-  deleteAdminUser,
-  fetchAdminUsers,
-  fetchEmployees,
-  resetAdminUserPassword,
-  updateAdminUser,
-} from '../services/api';
+import { useAuthorization } from '../context/useAuthorization';
+import { CrmDialog } from './ui/CrmDialog';
 import type { NotifyFn } from './Toast';
 
-interface UserAccountsViewProps {
-  onNotify: NotifyFn;
-}
-
-const BUSINESS_ROLE_LABEL: Record<BusinessRoleName, string> = {
-  admin: 'Ban điều hành',
-  aom: 'AOM',
-  sm: 'SM',
-  am: 'AM',
-  ptch: 'PTCH',
-  staff: 'Nhân viên',
-};
-
-const EMPLOYEE_ROLE_OPTIONS: BusinessRoleName[] = ['staff', 'ptch', 'sm', 'am', 'aom'];
-
-interface CreateFormState {
-  username: string;
-  password: string;
-  role: 'Admin' | 'Employee';
-  businessRole: BusinessRoleName;
-  employeeId: string;
-  isGlobalAdmin: boolean;
-}
-
-const EMPTY_FORM: CreateFormState = {
-  username: '',
-  password: '',
-  role: 'Employee',
-  businessRole: 'staff',
-  employeeId: '',
-  isGlobalAdmin: false,
-};
-
-/** Mật khẩu tạm chỉ hiện đúng một lần: server không lưu bản rõ và không trả lại lần nữa. */
-interface RevealedSecret {
-  username: string;
-  password: string;
-  reason: 'created' | 'reset';
-}
-
-export const UserAccountsView: React.FC<UserAccountsViewProps> = ({ onNotify }) => {
-  const { user: currentUser } = useAuth();
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [totalItems, setTotalItems] = useState(0);
-  const [page, setPage] = useState(1);
-  const [limit] = useState(20);
-  const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState<'' | 'Admin' | 'Employee'>('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [revealed, setRevealed] = useState<RevealedSecret | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<AdminUser | null>(null);
-
-  const [isCreating, setIsCreating] = useState(false);
-  const [form, setForm] = useState<CreateFormState>(EMPTY_FORM);
-  const [formError, setFormError] = useState('');
-  const [employeeQuery, setEmployeeQuery] = useState('');
-  const [employeeMatches, setEmployeeMatches] = useState<EmployeeSummary[]>([]);
-  const [employeeSearchBusy, setEmployeeSearchBusy] = useState(false);
-  const [linkedEmployeeName, setLinkedEmployeeName] = useState('');
-
+type Account = { id: string; username: string; status: 'active' | 'disabled' | 'pending_activation'; securityVersion: number; profile: AuthorizationProfile | null; recovery?: { id: string; state: string; expiresAt: string | null } | null; authorization: { grants: AuthorizationGrant[] } | null };
+type Catalog = { policies: Record<AuthorizationCapability, { status: string; profiles: AuthorizationProfile[]; scope: string }>; stores: { id: string; name: string; regionId: string | null }[] };
+type ScopeMetadata = { targetId: string; securityVersion: number; ownStoreId: string | null; stores: { id: string; name: string; regionId: string | null; managedEmployeeIds: string[] }[] };
+type AuditSnapshot = { status: string | null; profile: string | null; securityVersion: number | null } | null;
+type AuditEntry = { id: string | null; actorId: string | null; at: string | null; type: string; before: AuditSnapshot; after: AuditSnapshot; hash: string | null; previousHash: string | null };
+type AuditResponse = { items: AuditEntry[]; integrityValid: boolean; legacyUnhashedCount: number };
+const post = (body: unknown): RequestInit => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+export function UserAccountsView({ onNotify }: { onNotify?: NotifyFn }) {
+  const { user } = useAuth(); const { can } = useAuthorization();
+  const [rows, setRows] = useState<Account[]>([]), [catalog, setCatalog] = useState<Catalog | null>(null), [error, setError] = useState(''), [loading, setLoading] = useState(true), [busy, setBusy] = useState(false);
+  const [q, setQ] = useState(''), [page, setPage] = useState(1), [hasNext, setHasNext] = useState(false);
+  const [target, setTarget] = useState<Account | null>(null), [mode, setMode] = useState<'status' | 'grant' | 'audit' | 'recovery'>('status'), [reason, setReason] = useState('');
+  const [profile, setProfile] = useState<AuthorizationProfile>('staff'), [kind, setKind] = useState('self'), [selectedStores, setSelectedStores] = useState<string[]>([]), [caps, setCaps] = useState<AuthorizationCapability[]>([]), [until, setUntil] = useState('');
+  const [selectedRegions, setSelectedRegions] = useState<string[]>([]), [selectedPeople, setSelectedPeople] = useState<string[]>([]), [scopeMetadata, setScopeMetadata] = useState<ScopeMetadata | null>(null);
+  const [audit, setAudit] = useState<AuditResponse | null>(null), [grantToRevoke, setGrantToRevoke] = useState('');
+  const writing = useRef(false), sequence = useRef(0);
   const load = useCallback(async () => {
-    setIsLoading(true);
-    setLoadError('');
-    try {
-      const result = await fetchAdminUsers({
-        q: search.trim() || undefined,
-        role: roleFilter || undefined,
-        page,
-        limit,
-      });
-      setUsers(result.items);
-      setTotalItems(result.paging.totalItems);
-    } catch (err) {
-      setLoadError(err instanceof Error ? err.message : 'Không tải được danh sách tài khoản');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [search, roleFilter, page, limit]);
-
+    const current = ++sequence.current; setLoading(true); setError('');
+    try { const response = await requestJson<{ items: Account[]; paging: { hasNext: boolean } }>('/admin/users?q=' + encodeURIComponent(q) + '&page=' + page + '&limit=20');
+      if (current === sequence.current) { setRows(response.items); setHasNext(response.paging.hasNext); }
+    } catch (failure) { if (current === sequence.current) setError(failure instanceof Error ? failure.message : 'Không tải được tài khoản.'); }
+    finally { if (current === sequence.current) setLoading(false); }
+  }, [q, page]);
+  useEffect(() => { void load(); return () => { sequence.current++; }; }, [load]);
+  useEffect(() => { if (can('grants.configure')) void requestJson<Catalog>('/admin/authorization-catalog').then(setCatalog).catch(() => setCatalog(null)); }, [can('grants.configure')]);
   useEffect(() => {
-    void load();
-  }, [load]);
-
-  const searchEmployees = async () => {
-    const term = employeeQuery.trim();
-    if (term.length < 2) {
-      setEmployeeMatches([]);
-      return;
-    }
-    setEmployeeSearchBusy(true);
-    try {
-      const result = await fetchEmployees({ q: term, limit: 8 });
-      setEmployeeMatches(result.items);
-      if (result.items.length === 0) onNotify('Không tìm thấy hồ sơ nhân viên khớp.', 'info');
-    } catch (err) {
-      onNotify(err instanceof ApiError ? err.message : 'Không tìm được hồ sơ nhân viên', 'error');
-    } finally {
-      setEmployeeSearchBusy(false);
-    }
+    let active = true; setScopeMetadata(null);
+    if (target && mode === 'grant' && can('grants.configure')) void requestJson<ScopeMetadata>('/admin/users/' + target.id + '/grant-scope').then((value) => { if (active) setScopeMetadata(value); }).catch((failure) => { if (active) setError(failure instanceof Error ? failure.message : 'Không tải được mapping quyền.'); });
+    return () => { active = false; };
+  }, [target?.id, mode, can('grants.configure')]);
+  const open = (row: Account, action: typeof mode) => { setTarget(row); setMode(action); setReason(''); setError(''); setProfile(row.profile || 'staff'); setKind('self'); setSelectedStores([]); setSelectedRegions([]); setSelectedPeople([]); setScopeMetadata(null); setCaps([]); setUntil(''); setAudit(null); setGrantToRevoke(''); };
+  const mutate = async (path: string, body: unknown, method = 'POST') => {
+    if (writing.current) return; writing.current = true; setBusy(true); setError('');
+    try { await requestJson(path, { ...post(body), method }); setTarget(null); onNotify?.('Đã lưu thay đổi bảo mật; phiên/token cũ của tài khoản bị thu hồi.', 'success'); await load(); }
+    catch (failure) { setError(failure instanceof Error ? failure.message : 'Chưa lưu được; đối chiếu phiên bản trước khi thử lại.'); }
+    finally { writing.current = false; setBusy(false); }
   };
-
-  const handleCreate = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setFormError('');
-    if (form.username.trim().length < 3) {
-      setFormError('Tên đăng nhập phải có ít nhất 3 ký tự.');
-      return;
-    }
-    if (form.password && form.password.length < 8) {
-      setFormError('Mật khẩu phải có ít nhất 8 ký tự (hoặc để trống để hệ thống sinh).');
-      return;
-    }
-
-    setIsCreating(true);
-    try {
-      const created = await createAdminUser({
-        username: form.username.trim(),
-        ...(form.password ? { password: form.password } : {}),
-        role: form.role,
-        ...(form.role === 'Employee' ? { businessRole: form.businessRole } : {}),
-        ...(form.employeeId.trim() ? { employeeId: form.employeeId.trim() } : {}),
-        ...(form.role === 'Admin' ? { isGlobalAdmin: form.isGlobalAdmin } : {}),
-      });
-      if (created.temporaryPassword) {
-        setRevealed({ username: created.username, password: created.temporaryPassword, reason: 'created' });
-      }
-      onNotify(`Đã tạo tài khoản ${created.username}.`, 'success', 'Tạo tài khoản');
-      setForm(EMPTY_FORM);
-      await load();
-    } catch (err) {
-      const message = err instanceof ApiError ? err.message : 'Không tạo được tài khoản';
-      setFormError(message);
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  const patchUser = async (target: AdminUser, patch: Record<string, unknown>, successMessage: string) => {
-    setBusyId(target.id);
-    try {
-      await updateAdminUser(target.id, patch);
-      onNotify(successMessage, 'success', 'Cập nhật tài khoản');
-      await load();
-    } catch (err) {
-      onNotify(err instanceof ApiError ? err.message : 'Không cập nhật được tài khoản', 'error');
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const handleReset = async (target: AdminUser) => {
-    setBusyId(target.id);
-    try {
-      const result = await resetAdminUserPassword(target.id);
-      setRevealed({ username: result.username, password: result.temporaryPassword, reason: 'reset' });
-      onNotify(`Đã đặt lại mật khẩu cho ${target.username}.`, 'success', 'Đặt lại mật khẩu');
-      await load();
-    } catch (err) {
-      onNotify(err instanceof ApiError ? err.message : 'Không đặt lại được mật khẩu', 'error');
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const handleDelete = async (target: AdminUser) => {
-    setBusyId(target.id);
-    try {
-      await deleteAdminUser(target.id);
-      onNotify(`Đã xoá tài khoản ${target.username}.`, 'success', 'Xoá tài khoản');
-      setPendingDelete(null);
-      await load();
-    } catch (err) {
-      onNotify(err instanceof ApiError ? err.message : 'Không xoá được tài khoản', 'error');
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  if (currentUser?.role !== 'Admin') {
-    return (
-      <div className="empty" role="alert">
-        <div style={{ fontSize: '18px', fontWeight: 800, color: '#fda4af' }}>403 — RBAC_DENIED</div>
-        <p>Chỉ tài khoản Admin được quản lý tài khoản người dùng.</p>
-      </div>
-    );
-  }
-
-  const totalPages = Math.max(1, Math.ceil(totalItems / limit));
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
-        <div>
-          <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#f8fafc' }}>Tài Khoản Người Dùng</h2>
-          <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
-            {totalItems} tài khoản · tạo / đổi role / đặt lại mật khẩu / xoá
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button type="button" className="btn" onClick={() => void load()} disabled={isLoading}>
-            Tải lại
-          </button>
-          <button
-            type="button"
-            className="btn btn--primary"
-            onClick={() => {
-              setForm(EMPTY_FORM);
-              setFormError('');
-              setEmployeeQuery('');
-              setEmployeeMatches([]);
-              setLinkedEmployeeName('');
-              setIsCreating(true);
-            }}
-          >
-            Tạo tài khoản
-          </button>
-        </div>
-      </div>
-
-      {revealed && (
-        <div className="banner" role="status" style={{ borderColor: 'rgba(16,185,129,0.45)' }}>
-          <span>
-            Mật khẩu tạm của <strong>{revealed.username}</strong>:{' '}
-            <code style={{ fontFamily: 'var(--mono)', fontSize: '13px', color: '#6ee7b7' }}>{revealed.password}</code>
-            {' '}— chỉ hiện một lần. Người dùng bắt buộc đổi ở lần đăng nhập đầu.
-          </span>
-          <button type="button" className="btn btn--sm" onClick={() => setRevealed(null)}>
-            Đã ghi lại
-          </button>
-        </div>
-      )}
-
-      <div className="banner" style={{ background: 'rgba(255,255,255,0.03)' }}>
-        <span>
-          Không thể tự hạ quyền hoặc tự xoá tài khoản đang đăng nhập, và hệ thống luôn phải còn ít nhất một Admin
-          toàn quyền. Đổi role có hiệu lực ngay ở request kế tiếp và thu hồi mọi phiên đăng nhập cũ.
-        </span>
-      </div>
-
-      {loadError && (
-        <div className="banner banner--error" role="alert">
-          <span>Không tải được danh sách: {loadError}</span>
-          <button type="button" className="btn btn--sm" onClick={() => void load()}>
-            Thử lại
-          </button>
-        </div>
-      )}
-
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-        <input
-          className="input"
-          style={{ maxWidth: '320px' }}
-          placeholder="Tìm theo tên đăng nhập, email hoặc tên nhân viên"
-          value={search}
-          onChange={(event) => {
-            setSearch(event.target.value);
-            setPage(1);
-          }}
-        />
-        <select
-          className="input"
-          style={{ maxWidth: '180px' }}
-          value={roleFilter}
-          onChange={(event) => {
-            setRoleFilter(event.target.value as '' | 'Admin' | 'Employee');
-            setPage(1);
-          }}
-        >
-          <option value="">Mọi role</option>
-          <option value="Admin">Admin</option>
-          <option value="Employee">Employee</option>
-        </select>
-      </div>
-
-      {isLoading ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div className="skeleton" style={{ height: '22px', width: '260px' }} />
-          <div className="skeleton" style={{ height: '52px' }} />
-          <div className="skeleton" style={{ height: '52px' }} />
-          <div className="skeleton" style={{ height: '52px' }} />
-        </div>
-      ) : users.length === 0 ? (
-        <div className="empty">
-          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>Không có tài khoản nào khớp</div>
-          <p>Đổi bộ lọc hoặc tạo tài khoản mới.</p>
-        </div>
-      ) : (
-        <div className="card table-wrap" style={{ overflow: 'hidden' }}>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Tên đăng nhập</th>
-                <th>Hồ sơ nhân viên</th>
-                <th>Role</th>
-                <th>Bậc</th>
-                <th>Toàn quyền</th>
-                <th>Mật khẩu</th>
-                <th style={{ textAlign: 'right' }}>Hành động</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((item) => {
-                const isSelf = item.id === currentUser?.id;
-                const busy = busyId === item.id;
-                return (
-                  <tr key={item.id}>
-                    <td>
-                      <div style={{ fontWeight: 600, color: '#f8fafc' }}>
-                        {item.username}
-                        {isSelf && <span className="chip chip--info" style={{ marginLeft: '6px' }}>bạn</span>}
-                      </div>
-                      {item.email && (
-                        <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
-                          {item.email}
-                        </div>
-                      )}
-                    </td>
-                    <td style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                      {item.employeeName || '—'}
-                    </td>
-                    <td>
-                      <select
-                        className="input"
-                        style={{ maxWidth: '120px' }}
-                        value={item.role}
-                        disabled={busy || isSelf}
-                        title={isSelf ? 'Không thể tự đổi role của chính mình' : undefined}
-                        onChange={(event) => {
-                          const nextRole = event.target.value as 'Admin' | 'Employee';
-                          void patchUser(
-                            item,
-                            { role: nextRole },
-                            nextRole === 'Admin'
-                              ? `Đã nâng ${item.username} lên Admin.`
-                              : `Đã hạ ${item.username} xuống Employee.`
-                          );
-                        }}
-                      >
-                        <option value="Admin">Admin</option>
-                        <option value="Employee">Employee</option>
-                      </select>
-                    </td>
-                    <td>
-                      <span className="chip">{BUSINESS_ROLE_LABEL[(item.businessRole ?? 'staff') as BusinessRoleName] ?? item.businessRole}</span>
-                    </td>
-                    <td>
-                      {item.role === 'Admin' ? (
-                        <button
-                          type="button"
-                          className={`chip ${item.isGlobalAdmin ? 'chip--ok' : 'chip--warn'}`}
-                          disabled={busy || isSelf}
-                          title="Admin toàn quyền xem được toàn bộ nhân sự và hàng đợi duyệt"
-                          onClick={() =>
-                            void patchUser(
-                              item,
-                              { isGlobalAdmin: !item.isGlobalAdmin },
-                              item.isGlobalAdmin
-                                ? `Đã bỏ quyền toàn hệ thống của ${item.username}.`
-                                : `Đã cấp quyền toàn hệ thống cho ${item.username}.`
-                            )
-                          }
-                        >
-                          {item.isGlobalAdmin ? 'toàn quyền' : 'theo phòng ban'}
-                        </button>
-                      ) : (
-                        <span className="chip">—</span>
-                      )}
-                    </td>
-                    <td>
-                      {item.mustChangePassword ? (
-                        <span className="chip chip--warn">phải đổi</span>
-                      ) : (
-                        <span className="chip chip--ok">đã đổi</span>
-                      )}
-                    </td>
-                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <button
-                        type="button"
-                        className="btn btn--sm"
-                        disabled={busy}
-                        onClick={() => void handleReset(item)}
-                      >
-                        Đặt lại MK
-                      </button>{' '}
-                      <button
-                        type="button"
-                        className="btn btn--sm"
-                        style={{ color: '#fda4af' }}
-                        disabled={busy || isSelf}
-                        onClick={() => setPendingDelete(item)}
-                      >
-                        Xoá
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {totalPages > 1 && (
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end' }}>
-          <button type="button" className="btn btn--sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-            Trước
-          </button>
-          <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
-            {page} / {totalPages}
-          </span>
-          <button
-            type="button"
-            className="btn btn--sm"
-            disabled={page >= totalPages}
-            onClick={() => setPage(page + 1)}
-          >
-            Sau
-          </button>
-        </div>
-      )}
-
-      {isCreating && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="create-account-title"
-          style={{ position: 'fixed', inset: 0, zIndex: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,.7)', backdropFilter: 'blur(8px)' }}
-        >
-          <div className="card" style={{ width: '100%', maxWidth: 520, maxHeight: '90dvh', overflowY: 'auto', padding: 20 }}>
-            <h3 id="create-account-title" style={{ fontSize: '15px', fontWeight: 700, color: '#f8fafc', marginBottom: '4px' }}>
-              Tạo tài khoản
-            </h3>
-            <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '14px' }}>
-              Bỏ trống mật khẩu để hệ thống sinh mật khẩu tạm và hiện đúng một lần.
-            </p>
-            <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {formError && <div className="banner banner--error" role="alert"><span>{formError}</span></div>}
-
-              <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                Tên đăng nhập (mã nhân viên)
-                <input
-                  className="input"
-                  style={{ width: '100%', marginTop: '4px' }}
-                  value={form.username}
-                  onChange={(event) => setForm({ ...form, username: event.target.value })}
-                  placeholder="vd gt-ch18030009"
-                  autoComplete="off"
-                />
-              </label>
-
-              <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                Mật khẩu tạm (tuỳ chọn, ≥ 8 ký tự)
-                <input
-                  className="input"
-                  style={{ width: '100%', marginTop: '4px' }}
-                  value={form.password}
-                  onChange={(event) => setForm({ ...form, password: event.target.value })}
-                  placeholder="để trống = tự sinh"
-                  autoComplete="new-password"
-                />
-              </label>
-
-              <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                Role
-                <select
-                  className="input"
-                  style={{ width: '100%', marginTop: '4px' }}
-                  value={form.role}
-                  onChange={(event) => setForm({ ...form, role: event.target.value as 'Admin' | 'Employee' })}
-                >
-                  <option value="Employee">Employee</option>
-                  <option value="Admin">Admin</option>
-                </select>
-              </label>
-
-              {form.role === 'Employee' ? (
-                <label style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                  Bậc nghiệp vụ
-                  <select
-                    className="input"
-                    style={{ width: '100%', marginTop: '4px' }}
-                    value={form.businessRole}
-                    onChange={(event) => setForm({ ...form, businessRole: event.target.value as BusinessRoleName })}
-                  >
-                    {EMPLOYEE_ROLE_OPTIONS.map((role) => (
-                      <option key={role} value={role}>
-                        {BUSINESS_ROLE_LABEL[role]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : (
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#e5e7eb' }}>
-                  <input
-                    type="checkbox"
-                    checked={form.isGlobalAdmin}
-                    onChange={(event) => setForm({ ...form, isGlobalAdmin: event.target.checked })}
-                  />
-                  Admin toàn quyền (xem toàn bộ nhân sự và hàng đợi duyệt)
-                </label>
-              )}
-
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                Gắn hồ sơ nhân viên (tuỳ chọn)
-                <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
-                  <input
-                    className="input"
-                    style={{ flex: 1 }}
-                    value={employeeQuery}
-                    onChange={(event) => setEmployeeQuery(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        event.preventDefault();
-                        void searchEmployees();
-                      }
-                    }}
-                    placeholder="Tìm theo tên hoặc mã nhân viên"
-                    autoComplete="off"
-                  />
-                  <button
-                    type="button"
-                    className="btn btn--sm"
-                    disabled={employeeSearchBusy}
-                    onClick={() => void searchEmployees()}
-                  >
-                    Tìm
-                  </button>
-                </div>
-                {linkedEmployeeName && (
-                  <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span className="chip chip--ok">{linkedEmployeeName}</span>
-                    <button
-                      type="button"
-                      className="btn btn--sm"
-                      onClick={() => {
-                        setForm({ ...form, employeeId: '' });
-                        setLinkedEmployeeName('');
-                      }}
-                    >
-                      Bỏ chọn
-                    </button>
-                  </div>
-                )}
-                {employeeMatches.length > 0 && !linkedEmployeeName && (
-                  <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '140px', overflowY: 'auto' }}>
-                    {employeeMatches.map((employee) => (
-                      <button
-                        key={employee.employeeId}
-                        type="button"
-                        className="btn btn--sm"
-                        style={{ textAlign: 'left', justifyContent: 'flex-start' }}
-                        onClick={() => {
-                          setForm({ ...form, employeeId: employee.employeeId });
-                          setLinkedEmployeeName(employee.fullName);
-                          setEmployeeMatches([]);
-                          setEmployeeQuery('');
-                        }}
-                      >
-                        {employee.fullName} · {employee.department} · {employee.level}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' }}>
-                <button type="button" className="btn" disabled={isCreating} onClick={() => setIsCreating(false)}>
-                  Huỷ
-                </button>
-                <button type="submit" className="btn btn--primary" disabled={isCreating}>
-                  {isCreating ? 'Đang tạo…' : 'Tạo tài khoản'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {pendingDelete && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          style={{ position: 'fixed', inset: 0, zIndex: 130, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,.7)', backdropFilter: 'blur(8px)' }}
-        >
-          <div className="card" style={{ width: '100%', maxWidth: 420, padding: 20 }}>
-            <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#fda4af', marginBottom: '6px' }}>Xoá tài khoản?</h3>
-            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '16px' }}>
-              Tài khoản <strong style={{ color: '#f8fafc' }}>{pendingDelete.username}</strong> sẽ bị xoá, mọi phiên đăng
-              nhập bị thu hồi và hồ sơ nhân viên (nếu có) được bỏ liên kết. Hành động này không hoàn tác được.
-            </p>
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-              <button type="button" className="btn" disabled={busyId === pendingDelete.id} onClick={() => setPendingDelete(null)}>
-                Huỷ
-              </button>
-              <button
-                type="button"
-                className="btn btn--primary"
-                disabled={busyId === pendingDelete.id}
-                onClick={() => void handleDelete(pendingDelete)}
-              >
-                {busyId === pendingDelete.id ? 'Đang xoá…' : 'Xoá tài khoản'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
+  const allowedCaps = catalog ? (Object.entries(catalog.policies) as [AuthorizationCapability, Catalog['policies'][AuthorizationCapability]][]).filter(([, policy]) => policy.status === 'APPROVED' && policy.profiles.includes(profile) && policy.scope === kind) : [];
+  const regions = [...new Set((scopeMetadata?.stores ?? []).flatMap((store) => store.regionId ? [store.regionId] : []))];
+  const selectedScopeStores = (scopeMetadata?.stores ?? []).filter((store) => selectedStores.includes(store.id) || !!store.regionId && selectedRegions.includes(store.regionId));
+  const reportingIds = [...new Set(selectedScopeStores.flatMap((store) => store.managedEmployeeIds))];
+  const mappingReady = !!target && scopeMetadata?.targetId === target.id && scopeMetadata.securityVersion === target.securityVersion;
+  if (!can('accounts.manage')) return <p role="status">Chưa có capability quản lý tài khoản.</p>;
+  return <section className="crm-workspace" aria-label="Quản lý tài khoản và quyền"><header className="crm-work-heading"><div><h2>Tài khoản và phân quyền</h2><p>Không có tài khoản toàn quyền. Không suy ra quyền từ chức danh. Tạo staff mới qua tiếp nhận HR; không tạo trực tiếp tài khoản active.</p></div><button className="btn" onClick={() => void load()}>Làm mới tài khoản</button></header>
+    <label className="field">Tìm mã đăng nhập<input className="input" value={q} maxLength={64} onChange={(event) => { setQ(event.target.value); setPage(1); }} /></label>
+    {error && <p role="alert">{error}</p>}{loading ? <p role="status">Đang tải tài khoản…</p> : rows.map((row) => <article className="crm-report-card" key={row.id}><h3>{row.username}</h3><p>{row.profile || 'Chưa cấu hình profile'} · {row.status} · phiên bản bảo mật {row.securityVersion}</p>
+      {row.id !== user?.id && <div className="crm-work-actions"><button className="btn" disabled={row.status === 'pending_activation'} onClick={() => open(row, 'status')}>{row.status === 'disabled' ? 'Mở khóa có kiểm soát' : 'Khóa tài khoản'}</button>{can('grants.configure') && <button className="btn" onClick={() => open(row, 'grant')}>Phạm vi và capability</button>}</div>}
+      {row.recovery && <p>Khôi phục gần nhất: {row.recovery.state}{row.recovery.expiresAt ? ' · hết hạn ' + new Date(row.recovery.expiresAt).toLocaleString('vi-VN') : ''}. Nếu gửi bị gián đoạn, phát hành lại ở phiên bản mới để vô hiệu liên kết trước.</p>}
+      {row.id !== user?.id && row.status === 'active' && <button className="btn" onClick={() => open(row, 'recovery')}>Gửi liên kết khôi phục mật khẩu</button>}
+      {row.id === user?.id && <p>Không tự sửa profile, scope hoặc cấp/thu hồi quyền của mình.</p>}
+      {can('security_audit.read') && <button className="btn" onClick={() => { open(row, 'audit'); void requestJson<AuditResponse>('/admin/users/' + row.id + '/security-audit').then(setAudit).catch((failure) => setError(failure instanceof Error ? failure.message : 'Không tải được audit.')); }}>Security audit đã che thông tin</button>}
+    </article>)}
+    <nav aria-label="Phân trang tài khoản"><button className="btn" disabled={page <= 1 || loading} onClick={() => setPage(page - 1)}>Trang trước</button><span>Trang {page}</span><button className="btn" disabled={!hasNext || loading} onClick={() => setPage(page + 1)}>Trang sau</button></nav>
+    {target && <CrmDialog title={mode === 'audit' ? 'Security audit' : mode === 'recovery' ? 'Khôi phục mật khẩu an toàn' : mode === 'grant' ? 'Quyền được cấp tường minh' : 'Thay đổi trạng thái tài khoản'} busy={busy} onClose={() => { if (!busy) setTarget(null); }}>
+      <p>{target.username} · version {target.securityVersion}</p>{error && <p role="alert">{error}</p>}
+      {mode === 'audit' ? !audit ? <p role="status">Đang kiểm tra lịch sử bảo mật…</p> : <>
+        <p role={audit.integrityValid ? 'status' : 'alert'}>{audit.integrityValid ? 'Phần hash-chain kiểm chứng hợp lệ' : 'Phát hiện lịch sử không khớp hash-chain; cần đối chiếu, không sửa âm thầm.'}</p>
+        {audit.legacyUnhashedCount > 0 && <p>{audit.legacyUnhashedCount} sự kiện nhập cũ chưa có mã băm. Không coi đây là lịch sử đã được xác thực đầy đủ.</p>}
+        {!audit.items.length && <p>Chưa có sự kiện bảo mật được ghi nhận.</p>}
+        {audit.items.map((entry, index) => <article className="crm-report-card" key={entry.id || index} style={{ overflowWrap: 'anywhere' }}><h3>Sự kiện bảo mật {index + 1}</h3><p>{entry.at ? new Date(entry.at).toLocaleString('vi-VN') : 'Chưa xác minh thời điểm'} · Người thao tác: {entry.actorId || 'Không có mã định danh đã xác minh'}</p>
+          <p>Trạng thái: {entry.before?.status || '—'} → {entry.after?.status || '—'}</p><p>Profile: {entry.before?.profile || '—'} → {entry.after?.profile || '—'}; phiên bản: {entry.before?.securityVersion ?? '—'} → {entry.after?.securityVersion ?? '—'}</p>
+          <details><summary>Mã băm kiểm tra toàn vẹn</summary><p>Hiện tại: {entry.hash || 'Chưa có'}</p><p>Liền trước: {entry.previousHash || 'Chưa có'}</p><p>Đây là kiểm chứng local, không phải bằng chứng neo Blockchain công khai.</p></details>
+        </article>)}
+      </> : <>
+        <label className="field">Lý do bắt buộc<textarea className="input" value={reason} maxLength={2000} disabled={busy} onChange={(event) => setReason(event.target.value)} /></label>
+        {mode === 'recovery' ? <><p>Chỉ phát hành qua kênh an toàn đã cấu hình, tối đa 24 giờ và một lần dùng. Không hiển thị token/mật khẩu. Nếu gửi gián đoạn, làm mới phiên bản và phát hành lại; liên kết cũ bị thay thế. Không mở khóa hoặc tái kích hoạt nhân sự.</p><button className="btn btn--primary" disabled={busy || !reason.trim()} onClick={() => void mutate('/admin/users/' + target.id + '/reset-password', { expectedVersion: target.securityVersion, reason })}>Xác nhận gửi liên kết an toàn</button></> : mode === 'status' ? <button className="btn btn--primary" disabled={busy || !reason.trim()} onClick={() => void mutate('/admin/users/' + target.id, { status: target.status === 'disabled' ? 'active' : 'disabled', expectedVersion: target.securityVersion, reason }, 'PATCH')}>Xác nhận {target.status === 'disabled' ? 'mở khóa' : 'khóa'}</button> : <>
+          <p>Chỉ hiển thị capability đã được chủ dự án duyệt. Profile đang có không đổi qua biểu mẫu này. AOM/PTCH nhận quyền quản lý qua ủy quyền, không qua grant trực tiếp.</p>
+          <label className="field">Profile<select className="input" value={profile} disabled={busy || !!target.profile} onChange={(event) => { setProfile(event.target.value as AuthorizationProfile); setCaps([]); }}>{AuthorizationProfileSchema.options.map((value) => <option key={value}>{value}</option>)}</select></label>
+          <label className="field">Loại phạm vi<select className="input" value={kind} disabled={busy} onChange={(event) => { setKind(event.target.value); setCaps([]); setSelectedStores([]); setSelectedRegions([]); setSelectedPeople([]); }}><option value="self">Bản thân</option><option value="organization">Cửa hàng / khu vực / quan hệ quản lý</option>{profile === 'system_admin' && <option value="system">Kỹ thuật</option>}</select></label>
+          {kind === 'organization' && <>
+            {!mappingReady && <p role="status">Đang đối chiếu mapping và phiên bản tài khoản. Nếu phiên bản đã đổi, đóng biểu mẫu và làm mới.</p>}
+            <fieldset><legend>Cửa hàng canonical</legend>{scopeMetadata?.stores.map((store) => <label className="field" key={store.id}><input type="checkbox" checked={selectedStores.includes(store.id)} disabled={busy || !mappingReady} onChange={(event) => { setSelectedStores(event.target.checked ? [...selectedStores, store.id] : selectedStores.filter((id) => id !== store.id)); setSelectedPeople([]); }} />{store.name}</label>)}</fieldset>
+            <fieldset><legend>Khu vực đã xác minh</legend>{regions.map((id) => <label className="field" key={id}><input type="checkbox" checked={selectedRegions.includes(id)} disabled={busy || !mappingReady || profile === 'staff'} onChange={(event) => { setSelectedRegions(event.target.checked ? [...selectedRegions, id] : selectedRegions.filter((value) => value !== id)); setSelectedPeople([]); }} />Khu vực {id} ({scopeMetadata?.stores.filter((store) => store.regionId === id).length} cửa hàng)</label>)}</fieldset>
+            <fieldset><legend>Giới hạn thêm theo quan hệ quản lý đã xác minh</legend><p>Để trống: không thêm bộ lọc nhân viên. Nếu chọn: lấy giao với cửa hàng/khu vực; không mở rộng phạm vi. Chỉ hiện mã liên kết, không hồ sơ HR.</p>{reportingIds.map((id) => <label className="field" key={id}><input type="checkbox" checked={selectedPeople.includes(id)} disabled={busy || !mappingReady} onChange={(event) => setSelectedPeople(event.target.checked ? [...selectedPeople, id] : selectedPeople.filter((value) => value !== id))} />Nhân viên {id}</label>)}</fieldset>
+          </>}
+          <fieldset><legend>Capability APPROVED</legend>{allowedCaps.map(([capability]) => <label className="field" key={capability}><input type="checkbox" checked={caps.includes(capability)} disabled={busy} onChange={(event) => setCaps(event.target.checked ? [...caps, capability] : caps.filter((value) => value !== capability))} />{capability}</label>)}</fieldset>
+          <label className="field">Hết hạn (để trống nếu đến khi thu hồi)<input className="input" type="datetime-local" value={until} disabled={busy} onChange={(event) => setUntil(event.target.value)} /></label>
+          <button className="btn btn--primary" disabled={busy || !reason.trim() || !caps.length || kind === 'organization' && (!mappingReady || !selectedStores.length && !selectedRegions.length)} onClick={() => void mutate('/admin/users/' + target.id + '/grants', { profile, capabilities: caps, scope: { kind, storeIds: kind === 'organization' ? selectedStores : [], regionIds: kind === 'organization' ? selectedRegions : [], reportingEmployeeIds: kind === 'organization' ? selectedPeople : [] }, validUntil: until ? new Date(until).toISOString() : null, expectedVersion: target.securityVersion, reason })}>Cấp grant theo chính sách V1</button>
+          <h3>Grants đã cấp</h3>{target.authorization?.grants.map((grant) => <article className="crm-report-card" key={grant.id}><p>{grant.capabilities.join(', ') || 'Không có capability'} · {grant.scope.kind} · {grant.scope.storeIds.length} cửa hàng / {grant.scope.regionIds.length} khu vực</p><p>{grant.validFrom} → {grant.validUntil || 'đến khi thu hồi'}{grant.revokedAt ? ' · đã thu hồi' : ''}</p>
+            <p style={{ overflowWrap: 'anywhere' }}>Cửa hàng: {grant.scope.storeIds.join(', ') || '—'}; khu vực: {grant.scope.regionIds.join(', ') || '—'}; quan hệ: {grant.scope.reportingEmployeeIds.join(', ') || '—'}; căn cứ: {grant.approvalRef}</p>
+            {!grant.revokedAt && can('grants.revoke') && <button className="btn" disabled={busy || !reason.trim()} onClick={() => setGrantToRevoke(grant.id)}>Chọn thu hồi grant</button>}
+            {grantToRevoke === grant.id && <button className="btn" disabled={busy || !reason.trim()} onClick={() => void mutate('/admin/users/' + target.id + '/grants/' + grant.id + '/revoke', { expectedVersion: target.securityVersion, reason })}>Xác nhận thu hồi và vô hiệu token cũ</button>}
+          </article>)}
+        </>}
+      </>}
+    </CrmDialog>}
+    <p>Khôi phục mật khẩu cần kênh gửi an toàn được cấu hình; hệ thống không trả mật khẩu plaintext. Không xóa tài khoản/lịch sử.</p>
+  </section>;
+}

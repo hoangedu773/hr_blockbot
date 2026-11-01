@@ -2,29 +2,45 @@ import "./require-isolated-db.mjs";
 import { test, describe, before, after } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { createApp } from "../dist/app.js";
 import { connectDB, disconnectDB } from "../dist/db.js";
 import { UserModel } from "../dist/models/User.js";
 import { signAccessToken } from "../dist/services/auth.service.js";
+import mongoose from "mongoose";
+import { authorizationV1Fixture } from "./helpers/authorization-v1-fixture.mjs";
 
 describe("Phase 3: Attachments Security & Static File Integrity", () => {
   let server;
   let baseUrl;
   let accessToken;
   let fixtureUserId;
+  let fixtureRoot;
+  const previousRoot = process.env.ATTACHMENTS_DATA_ROOT;
 
   before(async () => {
+    // Synthetic file fixtures only; these are NOT official GUTA documents.
+    fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "hr-blockbot-attachments-test-"));
+    const pdfRoot = path.join(fixtureRoot, "guta_mau_bien_ban_cho_agent");
+    const imageRoot = path.join(fixtureRoot, "guta_bo_du_lieu_chatbot", "anh_tham_chieu");
+    fs.mkdirSync(pdfRoot, { recursive: true }); fs.mkdirSync(imageRoot, { recursive: true });
+    for (const name of ["GUTA_Bien_ban_ban_giao_cong_viec.pdf", "GUTA_Bien_ban_ban_giao_tai_san.pdf"]) {
+      fs.writeFileSync(path.join(pdfRoot, name), "%PDF-1.4\n% Synthetic test fixture, not a business document\n%%EOF");
+    }
+    fs.writeFileSync(path.join(imageRoot, "A-001d06816e.png"), Buffer.from("89504e470d0a1a0a0000000d49484452", "hex"));
+    process.env.ATTACHMENTS_DATA_ROOT = fixtureRoot;
     // `GET /api/attachments/*` yêu cầu access token (middleware thêm sau khi test này
     // được viết) — mọi assertion path-traversal bên dưới chạy với một user hợp lệ.
     await connectDB();
-    await UserModel.deleteMany({ username: "test-p3-attach" });
-    const fixture = await UserModel.create({
-      username: "test-p3-attach",
-      passwordHash: "not-used-by-this-suite",
-      role: "Employee",
-    });
-    fixtureUserId = fixture._id;
-    accessToken = await signAccessToken({ sub: fixture._id.toString(), role: "Employee" });
+    const fixture = await authorizationV1Fixture();
+    fixtureUserId = fixture.actors.staff.user._id;
+    accessToken = fixture.actors.staff.token;
+    await UserModel.updateOne({ _id: fixtureUserId }, { $push: { 'authorization.grants.1.capabilities': 'attachments.read' } });
+    await mongoose.connection.collection('policies').insertOne({ title: 'Synthetic attachment security fixture', version: 'test-only',
+      acl: { reviewStatus: 'APPROVED', approvalRef: 'isolated-attachment-acl', classification: 'operational', allowedProfiles: ['staff'], validFrom: new Date(Date.now() - 60000).toISOString(), validUntil: null, revokedAt: null, scopeKind: 'stores', storeIds: [String(fixture.stores[0]._id)] },
+      attachments: [{ category: 'pdf', filename: 'GUTA_Bien_ban_ban_giao_cong_viec.pdf' }, { category: 'pdf', filename: 'GUTA_Bien_ban_ban_giao_tai_san.pdf' }, { category: 'images', filename: 'A-001d06816e.png' }] });
 
     const app = createApp();
     server = http.createServer(app);
@@ -34,6 +50,12 @@ describe("Phase 3: Attachments Security & Static File Integrity", () => {
   });
 
   after(async () => {
+    if (previousRoot === undefined) delete process.env.ATTACHMENTS_DATA_ROOT;
+    else process.env.ATTACHMENTS_DATA_ROOT = previousRoot;
+    if (fixtureRoot && path.resolve(fixtureRoot).startsWith(path.resolve(os.tmpdir()) + path.sep)
+      && path.basename(fixtureRoot).startsWith("hr-blockbot-attachments-test-")) {
+      fs.rmSync(fixtureRoot, { recursive: true, force: true });
+    }
     if (server) {
       // Không await `close()`: một keep-alive socket còn sót lại làm promise này treo
       // vô hạn và `npm test` không bao giờ kết thúc.
@@ -150,7 +172,7 @@ describe("Phase 3: Attachments Security & Static File Integrity", () => {
       const res = await rawGet("/api/attachments/pdf/nonexistent_file.pdf");
       assert.equal(res.statusCode, 404);
       const json = JSON.parse(res.body);
-      assert.equal(json.error.code, "FILE_NOT_FOUND");
+      assert.equal(json.error.code, "RESOURCE_NOT_FOUND", 'ACL-first lookup must not disclose physical file existence');
     });
   });
 

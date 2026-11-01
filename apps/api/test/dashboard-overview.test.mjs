@@ -12,6 +12,7 @@ import { ScheduleEntryModel } from "../dist/models/ScheduleEntry.js";
 import { CashCountModel } from "../dist/models/Cash.js";
 import { signAccessToken } from "../dist/services/auth.service.js";
 import { DashboardOverviewSchema } from "@hr-blockbot/contracts";
+import { testGrant, SELF_CAPS } from './helpers/authorization-v1-fixture.mjs';
 
 function httpFetch(url, init = {}) {
   return new Promise((resolve, reject) => {
@@ -54,8 +55,8 @@ const SUPPORT_1 = "GIAO HÀNG - TEST Dashboard";
 const DELETED_OUTLET = "GUTA CAFE - TEST Dashboard Đã Xoá";
 
 const FIXTURE = {
-  employees: { total: 6, active: 4, inactive: 2 },
-  stores: { outlets: 3, groups: 1, support: 1 },
+  employees: { total: 5, active: 4, inactive: 1 },
+  stores: { outlets: 3, groups: 0, support: 0 },
   profileCompleted: 3,
   latestScheduleDate: "2026-10-11",
 };
@@ -172,15 +173,24 @@ describe("Dashboard overview: số liệu derive từ DB, KPI thiếu nguồn tr
       { store_name: OUTLET_1, cash_total_vnd: 1000, walkin_total_vnd: 500, grand_total_vnd: 1500 },
     ]);
 
+    const canonicalStores = await StoreModel.find({ store_name: { $in: [OUTLET_1, OUTLET_2, OUTLET_3] } }).lean();
+    for (const store of canonicalStores) {
+      await StoreModel.updateOne({ _id: store._id }, { $set: { kind: 'outlet', status: 'ACTIVE', scopeApprovalRef: 'isolated-dashboard-mapping' } });
+      await EmployeeModel.updateMany({ store_raw: store.store_name }, { $set: { storeId: store._id, storeMappingRef: 'isolated-dashboard-personnel' } });
+    }
+    const linked = await EmployeeModel.findOne({ employeeCode: 'TEST-DASH-E1' });
     const user = await UserModel.create({
       username: "test-dash-employee",
       passwordHash: "not-used-in-this-test",
-      role: "Employee",
-      businessRole: "staff",
-      isGlobalAdmin: false,
+      role: "Admin",
+      businessRole: "admin",
+      isGlobalAdmin: true,
       mustChangePassword: false,
+      employeeId: linked._id,
     });
-    employeeToken = await signAccessToken({ sub: user._id.toString(), role: "Employee" });
+    await UserModel.updateOne({ _id: user._id }, { $set: { authorization: { schemaVersion: 1, profile: 'om', grants: [testGrant('om', { kind: 'self' }, SELF_CAPS, user._id), testGrant('om', { kind: 'organization', storeIds: canonicalStores.map((store) => String(store._id)) }, ['dashboard.read'], user._id)] } } });
+    linked.userId = user._id; await linked.save();
+    employeeToken = await signAccessToken({ sub: user._id.toString(), role: "Admin" });
   });
 
   after(async () => {
@@ -225,25 +235,25 @@ describe("Dashboard overview: số liệu derive từ DB, KPI thiếu nguồn tr
     const overview = DashboardOverviewSchema.parse(await res.json());
 
     assert.deepEqual(overview.stores, FIXTURE.stores);
-    assert.deepEqual(overview.employees, FIXTURE.employees);
+    assert.deepEqual(overview.employees, { ...FIXTURE.employees, unknown: 0 });
   });
 
-  test("profileCompletionRate, managersCovered, employeesPerOutlet tính từ DB", async () => {
+  test("unverified ETL/title metrics stay unavailable; employeesPerOutlet uses scoped canonical counts", async () => {
     const res = await httpFetch(`${baseUrl}/api/dashboard/overview`, {
       headers: { Authorization: `Bearer ${employeeToken}` },
     });
     const overview = DashboardOverviewSchema.parse(await res.json());
 
-    assert.equal(overview.profileCompletionRate.value, 50);
-    assert.equal(overview.profileCompletionRate.source, "employees");
-    assert.equal(overview.profileCompletionRate.reason, null);
+    assert.equal(overview.profileCompletionRate.value, null);
+    assert.equal(overview.profileCompletionRate.source, "none");
+    assert.ok(overview.profileCompletionRate.reason.length > 0);
 
     // 2/3 outlet có manager (sm ở outlet 1, ptch ở outlet 2); outlet 3 không có.
-    assert.equal(overview.managersCovered.value, 66.7);
-    assert.equal(overview.managersCovered.source, "employees");
+    assert.equal(overview.managersCovered.value, null);
+    assert.equal(overview.managersCovered.source, "none");
 
-    assert.equal(overview.employeesPerOutlet.value, 2);
-    assert.equal(overview.employeesPerOutlet.source, "employees");
+    assert.equal(overview.employeesPerOutlet.value, 1.7);
+    assert.equal(overview.employeesPerOutlet.source, "canonical employees/storeId");
   });
 
   test("revenue trả null kèm reason đọc được, không bịa số", async () => {
@@ -253,12 +263,11 @@ describe("Dashboard overview: số liệu derive từ DB, KPI thiếu nguồn tr
     const overview = DashboardOverviewSchema.parse(await res.json());
 
     assert.equal(overview.revenue.value, null);
-    assert.equal(overview.revenue.source, "cash_counts");
+    assert.equal(overview.revenue.source, "none");
     assert.equal(typeof overview.revenue.reason, "string");
     assert.ok(overview.revenue.reason.length > 0);
     // n/m/k phải là số thật từ DB, không phải hằng số trong code.
-    assert.match(overview.revenue.reason, /1\/3 cửa hàng/);
-    assert.match(overview.revenue.reason, /trong 1 kỳ/);
+    assert.match(overview.revenue.reason, /ngoài phạm vi Authorization V1/);
   });
 
   test("onTimeRate trả null vì nguồn không có dữ liệu chấm công", async () => {
@@ -290,21 +299,21 @@ describe("Dashboard overview: số liệu derive từ DB, KPI thiếu nguồn tr
       const overview = DashboardOverviewSchema.parse(await res.json());
 
       assert.equal(overview.profileCompletionRate.value, null);
-      assert.equal(overview.profileCompletionRate.source, "employees");
+      assert.equal(overview.profileCompletionRate.source, "none");
       assert.ok(overview.profileCompletionRate.reason.length > 0);
-      assert.match(overview.profileCompletionRate.reason, /profile_status/);
+      assert.match(overview.profileCompletionRate.reason, /Chưa có nguồn xác minh/);
 
       assert.equal(overview.managersCovered.value, null);
-      assert.equal(overview.managersCovered.source, "employees");
+      assert.equal(overview.managersCovered.source, "none");
       assert.ok(overview.managersCovered.reason.length > 0);
-      assert.match(overview.managersCovered.reason, /businessRole/);
+      assert.match(overview.managersCovered.reason, /không được coi là chỉ số KPI/);
     } finally {
       await EmployeeModel.deleteMany({ employeeCode: /^TEST-DASH-/ });
       await EmployeeModel.insertMany(backup);
     }
   });
 
-  test("latestScheduleDate bằng max(work_date) của fixture", async () => {
+  test("legacy schedule date is not leaked from a source without canonical authorization", async () => {
     const res = await httpFetch(`${baseUrl}/api/dashboard/overview`, {
       headers: { Authorization: `Bearer ${employeeToken}` },
     });
@@ -315,7 +324,7 @@ describe("Dashboard overview: số liệu derive từ DB, KPI thiếu nguồn tr
       .limit(1)
       .lean();
 
-    assert.equal(overview.latestScheduleDate, FIXTURE.latestScheduleDate);
-    assert.equal(overview.latestScheduleDate, maxWorkDate[0].work_date);
+    assert.equal(maxWorkDate[0].work_date, FIXTURE.latestScheduleDate);
+    assert.equal(overview.latestScheduleDate, null);
   });
 });

@@ -120,6 +120,7 @@ export async function refreshAccessToken(): Promise<string | null> {
         role: me.role,
         username: me.username,
         mustChangePassword: me.mustChangePassword,
+        authorization: me.authorization,
       };
       authChangeListeners.forEach((listener) => listener(inMemoryUser, inMemoryAccessToken));
       return data.accessToken;
@@ -173,8 +174,7 @@ export async function login(credentials: LoginRequest): Promise<LoginResponse> {
 
 /**
  * Đổi mật khẩu (bắt buộc ở lần đăng nhập đầu với mật khẩu tạm do quản lý phát).
- * Server thu hồi toàn bộ Refresh Token cũ; access token trong bộ nhớ vẫn dùng được
- * tới khi hết hạn, sau đó người dùng đăng nhập lại bằng mật khẩu mới.
+ * Server thu hồi cả phiên access/refresh cũ. Đăng nhập lại bằng mật khẩu mới.
  */
 export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
   const res = await apiFetch(`${API_BASE}/auth/change-password`, {
@@ -193,10 +193,7 @@ export async function changePassword(currentPassword: string, newPassword: strin
     throw new Error('Chưa đổi được mật khẩu. Vui lòng thử lại.');
   }
 
-  if (inMemoryUser) {
-    inMemoryUser = { ...inMemoryUser, mustChangePassword: false };
-    authChangeListeners.forEach((listener) => listener(inMemoryUser, inMemoryAccessToken));
-  }
+  clearAuthState();
 }
 
 export function logout(): Promise<void> {

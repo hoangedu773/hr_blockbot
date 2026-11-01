@@ -18,9 +18,10 @@ import {
 } from "../models/Store.js";
 import { EmployeeModel } from "../models/Employee.js";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
-import { resolveUserScope } from "../services/user-scope.service.js";
 import { redactSecrets } from "../lib/redact.js";
 import { departmentIdMatch } from "../lib/department-scope.js";
+import { employeeDepartmentScope } from "../services/employee-profile.service.js";
+import { allowedStoreIds, hasCapability } from "../services/authorization-scope.service.js";
 
 const router = Router();
 
@@ -68,7 +69,7 @@ function escapeRegex(value: string): string {
  */
 type StoreScope =
   | { mode: "all" }
-  | { mode: "names"; names: string[] }
+  | { mode: "names"; names: string[]; ids?: string[] }
   | { mode: "forbidden" };
 
 /**
@@ -78,13 +79,7 @@ type StoreScope =
  */
 async function storeNamesInDepartmentScope(scopeValue: string): Promise<string[]> {
   const [employeeStoreNames, directStoreNames] = await Promise.all([
-    EmployeeModel.distinct("store_raw", {
-      $or: [
-        { departmentId: departmentIdMatch(scopeValue) },
-        { department: scopeValue },
-        { store_raw: scopeValue },
-      ],
-    }),
+    EmployeeModel.distinct("store_raw", employeeDepartmentScope(scopeValue)),
     StoreModel.distinct("store_name", { store_name: scopeValue }),
   ]);
 
@@ -95,33 +90,23 @@ async function storeNamesInDepartmentScope(scopeValue: string): Promise<string[]
   return [...names];
 }
 
-async function resolveStoreScope(req: Request): Promise<StoreScope> {
+export async function resolveStoreScope(req: Request): Promise<StoreScope> {
   const user = req.user!;
-
-  if (user.role === "Employee") {
-    const scope = await resolveUserScope(user.userId, user.role);
-    const storeName = scope.storeName?.trim() ?? "";
-    return storeName === "" ? { mode: "names", names: [] } : { mode: "names", names: [storeName] };
-  }
-
-  if (user.isGlobalAdmin === true) return { mode: "all" };
-
-  const department = user.departmentId?.trim() ?? "";
-  if (department === "") return { mode: "forbidden" };
-
-  return { mode: "names", names: await storeNamesInDepartmentScope(department) };
+  if (!hasCapability(user, "stores.read")) return { mode: "forbidden" };
+  const ids = allowedStoreIds(user, "stores.read");
+  return { mode: "names", names: (user.canonical?.verifiedStores ?? []).filter((store) => ids.includes(store.id)).map((store) => store.name), ids };
 }
 
-function scopeMatch(scope: StoreScope): Record<string, unknown> {
-  if (scope.mode === "all") return {};
+export function scopeMatch(scope: StoreScope): Record<string, unknown> {
+  if (scope.mode === "all") return { _id: { $in: [] } }; // retired mode: never a global bypass
   if (scope.mode === "forbidden") return { store_name: { $in: [] } };
-  return { store_name: { $in: scope.names } };
+  return { _id: { $in: (scope.ids ?? []).map((id) => new mongoose.Types.ObjectId(id)) } };
 }
 
-function canReadStore(scope: StoreScope, storeName: string): boolean {
-  if (scope.mode === "all") return true;
+function canReadStore(scope: StoreScope, storeId: string): boolean {
+  if (scope.mode === "all") return false;
   if (scope.mode === "forbidden") return false;
-  return scope.names.includes(storeName);
+  return (scope.ids ?? []).includes(storeId);
 }
 
 interface StoreFilters {
@@ -189,28 +174,27 @@ function buildStoreQuery(scope: StoreScope, filters: StoreFilters): Record<strin
 interface StoreCounts {
   total: number;
   active: number;
+  unknown: number;
 }
 
 /**
- * Đếm nhân sự theo `employees.store_raw` — `stores.employee_count` là số chụp lúc
- * ETL và trôi ngay sau CRUD đầu tiên. `status` thiếu (doc legacy) được coi là active,
- * giống `routes/employees.ts`.
+ * Canonical counts only. Unknown legacy status is neither active nor inactive.
  */
-async function employeeCountsByStore(storeNames: string[]): Promise<Map<string, StoreCounts>> {
-  if (storeNames.length === 0) return new Map();
-
+async function employeeCountsByStore(storeIds: string[]): Promise<Map<string, StoreCounts>> {
+  if (storeIds.length === 0) return new Map();
   const rows = await EmployeeModel.aggregate<{ _id: string } & StoreCounts>([
-    { $match: { store_raw: { $in: storeNames } } },
+    { $match: { storeId: { $in: storeIds.map((id) => new mongoose.Types.ObjectId(id)) }, storeMappingRef: { $type: "string", $ne: "" } } },
     {
       $group: {
-        _id: "$store_raw",
+        _id: "$storeId",
         total: { $sum: 1 },
-        active: { $sum: { $cond: [{ $eq: ["$status", "inactive"] }, 0, 1] } },
+        active: { $sum: { $cond: [{ $eq: ["$status", "active"] }, 1, 0] } },
+        unknown: { $sum: { $cond: [{ $in: [{ $ifNull: ["$status", "UNKNOWN"] }, ["active", "inactive"]] }, 0, 1] } },
       },
     },
   ]);
 
-  return new Map(rows.map((row) => [row._id, { total: row.total, active: row.active }]));
+  return new Map(rows.map((row) => [String(row._id), { total: row.total, active: row.active, unknown: row.unknown }]));
 }
 
 interface StoreManager {
@@ -218,43 +202,14 @@ interface StoreManager {
   name: string;
 }
 
-const MANAGER_ROLES = ["sm", "ptch"];
-
-async function managersByStore(storeNames: string[]): Promise<Map<string, StoreManager>> {
-  if (storeNames.length === 0) return new Map();
-
-  const candidates = await EmployeeModel.find(
-    {
-      store_raw: { $in: storeNames },
-      status: { $ne: "inactive" },
-      businessRole: { $in: MANAGER_ROLES },
-    },
-    { store_raw: 1, businessRole: 1, fullName: 1, full_name: 1 }
-  ).lean();
-
-  const byStore = new Map<string, Array<{ id: string; name: string; role: string }>>();
-  for (const employee of candidates) {
-    const storeName = String(employee.store_raw ?? "");
-    if (storeName === "") continue;
-    const bucket = byStore.get(storeName) ?? [];
-    bucket.push({
-      id: String(employee._id),
-      name: String(employee.fullName ?? employee.full_name ?? ""),
-      role: String(employee.businessRole ?? ""),
-    });
-    byStore.set(storeName, bucket);
-  }
-
-  const managers = new Map<string, StoreManager>();
-  for (const [storeName, bucket] of byStore) {
-    bucket.sort((a, b) => {
-      const rank = (role: string) => (role === "sm" ? 0 : 1);
-      return rank(a.role) - rank(b.role) || a.name.localeCompare(b.name, "vi");
-    });
-    const chosen = bucket[0];
-    managers.set(storeName, { id: chosen.id, name: chosen.name });
-  }
-  return managers;
+async function managersByStore(storeIds: string[]): Promise<Map<string, StoreManager[]>> {
+  const edges = await mongoose.connection.collection("management_relations").find({ storeId: { $in: storeIds.map((id) => new mongoose.Types.ObjectId(id)) }, approvalRef: { $type: "string", $ne: "" }, revokedAt: null, validFrom: { $lte: new Date() }, $or: [{ validUntil: null }, { validUntil: { $gt: new Date() } }] }).toArray();
+  const people: any[] = await EmployeeModel.find({ _id: { $in: edges.map((edge) => edge.managerEmployeeId) }, status: "active", storeMappingRef: { $type: "string", $ne: "" }, lifecyclePendingRequestId: null }).select("fullName full_name").lean();
+  const names = new Map(people.map((person) => [String(person._id), String(person.fullName || person.full_name || person._id)]));
+  const result = new Map<string, StoreManager[]>();
+  for (const edge of edges) { const id = String(edge.managerEmployeeId), key = String(edge.storeId); if (!names.has(id)) continue; const list = result.get(key) ?? []; if (!list.some((manager) => manager.id === id)) list.push({ id, name: names.get(id)! }); result.set(key, list); }
+  for (const list of result.values()) list.sort((a, b) => a.name.localeCompare(b.name, "vi") || a.id.localeCompare(b.id));
+  return result;
 }
 
 /**
@@ -264,7 +219,7 @@ async function managersByStore(storeNames: string[]): Promise<Map<string, StoreM
 function toStoreSummary(
   store: StoreRow,
   counts: StoreCounts | undefined,
-  manager: StoreManager | undefined
+  managers: StoreManager[] = []
 ) {
   return StoreSummarySchema.parse({
     id: String(store._id),
@@ -275,10 +230,12 @@ function toStoreSummary(
     kind: classifyStoreKind(store.store_name, store.kind),
     district:
       typeof store.district === "string" && store.district.trim() !== "" ? store.district : null,
-    managerName: manager?.name ?? null,
-    managerEmployeeId: manager?.id ?? null,
+    managerName: managers.length ? managers.map((manager) => manager.name).join(", ") : null,
+    managerEmployeeId: managers.length === 1 ? managers[0].id : null,
+    managers: managers.map((manager) => ({ employeeId: manager.id, fullName: manager.name })),
     employeeCount: counts?.total ?? 0,
     activeEmployeeCount: counts?.active ?? 0,
+    unknownEmployeeCount: counts?.unknown ?? 0,
     status: store.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
   });
 }
@@ -286,11 +243,11 @@ function toStoreSummary(
 async function summarizeStores(docs: StoreRow[]) {
   const names = docs.map((doc) => String(doc.store_name ?? ""));
   const [counts, managers] = await Promise.all([
-    employeeCountsByStore(names),
-    managersByStore(names),
+    employeeCountsByStore(docs.map((doc) => String(doc._id))),
+    managersByStore(docs.map((doc) => String(doc._id))),
   ]);
   return docs.map((doc) =>
-    toStoreSummary(doc, counts.get(String(doc.store_name)), managers.get(String(doc.store_name)))
+    toStoreSummary(doc, counts.get(String(doc._id)), managers.get(String(doc._id)))
   );
 }
 
@@ -302,7 +259,7 @@ router.get("/stores", authenticateToken, async (req: Request, res: Response) => 
       res.status(403).json({
         error: {
           code: "RBAC_DENIED",
-          message: "Admin has no assigned department scope (unmapped)",
+          message: "Approved stores.read grant and canonical scope are required",
         },
       });
       return;
@@ -379,7 +336,7 @@ router.get("/stores/:id", authenticateToken, async (req: Request, res: Response)
       return;
     }
 
-    if (!canReadStore(scope, String(store.store_name ?? ""))) {
+    if (!canReadStore(scope, String(store._id))) {
       res.status(403).json({
         error: { code: "RBAC_DENIED", message: "Store is outside your access scope" },
       });
@@ -408,12 +365,12 @@ function denyRbac(res: Response, message: string): void {
  * nếu chỉ check role thì họ PATCH/DELETE được cửa hàng ngoài department — đúng lỗ
  * cross-tenant mà GET đã chặn từ đầu.
  */
-async function resolveWriteDenial(req: Request, storeName: string): Promise<string | null> {
-  if (req.user?.role !== "Admin") return "Only Admin can modify stores";
+async function resolveWriteDenial(req: Request, storeId: string): Promise<string | null> {
+  if (!req.user || !hasCapability(req.user, "stores.configure")) return "Store configuration policy is pending";
 
   const scope = await resolveStoreScope(req);
-  if (scope.mode === "forbidden") return "Admin has no assigned department scope (unmapped)";
-  if (!canReadStore(scope, storeName)) return "Store is outside your access scope";
+  if (scope.mode === "forbidden") return "Canonical store scope is missing";
+  if (!canReadStore(scope, storeId)) return "Store is outside your access scope";
   return null;
 }
 
@@ -423,15 +380,8 @@ async function resolveWriteDenial(req: Request, storeName: string): Promise<stri
  * ngay sau đó — quyền tạo và quyền đọc phải nhất quán.
  */
 function requireGlobalAdminForCreate(req: Request, res: Response): boolean {
-  if (req.user?.role !== "Admin") {
-    denyRbac(res, "Only Admin can modify stores");
-    return false;
-  }
-  if (req.user.isGlobalAdmin !== true) {
-    denyRbac(
-      res,
-      "Only a full-authority admin (isGlobalAdmin) can create stores; scoped admins manage stores within their department"
-    );
+  if (!req.user || !hasCapability(req.user, "stores.configure")) {
+    denyRbac(res, "Store configuration policy is pending; legacy Admin/global flags cannot enable it");
     return false;
   }
   return true;
@@ -513,7 +463,7 @@ router.post("/stores", authenticateToken, async (req: Request, res: Response) =>
 
 // PATCH /api/stores/:id - sửa cửa hàng; đổi tên thì cascade sang employees.store_raw
 router.patch("/stores/:id", authenticateToken, async (req: Request, res: Response) => {
-  if (req.user?.role !== "Admin") {
+  if (!req.user || !hasCapability(req.user, "stores.configure")) {
     denyRbac(res, "Only Admin can modify stores");
     return;
   }
@@ -568,7 +518,7 @@ router.patch("/stores/:id", authenticateToken, async (req: Request, res: Respons
         });
         return;
       }
-      const denial = await resolveWriteDenial(req, existing.store_name);
+      const denial = await resolveWriteDenial(req, id);
       if (denial !== null) {
         denyRbac(res, denial);
         return;
@@ -665,7 +615,7 @@ router.patch("/stores/:id", authenticateToken, async (req: Request, res: Respons
       // Scope check trên tên hiện tại của cửa hàng. Đặt sau khi lease đã giữ được
       // document để `previousName` chắc chắn là tên đang tồn tại; lease sẽ được
       // giải phóng trong `finally` ở mọi nhánh return.
-      const denial = await resolveWriteDenial(req, previousName);
+      const denial = await resolveWriteDenial(req, id);
       if (denial !== null) {
         respond(() => denyRbac(res, denial));
         return;
@@ -798,7 +748,7 @@ router.patch("/stores/:id", authenticateToken, async (req: Request, res: Respons
 
 // DELETE /api/stores/:id - soft delete; chặn khi còn nhân sự tham chiếu
 router.delete("/stores/:id", authenticateToken, async (req: Request, res: Response) => {
-  if (req.user?.role !== "Admin") {
+  if (!req.user || !hasCapability(req.user, "stores.configure")) {
     denyRbac(res, "Only Admin can modify stores");
     return;
   }
@@ -822,7 +772,7 @@ router.delete("/stores/:id", authenticateToken, async (req: Request, res: Respon
       return;
     }
 
-    const denial = await resolveWriteDenial(req, store.store_name);
+    const denial = await resolveWriteDenial(req, id);
     if (denial !== null) {
       denyRbac(res, denial);
       return;

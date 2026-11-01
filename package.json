@@ -2,6 +2,7 @@
   "name": "hr-blockbot",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@11.25.0",
   "description": "Chatbot chuyen doi so quan ly nhan su - KLCN133",
   "scripts": {
     "dev:api": "pnpm --filter api dev",
@@ -10,6 +11,7 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
+    "test:crm": "pnpm -r run build && node apps/web/test/crm-workflow.integration.mjs",
     "demo:verify": "node scripts/demo-verify.mjs"
   }
 }

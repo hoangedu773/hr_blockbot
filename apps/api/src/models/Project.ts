@@ -8,7 +8,7 @@ export type ProjectStatus =
   | "COMPLETED";
 
 export interface IProjectStatusHistory {
-  from: ProjectStatus;
+  from: ProjectStatus | null;
   to: ProjectStatus;
   changedBy: string;
   changedAt: Date;
@@ -16,8 +16,11 @@ export interface IProjectStatusHistory {
 }
 
 export interface IProject extends Document {
+  storeId?: mongoose.Types.ObjectId | null;
+  storeMappingRef?: string | null;
   title: string;
   description?: string;
+  requiredSkills: string[];
   departmentId: mongoose.Types.ObjectId | string;
   createdBy: mongoose.Types.ObjectId | string;
   assigneeId?: mongoose.Types.ObjectId | string | null;
@@ -26,6 +29,17 @@ export interface IProject extends Document {
   dueDate?: Date | null;
   version: number;
   statusHistory: IProjectStatusHistory[];
+  reports: any[];
+  assignmentStatus?: "PENDING_ACCEPTANCE" | "ACCEPTED" | "MANAGER_REVIEW" | "HANDOVER_PENDING" | null;
+  assignmentRound: number;
+  acceptedAt?: string | null;
+  responsibleEmployeeId?: string | null;
+  assignmentRequests: any[];
+  responsibilities: any[];
+  assignmentAudit: any[];
+  auditRequired: boolean;
+  assignmentNotices: any[];
+  notificationReads: string[];
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -68,6 +82,11 @@ export const PROJECT_TRANSITIONS: Record<
   PENDING_REVIEW: { COMPLETED: ["Admin"], IN_PROGRESS: ["Admin"] },
   COMPLETED: {},
 };
+
+/** Pure state validation; actor authorization is performed by the shared kernel. */
+export function assertStateTransitionAllowed(from: ProjectStatus, to: ProjectStatus): void {
+  if (!PROJECT_TRANSITIONS[from]?.[to]) throw new IllegalTransitionError(from, to);
+}
 
 export class IllegalTransitionError extends Error {
   code = "ILLEGAL_STATE_TRANSITION";
@@ -112,7 +131,7 @@ const StatusHistorySchema = new Schema<IProjectStatusHistory>(
     from: {
       type: String,
       enum: ["DRAFT", "ASSIGNED", "IN_PROGRESS", "PENDING_REVIEW", "COMPLETED"],
-      required: true,
+      default: null,
     },
     to: {
       type: String,
@@ -128,8 +147,11 @@ const StatusHistorySchema = new Schema<IProjectStatusHistory>(
 
 const ProjectSchema = new Schema<IProject>(
   {
+    storeId: { type: Schema.Types.ObjectId, ref: "Store", default: null, index: true },
+    storeMappingRef: { type: String, default: null },
     title: { type: String, required: true, trim: true },
     description: { type: String, default: "" },
+    requiredSkills: { type: [String], default: [] },
     departmentId: { type: Schema.Types.Mixed, required: true, index: true },
     createdBy: { type: Schema.Types.Mixed, required: true, index: true },
     assigneeId: { type: Schema.Types.Mixed, default: null, index: true },
@@ -156,12 +178,31 @@ const ProjectSchema = new Schema<IProject>(
       type: [StatusHistorySchema],
       default: [],
     },
+    // Canonical report state: committed atomically with project status/version.
+    // The standalone reports collection is a compatibility projection only.
+    reports: { type: [Schema.Types.Mixed], default: [] } as any,
+    assignmentStatus: { type: String, enum: ["PENDING_ACCEPTANCE", "ACCEPTED", "MANAGER_REVIEW", "HANDOVER_PENDING", null], default: null },
+    assignmentRound: { type: Number, default: 0 },
+    acceptedAt: { type: String, default: null },
+    responsibleEmployeeId: { type: String, default: null },
+    assignmentRequests: { type: [Schema.Types.Mixed], default: [] } as any,
+    responsibilities: { type: [Schema.Types.Mixed], default: [] } as any,
+    assignmentAudit: { type: [Schema.Types.Mixed], default: [] } as any,
+    auditRequired: { type: Boolean, default: false },
+    assignmentNotices: { type: [Schema.Types.Mixed], default: [] } as any,
+    notificationReads: { type: [String], default: [] },
   },
   {
     collection: "projects",
     timestamps: true,
+    // Empty audit objects are part of the canonical commitment, not removable noise.
+    minimize: false,
   }
 );
+
+ProjectSchema.index({ departmentId: 1, createdAt: -1, _id: -1 });
+ProjectSchema.index({ status: 1, dueDate: 1 });
+ProjectSchema.index({ "reports._id": 1 });
 
 export const ProjectModel =
   mongoose.models.Project ||
@@ -184,57 +225,10 @@ export interface TransitionProjectOptions {
   };
 }
 
-export async function transitionProject({
-  projectId,
-  expectedStatus,
-  expectedVersion,
-  newStatus,
-  changedBy,
-  actorRole,
-  reason,
-  updates = {},
-}: TransitionProjectOptions): Promise<IProject> {
-  assertTransitionAllowed(expectedStatus, newStatus, actorRole);
-
-  const historyEntry: IProjectStatusHistory = {
-    from: expectedStatus,
-    to: newStatus,
-    changedBy,
-    changedAt: new Date(),
-    reason,
-  };
-
-  const setClause: Record<string, unknown> = {
-    status: newStatus,
-    ...updates,
-  };
-
-  const updated = await ProjectModel.findOneAndUpdate(
-    {
-      _id: projectId,
-      status: expectedStatus,
-      version: expectedVersion,
-    },
-    {
-      $set: setClause,
-      $inc: { version: 1 },
-      $push: { statusHistory: historyEntry },
-    },
-    { new: true }
-  );
-
-  if (!updated) {
-    const existing = await ProjectModel.findById(projectId).lean();
-    if (!existing) {
-      throw new ProjectNotFoundError(`Project ${projectId} not found`);
-    }
-    const currentStatus = (existing as Record<string, unknown>).status;
-    const currentVersion = (existing as Record<string, unknown>).version;
-    throw new ProjectVersionConflictError(
-      `Project transition conflict: current status is '${currentStatus}' with version ${currentVersion}, expected status '${expectedStatus}' with version ${expectedVersion}`,
-      existing
-    );
-  }
-
-  return updated;
+/** @deprecated No runtime callers. Use consent/report services with a verified actor. */
+export async function transitionProject(options: TransitionProjectOptions): Promise<IProject> {
+  void options;
+  // Keep the export to fail closed for stale imports instead of leaving an
+  // unaudited bypass for either old or newly created documents.
+  throw new ProjectVersionConflictError("Use the consent/report workflow; legacy transition cannot bypass audited decisions");
 }

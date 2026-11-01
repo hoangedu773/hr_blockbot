@@ -1,4 +1,8 @@
 import { z } from "zod";
+import { AuthorizationSummarySchema } from "./authorization.js";
+import { F4CandidateSchema } from "./f4.js";
+export * from "./authorization.js";
+export * from "./f4.js";
 
 // ============================================================================
 // 1. Core Auth & RBAC Schemas
@@ -14,6 +18,7 @@ export const AuthUserSchema = z.object({
   username: z.string().optional(),
   /** True khi mật khẩu còn là mật khẩu tạm do quản lý phát. */
   mustChangePassword: z.boolean().optional(),
+  authorization: AuthorizationSummarySchema.optional(),
 });
 export type AuthUser = z.infer<typeof AuthUserSchema>;
 
@@ -74,6 +79,8 @@ export const MeResponseSchema = z.object({
   skills: z.array(z.string()).default([]),
   username: z.string().optional(),
   mustChangePassword: z.boolean().optional(),
+  isGlobalAdmin: z.boolean().optional(),
+  authorization: AuthorizationSummarySchema.optional(),
 });
 export type MeResponse = z.infer<typeof MeResponseSchema>;
 
@@ -160,22 +167,30 @@ export const DepartmentSchema = z.object({
   code: z.string().min(1),
   managerId: z.string().nullable().optional(),
   description: z.string().optional(),
+  version: z.number().int().positive().default(1),
 });
 export type Department = z.infer<typeof DepartmentSchema>;
 
 export const DepartmentCreateSchema = z.object({
-  name: z.string().min(1),
-  code: z.string().min(1),
-  managerId: z.string().optional(),
-  description: z.string().optional(),
-});
+  name: z.string().trim().min(1).max(200),
+  code: z.string().trim().min(1).max(100),
+  managerId: z.string().regex(/^[a-f0-9]{24}$/i).transform((value) => value.toLowerCase()).optional(),
+  description: z.string().trim().max(2000).optional(),
+}).strict();
 export type DepartmentCreate = z.infer<typeof DepartmentCreateSchema>;
+export const DepartmentUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(200).optional(),
+  managerId: z.string().regex(/^[a-f0-9]{24}$/i).transform((value) => value.toLowerCase()).nullable().optional(),
+  description: z.string().trim().max(2000).optional(),
+  expectedVersion: z.number().int().positive(),
+}).strict();
+export type DepartmentUpdate = z.infer<typeof DepartmentUpdateSchema>;
 
 // ============================================================================
 // 3. Employee Public DTOs & Profile Change Approval (FR-003 / FR-004)
 // ============================================================================
 
-export const EmployeeStatusSchema = z.enum(["active", "inactive"]);
+export const EmployeeStatusSchema = z.enum(["active", "inactive", "UNKNOWN"]);
 export type EmployeeStatus = z.infer<typeof EmployeeStatusSchema>;
 
 /**
@@ -184,6 +199,9 @@ export type EmployeeStatus = z.infer<typeof EmployeeStatusSchema>;
  */
 export const EmployeeSummarySchema = z.object({
   employeeId: z.string(),
+  employeeCode: z.string().optional(),
+  storeId: z.string().nullable().optional(),
+  storeName: z.string().nullable().optional(),
   fullName: z.string(),
   level: EmployeeLevelSchema,
   department: z.string(),
@@ -199,29 +217,35 @@ export type EmployeeSummary = z.infer<typeof EmployeeSummarySchema>;
  * TUYỆT ĐỐI KHÔNG chứa: bank_name, bank_account_number, bank_account_raw, leave_reason, salary, CCCD.
  */
 export const EmployeeDetailSchema = EmployeeSummarySchema.extend({
+  profileVersion: z.number().int().nonnegative().default(0),
   employeeCode: z.string(),
   departmentId: z.string().optional(),
   phone: z.string().nullable().optional(),
   hiredAt: z.string().nullable().optional(),
 });
 export type EmployeeDetail = z.infer<typeof EmployeeDetailSchema>;
+// Explicit management endpoint only; never widen generic directory/tool DTOs.
+export const EmployeeManagementSchema = EmployeeDetailSchema.extend({ jobTitle: z.string().nullable() });
+export type EmployeeManagement = z.infer<typeof EmployeeManagementSchema>;
 
 export const EmployeeCreateSchema = z.object({
-  employeeCode: z.string().min(1),
-  fullName: z.string().min(1),
+  employeeCode: z.string().trim().min(1).max(100),
+  fullName: z.string().trim().min(1).max(200),
   level: EmployeeLevelSchema,
-  departmentId: z.string().min(1),
-  skills: z.array(z.string()).default([]),
-  phone: z.string().optional(),
-  hiredAt: z.string().optional(),
-});
+  departmentId: z.string().trim().min(1).max(200),
+  skills: z.array(z.string().trim().min(1).max(100)).max(30).default([]),
+  phone: z.string().trim().max(30).optional(),
+  hiredAt: z.string().datetime({ offset: true }).optional(),
+}).strict();
 export type EmployeeCreate = z.infer<typeof EmployeeCreateSchema>;
 
 export const EmployeeUpdateSchema = z.object({
-  fullName: z.string().min(1).optional(),
-  skills: z.array(z.string()).optional(),
-  phone: z.string().optional(),
-});
+  fullName: z.string().trim().min(1).max(200).optional(),
+  skills: z.array(z.string().trim().min(1).max(100)).max(30).optional(),
+  phone: z.string().trim().max(30).optional(),
+  expectedVersion: z.number().int().nonnegative(),
+  clientMessageId: z.string().min(1).max(100).optional(),
+}).strict();
 export type EmployeeUpdate = z.infer<typeof EmployeeUpdateSchema>;
 
 /**
@@ -233,9 +257,9 @@ export type ProfileChangeRequestStatus = z.infer<typeof ProfileChangeRequestStat
 
 export const ProfileTargetFieldsSchema = z.object({
   level: EmployeeLevelSchema.optional(),
-  hiredAt: z.string().optional(),
-  jobTitle: z.string().optional(),
-}).refine(
+  hiredAt: z.string().datetime({ offset: true }).optional(),
+  jobTitle: z.string().trim().min(1).max(200).optional(),
+}).strict().refine(
   (data) => Object.keys(data).length > 0,
   { message: "Phải cung cấp ít nhất một trường cần thay đổi" }
 );
@@ -243,13 +267,14 @@ export type ProfileTargetFields = z.infer<typeof ProfileTargetFieldsSchema>;
 
 export const CreateProfileChangeRequestSchema = z.object({
   targetFields: ProfileTargetFieldsSchema,
-  previousRequestId: z.string().optional(),
+  previousRequestId: z.string().regex(/^[a-f0-9]{24}$/i).optional(),
+  clientMessageId: z.string().min(1).max(100).optional(),
 });
 export type CreateProfileChangeRequest = z.infer<typeof CreateProfileChangeRequestSchema>;
 
 export const ReviewProfileChangeRequestSchema = z.object({
   action: z.enum(["APPROVE", "REJECT"]),
-  reason: z.string().optional(),
+  reason: z.string().trim().min(1).max(2000).optional(),
 }).refine(
   (data) => data.action !== "REJECT" || (data.reason && data.reason.trim().length > 0),
   { message: "Lý do từ chối (reason) là bắt buộc khi REJECT", path: ["reason"] }
@@ -292,39 +317,96 @@ export const ProjectStatusHistoryEntrySchema = z.object({
 });
 export type ProjectStatusHistoryEntry = z.infer<typeof ProjectStatusHistoryEntrySchema>;
 
+export const AssignmentStatusSchema = z.enum(["PENDING_ACCEPTANCE", "ACCEPTED", "MANAGER_REVIEW", "HANDOVER_PENDING"]);
+export const AssignmentRequestSchema = z.object({
+  id: z.string(), kind: z.enum(["DECLINE", "CHANGE", "TRANSFER", "ESCALATION"]),
+  status: z.enum(["PENDING", "REJECTED", "HANDOVER_PENDING", "TRANSFERRED", "REASSIGNED", "CANCELLED"]),
+  requestedBy: z.string(), employeeId: z.string(), requestedAt: z.string(), reason: z.string(),
+  assignmentRound: z.number().int(), parentId: z.string().optional(),
+  reviewedBy: z.string().optional(), reviewedAt: z.string().optional(), decisionReason: z.string().optional(),
+  replacementId: z.string().optional(), progressSnapshot: z.number().optional(), handoverNote: z.string().optional(),
+  outgoingConfirmedAt: z.string().optional(), incomingConfirmedAt: z.string().optional(), transferredAt: z.string().optional(),
+  comments: z.array(z.object({ id: z.string(), actorId: z.string(), at: z.string(), message: z.string() })).default([]),
+});
+export type AssignmentRequest = z.infer<typeof AssignmentRequestSchema>;
+export const ResponsibilityIntervalSchema = z.object({
+  employeeId: z.string(), assignmentRound: z.number().int(), startAt: z.string().nullable(),
+  endAt: z.string().nullable(), progressStart: z.number(), progressEnd: z.number().nullable(), legacy: z.boolean().optional(),
+});
+export const AssignmentAuditSchema = z.object({
+  id: z.string(), sequence: z.number().int().positive(), type: z.string(), actorId: z.string(), at: z.string(), reason: z.string(),
+  before: z.record(z.unknown()), after: z.record(z.unknown()), details: z.record(z.unknown()),
+  previousHash: z.string(), nonce: z.string(), stateHash: z.string(), hash: z.string(),
+  stateVersion: z.union([z.literal(2), z.literal(3)]).optional(),
+});
+export type AssignmentAudit = z.infer<typeof AssignmentAuditSchema>;
+export const AssignmentResponseSchema = z.object({
+  action: z.enum(["ACCEPT", "DECLINE", "REQUEST_CHANGE"]), expectedVersion: z.number().int().positive(),
+  reason: z.string().trim().max(2000).optional(),
+}).refine((data) => data.action === "ACCEPT" || !!data.reason, { message: "Cần lý do từ chối/xin đổi", path: ["reason"] });
+export const AssignmentReviewSchema = z.object({
+  action: z.enum(["APPROVE", "REJECT", "CANCEL_HANDOVER"]), expectedVersion: z.number().int().positive(),
+  reason: z.string().trim().min(1).max(2000), replacementId: z.string().regex(/^[a-f0-9]{24}$/i).transform((value) => value.toLowerCase()).optional(),
+  handoverNote: z.string().trim().max(5000).optional(),
+}).refine((data) => data.action !== "APPROVE" || !!data.replacementId, { message: "Cần chọn người thay thế", path: ["replacementId"] });
+export const AssignmentHandoverSchema = z.object({
+  action: z.enum(["CONFIRM", "DECLINE"]), expectedVersion: z.number().int().positive(), reason: z.string().trim().min(1).max(2000),
+});
+export const AssignmentMessageSchema = z.object({ message: z.string().trim().min(1).max(2000), expectedVersion: z.number().int().positive() });
+export const AssignmentCandidateSchema = F4CandidateSchema;
+export type AssignmentCandidate = z.infer<typeof AssignmentCandidateSchema>;
+export const AssignmentNoticeSchema = z.object({
+  id: z.string(), projectId: z.string(), projectTitle: z.string(), message: z.string(), at: z.string(), read: z.boolean(),
+});
+export type AssignmentNotice = z.infer<typeof AssignmentNoticeSchema>;
+
 export const ProjectSchema = z.object({
   id: z.string(),
   title: z.string().min(1),
   description: z.string().optional(),
   departmentId: z.string(),
+  storeId: z.string().nullable().optional(),
   createdBy: z.string(),
+  requiredSkills: z.array(z.string()).default([]),
   assigneeId: z.string().nullable().optional(),
+  assigneeName: z.string().nullable().optional(),
+  actorNames: z.record(z.string()).default({}),
   status: ProjectStatusSchema,
   progress: z.number().int().min(0).max(100).default(0),
   dueDate: z.string().nullable().optional(),
   version: z.number().int().positive().default(1),
   statusHistory: z.array(ProjectStatusHistoryEntrySchema).default([]),
+  assignmentStatus: AssignmentStatusSchema.nullable().optional(),
+  assignmentRound: z.number().int().default(0), acceptedAt: z.string().nullable().optional(),
+  responsibleEmployeeId: z.string().nullable().optional(),
+  assignmentRequests: z.array(AssignmentRequestSchema).default([]),
+  responsibilities: z.array(ResponsibilityIntervalSchema).default([]),
+  assignmentAudit: z.array(AssignmentAuditSchema).default([]),
 });
 export type Project = z.infer<typeof ProjectSchema>;
 
 export const ProjectCreateSchema = z.object({
-  title: z.string().min(1),
-  description: z.string().optional(),
-  departmentId: z.string().min(1),
-  assigneeId: z.string().optional(),
-  dueDate: z.string().optional(),
+  title: z.string().trim().min(1).max(200),
+  description: z.string().max(10000).optional(),
+  requiredSkills: z.array(z.string().trim().min(1).max(100)).max(30).default([]),
+  departmentId: z.string().trim().min(1).max(200),
+  storeId: z.string().regex(/^[a-f0-9]{24}$/i).transform((value) => value.toLowerCase()).optional(),
+  assigneeId: z.string().regex(/^[a-f0-9]{24}$/i).transform((value) => value.toLowerCase()).optional(),
+  dueDate: z.string().datetime({ offset: true }),
 });
 export type ProjectCreate = z.infer<typeof ProjectCreateSchema>;
 
 export const ProjectUpdateSchema = z.object({
-  title: z.string().min(1).optional(),
-  description: z.string().optional(),
-  dueDate: z.string().optional(),
+  title: z.string().trim().min(1).max(200).optional(),
+  description: z.string().max(10000).optional(),
+  requiredSkills: z.array(z.string().trim().min(1).max(100)).max(30).optional(),
+  dueDate: z.string().datetime({ offset: true }).optional(),
+  expectedVersion: z.number().int().positive(),
 });
 export type ProjectUpdate = z.infer<typeof ProjectUpdateSchema>;
 
 export const ProjectAssignSchema = z.object({
-  assigneeId: z.string().min(1),
+  assigneeId: z.string().regex(/^[a-f0-9]{24}$/i).transform((value) => value.toLowerCase()),
   expectedVersion: z.number().int().positive(),
 });
 export type ProjectAssign = z.infer<typeof ProjectAssignSchema>;
@@ -338,6 +420,7 @@ export type ProjectTransition = z.infer<typeof ProjectTransitionSchema>;
 
 export const ProjectProgressSchema = z.object({
   progress: z.number().int().min(0).max(100),
+  expectedVersion: z.number().int().positive(),
   clientMessageId: z.string().optional(),
 });
 export type ProjectProgress = z.infer<typeof ProjectProgressSchema>;
@@ -365,15 +448,15 @@ export type Report = z.infer<typeof ReportSchema>;
 
 export const ReportSubmitSchema = z.object({
   projectId: z.string().min(1),
-  content: z.string().min(1),
-  attachments: z.array(z.string()).default([]),
+  content: z.string().trim().min(1).max(20000),
+  attachments: z.array(z.string().url().max(2048).refine((value) => /^https?:\/\//i.test(value), "Chỉ nhận liên kết HTTP/HTTPS")).max(10).default([]),
   expectedVersion: z.number().int().positive(),
 });
 export type ReportSubmit = z.infer<typeof ReportSubmitSchema>;
 
 export const ReportReviewSchema = z.object({
   action: z.enum(["APPROVE", "REJECT"]),
-  reason: z.string().optional(),
+  reason: z.string().trim().max(2000).optional(),
   expectedVersion: z.number().int().positive(),
 }).refine(
   (data) => data.action !== "REJECT" || (data.reason && data.reason.trim().length > 0),
@@ -386,7 +469,7 @@ export type ReportReview = z.infer<typeof ReportReviewSchema>;
 // ============================================================================
 
 export const PaginationQuerySchema = z.object({
-  page: z.coerce.number().int().positive().default(1),
+  page: z.coerce.number().int().positive().max(Math.floor(Number.MAX_SAFE_INTEGER / 100)).default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
 });
 export type PaginationQuery = z.infer<typeof PaginationQuerySchema>;
@@ -424,6 +507,13 @@ export type AdminUserListResponse = z.infer<typeof AdminUserListResponseSchema>;
 // ============================================================================
 
 export const ErrorCodeSchema = z.enum([
+  "PERSONNEL_WRITE_NOT_READY", "DEPARTMENT_MAPPING_REQUIRED", "INVALID_DEPARTMENT_MANAGER", "DEPARTMENT_VERSION_CONFLICT", "DEPARTMENT_STORAGE_LIMIT",
+  "ASSIGNMENT_INTEGRITY_FAILED", "LEGACY_DATA_REPAIR_REQUIRED", "LEGACY_PROFILE_REQUEST_INVALID",
+  "PROFILE_VERSION_CONFLICT", "PROFILE_STORAGE_LIMIT", "PROFILE_REQUEST_PENDING", "PROFILE_REQUEST_REVIEWED", "PROFILE_SNAPSHOT_CONFLICT",
+  "ASSIGNMENT_STATE_CONFLICT", "ASSIGNMENT_NOT_ACCEPTED", "ASSIGNMENT_REQUEST_PENDING", "NOT_HANDOVER_PARTY",
+  "ESCALATION_SCOPE_DENIED", "ESCALATION_UNAVAILABLE", "AUDIT_INTEGRITY_FAILED", "AUDIT_LIMIT_REACHED", "PROJECT_STORAGE_LIMIT",
+  "BLOCKCHAIN_NOT_CONFIGURED", "BLOCKCHAIN_CONFIGURATION_INVALID", "BLOCKCHAIN_CHAIN_MISMATCH", "BLOCKCHAIN_CONTRACT_MISSING",
+  "BLOCKCHAIN_UNAVAILABLE", "BLOCKCHAIN_PROOF_INVALID", "BLOCKCHAIN_TRANSACTION_REVERTED",
   "VALIDATION_FAILED",
   "UNAUTHENTICATED",
   "TOKEN_REUSED",
@@ -877,6 +967,21 @@ export type ChatConfirmAck = z.infer<typeof ChatConfirmAckSchema>;
 export const ChatFinishReasonSchema = z.enum(["ANSWER", "TOOL_RESULT", "ABSTAIN", "ERROR"]);
 export type ChatFinishReason = z.infer<typeof ChatFinishReasonSchema>;
 
+// SHADOW metadata is observational only, never an authorization/approval result.
+const DecisionIntentSchema = z.enum(["policy_query", "shift_operation", "cash_audit", "general_chat"]);
+export const DecisionAnalysisSchema = z.discriminatedUnion("status", [
+  z.object({ mode: z.literal("SHADOW"), status: z.literal("ok"), execution: z.literal("mock"), source: z.literal("jev_systemone"),
+    intent: DecisionIntentSchema, needsManagerApprovalProbability: z.number().finite().min(0).max(1),
+    incidentUrgency: z.number().finite().min(0).max(1), intentConfidence: z.number().finite().min(0).max(1),
+    intentProbabilities: z.record(DecisionIntentSchema, z.number().finite().min(0).max(1)),
+    latencyMs: z.number().int().min(0).max(15000),
+  }).strict(),
+  z.object({ mode: z.literal("SHADOW"), status: z.enum(["not_configured", "skipped_data_policy", "unavailable"]),
+    execution: z.literal("none"), source: z.null(),
+  }).strict(),
+]);
+export type DecisionAnalysis = z.infer<typeof DecisionAnalysisSchema>;
+
 export const ChatDonePayloadSchema = z.object({
   clientMessageId: z.string().min(1),
   messageId: z.string().min(1),
@@ -887,6 +992,7 @@ export const ChatDonePayloadSchema = z.object({
   proposedAction: z.record(z.unknown()).nullish(),
   degraded: z.boolean().optional(),
   decisionSource: z.string().optional(),
+  decisionAnalysis: DecisionAnalysisSchema.optional(),
   citations: z.array(CitationSchema).optional(),
   card: z.record(z.unknown()).optional(),
   score: z.number().optional(),
@@ -975,6 +1081,8 @@ export const StoreSummarySchema = z.object({
   managerEmployeeId: z.string().nullable(),
   employeeCount: z.number().int().nonnegative(),
   activeEmployeeCount: z.number().int().nonnegative(),
+  unknownEmployeeCount: z.number().int().nonnegative().optional(),
+  managers: z.array(z.object({ employeeId: z.string(), fullName: z.string() })).optional(),
   status: StoreStatusSchema,
 });
 export type StoreSummary = z.infer<typeof StoreSummarySchema>;
@@ -1011,7 +1119,7 @@ export type DashboardMetric = z.infer<typeof DashboardMetricSchema>;
 
 export const DashboardOverviewSchema = z.object({
   stores: z.object({ outlets: z.number(), groups: z.number(), support: z.number() }),
-  employees: z.object({ total: z.number(), active: z.number(), inactive: z.number() }),
+  employees: z.object({ total: z.number(), active: z.number(), inactive: z.number(), unknown: z.number().nonnegative().default(0) }),
   profileCompletionRate: DashboardMetricSchema,
   managersCovered: DashboardMetricSchema,
   employeesPerOutlet: DashboardMetricSchema,
@@ -1021,4 +1129,3 @@ export const DashboardOverviewSchema = z.object({
   generatedAt: z.string(),
 });
 export type DashboardOverview = z.infer<typeof DashboardOverviewSchema>;
-

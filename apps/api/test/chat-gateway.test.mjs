@@ -3,16 +3,35 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { SettingsModel } from '../dist/models/Settings.js';
 import router from '../dist/routes/chat.js';
-import { chatWithAiService, resetKeyCooldowns, getHealthyKeyPool } from '../dist/services/ai-client.service.js';
+import { chatWithAiService as rawChatTransport, resetKeyCooldowns, getHealthyKeyPool } from '../dist/services/ai-client.service.js';
 import { UserModel } from '../dist/models/User.js';
 import { EmployeeModel } from '../dist/models/Employee.js';
 
+// These are transport stubs, not authorization proofs. Real signed receipt,
+// current-user scope, ACL and response sanitation run in authorization-chat-v1.
+const bound = { requestId: '11111111-1111-4111-8111-111111111111', delegationToken: 'isolated-unit-transport-token-not-a-real-receipt' };
+const chatWithAiService = (message, context, conversationId) => rawChatTransport(message, context, conversationId, bound);
 const context = { userId: 'user-test', role: 'Employee', employeeId: 'employee-test', departmentId: 'department-test' };
 const answer = {
   reply: 'Phản hồi kiểm thử', intent: 'cash_audit', intentId: 'cash_audit',
   citations: [{ document: 'Tài liệu kiểm thử', article: 'Điều 1', version: '1', score: 1 }],
   proposedAction: { type: 'submit_cash_explanation', requiresConfirmation: true, args: { request: 'test' }, preview: 'Bản nháp kiểm thử' },
 };
+
+test('optional shadow metadata is validated separately and cannot break a valid answer or enable advisory', async (t) => {
+  mockSettings(t);
+  const analysis = { mode: 'SHADOW', status: 'ok', execution: 'mock', source: 'jev_systemone', intent: 'policy_query',
+    needsManagerApprovalProbability: 0, incidentUrgency: 1, intentConfidence: 0.8, intentProbabilities: { policy_query: 0.8 }, latencyMs: 1 };
+  let metadata = analysis;
+  t.mock.method(globalThis, 'fetch', async () => Response.json({ ...answer, decisionSource: 'authorization-v1', decisionAnalysis: metadata }));
+  const result = await chatWithAiService('synthetic', context);
+  assert.deepEqual(result.decisionAnalysis, analysis); assert.equal(result.decisionSource, 'authorization-v1');
+  for (const change of [{ mode: 'ADVISORY' }, { approved: true }, { execution: 'live' }, { intentConfidence: 2 }]) {
+    metadata = { ...analysis, ...change };
+    const response = await chatWithAiService('synthetic', context);
+    assert.equal(response.reply, answer.reply); assert.equal(response.decisionAnalysis, undefined);
+  }
+});
 
 // Only the external DB/provider boundaries are stubbed; no database connection or mutation.
 function mockSettings(t) {
@@ -70,7 +89,7 @@ function handler() {
   return router.stack.find((layer) => layer.route?.path === '/chat').route.stack.at(-1).handle;
 }
 function response() {
-  return { statusCode: 0, body: null, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };
+  return { statusCode: 200, setHeader() { return this; }, body: null, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };
 }
 
 test('chat requires authentication and rejects missing or invalid tokens before upstream', async (t) => {
@@ -87,24 +106,12 @@ test('chat requires authentication and rejects missing or invalid tokens before 
   assert.equal(fetchMock.mock.calls.length, 0);
 });
 
-test('gateway forwards authenticated context, conversation and canonical action fields', async (t) => {
-  const fetchMock = mockBoundaries(t);
-  t.mock.method(UserModel, 'findById', () => ({ select: () => ({ lean: async () => null }) }));
-  const res = response();
+test('a forged legacy role context without current capability cannot call provider or create authority', async (t) => {
+  const fetchMock = mockBoundaries(t), res = response();
   await handler()({ body: { message: ' câu hỏi ', conversationId: 'conversation-test', userContext: { role: 'Admin' } }, user: context }, res);
-  assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body.proposedAction, answer.proposedAction);
-  assert.deepEqual(res.body.citations, answer.citations);
-  assert.equal(res.body.intent, 'cash_audit');
-  assert.equal(res.body.intentId, 'cash_audit');
-  assert.equal(res.body.conversationId, 'conversation-test');
-  const request = JSON.parse(fetchMock.mock.calls[0].arguments[1].body);
-  assert.equal(request.message, 'câu hỏi');
-  assert.deepEqual(request.userContext, { ...context, businessRole: 'staff' });
-  assert.equal(request.conversationId, 'conversation-test');
-  const provider = request.providerConfig.providers[0];
-  assert.equal(provider.baseUrl, process.env.AI_LLM_BASE_URL);
-  assert.ok(provider.timeoutMs > 0 && provider.timeoutMs <= 15000);
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body.error.code, 'RBAC_DENIED');
+  assert.equal(fetchMock.mock.calls.length, 0);
 });
 
 test('gateway uses environment overrides and OPENAI_API_KEY fallback', async (t) => {
@@ -172,32 +179,28 @@ test('15 second deadline aborts fetch and bounds stalled provider lookup', async
   assert.equal((await stalled).degraded, true);
 });
 
-test('native fetch reaches sidecar with server-owned business scope and preserves public response', async (t) => {
-  const requests = await nativeBoundary(t);
-  t.mock.method(UserModel, 'findById', () => ({ select: () => ({ lean: async () => ({ employeeId: context.employeeId, role: 'Employee' }) }) }));
-  t.mock.method(EmployeeModel, 'findById', () => ({ select: () => ({ lean: async () => ({ departmentId: context.departmentId, job_title: 'SM', store_raw: 'Store Authenticated' }) }) }));
-  const res = response();
-  const before = Date.now();
-  await handler()({
-    body: {
-      message: 'Hướng dẫn duyệt yêu cầu', conversationId: 'native-conversation', deadlineAtMs: 1,
-      userContext: { role: 'Admin', businessRole: 'admin', storeName: 'Store Forged' },
-    },
-    user: { ...context, userId: 'native-scope-user' },
-  }, res);
-  assert.equal(res.statusCode, 200);
-  assert.equal(res.body.reply, answer.reply);
-  assert.notEqual(res.body.degraded, true);
+test('native transport sends only bound receipt, never legacy role/store/userContext', async (t) => {
+  const requests = await nativeBoundary(t), before = Date.now();
+  const result = await chatWithAiService('Hướng dẫn duyệt yêu cầu', { ...context, businessRole: 'admin', storeName: 'FORGED_SCOPE' }, 'native-conversation');
+  assert.equal(result.reply, answer.reply);
   assert.equal(requests.length, 1);
   const request = requests[0];
-  assert.equal(request.path, '/api/v1/chat');
+  assert.equal(request.path, '/api/v1/authorized-chat');
   assert.equal(request.headers['x-ai-service-key'], 'test-service-key');
-  assert.deepEqual(request.body.userContext, { ...context, userId: 'native-scope-user', businessRole: 'sm', storeName: 'Store Authenticated' });
+  assert.equal('userContext' in request.body, false);
+  assert.equal('role' in request.body, false);
+  assert.equal(request.body.requestId, bound.requestId);
+  assert.equal(request.body.delegationToken, bound.delegationToken);
   assert.equal(request.body.conversationId, 'native-conversation');
-  assert.ok(Number.isInteger(request.body.deadlineAtMs));
-  assert.ok(request.body.deadlineAtMs >= before + 15000);
-  assert.ok(request.body.deadlineAtMs <= Date.now() + 15000);
-  assert.equal('deadlineAtMs' in res.body, false);
+  assert.ok(request.body.deadlineAtMs >= before + 15000 && request.body.deadlineAtMs <= Date.now() + 15000);
+  assert.equal('deadlineAtMs' in result, false);
+});
+
+test('unbound transport fails closed before provider even if legacy context says global Admin', async (t) => {
+  const fetchMock = mockBoundaries(t);
+  const result = await rawChatTransport('all data', { role: 'Admin', businessRole: 'admin' });
+  assert.equal(result.abstain, true); assert.equal(result.degraded, true);
+  assert.equal(fetchMock.mock.calls.length, 0);
 });
 
 test('native wire deadline includes provider lookup and caps every provider timeout', async (t) => {

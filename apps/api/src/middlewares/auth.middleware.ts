@@ -1,8 +1,10 @@
 import { Request, Response, NextFunction } from "express";
 import mongoose from "mongoose";
 import { verifyAccessToken } from "../services/auth.service.js";
-import { UserModel } from "../models/User.js";
-import { EmployeeModel } from "../models/Employee.js";
+import { resolvePrincipal } from "../services/principal.service.js";
+import type { AuthorizationState } from "@hr-blockbot/contracts";
+import type { CanonicalAuthorizationContext } from "../services/authorization-scope.service.js";
+import type { EffectiveDelegatedGrant } from "../services/authorization-scope.service.js";
 
 /**
  * Lỗi hạ tầng (mất kết nối, server selection timeout, pool cạn) KHÔNG phải lỗi xác
@@ -50,10 +52,16 @@ export interface AuthenticatedUser {
   skills: string[];
   mustChangePassword: boolean;
   /**
-   * Admin không gắn hồ sơ nhân viên -> toàn quyền hệ thống (không giới hạn theo
-   * department scope). Admin có hồ sơ vẫn bị giới hạn như cũ.
+   * Legacy CRM flag only. New technical/business capabilities require explicit
+   * authorization state; this flag is not a grant.
    */
   isGlobalAdmin: boolean;
+  securityVersion?: number;
+  accountActive?: boolean;
+  employeeActive?: boolean;
+  authorization?: AuthorizationState | null;
+  canonical?: CanonicalAuthorizationContext;
+  effectiveDelegations?: EffectiveDelegatedGrant[];
 }
 
 declare global {
@@ -100,40 +108,11 @@ export async function authenticateToken(
   }
 
   try {
-    const user = await UserModel.findById(claims.sub);
-    if (!user) {
-      res.status(401).json({
-        error: {
-          code: "UNAUTHENTICATED",
-          message: "User not found or deactivated",
-        },
-      });
+    req.user = await resolvePrincipal(claims);
+    if (req.user.mustChangePassword && !["/auth/me", "/auth/change-password"].includes(req.path)) {
+      res.status(403).json({ error: { code: "PASSWORD_CHANGE_REQUIRED", message: "Change the temporary password before accessing business data" } });
       return;
     }
-
-    // Resolve associated employee record (if any)
-    const employee = await EmployeeModel.findOne({
-      $or: [{ userId: user._id }, { _id: user.employeeId }],
-    });
-
-    const deptId =
-      employee?.departmentId?.toString() ||
-      employee?.department ||
-      employee?.store_raw ||
-      null;
-
-    req.user = {
-      userId: user._id.toString(),
-      username: user.username,
-      role: user.role,
-      employeeId: employee?._id?.toString() || null,
-      departmentId: deptId,
-      level: employee?.level || null,
-      skills: Array.isArray(employee?.skills) ? employee.skills : [],
-      mustChangePassword: user.mustChangePassword === true,
-      isGlobalAdmin: user.isGlobalAdmin === true,
-    };
-
     next();
   } catch (err) {
     if (isInfrastructureError(err)) {
@@ -167,32 +146,8 @@ export async function optionalAuthenticateToken(
   const token = authHeader.split(" ")[1];
   try {
     const claims = await verifyAccessToken(token);
-    const user = await UserModel.findById(claims.sub);
-    if (!user) {
-      return next();
-    }
-
-    const employee = await EmployeeModel.findOne({
-      $or: [{ userId: user._id }, { _id: user.employeeId }],
-    });
-
-    const deptId =
-      employee?.departmentId?.toString() ||
-      employee?.department ||
-      employee?.store_raw ||
-      null;
-
-    req.user = {
-      userId: user._id.toString(),
-      username: user.username,
-      role: user.role,
-      employeeId: employee?._id?.toString() || null,
-      departmentId: deptId,
-      level: employee?.level || null,
-      skills: Array.isArray(employee?.skills) ? employee.skills : [],
-      mustChangePassword: user.mustChangePassword === true,
-      isGlobalAdmin: user.isGlobalAdmin === true,
-    };
+    const user = await resolvePrincipal(claims);
+    if (!user.mustChangePassword) req.user = user;
   } catch (err) {
     // Token hỏng -> tiếp tục như khách. Lỗi hạ tầng thì không: nuốt nó ở đây biến
     // route public thành 200 với dữ liệu thiếu, khó lần hơn nhiều so với 503.

@@ -8,7 +8,12 @@ import { chromium } from './helpers/browser-deps.mjs';
 const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist');
 // P0 account-provisioning: login is by provisioned USERNAME (employee code), not email.
 const credentials = { username: 'employee', password: 'test-only-password' };
-const user = { id: 'test-employee', role: 'Employee' };
+// Browser rendering boundary only; backend scope/receipt checks are exercised
+// separately against owned Mongo in authorization-v1.integration.mjs.
+const authorization = { configured: true, profile: 'staff', securityVersion: 0, enforcement: 'MIGRATING',
+  capabilities: ['authorization.inspect_self', 'chatbot.data_read'], pendingCapabilities: [], stores: [], delegations: [],
+  grants: [{ id: '11111111-1111-4111-8111-111111111111', profile: 'staff', capabilities: ['authorization.inspect_self', 'chatbot.data_read'], scope: { kind: 'self', storeIds: [], regionIds: [], reportingEmployeeIds: [] }, approvalRef: 'isolated-browser-session-fixture', grantedBy: 'a'.repeat(24), grantedAt: '2026-01-01T00:00:00Z', validFrom: '2026-01-01T00:00:00Z', validUntil: null, revokedAt: null }] };
+const user = { id: 'test-employee', role: 'Employee', authorization };
 const deferred = () => {
   let resolve;
   const promise = new Promise((done) => { resolve = done; });
@@ -80,10 +85,10 @@ describe('Account login and session lifecycle (isolated browser fixtures)', () =
         return route.fulfill({ status: 200, json: { accessToken: 'test-refreshed-token' } });
       }
       if (url.pathname === '/api/auth/me') {
-        assert.equal(request.headers().authorization, 'Bearer test-refreshed-token');
+        assert.equal(request.headers().authorization, state.refreshed ? 'Bearer test-refreshed-token' : 'Bearer test-login-token');
         return route.fulfill(options.rejectMe
           ? { status: 503, json: { error: { message: 'Unavailable' } } }
-          : { status: 200, json: { userId: user.id, role: user.role, skills: [] } });
+          : { status: 200, json: { userId: user.id, role: user.role, skills: [], authorization } });
       }
       if (url.pathname === '/api/auth/logout') {
         state.active = false;
@@ -139,13 +144,22 @@ describe('Account login and session lifecycle (isolated browser fixtures)', () =
   it('đăng nhập theo quyền server và gửi Bearer token khi hỏi chatbot', async () => {
     const { page, state, errors } = await fixture();
     await signIn(page);
-    const roleBadge = page.getByText('Nhân viên', { exact: true });
+    const roleBadge = page.locator('.crm-sidebar .crm-user-scope');
     await roleBadge.waitFor({ state: 'visible' });
     assert.equal(await roleBadge.count(), 1);
+    assert.match(await roleBadge.innerText(), /^staff •/);
+    const crmTheme = page.locator('#crm-theme-portal');
+    await crmTheme.getByRole('button', { name: 'Chế độ sáng', exact: true }).click();
+    assert.equal(await page.evaluate(() => document.documentElement.classList.contains('light')), true);
+    await crmTheme.getByRole('button', { name: 'Chế độ tối', exact: true }).click();
+    assert.equal(await page.evaluate(() => document.documentElement.classList.contains('dark')), true);
     const saved = await page.evaluate(() => ({ local: { ...localStorage }, session: { ...sessionStorage } }));
     assert.equal(JSON.stringify(saved).includes('test-login-token'), false);
     assert.equal(JSON.stringify(saved).includes('guta_user'), false);
     await openChat(page);
+    assert.equal(await page.locator('.guta-chat-header-title span').innerText(), 'staff');
+    await page.locator('.theme-toggle--chat').getByRole('button', { name: 'Chế độ sáng', exact: true }).click();
+    assert.equal(await page.evaluate(() => document.documentElement.classList.contains('light')), true);
     await page.getByPlaceholder('Hỏi AI về ca trực, nhân sự, tiền két...').fill('Hồ sơ của tôi');
     await page.getByRole('button', { name: 'Gửi', exact: true }).click();
     await page.getByText('Phản hồi từ API theo phiên đăng nhập.', { exact: true }).waitFor();

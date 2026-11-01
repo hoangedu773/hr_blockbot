@@ -1,5 +1,11 @@
 # 05 — Mô hình dữ liệu (Data Model)
 
+> Tiếp nối F1: `personnelKey` / department `creationKey` có partial unique index cho create qua API mới, không backfill dữ liệu cũ/không thay index employeeCode cũ. Department metadata dùng version/history bounded; code/ID immutable qua API. Quản trị nhân sự có endpoint management allowlist riêng, không nới generic directory DTO. [Chi tiết tương thích và giới hạn external import](../plans/261031-crm-technical-review/personnel-admin-report.md).
+
+> Technical review 31/10: Employee bổ sung `profileRevision` (legacy thiếu coi 0), `profileHistory[]` (tối đa 1000); request lưu `id` rõ ràng, vẫn đọc `_id` cũ, tối đa 100 request. Cập nhật thông tin thường/quyết định nhạy cảm/request/history là một atomic employee write. Audit project mới dùng `stateVersion:2`, vẫn verify encoding cũ không sửa hash. Storage kiểm BSON 8 MiB, read receipts cap 10.000; không tự xóa lịch sử. Chi tiết và giới hạn: [review hiện tại](../plans/261031-crm-technical-review/review-report.md).
+
+> Bổ sung 31/10/2026: [ADR-021](03-decision-records/ADR-021-assignment-consent-handover-hash-proof.md) là đặc tả hiện hành cho trường tiếp nhận/request/khoảng trách nhiệm/audit/notice nhúng trong project và collection `decision_anchors` chỉ lưu metadata bằng chứng. Không dùng `assigneeId` để suy ra nhân viên đã chấp nhận. Các bảng PROPOSED cũ không thay thế schema Zod/model đã triển khai; giới hạn 11 collection cũ đã được thay bởi ADR-018.
+
 Khóa luận KLCN133. Dịch mô hình miền ở `04-domain-model.md` sang **11 MongoDB collection**, kèm ERD, schema,
 chính sách index, quyết định "không transaction" và chính sách migration/seed.
 

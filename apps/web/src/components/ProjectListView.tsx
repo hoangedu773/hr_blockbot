@@ -1,755 +1,328 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import type {
-  EmployeeSummary,
-  MeResponse,
-  PaginatedProjectsResponse,
-  Project,
-  ProjectStatus,
-} from '@hr-blockbot/contracts';
-import { useAuth } from '../context/AuthContext';
+import type { EmployeeSummary, MeResponse, PaginatedProjectsResponse, Project, ProjectStatus, Report } from '@hr-blockbot/contracts';
 import {
-  ApiError,
-  assignProject,
-  createProject,
-  fetchEmployees,
-  fetchMe,
-  fetchProjects,
-  submitReport as submitReportApi,
-  transitionProject,
-  updateProjectProgress,
+  ApiError, assignProject, createProject, editProject, fetchDepartments, fetchMe, requestJson,
+  fetchProjectById, fetchProjectReports, fetchProjects, reviewReport, submitReport, transitionProject, updateProjectProgress,
+  type CrmDepartment,
+  fetchAssignmentSummary, fetchAssignmentNotices, readAssignmentNotice, type AssignmentSummary,
 } from '../services/api';
 import type { NotifyFn } from './Toast';
+import { Select } from './ui/Select';
+import { CrmDialog } from './ui/CrmDialog';
+import { AssignmentPanel, assignmentLabel } from './AssignmentPanel';
+import { CandidateSuggestions } from './CandidateSuggestions';
+import '../styles/crm-work.css';
+import { WorkOverview } from './WorkOverview';
 
-interface ProjectListViewProps {
-  onNotify: NotifyFn;
-}
-
-type ModalState =
-  | { kind: 'create' }
-  | { kind: 'assign'; project: Project }
-  | { kind: 'report'; project: Project }
-  | { kind: 'progress'; project: Project }
-  | { kind: 'review'; project: Project; action: 'APPROVE' | 'REJECT' }
-  | null;
-
-const STATUS_ORDER: ProjectStatus[] = ['DRAFT', 'ASSIGNED', 'IN_PROGRESS', 'PENDING_REVIEW', 'COMPLETED'];
-
-const STATUS_CHIP: Record<ProjectStatus, string> = {
-  DRAFT: '',
-  ASSIGNED: 'chip--info',
-  IN_PROGRESS: 'chip--warn',
-  PENDING_REVIEW: 'chip--warn',
-  COMPLETED: 'chip--ok',
+const LABEL: Record<ProjectStatus, string> = {
+  DRAFT: 'Khởi tạo', ASSIGNED: 'Đã giao', IN_PROGRESS: 'Đang thực hiện', PENDING_REVIEW: 'Chờ nghiệm thu', COMPLETED: 'Hoàn thành',
 };
+const REPORT_LABEL = { PENDING: 'Chờ duyệt', APPROVED: 'Đã duyệt', REJECTED: 'Yêu cầu làm lại' };
+type WorkModal = { kind: 'create' } | { kind: 'edit' | 'assign' | 'progress' | 'submit' | 'details' | 'review' | 'assignment'; project: Project };
+const dateText = (value?: string | null) => value ? new Date(value).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : 'Chưa đặt hạn';
+const dateInput = (value?: string | null) => value ? new Date(value).toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }) : '';
+const deadline = (value: string) => value ? new Date(value + 'T23:59:59+07:00').toISOString() : undefined;
+const safeLink = (value: string) => { try { return ['http:', 'https:'].includes(new URL(value).protocol); } catch { return false; } };
+const overdue = (project: Project) => !!project.dueDate && project.status !== 'COMPLETED' && new Date(project.dueDate).getTime() < Date.now();
 
-const STATUS_LABEL: Record<ProjectStatus, string> = {
-  DRAFT: 'DRAFT',
-  ASSIGNED: 'ASSIGNED',
-  IN_PROGRESS: 'IN_PROGRESS',
-  PENDING_REVIEW: 'PENDING_REVIEW',
-  COMPLETED: 'COMPLETED',
-};
-
-function isOverdue(project: Project): boolean {
-  if (!project.dueDate || project.status === 'COMPLETED') return false;
-  return new Date(project.dueDate).getTime() < Date.now();
-}
-
-export const ProjectListView: React.FC<ProjectListViewProps> = ({ onNotify }) => {
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'Admin';
-
-  // P1-16: `onNotify` is usually passed as an inline arrow, so its identity changes
-  // on every render. Using it directly in `load`'s dependency list made the effect
-  // re-run forever. Keep the latest callback in a ref and leave deps to real inputs.
-  const onNotifyRef = useRef(onNotify);
-  useEffect(() => {
-    onNotifyRef.current = onNotify;
-  }, [onNotify]);
-
-  const [data, setData] = useState<PaginatedProjectsResponse | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [loadError, setLoadError] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<string>('');
-  const [overdueOnly, setOverdueOnly] = useState<boolean>(false);
-  const [page, setPage] = useState<number>(1);
-
+export const ProjectListView: React.FC<{ onNotify: NotifyFn }> = ({ onNotify }) => {
   const [me, setMe] = useState<MeResponse | null>(null);
+  const [departments, setDepartments] = useState<CrmDepartment[]>([]);
+  const [identityError, setIdentityError] = useState('');
+  const can = (capability: string) => !!me?.authorization?.capabilities.some((value) => value === capability);
+  const creationStores = me?.authorization?.stores.filter((store) => store.capabilities.includes('projects.create') && store.departmentId) ?? [];
+  const [filters, setFilters] = useState(() => {
+    const url = new URL(window.location.href);
+    const status = url.searchParams.get('workStatus') || '';
+    return {
+      q: url.searchParams.get('workQ') || '',
+      departmentId: url.searchParams.get('workDepartment') || '',
+      storeId: url.searchParams.get('workStore') || '', assigneeId: url.searchParams.get('workAssignee') || '',
+      dueFrom: url.searchParams.get('workDueFrom') || '', dueTo: url.searchParams.get('workDueTo') || '',
+      assignmentView: ['AWAITING_ACCEPTANCE', 'PENDING_REQUESTS', 'HANDOVER'].includes(url.searchParams.get('workAssignment') || '') ? url.searchParams.get('workAssignment')! : '',
+      status: status in LABEL ? status : '',
+      overdue: url.searchParams.get('workOverdue') === 'true',
+      mine: url.searchParams.get('workMine') === 'true',
+      page: Math.max(1, Number.parseInt(url.searchParams.get('workPage') || '1', 10) || 1),
+    };
+  });
+  const [search, setSearch] = useState(filters.q);
+  const [data, setData] = useState<PaginatedProjectsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [summary, setSummary] = useState<AssignmentSummary | null>(null);
+  const [notices, setNotices] = useState<Awaited<ReturnType<typeof fetchAssignmentNotices>> | null>(null);
+  const [noticePage, setNoticePage] = useState(1), [overviewRevision, setOverviewRevision] = useState(0);
+  const [noticesLoading, setNoticesLoading] = useState(false);
+  const [knownAssignees, setKnownAssignees] = useState<Record<string, string>>({});
+  const [summaryError, setSummaryError] = useState('');
+  const request = useRef(0);
+  const notify = useRef(onNotify);
+  notify.current = onNotify;
+  const [modal, setModal] = useState<WorkModal | null>(null);
+  const [busy, setBusy] = useState(false);
+  const writing = useRef(false);
+  const assignmentBusy = useCallback((value: boolean) => { writing.current = value; setBusy(value); }, []);
+  const [formError, setFormError] = useState('');
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [requiredSkills, setRequiredSkills] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [department, setDepartment] = useState('');
+  const [storeId, setStoreId] = useState('');
+  const [progress, setProgress] = useState('0');
+  const [content, setContent] = useState('');
+  const [attachments, setAttachments] = useState('');
+  const [reason, setReason] = useState('');
+  const [assignee, setAssignee] = useState('');
+  const [assigneeSearch, setAssigneeSearch] = useState('');
   const [assignees, setAssignees] = useState<EmployeeSummary[]>([]);
-  const [assigneesError, setAssigneesError] = useState<string>('');
-
-  const [modal, setModal] = useState<ModalState>(null);
-  const [busy, setBusy] = useState<boolean>(false);
-  const [formError, setFormError] = useState<string>('');
-
-  // Create form
-  const [title, setTitle] = useState<string>('');
-  const [description, setDescription] = useState<string>('');
-  const [dueDate, setDueDate] = useState<string>('');
-  // Assign form
-  const [assigneeId, setAssigneeId] = useState<string>('');
-  // Progress form
-  const [progress, setProgress] = useState<string>('50');
-  // Report form
-  const [reportContent, setReportContent] = useState<string>('');
-  // Review form
-  const [reviewReason, setReviewReason] = useState<string>('');
+  const [assigneePage, setAssigneePage] = useState(1);
+  const [moreAssignees, setMoreAssignees] = useState(false);
+  const [assigneeLoading, setAssigneeLoading] = useState(false);
+  const [assigneeError, setAssigneeError] = useState('');
+  const [reports, setReports] = useState<Report[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState('');
+  const detailRequest = useRef(0);
+  const assigneeRequest = useRef(0);
 
   const load = useCallback(async () => {
-    setIsLoading(true);
-    setLoadError('');
+    const sequence = ++request.current;
+    setLoading(true); setNoticesLoading(true); setError('');
     try {
-      const result = await fetchProjects({
-        status: (statusFilter as ProjectStatus) || undefined,
-        overdue: overdueOnly || undefined,
-        page,
-        limit: 20,
-      });
-      setData(result);
-    } catch (err: unknown) {
-      const message = err instanceof ApiError ? `${err.code}: ${err.message}` : err instanceof Error ? err.message : 'Lỗi tải danh sách đề tài';
-      setLoadError(message);
-      onNotifyRef.current(message, 'error', 'Không tải được đề tài');
-    } finally {
-      setIsLoading(false);
+      const result = await fetchProjects({ ...filters, status: (filters.status || undefined) as ProjectStatus | undefined, limit: 20 });
+      if (sequence === request.current) { setData(result); setKnownAssignees((old) => ({ ...old, ...Object.fromEntries(result.items.filter((item) => item.assigneeId).map((item) => [item.assigneeId!, item.assigneeName || item.assigneeId!])) })); }
+    } catch (failure) {
+      if (sequence === request.current) setError(failure instanceof Error ? failure.message : 'Không tải được công việc.');
+    } finally { if (sequence === request.current) setLoading(false); }
+    try {
+      const [counts, inbox] = await Promise.all([fetchAssignmentSummary(), fetchAssignmentNotices(noticePage)]);
+      if (sequence === request.current) { setSummary(counts); setNotices(inbox); setSummaryError(''); }
+    } catch (failure) { if (sequence === request.current) setSummaryError(failure instanceof Error ? failure.message : 'Không tải được tổng quan tiếp nhận.'); }
+    finally { if (sequence === request.current) setNoticesLoading(false); }
+  }, [filters, noticePage]);
+
+  useEffect(() => { void load(); return () => { request.current++; }; }, [load]);
+  useEffect(() => {
+    const timer = setTimeout(() => setFilters((old) => old.q === search ? old : { ...old, q: search, page: 1 }), 250);
+    return () => clearTimeout(timer);
+  }, [search]);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    for (const [key, value] of Object.entries({ workQ: filters.q, workStore: filters.storeId, workAssignee: filters.assigneeId, workDueFrom: filters.dueFrom, workDueTo: filters.dueTo, workAssignment: filters.assignmentView, workDepartment: filters.departmentId, workStatus: filters.status, workMine: filters.mine ? 'true' : '', workOverdue: filters.overdue ? 'true' : '', workPage: String(filters.page) })) {
+      if (value && !(key === 'workPage' && value === '1')) url.searchParams.set(key, value); else url.searchParams.delete(key);
     }
-  }, [statusFilter, overdueOnly, page]);
-
+    window.history.replaceState(window.history.state, '', url);
+  }, [filters]);
   useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const meResult = await fetchMe();
-        if (!cancelled) setMe(meResult);
-      } catch {
-        if (!cancelled) setMe(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    let active = true;
+    void fetchMe().then(async (identity) => {
+      const directory = identity.authorization?.capabilities.includes('projects.create') ? await fetchDepartments() : [];
+      const store = identity.authorization?.stores.find((value) => value.capabilities.includes('projects.create') && value.departmentId);
+      if (active) { setMe(identity); setDepartments(directory); setDepartment(store?.departmentId || ''); setStoreId(store?.id || ''); }
+    }).catch((failure) => { if (active) setIdentityError(failure instanceof Error ? failure.message : 'Không xác định được quyền truy cập.'); });
+    return () => { active = false; };
   }, []);
 
-  const loadAssignees = async () => {
-    if (assignees.length > 0) return;
+  const refreshDetails = useCallback(async (project: Project) => {
+    const sequence = ++detailRequest.current;
+    setDetailLoading(true); setDetailError('');
     try {
-      const result = await fetchEmployees({ limit: 100 });
-      setAssignees(result.items);
-      setAssigneesError('');
-    } catch (err: unknown) {
-      setAssigneesError(err instanceof Error ? err.message : 'Không tải được danh sách nhân sự để giao việc');
-    }
-  };
+      const [latest, entries] = await Promise.all([fetchProjectById(project.id), fetchProjectReports(project.id)]);
+      if (sequence !== detailRequest.current) return;
+      setModal((current) => current && 'project' in current && current.project.id === latest.id ? { ...current, project: latest } : current);
+      setReports(entries);
+    } catch (failure) {
+      if (sequence === detailRequest.current) setDetailError(failure instanceof Error ? failure.message : 'Không tải được báo cáo.');
+    } finally { if (sequence === detailRequest.current) setDetailLoading(false); }
+  }, []);
 
-  const closeModal = () => {
-    setModal(null);
-    setFormError('');
-  };
+  const assignmentProject = modal?.kind === 'assign' ? modal.project : null;
+  useEffect(() => {
+    if (!assignmentProject) return;
+    const sequence = ++assigneeRequest.current;
+    setAssigneeLoading(true); setAssigneeError('');
+    const timer = setTimeout(() => {
+      void requestJson<{ items: EmployeeSummary[]; paging: { hasNext: boolean } }>(`/projects/${assignmentProject.id}/eligible-assignees?q=${encodeURIComponent(assigneeSearch)}&page=${assigneePage}&limit=30`)
+        .then((result) => {
+          if (sequence !== assigneeRequest.current) return;
+          setAssignees((old) => assigneePage === 1 ? result.items : [...old, ...result.items.filter((item) => !old.some((previous) => previous.employeeId === item.employeeId))]);
+          setMoreAssignees(result.paging.hasNext);
+        })
+        .catch((failure) => { if (sequence === assigneeRequest.current) setAssigneeError(failure instanceof Error ? failure.message : 'Không tải được người nhận việc.'); })
+        .finally(() => { if (sequence === assigneeRequest.current) setAssigneeLoading(false); });
+    }, 200);
+    return () => { clearTimeout(timer); assigneeRequest.current++; };
+  }, [assignmentProject?.id, assigneeSearch, assigneePage]);
 
-  const handleError = (err: unknown, fallback: string) => {
-    const message =
-      err instanceof ApiError
-        ? `${err.code}: ${err.message}${err.status === 409 ? ' — dữ liệu đã đổi, đang tải lại danh sách.' : ''}`
-        : err instanceof Error
-        ? err.message
-        : fallback;
-    setFormError(message);
-    onNotify(message, 'error', fallback);
-    if (err instanceof ApiError && err.status === 409) {
-      void load();
-    }
+  const close = () => {
+    if (writing.current) return;
+    detailRequest.current++; assigneeRequest.current++; setModal(null); setFormError('');
   };
-
-  const submitCreate = async () => {
-    if (!me?.departmentId) {
-      setFormError('Tài khoản Admin chưa được gán departmentId nên không thể tạo đề tài (server cần phạm vi phòng ban).');
-      return;
-    }
-    if (title.trim().length === 0) {
-      setFormError('Tiêu đề đề tài là bắt buộc.');
-      return;
-    }
-    setBusy(true);
-    setFormError('');
+  const open = (kind: Exclude<WorkModal['kind'], 'create'>, project: Project) => {
+    setFormError(''); setReports([]); setDetailError(''); setReason('');
+    setModal({ kind, project });
+    if (kind === 'edit') { setTitle(project.title); setDescription(project.description || ''); setRequiredSkills(project.requiredSkills.join(', ')); setDueDate(dateInput(project.dueDate)); }
+    if (kind === 'progress') setProgress(String(project.progress));
+    if (kind === 'submit') { setContent(''); setAttachments(''); }
+    if (kind === 'assign') { setAssignee(''); setAssigneeSearch(''); setAssigneePage(1); setAssignees([]); }
+    if (kind === 'details' || kind === 'review' || kind === 'assignment') void refreshDetails(project);
+  };
+  const run = async (action: () => Promise<unknown>, message: string) => {
+    if (writing.current) return;
+    writing.current = true; setBusy(true); setFormError('');
     try {
-      await createProject({
-        title: title.trim(),
-        description: description.trim() || undefined,
-        departmentId: me.departmentId,
-        dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
-      });
-      onNotify('Đã tạo đề tài ở trạng thái DRAFT.', 'success', 'Tạo đề tài');
-      closeModal();
-      setTitle('');
-      setDescription('');
-      setDueDate('');
-      await load();
-    } catch (err: unknown) {
-      handleError(err, 'Lỗi tạo đề tài');
-    } finally {
-      setBusy(false);
+      await action(); setOverviewRevision((old) => old + 1);
+      detailRequest.current++; setModal(null); notify.current(message, 'success'); await load();
+    } catch (failure) {
+      const message = failure instanceof Error ? failure.message : 'Không thể lưu thay đổi.';
+      setFormError(message); notify.current(message, 'error');
+      if (failure instanceof ApiError && failure.status === 409) {
+        void load();
+        // Keep typed report/reason. Do not silently retry or discard the draft.
+        if (modal && 'project' in modal) void refreshDetails(modal.project);
+      }
+    } finally { writing.current = false; setBusy(false); }
+  };
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!modal || busy) return;
+    if (modal.kind === 'create' || modal.kind === 'edit') {
+      if (!title.trim() || (modal.kind === 'create' && !department)) { setFormError('Nhập tiêu đề và chọn phòng ban.'); return; }
+      const skills = [...new Set(requiredSkills.split(',').map((skill) => skill.trim()).filter(Boolean))];
+      if (skills.length > 30 || skills.some((skill) => skill.length > 100)) { setFormError('Tối đa 30 kỹ năng, mỗi kỹ năng không quá 100 ký tự.'); return; }
+      if (modal.kind === 'create' && !dueDate) { setFormError('Chọn hạn hoàn thành cho nhiệm vụ mới.'); return; }
+      const fields = { title: title.trim(), description: description.trim(), requiredSkills: skills, dueDate: deadline(dueDate)! };
+      if (modal.kind === 'create') void run(() => createProject({ ...fields, departmentId: department, storeId }), 'Đã tạo công việc.');
+      else { if (modal.project.dueDate && !dueDate) { setFormError('Nhiệm vụ có hạn phải giữ deadline khác rỗng.'); return; } void run(() => editProject(modal.project.id, { ...fields, dueDate: fields.dueDate, expectedVersion: modal.project.version }), 'Đã cập nhật công việc.'); }
+    } else if (modal.kind === 'assign') {
+      if (!assignee) { setFormError('Chọn nhân sự nhận việc.'); return; }
+      void run(() => assignProject(modal.project.id, { assigneeId: assignee, expectedVersion: modal.project.version }), 'Đã giao việc.');
+    } else if (modal.kind === 'progress') {
+      const value = Number(progress);
+      if (!progress.trim() || !Number.isInteger(value) || value < 0 || value > 100) { setFormError('Tiến độ phải là số nguyên từ 0 đến 100.'); return; }
+      void run(() => updateProjectProgress(modal.project.id, { progress: value, expectedVersion: modal.project.version }), 'Đã lưu tiến độ.');
+    } else if (modal.kind === 'submit') {
+      const links = attachments.split('\n').map((item) => item.trim()).filter(Boolean);
+      if (!content.trim() || links.length > 10 || links.some((item) => !safeLink(item))) { setFormError('Nhập nội dung và tối đa 10 liên kết HTTP/HTTPS hợp lệ.'); return; }
+      void run(() => submitReport(modal.project.id, { content: content.trim(), attachments: links, expectedVersion: modal.project.version }), 'Đã nộp báo cáo, đang chờ quản lý nghiệm thu.');
     }
   };
 
-  const submitAssign = async (project: Project) => {
-    if (!assigneeId) {
-      setFormError('Chọn một nhân sự để giao việc.');
-      return;
-    }
-    setBusy(true);
-    setFormError('');
-    try {
-      await assignProject(project.id, { assigneeId, expectedVersion: project.version });
-      onNotify('Đã giao việc cho nhân sự.', 'success', 'Giao việc');
-      closeModal();
-      setAssigneeId('');
-      await load();
-    } catch (err: unknown) {
-      handleError(err, 'Lỗi giao việc');
-    } finally {
-      setBusy(false);
-    }
-  };
+  const current = modal && 'project' in modal ? modal.project : null;
+  const pending = reports.find((report) => report.status === 'PENDING');
+  const canReview = can('reports.review') && current?.status === 'PENDING_REVIEW' && pending && current.assigneeId !== me?.employeeId && ![me?.userId, me?.employeeId].includes(pending.submittedBy);
+  const modalTitle = modal?.kind === 'create' ? 'Tạo công việc' : modal?.kind === 'edit' ? 'Sửa công việc' : modal?.kind === 'assign' ? 'Giao việc' : modal?.kind === 'progress' ? 'Cập nhật tiến độ' : modal?.kind === 'submit' ? 'Nộp báo cáo' : modal?.kind === 'review' ? 'Nghiệm thu báo cáo' : modal?.kind === 'assignment' ? 'Tiếp nhận & bàn giao nhiệm vụ' : 'Chi tiết công việc';
+  const reset = () => { setSearch(''); setFilters({ q: '', departmentId: '', storeId: '', assigneeId: '', dueFrom: '', dueTo: '', assignmentView: '', status: '', mine: false, overdue: false, page: 1 }); };
 
-  const submitStart = async (project: Project) => {
-    setBusy(true);
-    try {
-      await transitionProject(project.id, { targetStatus: 'IN_PROGRESS', expectedVersion: project.version });
-      onNotify('Đề tài chuyển sang IN_PROGRESS.', 'success', 'Cập nhật trạng thái');
-      await load();
-    } catch (err: unknown) {
-      handleError(err, 'Lỗi chuyển trạng thái');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const submitProgress = async (project: Project) => {
-    const value = Number.parseInt(progress, 10);
-    if (!Number.isFinite(value) || value < 0 || value > 100) {
-      setFormError('Tiến độ phải là số nguyên 0..100.');
-      return;
-    }
-    setBusy(true);
-    setFormError('');
-    try {
-      await updateProjectProgress(project.id, { progress: value });
-      onNotify(`Đã cập nhật tiến độ ${value}%.`, 'success', 'Cập nhật tiến độ');
-      closeModal();
-      await load();
-    } catch (err: unknown) {
-      handleError(err, 'Lỗi cập nhật tiến độ');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const submitReport = async (project: Project) => {
-    if (reportContent.trim().length === 0) {
-      setFormError('Nội dung báo cáo là bắt buộc.');
-      return;
-    }
-    setBusy(true);
-    setFormError('');
-    try {
-      await submitReportApi(project.id, {
-        content: reportContent.trim(),
-        attachments: [],
-        expectedVersion: project.version,
-      });
-      onNotify('Đã nộp báo cáo — đề tài chuyển PENDING_REVIEW.', 'success', 'Nộp báo cáo');
-      closeModal();
-      setReportContent('');
-      await load();
-    } catch (err: unknown) {
-      handleError(err, 'Lỗi nộp báo cáo');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const submitReview = async (project: Project, action: 'APPROVE' | 'REJECT') => {
-    if (action === 'REJECT' && reviewReason.trim().length === 0) {
-      setFormError('Bắt buộc nhập lý do khi từ chối.');
-      return;
-    }
-    setBusy(true);
-    setFormError('');
-    try {
-      await transitionProject(project.id, {
-        targetStatus: action === 'APPROVE' ? 'COMPLETED' : 'IN_PROGRESS',
-        expectedVersion: project.version,
-        ...(reviewReason.trim() ? { reason: reviewReason.trim() } : {}),
-      });
-      onNotify(
-        action === 'APPROVE' ? 'Đề tài đã COMPLETED.' : 'Đề tài trả về IN_PROGRESS kèm lý do.',
-        'success',
-        action === 'APPROVE' ? 'Duyệt báo cáo' : 'Từ chối báo cáo'
-      );
-      closeModal();
-      setReviewReason('');
-      await load();
-    } catch (err: unknown) {
-      handleError(err, 'Lỗi duyệt báo cáo');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const items = data?.items ?? [];
-  const paging = data?.paging;
-
-  const renderActions = (project: Project) => {
-    const actions: React.ReactNode[] = [];
-
-    if (isAdmin && project.status === 'DRAFT') {
-      actions.push(
-        <button
-          key="assign"
-          type="button"
-          className="btn btn--sm btn--primary"
-          onClick={() => {
-            setModal({ kind: 'assign', project });
-            setFormError('');
-            void loadAssignees();
-          }}
-        >
-          Giao việc
-        </button>
-      );
-    }
-
-    if (!isAdmin && project.status === 'ASSIGNED') {
-      actions.push(
-        <button key="start" type="button" className="btn btn--sm btn--primary" disabled={busy} onClick={() => void submitStart(project)}>
-          Bắt đầu
-        </button>
-      );
-    }
-
-    if (!isAdmin && project.status === 'IN_PROGRESS') {
-      actions.push(
-        <button
-          key="progress"
-          type="button"
-          className="btn btn--sm"
-          onClick={() => {
-            setModal({ kind: 'progress', project });
-            setProgress(String(project.progress));
-            setFormError('');
-          }}
-        >
-          Tiến độ
-        </button>,
-        <button
-          key="report"
-          type="button"
-          className="btn btn--sm btn--primary"
-          onClick={() => {
-            setModal({ kind: 'report', project });
-            setReportContent('');
-            setFormError('');
-          }}
-        >
-          Nộp báo cáo
-        </button>
-      );
-    }
-
-    if (isAdmin && project.status === 'PENDING_REVIEW') {
-      actions.push(
-        <button
-          key="approve"
-          type="button"
-          className="btn btn--sm btn--primary"
-          onClick={() => {
-            setModal({ kind: 'review', project, action: 'APPROVE' });
-            setReviewReason('');
-            setFormError('');
-          }}
-        >
-          Duyệt
-        </button>,
-        <button
-          key="reject"
-          type="button"
-          className="btn btn--sm btn--danger"
-          onClick={() => {
-            setModal({ kind: 'review', project, action: 'REJECT' });
-            setReviewReason('');
-            setFormError('');
-          }}
-        >
-          Từ chối
-        </button>
-      );
-    }
-
-    if (actions.length === 0) {
-      return <span style={{ fontSize: '11px', color: 'var(--text-faint)' }}>—</span>;
-    }
-    return <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>{actions}</div>;
-  };
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
-        <div>
-          <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#f8fafc' }}>Vòng Đời Đề Tài (F2)</h2>
-          <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
-            DRAFT → ASSIGNED → IN_PROGRESS → PENDING_REVIEW → COMPLETED · optimistic lock theo version
-          </p>
-        </div>
-        {isAdmin && (
-          <button
-            type="button"
-            className="btn btn--primary"
-            onClick={() => {
-              setModal({ kind: 'create' });
-              setFormError('');
-              setTitle('');
-              setDescription('');
-              setDueDate('');
-            }}
-          >
-            + Tạo đề tài
-          </button>
-        )}
-      </div>
-
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-        <div className="field" style={{ minWidth: '170px' }}>
-          <label className="field__label" htmlFor="project-status">
-            Trạng thái
-          </label>
-          <select
-            id="project-status"
-            className="select"
-            value={statusFilter}
-            onChange={(event) => {
-              setPage(1);
-              setStatusFilter(event.target.value);
-            }}
-          >
-            <option value="">Tất cả</option>
-            {STATUS_ORDER.map((status) => (
-              <option key={status} value={status}>
-                {STATUS_LABEL[status]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', paddingBottom: '8px' }}>
-          <input
-            type="checkbox"
-            checked={overdueOnly}
-            onChange={(event) => {
-              setPage(1);
-              setOverdueOnly(event.target.checked);
-            }}
-          />
-          Chỉ đề tài quá hạn (dueDate &lt; now, chưa COMPLETED)
-        </label>
-        <button type="button" className="btn" onClick={() => void load()} disabled={isLoading}>
-          Làm mới
-        </button>
-      </div>
-
-      {isLoading && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {[0, 1, 2, 3].map((row) => (
-            <div key={row} className="skeleton" style={{ height: '52px' }} />
-          ))}
-        </div>
-      )}
-
-      {!isLoading && loadError && (
-        <div className="banner banner--error" role="alert">
-          <span>Không tải được danh sách đề tài: {loadError}</span>
-          <button type="button" className="btn btn--sm" onClick={() => void load()}>
-            Thử lại
-          </button>
-        </div>
-      )}
-
-      {!isLoading && !loadError && items.length === 0 && (
-        <div className="empty">
-          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
-            {statusFilter || overdueOnly ? 'Không có đề tài khớp bộ lọc' : 'Chưa có đề tài nào'}
-          </div>
-          <p>
-            {statusFilter || overdueOnly
-              ? 'Thử xoá bộ lọc trạng thái / quá hạn.'
-              : 'Tạo đề tài DRAFT để bắt đầu vòng đời, hoặc chờ Admin giao việc.'}
-          </p>
-          {(statusFilter || overdueOnly) && (
-            <button
-              type="button"
-              className="btn btn--sm"
-              onClick={() => {
-                setStatusFilter('');
-                setOverdueOnly(false);
-                setPage(1);
-              }}
-            >
-              Xoá bộ lọc
-            </button>
-          )}
-        </div>
-      )}
-
-      {!isLoading && !loadError && items.length > 0 && (
-        <>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
-            {paging?.totalItems ?? items.length} đề tài · trang {paging?.page ?? 1}/{paging?.totalPages ?? 1}
-          </div>
-          <div className="card table-wrap" style={{ overflow: 'hidden' }}>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Đề tài</th>
-                  <th>Trạng thái</th>
-                  <th>Tiến độ</th>
-                  <th>Hạn</th>
-                  <th>Version</th>
-                  <th style={{ textAlign: 'right' }}>Hành động</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((project) => (
-                  <tr key={project.id}>
-                    <td>
-                      <div style={{ fontWeight: 600, color: '#f8fafc' }}>{project.title}</div>
-                      {project.description && (
-                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', maxWidth: '360px' }}>{project.description}</div>
-                      )}
-                    </td>
-                    <td>
-                      <span className={`chip ${STATUS_CHIP[project.status]}`}>{STATUS_LABEL[project.status]}</span>
-                    </td>
-                    <td style={{ minWidth: '120px' }}>
-                      <div className="progress" aria-hidden="true">
-                        <div className="progress__bar" style={{ width: `${project.progress}%` }} />
-                      </div>
-                      <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{project.progress}%</span>
-                    </td>
-                    <td style={{ fontFamily: 'var(--mono)', fontSize: '11px' }}>
-                      {project.dueDate ? new Date(project.dueDate).toLocaleDateString('vi-VN') : '—'}
-                      {isOverdue(project) && (
-                        <div>
-                          <span className="chip chip--err">quá hạn</span>
-                        </div>
-                      )}
-                    </td>
-                    <td style={{ fontFamily: 'var(--mono)', fontSize: '11px' }}>v{project.version}</td>
-                    <td>{renderActions(project)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-            <button type="button" className="btn btn--sm" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>
-              Trang trước
-            </button>
-            <button
-              type="button"
-              className="btn btn--sm"
-              disabled={!paging || page >= paging.totalPages}
-              onClick={() => setPage((value) => value + 1)}
-            >
-              Trang sau
-            </button>
-          </div>
-        </>
-      )}
-
-      {modal?.kind === 'create' && (
-        <div className="overlay" role="dialog" aria-modal="true" aria-label="Tạo đề tài" onClick={closeModal}>
-          <div className="sheet" onClick={(event) => event.stopPropagation()}>
-            <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#f8fafc' }}>Tạo đề tài (DRAFT)</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '14px' }}>
-              <div className="field">
-                <label className="field__label" htmlFor="project-title">
-                  Tiêu đề (bắt buộc)
-                </label>
-                <input id="project-title" className="input" value={title} onChange={(event) => setTitle(event.target.value)} />
-              </div>
-              <div className="field">
-                <label className="field__label" htmlFor="project-description">
-                  Mô tả
-                </label>
-                <textarea
-                  id="project-description"
-                  className="textarea"
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                />
-              </div>
-              <div className="field">
-                <label className="field__label" htmlFor="project-due">
-                  Hạn hoàn thành
-                </label>
-                <input id="project-due" className="input" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
-              </div>
-              <div className="field__hint">
-                departmentId lấy từ phiên đăng nhập: {me?.departmentId ?? 'chưa có (server sẽ từ chối)'}
-              </div>
-              {formError && <div className="banner banner--error" role="alert">{formError}</div>}
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                <button type="button" className="btn btn--ghost" onClick={closeModal} disabled={busy}>
-                  Huỷ
-                </button>
-                <button type="button" className="btn btn--primary" onClick={() => void submitCreate()} disabled={busy} aria-busy={busy}>
-                  {busy ? <span className="spinner" /> : null}
-                  Tạo đề tài
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {modal?.kind === 'assign' && (
-        <div className="overlay" role="dialog" aria-modal="true" aria-label="Giao việc" onClick={closeModal}>
-          <div className="sheet" onClick={(event) => event.stopPropagation()}>
-            <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#f8fafc' }}>Giao việc · {modal.project.title}</h3>
-            <div className="field" style={{ marginTop: '12px' }}>
-              <label className="field__label" htmlFor="assign-assignee">
-                Nhân sự nhận việc
-              </label>
-              <select id="assign-assignee" className="select" value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)}>
-                <option value="">Chọn nhân sự…</option>
-                {assignees.map((employee) => (
-                  <option key={employee.employeeId} value={employee.employeeId}>
-                    {employee.fullName} — {employee.level}
-                  </option>
-                ))}
-              </select>
-              {assigneesError && <span className="field__error">{assigneesError}</span>}
-            </div>
-            {formError && <div className="banner banner--error" role="alert" style={{ marginTop: '12px' }}>{formError}</div>}
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
-              <button type="button" className="btn btn--ghost" onClick={closeModal} disabled={busy}>
-                Huỷ
-              </button>
-              <button type="button" className="btn btn--primary" onClick={() => void submitAssign(modal.project)} disabled={busy} aria-busy={busy}>
-                {busy ? <span className="spinner" /> : null}
-                Xác nhận giao việc
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {modal?.kind === 'progress' && (
-        <div className="overlay" role="dialog" aria-modal="true" aria-label="Cập nhật tiến độ" onClick={closeModal}>
-          <div className="sheet" onClick={(event) => event.stopPropagation()}>
-            <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#f8fafc' }}>Cập nhật tiến độ · {modal.project.title}</h3>
-            <div className="field" style={{ marginTop: '12px' }}>
-              <label className="field__label" htmlFor="progress-value">
-                Tiến độ (%)
-              </label>
-              <input
-                id="progress-value"
-                className="input"
-                inputMode="numeric"
-                value={progress}
-                aria-invalid={!(Number(progress) >= 0 && Number(progress) <= 100)}
-                onChange={(event) => setProgress(event.target.value)}
-              />
-            </div>
-            {formError && <div className="banner banner--error" role="alert" style={{ marginTop: '12px' }}>{formError}</div>}
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
-              <button type="button" className="btn btn--ghost" onClick={closeModal} disabled={busy}>
-                Huỷ
-              </button>
-              <button type="button" className="btn btn--primary" onClick={() => void submitProgress(modal.project)} disabled={busy} aria-busy={busy}>
-                {busy ? <span className="spinner" /> : null}
-                Lưu tiến độ
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {modal?.kind === 'report' && (
-        <div className="overlay" role="dialog" aria-modal="true" aria-label="Nộp báo cáo" onClick={closeModal}>
-          <div className="sheet" onClick={(event) => event.stopPropagation()}>
-            <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#f8fafc' }}>Nộp báo cáo · {modal.project.title}</h3>
-            <div className="field" style={{ marginTop: '12px' }}>
-              <label className="field__label" htmlFor="report-content">
-                Nội dung báo cáo (bắt buộc)
-              </label>
-              <textarea
-                id="report-content"
-                className="textarea"
-                value={reportContent}
-                onChange={(event) => setReportContent(event.target.value)}
-              />
-            </div>
-            <p style={{ fontSize: '11px', color: 'var(--text-faint)', marginTop: '8px' }}>
-              Nộp báo cáo sẽ chuyển đề tài sang PENDING_REVIEW (expectedVersion v{modal.project.version}).
-            </p>
-            {formError && <div className="banner banner--error" role="alert" style={{ marginTop: '12px' }}>{formError}</div>}
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
-              <button type="button" className="btn btn--ghost" onClick={closeModal} disabled={busy}>
-                Huỷ
-              </button>
-              <button type="button" className="btn btn--primary" onClick={() => void submitReport(modal.project)} disabled={busy} aria-busy={busy}>
-                {busy ? <span className="spinner" /> : null}
-                Nộp báo cáo
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {modal?.kind === 'review' && (
-        <div className="overlay" role="dialog" aria-modal="true" aria-label="Duyệt báo cáo" onClick={closeModal}>
-          <div className="sheet" onClick={(event) => event.stopPropagation()}>
-            <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#f8fafc' }}>
-              {modal.action === 'APPROVE' ? 'Duyệt báo cáo' : 'Từ chối báo cáo'} · {modal.project.title}
-            </h3>
-            <div className="field" style={{ marginTop: '12px' }}>
-              <label className="field__label" htmlFor="review-reason">
-                {modal.action === 'REJECT' ? 'Lý do từ chối (bắt buộc)' : 'Ghi chú (tuỳ chọn)'}
-              </label>
-              <textarea
-                id="review-reason"
-                className="textarea"
-                value={reviewReason}
-                aria-invalid={modal.action === 'REJECT' && reviewReason.trim().length === 0}
-                onChange={(event) => setReviewReason(event.target.value)}
-              />
-            </div>
-            <p style={{ fontSize: '11px', color: 'var(--text-faint)', marginTop: '8px' }}>
-              Duyệt qua transition đề tài (PENDING_REVIEW → {modal.action === 'APPROVE' ? 'COMPLETED' : 'IN_PROGRESS'}).
-              Endpoint review báo cáo theo reportId tồn tại nhưng API chưa có endpoint danh sách báo cáo để lấy reportId.
-            </p>
-            {formError && <div className="banner banner--error" role="alert" style={{ marginTop: '12px' }}>{formError}</div>}
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
-              <button type="button" className="btn btn--ghost" onClick={closeModal} disabled={busy}>
-                Huỷ
-              </button>
-              <button
-                type="button"
-                className={`btn ${modal.action === 'REJECT' ? 'btn--danger' : 'btn--primary'}`}
-                onClick={() => void submitReview(modal.project, modal.action)}
-                disabled={busy || (modal.action === 'REJECT' && reviewReason.trim().length === 0)}
-                aria-busy={busy}
-              >
-                {busy ? <span className="spinner" /> : null}
-                {modal.action === 'REJECT' ? 'Xác nhận từ chối' : 'Xác nhận duyệt'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+  return <section className="crm-workspace" aria-label="Công việc và nghiệm thu" aria-busy={!me && !identityError}>
+    <header className="crm-work-heading"><div><p className="crm-work-eyebrow">QUẢN TRỊ CÔNG VIỆC</p><h2>Công việc & nghiệm thu</h2><p>Giao đúng người. Theo dõi tiến độ. Nghiệm thu bằng báo cáo và lịch sử thực tế.</p></div>
+      {can('projects.create') && <button type="button" className="btn btn--primary" onClick={() => { setTitle(''); setDescription(''); setRequiredSkills(''); setDueDate(''); setFormError(''); setModal({ kind: 'create' }); }}>Tạo công việc</button>}
+    </header>
+    {identityError && <div role="alert" className="banner banner--error">{identityError}</div>}
+    {summaryError && <p role="alert">{summaryError}</p>}
+    <WorkOverview revision={overviewRevision} />
+    <nav className="crm-assignment-summary" aria-label="Tổng quan tiếp nhận nhiệm vụ">
+      {([
+        ['Chờ tiếp nhận', 'awaitingAcceptance', 'AWAITING_ACCEPTANCE'], ['Đang thực hiện', 'inProgress', 'IN_PROGRESS'],
+        ['Yêu cầu chờ quản lý', 'pendingRequests', 'PENDING_REQUESTS'], ['Chờ bàn giao', 'pendingHandover', 'HANDOVER'], ['Nhiệm vụ quá hạn', 'overdue', 'OVERDUE'],
+      ] as const).map(([label, key, view]) => <button type="button" className="btn" key={key} onClick={() => setFilters((old) => ({ ...old, page: 1,
+        assignmentView: ['AWAITING_ACCEPTANCE', 'PENDING_REQUESTS', 'HANDOVER'].includes(view) ? view : '', status: view === 'IN_PROGRESS' ? 'IN_PROGRESS' : '', overdue: view === 'OVERDUE' }))}><span>{label}</span><strong>{summary?.[key] ?? '—'}</strong></button>)}
+    </nav>
+    {!!notices?.items.length && <details className="crm-assignment-inbox" aria-busy={noticesLoading}><summary>Thông báo phân công ({notices.unreadCount} chưa đọc)</summary>
+      {notices.items.map((item) => <article className="crm-report-card" key={item.id}><strong>{item.projectTitle}{!item.read ? ' · Chưa đọc' : ''}</strong><p>{item.message}</p><time>{dateText(item.at)}</time>{!item.read && <button type="button" className="btn" onClick={() => void readAssignmentNotice(item.projectId, item.id).then(() => load()).catch((failure) => notify.current(failure instanceof Error ? failure.message : 'Không đánh dấu đọc được.', 'error'))}>Đánh dấu đã đọc</button>}</article>)}
+      <nav aria-label="Phân trang thông báo phân công"><button className="btn" disabled={noticesLoading || !notices.paging.hasPrev} onClick={() => setNoticePage(noticePage - 1)}>Trang trước</button><span>Trang {notices.paging.page} · {notices.totalItems} thông báo</span><button className="btn" disabled={noticesLoading || !notices.paging.hasNext} onClick={() => setNoticePage(noticePage + 1)}>Trang sau</button></nav>
+    </details>}
+    <div className="crm-work-toolbar">
+      <label className="field">Cửa hàng công việc<select aria-label="Cửa hàng công việc" className="input" value={filters.storeId} onChange={(event) => setFilters((old) => ({ ...old, storeId: event.target.value, page: 1 }))}><option value="">Tất cả phạm vi công việc</option>{me?.authorization?.stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
+      <label className="field">Người nhận trong các trang đã xem<select aria-label="Người nhận trong các trang đã xem" className="input" value={filters.assigneeId} onChange={(event) => setFilters((old) => ({ ...old, assigneeId: event.target.value, page: 1 }))}><option value="">Tất cả người nhận được phép</option>{Object.entries(knownAssignees).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
+      <label className="field">Hạn từ ngày<input className="input" type="date" value={filters.dueFrom ? dateInput(filters.dueFrom) : ''} onChange={(event) => setFilters((old) => ({ ...old, dueFrom: event.target.value ? new Date(event.target.value + 'T00:00:00+07:00').toISOString() : '', page: 1 }))} /></label><label className="field">Hạn đến ngày<input className="input" type="date" value={filters.dueTo ? dateInput(filters.dueTo) : ''} onChange={(event) => setFilters((old) => ({ ...old, dueTo: deadline(event.target.value) || '', page: 1 }))} /></label>
+      <label className="field"><span className="field__label">Tìm công việc</span><input className="input" type="search" value={search} maxLength={200} onChange={(event) => setSearch(event.target.value)} placeholder="Tên hoặc nội dung công việc..." /></label>
+      <label className="field"><span className="field__label" id="work-status-label">Trạng thái</span><Select aria-labelledby="work-status-label" value={filters.status} onChange={(status) => setFilters((old) => ({ ...old, status, page: 1 }))} options={[{ value: '', label: 'Tất cả trạng thái' }, ...Object.entries(LABEL).map(([value, label]) => ({ value, label }))]} /></label>
+      {departments.length > 1 && <div className="field"><span className="field__label" id="work-filter-department-label">Phòng ban</span><Select aria-labelledby="work-filter-department-label" value={filters.departmentId} onChange={(departmentId) => setFilters((old) => ({ ...old, departmentId, page: 1 }))} options={[{ value: '', label: 'Tất cả trong phạm vi' }, ...departments.map((item) => ({ value: item.id, label: item.name }))]} /></div>}
+      <label className="crm-work-check"><input type="checkbox" checked={filters.overdue} onChange={(event) => setFilters((old) => ({ ...old, overdue: event.target.checked, page: 1 }))} />Quá hạn</label>
+      <label className="crm-work-check"><input type="checkbox" checked={filters.mine} onChange={(event) => setFilters((old) => ({ ...old, mine: event.target.checked, page: 1 }))} />Việc của tôi</label>
+      <button type="button" className="btn" disabled={loading} onClick={() => { setOverviewRevision((value) => value + 1); void load(); }}>Làm mới</button>
+      {(filters.assignmentView || filters.status || filters.overdue || filters.mine || filters.q || filters.departmentId || filters.storeId || filters.assigneeId || filters.dueFrom || filters.dueTo) && <button type="button" className="btn" onClick={reset}>Xóa bộ lọc</button>}
     </div>
-  );
+    <p className="crm-work-count" role="status">{loading ? 'Đang tải công việc…' : error ? 'Chưa tải được dữ liệu' : (data?.paging.totalItems ?? 0) + ' công việc phù hợp'}</p>
+    {error && <div role="alert" className="banner banner--error">{error}<button type="button" className="btn" onClick={() => void load()}>Thử lại</button></div>}
+    {loading ? <div aria-hidden="true">{[1, 2, 3].map((row) => <div className="skeleton crm-work-skeleton" key={row} />)}</div> : !error && !data?.items.length ? <div className="empty"><h3>Chưa có công việc phù hợp</h3><p>Thử đổi bộ lọc hoặc tạo công việc mới nếu bạn có quyền quản lý.</p><button type="button" className="btn" onClick={reset}>Xóa bộ lọc</button></div> : !error && <>
+      <div className="crm-work-table-wrap"><table className="table crm-work-table"><caption className="sr-only">Danh sách công việc trong phạm vi được cấp</caption>
+        <thead><tr><th>Công việc</th><th>Trạng thái</th><th>Tiến độ</th><th>Hạn hoàn thành</th><th>Thao tác</th></tr></thead>
+        <tbody>{data?.items.map((project) => {
+          const own = !!me?.employeeId && project.assigneeId === me.employeeId;
+          return <tr key={project.id}>
+            <td><button type="button" className="crm-work-title" onClick={() => open('details', project)}>{project.title}</button><p className="crm-work-secondary">{me?.authorization?.stores.find((store) => store.id === project.storeId)?.name || departments.find((item) => item.id === project.departmentId)?.name || project.departmentId}</p><p className="crm-work-secondary">Người nhận: {project.assigneeName || project.assigneeId || 'Chưa giao'}</p></td>
+            <td><span className={'crm-work-status crm-work-status--' + project.status}>{assignmentLabel(project)}</span>{overdue(project) && <span className="crm-work-late">Quá hạn</span>}</td>
+            <td><progress value={project.progress} max={100} aria-label={'Tiến độ ' + project.title} /><span className="crm-work-secondary">{project.progress}%</span></td>
+            <td><time dateTime={project.dueDate || undefined}>{dateText(project.dueDate)}</time></td>
+            <td><div className="crm-work-actions">
+              <button type="button" className="btn btn--sm" onClick={() => open('details', project)}>Chi tiết</button>
+              {me && project.status !== 'DRAFT' && <button type="button" className="btn btn--sm" onClick={() => open('assignment', project)}>Tiếp nhận / Bàn giao</button>}
+              {can('projects.create') && ['DRAFT', 'ASSIGNED', 'IN_PROGRESS'].includes(project.status) && <button type="button" className="btn btn--sm" onClick={() => open('edit', project)}>Sửa</button>}
+              {can('projects.assign') && project.status === 'DRAFT' && <button type="button" className="btn btn--sm" onClick={() => open('assign', project)}>Giao việc</button>}
+              {own && project.status === 'ASSIGNED' && project.assignmentStatus === 'ACCEPTED' && !project.assignmentRequests.some((item) => item.status === 'PENDING') && <button type="button" className="btn btn--sm btn--primary" disabled={busy} onClick={() => void run(() => transitionProject(project.id, { targetStatus: 'IN_PROGRESS', expectedVersion: project.version }), 'Đã bắt đầu công việc.')}>Bắt đầu</button>}
+              {own && project.status === 'IN_PROGRESS' && project.assignmentStatus !== 'HANDOVER_PENDING' && <><button type="button" className="btn btn--sm" onClick={() => open('progress', project)}>Tiến độ</button><button type="button" className="btn btn--sm btn--primary" disabled={project.assignmentRequests.some((item) => item.status === 'PENDING')} onClick={() => open('submit', project)}>Nộp báo cáo</button></>}
+              {can('reports.review') && project.assigneeId !== me?.employeeId && project.status === 'PENDING_REVIEW' && <button type="button" className="btn btn--sm btn--primary" onClick={() => open('review', project)}>Nghiệm thu</button>}
+            </div></td>
+          </tr>;
+        })}</tbody>
+      </table></div>
+      <nav className="crm-work-pagination" aria-label="Phân trang công việc"><button type="button" className="btn" disabled={!data?.paging.hasPrev} onClick={() => setFilters((old) => ({ ...old, page: old.page - 1 }))}>Trang trước</button><span>Trang {data?.paging.page} / {data?.paging.totalPages}</span><button type="button" className="btn" disabled={!data?.paging.hasNext} onClick={() => setFilters((old) => ({ ...old, page: old.page + 1 }))}>Trang sau</button></nav>
+    </>}
+
+    {modal && <CrmDialog title={modalTitle} busy={busy} onClose={close}>
+      {current && <div className="crm-work-detail"><h4>{current.title}</h4><p>{current.description || 'Chưa có mô tả.'}</p><p>Kỹ năng yêu cầu: {current.requiredSkills.join(', ') || 'Chưa cập nhật'}</p><p>Người nhận: {current.assigneeName || current.assigneeId || 'Chưa giao'}</p><p>{LABEL[current.status]} · phiên bản {current.version} · {dateText(current.dueDate)}</p></div>}
+      {modal.kind === 'assignment' && current && me && <>
+        {detailLoading && <p role="status">Đang tải thông tin tiếp nhận mới nhất…</p>}
+        {detailError && <p role="alert">{detailError}</p>}
+        <AssignmentPanel key={current.id} project={current} me={me} onBusyChange={assignmentBusy} onUpdated={(latest) => { setModal((old) => old && 'project' in old ? { ...old, project: latest } : old); void load(); }} />
+      </>}
+      {['create', 'edit', 'assign', 'progress', 'submit'].includes(modal.kind) && <form onSubmit={submit} className="crm-work-form">
+        {(modal.kind === 'create' || modal.kind === 'edit') && <>
+          <label className="field"><span className="field__label">Tiêu đề công việc</span><input className="input" required maxLength={200} value={title} onChange={(event) => setTitle(event.target.value)} disabled={busy} /></label>
+          <label className="field"><span className="field__label" id="work-description-label">Mô tả</span><textarea aria-labelledby="work-description-label" className="textarea" maxLength={10000} value={description} onChange={(event) => setDescription(event.target.value)} disabled={busy} /></label>
+          <label className="field"><span className="field__label">Kỹ năng yêu cầu (cách nhau bằng dấu phẩy)</span><input className="input" maxLength={3030} value={requiredSkills} onChange={(event) => setRequiredSkills(event.target.value)} disabled={busy} placeholder="Bàn giao, Kiểm kê tài sản" /></label>
+          {modal.kind === 'create' && <div className="field"><span className="field__label" id="work-store-label">Cửa hàng phụ trách</span><Select aria-labelledby="work-store-label" value={storeId} onChange={(value) => { setStoreId(value); setDepartment(creationStores.find((store) => store.id === value)?.departmentId || ''); }} disabled={busy || !creationStores.length} options={creationStores.map((item) => ({ value: item.id, label: item.name }))} placeholder="Chọn cửa hàng được cấp" /></div>}
+          <label className="field"><span className="field__label">Hạn hoàn thành (giờ Việt Nam, cuối ngày)</span><input className="input" type="date" required={modal.kind === 'create' || !!current?.dueDate} value={dueDate} onChange={(event) => setDueDate(event.target.value)} disabled={busy} /></label>
+        </>}
+        {modal.kind === 'assign' && <>
+          <CandidateSuggestions projectId={modal.project.id} projectVersion={modal.project.version} disabled={busy} />
+          <label className="field"><span className="field__label">Tìm người nhận việc trong phòng ban</span><input className="input" value={assigneeSearch} onChange={(event) => { setAssigneeSearch(event.target.value); setAssigneePage(1); setAssignee(''); }} disabled={busy} /></label>
+          <div className="field"><span id="work-assignee-label" className="field__label">Nhân sự đang hoạt động</span><Select aria-labelledby="work-assignee-label" value={assignee} onChange={setAssignee} disabled={busy || assigneeLoading} options={assignees.map((item) => ({ value: item.employeeId, label: item.fullName + ' · ' + item.level }))} placeholder={assigneeLoading ? 'Đang tải nhân sự…' : 'Chọn người nhận việc'} /></div>
+          {assigneeError && <p role="alert">{assigneeError}</p>}
+          {!assigneeLoading && !assignees.length && <p>Không có nhân sự đang hoạt động phù hợp.</p>}
+          {moreAssignees && <button type="button" className="btn" disabled={assigneeLoading || busy} onClick={() => setAssigneePage((old) => old + 1)}>Tải thêm nhân sự</button>}
+        </>}
+        {modal.kind === 'progress' && <label className="field"><span className="field__label">Tiến độ (%)</span><input className="input" type="number" min={0} max={100} step={1} required value={progress} onChange={(event) => setProgress(event.target.value)} disabled={busy} /></label>}
+        {modal.kind === 'submit' && <>
+          <label className="field"><span className="field__label" id="work-report-content-label">Nội dung báo cáo</span><textarea aria-labelledby="work-report-content-label" className="textarea" required maxLength={20000} value={content} onChange={(event) => setContent(event.target.value)} disabled={busy} /></label>
+          <label className="field"><span className="field__label" id="work-evidence-label">Liên kết minh chứng (mỗi dòng một URL, tối đa 10)</span><textarea aria-labelledby="work-evidence-label" className="textarea" value={attachments} onChange={(event) => setAttachments(event.target.value)} disabled={busy} placeholder="https://..." /></label><p>Chỉ lưu liên kết bạn cung cấp; không tải tệp lên máy chủ trong thao tác này.</p>
+        </>}
+        {formError && <p role="alert" className="banner banner--error">{formError}</p>}
+        <footer className="crm-work-actions"><button type="button" className="btn" disabled={busy} onClick={close}>Hủy</button><button type="submit" className="btn btn--primary" disabled={busy || (modal.kind === 'assign' && !assignee)}>{busy ? 'Đang lưu…' : modal.kind === 'assign' ? 'Xác nhận giao việc' : modal.kind === 'submit' ? 'Xác nhận nộp báo cáo' : 'Lưu công việc'}</button></footer>
+      </form>}
+      {(modal.kind === 'details' || modal.kind === 'review') && current && <div className="crm-work-detail">
+        {detailLoading && <p role="status">Đang tải báo cáo và lịch sử…</p>}
+        {detailError && <div role="alert" className="banner banner--error">{detailError}<button type="button" className="btn" onClick={() => void refreshDetails(current)}>Thử lại</button></div>}
+        {!detailLoading && !detailError && <>
+          <h4>Báo cáo nghiệm thu</h4>
+          {!reports.length && <p>Chưa có báo cáo được nộp.</p>}
+          {reports.map((report) => <article key={report.id} className="crm-report-card"><header><strong>{REPORT_LABEL[report.status]}</strong><time>{dateText(report.submittedAt)}</time></header><p>Người nộp: {report.submittedBy === current.assigneeId ? current.assigneeName || report.submittedBy : report.submittedBy}</p><p className="crm-work-pre">{report.content}</p>
+            {report.attachments.map((link, index) => safeLink(link) ? <a key={index} href={link} target="_blank" rel="noopener noreferrer">Minh chứng {index + 1}</a> : <span key={index}>Liên kết cũ không an toàn — không mở tự động.</span>)}
+            {report.reviewedAt && <p>Người duyệt: {report.reviewedBy} · {dateText(report.reviewedAt)} · {report.reason || 'Không có ghi chú.'}</p>}
+          </article>)}
+          {modal.kind === 'review' && <>
+            {!canReview && <p className="banner">Không thể duyệt: không có báo cáo chờ duyệt hoặc bạn là người nộp. Cần quản lý khác thực hiện.</p>}
+            <label className="field"><span className="field__label" id="work-review-reason-label">Nhận xét nghiệm thu (bắt buộc khi yêu cầu làm lại)</span><textarea aria-labelledby="work-review-reason-label" className="textarea" maxLength={2000} value={reason} onChange={(event) => setReason(event.target.value)} disabled={busy || !canReview} /></label>
+            {formError && <p role="alert" className="banner banner--error">{formError}</p>}
+            <div className="crm-work-actions"><button type="button" className="btn btn--danger" disabled={busy || !canReview || !reason.trim()} onClick={() => pending && void run(() => reviewReport(pending.id, { action: 'REJECT', reason: reason.trim(), expectedVersion: current.version }), 'Đã trả báo cáo để bổ sung.')}>Yêu cầu làm lại</button><button type="button" className="btn btn--primary" disabled={busy || !canReview} onClick={() => pending && void run(() => reviewReport(pending.id, { action: 'APPROVE', reason: reason.trim() || undefined, expectedVersion: current.version }), 'Đã nghiệm thu và hoàn thành công việc.')}>Xác nhận nghiệm thu</button></div>
+          </>}
+          <h4>Lịch sử xử lý</h4><ol className="crm-work-history">{[...current.statusHistory].reverse().map((entry, index) => <li key={index}><strong>{entry.from ? LABEL[entry.from] + ' → ' : ''}{LABEL[entry.to]}</strong><p>{entry.reason || 'Cập nhật trạng thái'}</p><p>Người thực hiện: {entry.changedBy === current.assigneeId ? current.assigneeName || entry.changedBy : entry.changedBy}</p><time>{dateText(entry.changedAt)}</time></li>)}</ol>
+        </>}
+      </div>}
+    </CrmDialog>}
+  </section>;
 };

@@ -1,5 +1,7 @@
+import { F4SuggestionsSchema } from '@hr-blockbot/contracts';
 import type {
   AdminUser,
+  AssignmentNotice, AssignmentAudit,
   AdminUserListResponse,
   AdminUserWithPassword,
   AttendanceCorrection,
@@ -13,6 +15,7 @@ import type {
   EmployeeDetail,
   EmployeeLevel,
   EmployeeSummary,
+  EmployeeCreate, EmployeeUpdate, EmployeeManagement, Department, DepartmentCreate, DepartmentUpdate,
   LLMProvider,
   LLMProviderInput,
   MeResponse,
@@ -24,6 +27,8 @@ import type {
   ProjectProgress,
   ProjectStatus,
   ProjectTransition,
+  ProjectUpdate,
+  Report,
   ProfileChangeRequest,
   ProviderTestResult,
   ReportReview,
@@ -88,7 +93,7 @@ async function toApiError(res: Response, fallbackMessage: string): Promise<ApiEr
   return new ApiError(message, res.status, code);
 }
 
-async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+export async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await apiFetch(`${API_BASE}${path}`, init);
   if (!res.ok) {
     throw await toApiError(res, `Yêu cầu ${path} thất bại (HTTP ${res.status})`);
@@ -132,7 +137,7 @@ export async function fetchMe(): Promise<MeResponse> {
 }
 
 export function isEmployeeDetail(value: EmployeeDetail | EmployeeSummary): value is EmployeeDetail {
-  return typeof (value as EmployeeDetail).employeeCode === 'string';
+  return 'profileVersion' in value && typeof value.employeeCode === 'string';
 }
 
 // ---------------------------------------------------------------------------
@@ -141,9 +146,10 @@ export function isEmployeeDetail(value: EmployeeDetail | EmployeeSummary): value
 
 export interface EmployeeListParams {
   departmentId?: string;
+  storeId?: string;
   level?: EmployeeLevel;
   /** Phase 2 adds this filter; older API builds ignore it. */
-  status?: 'active' | 'inactive';
+  status?: 'active' | 'inactive' | 'UNKNOWN';
   q?: string;
   page?: number;
   limit?: number;
@@ -156,6 +162,7 @@ export interface EmployeeListParams {
 export async function fetchEmployees(params?: EmployeeListParams): Promise<PaginatedEmployeesResponse> {
   const query = new URLSearchParams();
   if (params?.departmentId) query.set('departmentId', params.departmentId);
+  if (params?.storeId) query.set('storeId', params.storeId);
   if (params?.level) query.set('level', params.level);
   if (params?.status) query.set('status', params.status);
   if (params?.q) query.set('q', params.q);
@@ -196,12 +203,31 @@ export async function fetchMyProfile(): Promise<EmployeeDetail> {
 /** Non-sensitive own fields only (phone, skills). Sensitive fields go through change requests. */
 export async function updateEmployeeFields(
   employeeId: string,
-  payload: { phone?: string; skills?: string[] }
+  payload: { phone?: string; skills?: string[]; expectedVersion: number }
 ): Promise<EmployeeDetail | EmployeeSummary> {
   return requestJson<EmployeeDetail | EmployeeSummary>(
     `/employees/${encodeURIComponent(employeeId)}`,
     patchJson({ ...payload, clientMessageId: newClientMessageId() })
   );
+}
+
+export async function createPersonnel(payload: EmployeeCreate): Promise<EmployeeSummary> {
+  return requestJson<EmployeeSummary>('/employees', postJson(payload));
+}
+export async function fetchPersonnelManagement(id: string): Promise<EmployeeManagement> {
+  return requestJson<EmployeeManagement>(`/employees/${encodeURIComponent(id)}/management`);
+}
+export async function editPersonnel(id: string, payload: EmployeeUpdate): Promise<EmployeeSummary | EmployeeDetail> {
+  return requestJson<EmployeeSummary | EmployeeDetail>(`/employees/${encodeURIComponent(id)}`, patchJson(payload));
+}
+export async function createDepartment(payload: DepartmentCreate): Promise<Department> {
+  return requestJson<Department>('/departments', postJson(payload));
+}
+export async function fetchDepartment(id: string): Promise<Department> {
+  return requestJson<Department>(`/departments/${encodeURIComponent(id)}`);
+}
+export async function editDepartment(id: string, payload: DepartmentUpdate): Promise<Department> {
+  return requestJson<Department>(`/departments/${encodeURIComponent(id)}`, patchJson(payload));
 }
 
 export async function createProfileChangeRequest(
@@ -240,6 +266,7 @@ export async function fetchPendingProfileChangeRequests(): Promise<PendingChange
   }
   return items;
 }
+export const fetchProfileApprovalPage = (page: number, status: string) => requestJson<{ items: PendingChangeRequestItem[]; paging: { hasNext: boolean; hasPrev: boolean; totalItems: number } }>(`/change-requests?status=${encodeURIComponent(status)}&page=${page}&limit=20`);
 
 /** Own (or Admin-in-scope) change requests for one employee. */
 export async function fetchEmployeeChangeRequests(employeeId: string): Promise<ProfileChangeRequest[]> {
@@ -269,16 +296,29 @@ export async function reviewProfileChangeRequest(
 // ---------------------------------------------------------------------------
 
 export interface ProjectListParams {
+  storeId?: string;
+  assigneeId?: string;
+  dueFrom?: string;
+  dueTo?: string;
+  assignmentView?: string;
   status?: ProjectStatus;
   overdue?: boolean;
   page?: number;
   limit?: number;
+  q?: string;
+  departmentId?: string;
+  mine?: boolean;
 }
 
 export async function fetchProjects(params?: ProjectListParams): Promise<PaginatedProjectsResponse> {
   const query = new URLSearchParams();
+  for (const key of ['storeId', 'assigneeId', 'dueFrom', 'dueTo'] as const) if (params?.[key]) query.set(key, params[key]!);
   if (params?.status) query.set('status', params.status);
   if (params?.overdue) query.set('overdue', 'true');
+  if (params?.q) query.set('q', params.q);
+  if (params?.departmentId) query.set('departmentId', params.departmentId);
+  if (params?.mine) query.set('mine', 'true');
+  if (params?.assignmentView) query.set('assignmentView', params.assignmentView);
   if (params?.page) query.set('page', String(params.page));
   if (params?.limit) query.set('limit', String(params.limit));
 
@@ -292,6 +332,50 @@ export async function fetchProjects(params?: ProjectListParams): Promise<Paginat
 
 export async function fetchProjectById(projectId: string): Promise<Project> {
   return requestJson<Project>(`/projects/${encodeURIComponent(projectId)}`);
+}
+
+export type AssignmentSummary = { total: number; completed: number; pendingReview: number; awaitingAcceptance: number; inProgress: number; pendingRequests: number; pendingHandover: number; overdue: number };
+export const fetchAssignmentSummary = () => requestJson<AssignmentSummary>('/assignment/summary');
+export const fetchAssignmentNotices = (page = 1) => requestJson<{ items: AssignmentNotice[]; totalItems: number; unreadCount: number; paging: { page: number; hasNext: boolean; hasPrev: boolean } }>('/assignment/notifications?page=' + page + '&limit=20');
+export const readAssignmentNotice = (projectId: string, noticeId: string) => requestJson<void>(`/assignment/notifications/${encodeURIComponent(projectId)}/${encodeURIComponent(noticeId)}/read`, postJson({}));
+export const respondAssignment = (projectId: string, payload: { action: 'ACCEPT' | 'DECLINE' | 'REQUEST_CHANGE'; expectedVersion: number; reason?: string }) =>
+  requestJson<Project>(`/projects/${encodeURIComponent(projectId)}/assignment/respond`, postJson(payload));
+export const reviewAssignmentRequest = (projectId: string, requestId: string, payload: { action: 'APPROVE' | 'REJECT' | 'CANCEL_HANDOVER'; reason: string; expectedVersion: number; replacementId?: string; handoverNote?: string }) =>
+  requestJson<Project>(`/projects/${encodeURIComponent(projectId)}/assignment/requests/${encodeURIComponent(requestId)}/review`, postJson(payload));
+export const confirmAssignmentHandover = (projectId: string, requestId: string, payload: { action: 'CONFIRM' | 'DECLINE'; reason: string; expectedVersion: number }) =>
+  requestJson<Project>(`/projects/${encodeURIComponent(projectId)}/assignment/requests/${encodeURIComponent(requestId)}/handover`, postJson(payload));
+export const discussAssignment = (projectId: string, requestId: string, payload: { message: string; expectedVersion: number }, escalate = false) =>
+  requestJson<Project>(`/projects/${encodeURIComponent(projectId)}/assignment/requests/${encodeURIComponent(requestId)}/${escalate ? 'escalate' : 'comments'}`, postJson(payload));
+export const fetchReplacementCandidates = async (projectId: string) => F4SuggestionsSchema.parse(await requestJson<unknown>(`/projects/${encodeURIComponent(projectId)}/assignment/candidates`));
+export const fetchAssignmentAudit = (projectId: string) => requestJson<{ valid: boolean; events: AssignmentAudit[]; warning: string }>(`/projects/${encodeURIComponent(projectId)}/assignment/audit`);
+export type DecisionProof = { eventId: string; decisionHash: string; transactionHash: string; status: 'VERIFIED' | 'PENDING'; chainId: string; registryAddress: string; matchesCurrentEvent?: boolean };
+export const fetchDecisionProofs = (projectId: string) => requestJson<{ items: DecisionProof[]; configured: boolean; auditValid: boolean; warning: string }>(`/projects/${encodeURIComponent(projectId)}/assignment/proofs`);
+export const prepareDecisionProof = (projectId: string, eventId: string) => requestJson<{ status: string; registrar: string; transaction: { to: string; data: string; chainId: string; value: string }; warning: string }>(`/projects/${encodeURIComponent(projectId)}/assignment/audit/${encodeURIComponent(eventId)}/prepare`, postJson({}));
+export const verifyDecisionProof = (projectId: string, eventId: string, transactionHash: string) => requestJson<DecisionProof>(`/projects/${encodeURIComponent(projectId)}/assignment/audit/${encodeURIComponent(eventId)}/verify`, postJson({ transactionHash }));
+
+export interface CrmDepartment { id: string; name: string; code: string }
+export async function fetchDepartments(): Promise<CrmDepartment[]> {
+  const result = await requestJson<{ items: CrmDepartment[] }>('/departments');
+  if (!Array.isArray(result.items)) throw new ApiError('Không tải được danh mục phòng ban.', 500, 'INVALID_RESPONSE');
+  return result.items;
+}
+
+export async function editProject(projectId: string, payload: ProjectUpdate): Promise<Project> {
+  return requestJson<Project>(`/projects/${encodeURIComponent(projectId)}`, patchJson(payload));
+}
+
+export async function fetchProjectReports(projectId: string): Promise<Report[]> {
+  const items: Report[] = [];
+  let page = 1;
+  // New projects are bounded to 100 reports; legacy history may span more pages.
+  while (true) {
+    const result = await requestJson<{ items: Report[]; paging: { hasNext: boolean } }>(`/reports?projectId=${encodeURIComponent(projectId)}&limit=100&page=${page}`);
+    if (!Array.isArray(result.items) || !result.paging || typeof result.paging.hasNext !== 'boolean') throw new ApiError('Không tải được báo cáo.', 500, 'INVALID_RESPONSE');
+    items.push(...result.items);
+    if (!result.paging.hasNext) return items;
+    if (!result.items.length) throw new ApiError('Phân trang báo cáo không hợp lệ.', 500, 'INVALID_RESPONSE');
+    page++;
+  }
 }
 
 export interface ProjectMutationResult {
@@ -332,8 +416,8 @@ export async function transitionProject(
 export async function updateProjectProgress(
   projectId: string,
   payload: ProjectProgress
-): Promise<{ id: string; progress: number }> {
-  return requestJson<{ id: string; progress: number }>(
+): Promise<{ id: string; progress: number; version: number }> {
+  return requestJson<{ id: string; progress: number; version: number }>(
     `/projects/${encodeURIComponent(projectId)}/progress`,
     postJson({ ...payload, clientMessageId: payload.clientMessageId ?? newClientMessageId() })
   );

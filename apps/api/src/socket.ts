@@ -5,8 +5,9 @@ import {
   ChatConfirmPayloadSchema,
 } from "@hr-blockbot/contracts";
 import { verifyAccessToken, TokenClaims } from "./services/auth.service.js";
-import { chatWithAiService } from "./services/ai-client.service.js";
-import { resolveUserScope } from "./services/user-scope.service.js";
+import { authorizedChat } from "./services/chat-authorization.service.js";
+import { requireCapability } from "./services/authorization-scope.service.js";
+import { resolvePrincipal } from "./services/principal.service.js";
 
 let io: SocketIOServer | null = null;
 
@@ -37,7 +38,23 @@ export function initSocket(server: HttpServer): SocketIOServer {
 
     try {
       const claims = await verifyAccessToken(token);
+      const principal = await resolvePrincipal(claims);
+      if (principal.mustChangePassword) return next(new Error("Password change required"));
       socket.claims = claims;
+      // Re-check signature expiry AND current account on every packet, not just handshake.
+      socket.use(async (_packet, packetNext) => {
+        try {
+          const current = await resolvePrincipal(await verifyAccessToken(token));
+          if (current.mustChangePassword) throw new Error("Password change required");
+          requireCapability(current, "chatbot.data_read", { userId: current.userId, employeeId: current.employeeId });
+          socket.claims = { sub: current.userId, role: current.role, securityVersion: current.securityVersion };
+          packetNext();
+        } catch {
+          socket.emit("chat:error", { code: "UNAUTHENTICATED", message: "Session no longer available", retryable: false });
+          packetNext(new Error("Session no longer available"));
+          socket.disconnect(true);
+        }
+      });
       next();
     } catch (_err) {
       return next(new Error("Invalid or expired authentication token"));
@@ -76,22 +93,10 @@ export function initSocket(server: HttpServer): SocketIOServer {
       });
 
       try {
-        // P1-7 + business roles: the token only carries `sub` + `role`. Resolve the
-        // caller's employee/store/manager tier once per connection (cached in
-        // user-scope.service.ts) so tool queries and role guidance match the person.
-        const scope = await resolveUserScope(socket.claims?.sub ?? null, socket.claims?.role ?? null);
-
-        const userContext = {
-          userId: socket.claims?.sub || null,
-          role: (socket.claims?.role as "Admin" | "Employee") || "Employee",
-          employeeId: scope.employeeId,
-          departmentId: scope.departmentId,
-          businessRole: scope.businessRole,
-          storeName: scope.storeName,
-        };
+        const principal = await resolvePrincipal(socket.claims!);
 
         if (payload.text) {
-          const result = await chatWithAiService(payload.text, userContext, convId);
+          const result = await authorizedChat(principal, payload.text, convId);
           socket.emit("chat:done", {
             clientMessageId: payload.clientMessageId,
             messageId,
@@ -101,6 +106,7 @@ export function initSocket(server: HttpServer): SocketIOServer {
             proposedAction: result.proposedAction,
             degraded: result.degraded,
             decisionSource: result.decisionSource,
+            ...(result.decisionAnalysis ? { decisionAnalysis: result.decisionAnalysis } : {}),
             card: result.proposedAction ? (result.proposedAction as Record<string, unknown>) : undefined,
           });
         } else if (payload.confirm) {
@@ -109,8 +115,8 @@ export function initSocket(server: HttpServer): SocketIOServer {
             messageId,
             finishReason: "TOOL_RESULT",
             reply: payload.confirm.approved
-              ? `Hành động [${payload.confirm.actionId}] đã được xác nhận thực thi thành công.`
-              : `Hành động [${payload.confirm.actionId}] đã bị hủy bỏ theo yêu cầu của bạn.`,
+              ? `Đã ghi nhận xác nhận của bạn cho hành động [${payload.confirm.actionId}]. Chưa có thay đổi dữ liệu nào được thực hiện.`
+              : `Đã hủy bỏ thực hiện hành động [${payload.confirm.actionId}]. Không có dữ liệu nào bị thay đổi.`,
             citations: [],
             proposedAction: null,
           });

@@ -185,6 +185,9 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     });
 
     page.on('pageerror', (error) => consoleErrors.push(error.message));
+    page.on('requestfailed', (request) => {
+      if (request.failure()?.errorText !== 'net::ERR_ABORTED') console.log('Failed fixture request:', new URL(request.url()).pathname, request.failure()?.errorText);
+    });
     page.on('console', (msg) => {
       if (msg.type() === 'error') {
         consoleErrors.push(msg.text());
@@ -194,6 +197,14 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     // Isolated auth boundary; never use real accounts or contact Atlas in this suite.
     // P0 account-provisioning: login is by provisioned USERNAME (employee code), not email.
     let activeUser = null;
+    const authorizationFor = (technical) => {
+      const profile = technical ? 'system_admin' : 'sm';
+      const capabilities = technical ? ['authorization.inspect_self', 'accounts.manage', 'grants.configure', 'grants.revoke', 'security_audit.read', 'provider_settings.manage'] : ['authorization.inspect_self', 'chatbot.data_read', 'profile.read_self', 'stores.read', 'dashboard.read', 'employees.read_operational'];
+      const scope = { kind: technical ? 'system' : 'organization', storeIds: technical ? [] : STORE_FIXTURE_ITEMS.map((store) => store.id), regionIds: [], reportingEmployeeIds: [] };
+      return { configured: true, profile, securityVersion: 0, enforcement: 'MIGRATING', capabilities, pendingCapabilities: [],
+        grants: [{ id: '11111111-1111-4111-8111-111111111111', profile, scope, capabilities: capabilities.filter((capability) => !['authorization.inspect_self', 'chatbot.data_read', 'profile.read_self'].includes(capability)), approvalRef: 'isolated-visual-ui-fixture', grantedBy: 'a'.repeat(24), grantedAt: '2026-01-01T00:00:00Z', validFrom: '2026-01-01T00:00:00Z', validUntil: null, revokedAt: null }],
+        stores: technical ? [] : STORE_FIXTURE_ITEMS.map((store) => ({ id: store.id, name: store.name, departmentId: null, regionId: null, capabilities: ['stores.read', 'dashboard.read', 'employees.read_operational'] })), delegations: [] };
+    };
     await page.route('**/api/auth/login', (route) => {
       const { username, password } = route.request().postDataJSON();
       assert.equal(password, 'fixture-password');
@@ -202,11 +213,15 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
         role: username.startsWith('admin') ? 'Admin' : 'Employee',
         username,
         mustChangePassword: false,
+        authorization: authorizationFor(username.startsWith('admin')),
       };
       return route.fulfill({ status: 200, json: { accessToken: 'fixture-token', user: activeUser } });
     });
     await page.route('**/api/auth/refresh', (route) => route.fulfill({ status: 200, json: { accessToken: activeUser ? 'fixture-token' : null } }));
-    await page.route('**/api/auth/me', (route) => route.fulfill({ status: 200, json: { userId: activeUser.id, role: activeUser.role, username: activeUser.username, mustChangePassword: false, skills: [] } }));
+    await page.route('**/api/auth/me', (route) => route.fulfill({ status: 200, json: { userId: activeUser.id, role: activeUser.role, username: activeUser.username, mustChangePassword: false, skills: [], authorization: activeUser.authorization } }));
+    await page.route('**/api/admin/users**', (route) => route.fulfill({ status: 200, json: { items: [], paging: { page: 1, totalItems: 0, totalPages: 1, hasPrev: false, hasNext: false } } }));
+    await page.route('**/api/admin/authorization-catalog', (route) => route.fulfill({ status: 200, json: { policies: {}, stores: [] } }));
+    await page.route('**/api/admin/llm-providers', (route) => route.fulfill({ status: 200, json: { configVersion: 0, providers: [] } }));
     await page.route('**/api/auth/logout', (route) => { activeUser = null; return route.fulfill({ status: 204 }); });
     await page.route('**/api/stores**', (route) => {
       const request = route.request();
@@ -216,6 +231,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       return route.fulfill({ status: 200, json: buildStoreResponse(new URL(request.url())) });
     });
     await page.route('**/api/dashboard/overview', (route) => route.fulfill({ status: 200, json: DASHBOARD_OVERVIEW_FIXTURE }));
+    await page.route('**/api/departments', (route) => route.fulfill({ status: 200, json: { items: [] } }));
     // Invalid payload exercises the safe demo boundary without a live backend.
     await page.route('**/api/chat', (route) => route.fulfill({ status: 200, json: {} }));
 
@@ -500,8 +516,8 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     const telegramBtn = page.getByRole('button', { name: /Gửi Cảnh Báo Telegram/i });
     await telegramBtn.click();
 
-    // Toast hiển thị thông báo thành công
-    const toastMsg = page.getByText(/Đã gửi cảnh báo khẩn cấp tới Telegram Bot/i);
+    // No false success: the baseline has no configured Telegram delivery channel.
+    const toastMsg = page.getByText(/Chưa gửi cảnh báo cho cửa hàng/i);
     await toastMsg.waitFor({ state: 'visible', timeout: 3000 });
     assert.equal(await toastMsg.isVisible(), true);
 
@@ -680,17 +696,19 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       return [style.backgroundColor, style.color];
     }), ['rgb(222, 222, 222)', 'rgb(0, 0, 0)']);
     const offlineChat = (route) => route.abort('connectionrefused');
+    const errorsBeforeOffline = consoleErrors.length;
+    const expectedOfflineConsole = page.waitForEvent('console', { predicate: (message) => message.type() === 'error' && message.text() === 'Failed to load resource: net::ERR_CONNECTION_REFUSED' });
     await page.route('**/api/chat', offlineChat);
     await chat.getByRole('navigation', { name: 'Câu hỏi nhanh' }).getByRole('button', { name: 'Gợi ý điều động ca' }).click();
     assert.equal(await send.isDisabled(), true);
     await chat.getByText('Demo an toàn · Dịch vụ AI chưa khả dụng', { exact: true }).waitFor();
+    await expectedOfflineConsole;
     assert.equal(await chat.getByRole('button', { name: 'Xác Nhận (Confirm)' }).count(), 0);
     await page.unroute('**/api/chat', offlineChat);
-    // The intentional offline probe above makes Chromium log one
-    // "Failed to load resource: net::ERR_CONNECTION_REFUSED" console error.
-    // That is expected here — clear the suite-level collector so it does not
-    // poison the zero-console-error assertions of the following tests.
-    consoleErrors.length = 0;
+    // Wait for Chromium's asynchronous error before consuming ONLY this
+    // expected probe result. Unexpected errors remain visible to later gates.
+    assert.deepEqual(consoleErrors.slice(errorsBeforeOffline), ['Failed to load resource: net::ERR_CONNECTION_REFUSED']);
+    consoleErrors.splice(errorsBeforeOffline, 1);
 
     const chatReplies = [
       {
@@ -772,8 +790,16 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
 
   it('ChatPage: API hợp lệ, conversationId, spam Enter, Shift+Enter và escape HTML', async () => {
     const requests = [];
+    let releaseFirstReply;
+    let markFirstStarted;
+    const firstReplyGate = new Promise((resolve) => { releaseFirstReply = resolve; });
+    const firstStarted = new Promise((resolve) => { markFirstStarted = resolve; });
     const handler = async (route) => {
       requests.push(route.request().postDataJSON());
+      // Exercise Enter while the first request is genuinely pending. An
+      // immediate mock response can finish before the next keypress, making
+      // that keypress a legitimate second message rather than a duplicate.
+      if (requests.length === 1) { markFirstStarted(); await firstReplyGate; }
       await route.fulfill({ status: 200, json: {
         reply: '<script>window.__chatInjected = true</script> Phản hồi kiểm thử API',
         conversationId: 'conversation-test-1',
@@ -798,14 +824,17 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       assert.match(await input.inputValue(), /\n$/);
       assert.ok(await input.evaluate((el) => el.getBoundingClientRect().height) > singleLineHeight);
       await input.press('Enter');
+      await firstStarted;
       await input.fill('Không gửi trùng');
       for (let i = 0; i < 3; i++) await input.press('Enter');
+      assert.equal(requests.length, 1);
+      releaseFirstReply();
       await chat.getByText(/Phản hồi kiểm thử API/).waitFor();
       assert.equal(requests.length, 1);
       assert.equal(requests[0].message, '<img src=x onerror="window.__chatInjected=true">');
-      assert.equal(requests[0].role, 'Employee');
+      assert.equal(requests[0].role, undefined, 'Client role is not an authorization input');
       assert.equal(requests[0].modelTier, undefined); // tier slider removed (2026-10-30)
-      assert.deepEqual(requests[0].userContext, { role: 'Employee' });
+      assert.equal(requests[0].userContext, undefined, 'Only server-resolved identity may reach the scoped gateway');
       assert.equal(await chat.locator('[data-sender="user"]').count(), 1);
       assert.equal(await chat.getByRole('region', { name: 'Trích dẫn' }).isVisible(), true);
       assert.equal(await chat.getByRole('button', { name: 'Xác Nhận (Confirm)' }).isVisible(), true);
@@ -818,6 +847,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       assert.equal(requests.length, 2);
       await page.keyboard.press('Escape');
     } finally {
+      releaseFirstReply();
       await page.unroute('**/api/chat', handler);
     }
   });
@@ -936,16 +966,10 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.deepEqual(consoleErrors, []);
   });
 
-  it('Combo B UI/UX Anti-Slop: Trigger button spinners, illustrated empty state & filter reset', async () => {
-    // 1. Trigger button: Tạo Ca Đột Xuất (disabled + spinner)
+  it('CRM hides dormant scheduling actions; scoped district filter and empty-state reset still work', async () => {
+    // A placeholder spinner is not a scheduling workflow or approved capability.
     const emergencyBtn = page.locator('button').filter({ hasText: /Tạo Ca Đột Xuất|Đang khởi tạo/i });
-    assert.equal(await emergencyBtn.isVisible(), true);
-    await emergencyBtn.click();
-    assert.equal(await emergencyBtn.isDisabled(), true);
-    assert.match(await emergencyBtn.textContent(), /Đang khởi tạo/);
-    await page.waitForTimeout(800);
-    assert.equal(await emergencyBtn.isDisabled(), false);
-    assert.match(await emergencyBtn.textContent(), /Tạo Ca Đột Xuất/);
+    assert.equal(await emergencyBtn.isVisible(), false);
 
     // 2. District Filter Cycle — the cycle walks the districts present in the
     //    loaded data, so the expectation is derived from the fixture, not from a
@@ -1010,19 +1034,17 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     try {
       // 1. "Nhân sự" -> Danh Sách Nhân Sự Điểm Bán
       await page.locator('nav [data-section="employees"]').click();
-      await page.getByRole('heading', { name: 'Danh Sách Nhân Sự Điểm Bán (Allowlist Only)' }).waitFor({ state: 'visible' });
+      await page.getByRole('heading', { name: 'Danh Sách Nhân Sự Điểm Bán', exact: true }).waitFor({ state: 'visible' });
       const portal = page.locator('#crm-custom-view-portal');
       await portal.getByText('Trương Quốc Thái').waitFor({ state: 'visible' });
       assert.equal(await page.locator('nav [data-entrypoint="coming-soon"]').count(), 0);
 
-      // 2. "Hồ sơ nhân sự" -> đúng heading RosterView, không còn nhãn "Phân ca" lệch nội dung
-      await page.locator('nav [data-section="schedules"]').click();
-      await page.getByRole('heading', { name: 'Hồ Sơ Nhân Sự (F1)' }).waitFor({ state: 'visible' });
-      await portal.getByText('Trương Quốc Thái').waitFor({ state: 'visible' });
-      assert.equal(await portal.getByRole('tab', { name: 'Hàng đợi duyệt' }).count(), 1);
+      // V1: SM operational read does not grant the independent HR review queue.
+      assert.equal(await page.locator('nav [data-section="schedules"]').isVisible(), false);
+      assert.equal(await portal.getByRole('tab', { name: 'Hàng đợi duyệt' }).count(), 0);
 
-      // 3. Nghiệp vụ đề tài khóa luận không còn trong nav demo
-      assert.equal(await page.locator('nav [data-section="projects"]').count(), 0);
+      // 3. CRM includes the real work and report lifecycle (F2/F7).
+      assert.equal(await page.locator('nav [data-section="projects"]').count(), 1);
       assert.equal(await page.getByText('Vòng Đời Đề Tài (F2)').count(), 0);
 
       // 4. "Cài đặt LLM" chỉ hiện với Admin
@@ -1045,10 +1067,8 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.equal(await page.getByText(/Coming Soon|Lộ trình phát triển/i).count(), 0);
   });
 
-  it('CRM real-data: KPI null hiển thị — (không phải 0) và xoá 409 báo nghiệp vụ', async () => {
-    // The mutating controls are Admin-only; sign in explicitly instead of
-    // inheriting the role the previous step left behind.
-    await signInAs('admin');
+  it('CRM dữ liệu thiếu hiển thị — và không quảng bá thao tác cấu hình cửa hàng chưa được duyệt', async () => {
+    await signInAs('employee'); // Explicit SM read capabilities, never a global-admin fixture.
 
     // --- KPI ribbon: value === null must render an em dash, never 0 ---
     const kpiValues = await page.locator('.crm-kpi-value').evaluateAll((nodes) => nodes.map((node) => node.textContent.trim()));
@@ -1072,29 +1092,11 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     // Paging line is derived from the response, not a literal.
     assert.match(await page.getByText(/Hiển thị \d+ \/ \d+ Cửa hàng/).textContent(), new RegExp(`Hiển thị ${STORE_FIXTURE_ITEMS.length} / ${STORE_FIXTURE_ITEMS.length}`));
 
-    // --- Delete: 409 STORE_HAS_EMPLOYEES must surface a business message ---
-    const target = STORE_FIXTURE_ITEMS[0];
-    const conflictHandler = (route) => route.fulfill({
-      status: 409,
-      json: { error: { code: 'STORE_HAS_EMPLOYEES', message: 'STORE_HAS_EMPLOYEES' } },
-    });
-    await page.route('**/api/stores/*', conflictHandler);
-    page.once('dialog', (dialog) => dialog.accept());
-    try {
-      await page.locator(`table tbody tr[data-id="${target.id}"]`).getByRole('button', { name: 'Xoá', exact: true }).click();
-      const toast = page.getByText(new RegExp(`Cửa hàng còn ${target.employeeCount} nhân sự, không thể xoá`));
-      await toast.waitFor({ state: 'visible', timeout: 3000 });
-      assert.equal(await toast.isVisible(), true);
-      // The raw code must never leak to the operator.
-      assert.equal(await page.getByText(/STORE_HAS_EMPLOYEES/).count(), 0);
-    } finally {
-      await page.unroute('**/api/stores/*', conflictHandler);
-    }
-    // The deliberate 409 makes Chromium log
-    // "Failed to load resource: ... 409 (Conflict)". That is the expected
-    // network trace of this assertion, not a defect: clear it so the
-    // zero-console-error assertions in the following steps stay meaningful.
-    consoleErrors.length = 0;
+    // V1 owner approval did not approve stores.configure; no profile gets a
+    // mutating control merely from its old Admin label.
+    assert.equal(await page.getByRole('button', { name: 'Thêm cửa hàng' }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Sửa', exact: true }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Xoá', exact: true }).count(), 0);
   });
 
   it('Bước 7: Bấm nút "Đăng xuất", kiểm tra quay lại Landing Page an toàn', async () => {
@@ -1115,20 +1117,20 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       await page.getByLabel('Tên đăng nhập', { exact: true }).fill(username);
       await page.getByLabel('Mật khẩu', { exact: true }).fill('fixture-password');
       await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
-      await page.getByRole('table').waitFor({ state: 'visible' });
+      await page.locator('.crm-sidebar').waitFor({ state: 'visible' });
       assert.equal(await page.evaluate(() => sessionStorage.getItem('guta_user')), null);
       assert.equal(await page.evaluate(() => localStorage.getItem('guta_user')), null);
       assert.equal(await page.locator('.crm-sidebar').getByText(name, { exact: true }).isVisible(), true);
-      // RBAC on the directory: only Admin may see the mutating controls. The
-      // server enforces this too; this guards against the UI advertising an
-      // action that will 403.
-      await page.waitForFunction(
+      // Technical administration and operational reads are separate. Store
+      // configuration remains PENDING for every profile, including system_admin.
+      if (!isAdmin) await page.waitForFunction(
         (expected) => document.querySelectorAll('table tbody tr[data-id]').length === expected,
         STORE_FIXTURE_ITEMS.length
       );
-      assert.equal(await page.getByRole('button', { name: 'Thêm cửa hàng' }).count(), isAdmin ? 1 : 0);
-      assert.equal(await page.getByRole('button', { name: 'Sửa', exact: true }).count(), isAdmin ? STORE_FIXTURE_ITEMS.length : 0);
-      assert.equal(await page.getByRole('button', { name: 'Xoá', exact: true }).count(), isAdmin ? STORE_FIXTURE_ITEMS.length : 0);
+      assert.equal(await page.locator('nav [data-section="stores"]').isVisible(), !isAdmin, 'Technical admin has no operational store-read grant');
+      assert.equal(await page.getByRole('button', { name: 'Thêm cửa hàng' }).count(), 0);
+      assert.equal(await page.getByRole('button', { name: 'Sửa', exact: true }).count(), 0);
+      assert.equal(await page.getByRole('button', { name: 'Xoá', exact: true }).count(), 0);
       await logoutBtn.click();
       await heroTitle.waitFor({ state: 'visible' });
       assert.equal(await page.evaluate(() => sessionStorage.getItem('guta_user')), null);
@@ -1143,6 +1145,10 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     // an unavailable-feature toast.
     const heroStatus = page.locator('.hero-status').filter({ hasText: /F&B Workforce Intelligence/i });
     await heroStatus.click();
+    assert.equal(await page.locator('#zkteco-sync-toast').count(), 0);
+    // Current landing has a brand/home anchor, not the removed marketing badge.
+    const badgeLink = page.getByRole('link', { name: 'Guta Workspace home', exact: true });
+    await badgeLink.click();
     assert.equal(await page.locator('#zkteco-sync-toast').count(), 0);
 
     // Kiểm tra sạch các từ khóa học thuật/khóa luận

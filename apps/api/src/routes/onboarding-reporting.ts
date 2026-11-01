@@ -1,0 +1,14 @@
+import { Router } from "express";
+import { authenticateToken } from "../middlewares/auth.middleware.js";
+import { workflowEndpoint as endpoint } from "./projects.js";
+import { pageInitialReporting, getInitialReporting, initialReportingOptions, initialReportingManagers, proposeInitialReporting, approveInitialReporting, resumeInitialReporting } from "../services/onboarding-reporting.service.js";
+const router = Router();
+router.use("/initial-reporting", authenticateToken);
+router.get("/initial-reporting", endpoint(async (req, res) => { res.json(await pageInitialReporting(req.user!, req.query)); }));
+router.get("/initial-reporting/options", endpoint(async (req, res) => { res.json(await initialReportingOptions(req.user!, req.query)); }));
+router.get("/initial-reporting/managers", endpoint(async (req, res) => { res.json(await initialReportingManagers(req.user!, String(req.query.storeId ?? ""), req.query)); }));
+router.get("/initial-reporting/:id", endpoint(async (req, res) => { res.json(await getInitialReporting(req.user!, req.params.id)); }));
+router.post("/initial-reporting", endpoint(async (req, res) => { res.status(201).json(await proposeInitialReporting(req.user!, req.body)); }));
+router.post("/initial-reporting/:id/approve", endpoint(async (req, res) => { res.json(await approveInitialReporting(req.user!, req.params.id, req.body, req.app.locals.onboardingOptions?.failpoint)); }));
+router.post("/initial-reporting/:id/resume", endpoint(async (req, res) => { res.json(await resumeInitialReporting(req.user!, req.params.id, req.app.locals.onboardingOptions?.failpoint)); }));
+export default router;

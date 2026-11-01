@@ -12,6 +12,7 @@ import {
   updateStore,
 } from '../services/api';
 import type { NotifyFn } from './Toast';
+import { useAuthorization } from '../context/useAuthorization';
 
 export interface StoreDirectoryViewProps {
   userRole: string;
@@ -94,7 +95,7 @@ function formatMetric(
 }
 
 export const StoreDirectoryView: React.FC<StoreDirectoryViewProps> = ({
-  userRole,
+  userRole: _userRole,
   onNotify,
   onSelectStore,
   onOverviewLoaded,
@@ -104,7 +105,9 @@ export const StoreDirectoryView: React.FC<StoreDirectoryViewProps> = ({
   onDistrictChange,
   onDistrictOptions,
 }) => {
-  const isAdmin = userRole === 'Admin';
+  const { can } = useAuthorization();
+  const isAdmin = can('stores.configure');
+  const canOverview = can('dashboard.read');
 
   const [stores, setStores] = useState<StoreSummary[]>([]);
   const [paging, setPaging] = useState<PaginationMeta | null>(null);
@@ -206,6 +209,7 @@ export const StoreDirectoryView: React.FC<StoreDirectoryViewProps> = ({
   useEffect(() => {
     let cancelled = false;
     setOverviewError(null);
+    if (!canOverview) { setOverview(null); return; }
     fetchDashboardOverview()
       .then((data) => {
         if (cancelled) return;
@@ -221,7 +225,7 @@ export const StoreDirectoryView: React.FC<StoreDirectoryViewProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [onOverviewLoaded]);
+  }, [onOverviewLoaded, canOverview]);
 
   useEffect(() => {
     const handleKeydown = (event: KeyboardEvent) => {
@@ -359,7 +363,8 @@ export const StoreDirectoryView: React.FC<StoreDirectoryViewProps> = ({
     <div>
       {/* KPI strip: one container divided by hairlines. No icon, no gradient,
           no blur — the 1px gap between cells is the only rule (phase 01). */}
-      <div className="crm-kpi-grid">
+      {!canOverview && <p role="status">Danh mục cửa hàng trong phạm vi được cấp. Tài khoản chưa được cấp xem tổng quan nhân sự.</p>}
+      {canOverview && <div className="crm-kpi-grid">
         <div className="crm-kpi-card">
           <div className="crm-kpi-header">
             <span className="crm-kpi-title">Tổng cửa hàng</span>
@@ -383,7 +388,7 @@ export const StoreDirectoryView: React.FC<StoreDirectoryViewProps> = ({
           </div>
           <div className="crm-kpi-meta">
             {overview
-              ? `${overview.employees.total} tổng · ${overview.employees.inactive} tạm dừng`
+              ? `${overview.employees.total} tổng · ${overview.employees.inactive} tạm dừng · ${overview.employees.unknown} chưa xác minh trạng thái`
               : overviewError ? 'Không tải được số liệu tổng quan' : 'Đang tải số liệu…'}
           </div>
         </div>
@@ -419,7 +424,7 @@ export const StoreDirectoryView: React.FC<StoreDirectoryViewProps> = ({
               : overviewError ? 'Không tải được số liệu' : 'Đang tải số liệu…'}
           </div>
         </div>
-      </div>
+      </div>}
 
       <div className="mb-4 flex items-center justify-between">
         <div>
@@ -604,7 +609,7 @@ export const StoreDirectoryView: React.FC<StoreDirectoryViewProps> = ({
               </td>
               <td data-col="staff" className="crm-num">
                 <span className="crm-cell-primary">{store.activeEmployeeCount}</span>
-                <span className="crm-cell-sub">/ {store.employeeCount} định biên</span>
+                <span className="crm-cell-sub">/ {store.employeeCount} tổng nhân sự{store.unknownEmployeeCount ? ` · ${store.unknownEmployeeCount} chưa xác minh` : ''}</span>
               </td>
               <td data-col="status">
                 <span className={store.status === 'ACTIVE' ? 'crm-status crm-status--positive' : 'crm-status crm-status--negative'}>

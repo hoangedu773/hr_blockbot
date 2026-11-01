@@ -1,4 +1,5 @@
-# P2-8: fully pinned (==) to the versions actually running in this deployment
+# Selected top-level packages pinned (==); this is not a full transitive lock.
+# P2-8 historical versions measured in the deployment
 # environment (Python 3.14). Source of truth command, run 2026-10-29:
 #   py -3 -c "import fastapi, uvicorn, pydantic, pymongo, httpx, pytest; \
 #     from importlib.metadata import version; \

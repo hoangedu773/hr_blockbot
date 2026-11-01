@@ -1,5 +1,7 @@
 # HR BlockBot — Guta Workforce Command Center & HR Chatbot
 
+> **B01, 01/11/2026 — candidate tích hợp đang chờ duyệt, chưa phải bản đã deploy.** HRM/CRM và Authorization V1 dùng 9 profile với capability/scope tường minh. Chatbot V1 chạy `app.authorization_gateway:app`; Jev V1 OFF/SHADOW synthetic. PhoBERT F4 thật là worker opt-in riêng, mặc định vẫn baseline. F5 KPI tháng và F7 nhắc hạn chưa triển khai đầy đủ. Bắt đầu bằng [hướng dẫn baseline/cài mới/test độc lập](docs/baseline-development.md); phần lịch sử bên dưới không phải kết quả kiểm tra runtime hiện tại.
+
 Khóa luận cử nhân CNTT (HUIT) — Mã đề tài **KLCN133**: *Xây dựng Chatbot chuyển đổi số quản lý nhân sự*.
 
 Hệ thống quản trị nhân lực và trợ lý ảo thông minh dành cho chuỗi bán lẻ / F&B, tích hợp **Web Dashboard Chỉ huy (Command Center)** cho nhà quản lý và **Trợ lý ảo Chatbot (RAG Policy + typed-decision agent)** cho nhân viên, vận hành thời gian thực qua WebSocket trên dữ liệu thực tế 34 cửa hàng của chuỗi **GUTA Cafe**.
@@ -33,7 +35,7 @@ hr_blockbot/
 
 ---
 
-## 🚦 Hiện Trạng Triển Khai & Bản Đồ Tính Năng (Feature Status)
+## 🚦 Lịch sử bootstrap và kế hoạch trước B01
 
 ### 1. 5 Giai Đoạn Nền Móng Đã Hoàn Thành (Bootstrap Foundation — Tuần 7)
 Hệ thống đã hoàn tất toàn bộ 5 phase nền tảng, bảo mật và kết nối thực tế:
@@ -68,7 +70,7 @@ Hệ thống đã hoàn tất toàn bộ 5 phase nền tảng, bảo mật và k
 
 ---
 
-## 🌿 Mô Hình Nhánh & Vận Hành (Single Workspace)
+## 🌿 Lịch sử mô hình nhánh (2026-10-30, đã được B01 thay thế)
 
 Từ 2026-10-30, toàn bộ nhánh `feat/*` đã merge 100% vào `main` và bị xoá khỏi `origin`. Dự án vận hành
 trong **một** checkout duy nhất; mỗi service là một process riêng, không phải một nhánh riêng.
@@ -85,20 +87,20 @@ trong **một** checkout duy nhất; mỗi service là một process riêng, kh�
 
 ## ⚡ Hướng Dẫn Vận Hành Cho Đồng Nghiệp & Dev (Step-by-Step)
 
-> **Single workspace (2026-10-30):** mọi nhánh `feat/*` đã merge 100% vào `main` và không còn trên
-> `origin`. Làm việc trực tiếp trong `C:/work-space/hr-blockbot` trên `main`; **không** tạo worktree,
-> **không** `git checkout feat/...` (lệnh sẽ fail).
+> Dùng clone riêng từ **cùng commit baseline đã được chủ dự án duyệt**. Không sửa checkout main của người/phiên khác. Branch baseline chỉ clone được từ GitHub sau khi chủ dự án duyệt commit/push; xem `docs/baseline-development.md`. Không tự push main hoặc nhánh Render.
 
 ```bash
-git fetch origin && git checkout main && git pull origin main
-pnpm install
+# Chạy trong thư mục mới; thay placeholder bằng branch baseline đã duyệt/publish.
+git clone --branch <BASELINE_BRANCH_DA_DUYET> https://github.com/hoangedu773/hr_blockbot.git hr-blockbot-dev
+cd hr-blockbot-dev
+pnpm install --frozen-lockfile
 pnpm --filter @hr-blockbot/contracts build
 ```
 
 #### 1. Backend API (`apps/api`, cổng 3001)
 ```bash
 # Cấu hình: apps/api/.env (sao chép từ .env.example) — cần PORT=3001 và MONGODB_URI
-pnpm --filter api test      # 10 file node --test trên mongodb-memory-server
+pnpm --filter api test      # owned mongodb-memory-server, không dùng Atlas/dev DB
 pnpm dev:api                # http://localhost:3001/api/health
 ```
 
@@ -113,11 +115,14 @@ pnpm dev:web                # http://localhost:5173
 #### 3. AI Service (`apps/ai-service`, cổng 8000)
 ```bash
 cd apps/ai-service
-pip install -r requirements.txt
-# .env: cần MONGODB_URI; AI_SERVICE_API_KEY fail-closed (rỗng => mọi request 503)
+python -m venv .venv-authz-v1
+# Kích hoạt venv theo nền tảng rồi:
+python -m pip install -r requirements.txt
+# V1: AUTHORIZATION_API_ORIGIN trỏ tới Node; AI_SERVICE_API_KEY phải khớp Node.
+# Không cấp MongoDB credential cho Python V1. Test offline không cần .env/key thật.
 
-python -m pytest -q         # 177 passed, 1 skipped (hermetic: không dùng credential máy)
-python start.py             # hoặc: python -m uvicorn app.main:app --port 8000 --reload
+python -m pytest -q         # offline; real-model/live tests có opt-in riêng
+python start.py             # hoặc: python -m uvicorn app.authorization_gateway:app --port 8000 --reload
 # -> Swagger: http://localhost:8000/docs
 ```
 
@@ -133,7 +138,7 @@ Repo **không** có eslint/prettier và không có script `lint` — đừng tr�
 
 ### Chạy đồng thời cả 3 dịch vụ
 
-Không cần worktree: mỗi service là một process riêng trong cùng checkout.
+Trong clone của riêng bạn, mỗi service là một process riêng. Hai thành viên phát triển dùng clone/worktree tách biệt từ cùng baseline đã duyệt.
 
 ```bash
 # Terminal 1: pnpm dev:api

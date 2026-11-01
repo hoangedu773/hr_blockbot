@@ -165,7 +165,9 @@ test('chatWithAiService automatically marks key rate limited on upstream 429 / q
   });
 
   try {
-    const res = await chatWithAiService('trigger limit');
+    // Transport-only mock: no claim that this test authorizes a real user.
+    // The API gateway suite separately proves signed receipt validation.
+    const res = await chatWithAiService('trigger limit', undefined, undefined, { requestId: '11111111-1111-4111-8111-111111111111', delegationToken: 'isolated-bound-transport-token' });
     assert.equal(res.degraded, true);
 
     const healthy = getHealthyKeyPool();

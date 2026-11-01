@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { LLMProvider, LLMProviderInput, LLMProviderType, ProviderTestResult } from '@hr-blockbot/contracts';
-import { useAuth } from '../context/AuthContext';
+import { useAuthorization } from '../context/useAuthorization';
 import {
   ApiError,
   fetchLLMProviders,
@@ -119,7 +119,7 @@ export function buildProviderPayload(
 }
 
 export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({ onNotify }) => {
-  const { user } = useAuth();
+  const { can } = useAuthorization();
   const [providers, setProviders] = useState<LLMProvider[]>([]);
   const [configVersion, setConfigVersion] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -133,7 +133,7 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({ onNotify }
   // Keys typed in this session only; cleared per provider once the PUT succeeds.
   const apiKeyByIdRef = useRef<Record<string, string>>({});
 
-  const isAdmin = user?.role === 'Admin';
+  const canManageProviders = can('provider_settings.manage');
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -150,9 +150,9 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({ onNotify }
   }, []);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!canManageProviders) return;
     void load();
-  }, [isAdmin, load]);
+  }, [canManageProviders, load]);
 
   const persist = async (
     nextProviders: LLMProvider[],
@@ -254,11 +254,11 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({ onNotify }
     }
   };
 
-  if (!isAdmin) {
+  if (!canManageProviders) {
     return (
       <div className="empty" role="alert">
         <div style={{ fontSize: '18px', fontWeight: 800, color: '#fda4af' }}>403 — RBAC_DENIED</div>
-        <p>Chỉ tài khoản Admin được xem cấu hình LLM provider. Tài khoản hiện tại: {user?.role ?? 'chưa đăng nhập'}.</p>
+        <p>Cần grant kỹ thuật provider_settings.manage còn hiệu lực; chức danh hoặc nhãn Admin cũ không cấp quyền cấu hình.</p>
       </div>
     );
   }

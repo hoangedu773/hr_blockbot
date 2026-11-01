@@ -19,6 +19,8 @@ import {
   getClearCookieOptions,
 } from "../services/auth.service.js";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
+import { loadAccount, resolvePrincipal, securityVersion, securityVersionFilter, PrincipalUnavailableError } from "../services/principal.service.js";
+import { authorizationSummary } from "../services/authorization-summary.service.js";
 
 const router = Router();
 
@@ -101,7 +103,10 @@ router.post("/auth/login", async (req: Request, res: Response) => {
     }
 
     const isValid = await verifyPassword(user.passwordHash, password);
-    if (!isValid) {
+    let accountAvailable = false;
+    try { await loadAccount(String(user._id)); accountAvailable = true; }
+    catch (err) { if (!(err instanceof PrincipalUnavailableError)) throw err; }
+    if (!isValid || !accountAvailable) {
       // Generic error response
       res.status(401).json({
         error: {
@@ -131,6 +136,7 @@ router.post("/auth/login", async (req: Request, res: Response) => {
         role: user.role,
         username: user.username,
         mustChangePassword: user.mustChangePassword === true,
+        authorization: authorizationSummary(await resolvePrincipal({ sub: String(user._id), role: user.role, securityVersion: securityVersion(user) })),
       },
     });
 
@@ -222,6 +228,8 @@ router.get("/auth/me", authenticateToken, (req: Request, res: Response) => {
     skills: user.skills,
     username: user.username,
     mustChangePassword: user.mustChangePassword,
+    isGlobalAdmin: user.isGlobalAdmin,
+    authorization: authorizationSummary(user),
   });
 
   res.status(200).json(meData);
@@ -260,10 +268,16 @@ router.post("/auth/change-password", authenticateToken, async (req: Request, res
       return;
     }
 
-    user.passwordHash = await hashPassword(newPassword);
-    user.mustChangePassword = false;
-    user.passwordChangedAt = new Date();
-    await user.save();
+    const changed = await UserModel.updateOne(
+      { _id: user._id, passwordHash: user.passwordHash, status: { $ne: "disabled" },
+        ...securityVersionFilter(securityVersion(user)) },
+      { $set: { passwordHash: await hashPassword(newPassword), mustChangePassword: false, passwordChangedAt: new Date() },
+        $inc: { securityVersion: 1 } }
+    );
+    if (!changed.modifiedCount) {
+      res.status(409).json({ error: { code: "ACCOUNT_VERSION_CONFLICT", message: "Account changed; sign in again" } });
+      return;
+    }
 
     // Mọi Refresh Token cũ bị thu hồi: mật khẩu đổi thì phiên cũ không được sống tiếp.
     await RefreshSessionModel.updateMany(
@@ -271,6 +285,7 @@ router.post("/auth/change-password", authenticateToken, async (req: Request, res
       { $set: { revokedAt: new Date() } }
     );
 
+    res.clearCookie("refreshToken", getClearCookieOptions());
     res.status(204).send();
   } catch (err) {
     console.error(

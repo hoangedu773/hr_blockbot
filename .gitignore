@@ -38,6 +38,8 @@ AGENTS.md
 __pycache__/
 *.py[cod]
 .venv/
+.venv-authz-v1/
+.venv-*/
 venv/
 .pytest_cache/
 *.egg-info/
@@ -49,6 +51,14 @@ venv/
 *.pt
 *.pth
 models/cache/
+/model-cache/
+
+# Private evaluation evidence and credentials never belong to a baseline commit.
+outputs/
+checkpoints/
+*.dpapi
+*.pfx
+*.p12
 
 # Logs & temp
 *.log
@@ -60,6 +70,7 @@ pnpm-debug.log*
 # Lighthouse / test artefacts
 .lighthouseci/
 playwright-report/
+apps/api/artifacts/
 test-results/
 screenshots/
 

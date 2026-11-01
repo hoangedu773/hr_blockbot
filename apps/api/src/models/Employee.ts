@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
+import { GutaGradeSchema } from "@hr-blockbot/contracts";
 
 export interface IProfileChangeTargetFields {
   level?: "Intern" | "Junior" | "Middle" | "Senior" | "Lead";
@@ -35,6 +36,7 @@ export interface IProfileChangePreviousSnapshot {
 }
 
 export interface IProfileChangeRequest {
+  clientMessageId?: string;
   id?: string;
   _id?: mongoose.Types.ObjectId | string;
   requestedBy: string;
@@ -64,6 +66,13 @@ export function assertNoSelfApproval(reviewerId: string, requestedById: string):
 }
 
 export interface IEmployee extends Document {
+  storeId?: mongoose.Types.ObjectId | null;
+  storeMappingRef?: string | null;
+  gutaGrade?: string | null;
+  provisioningRequestId?: mongoose.Types.ObjectId | null;
+  personnelKey?: string;
+  profileRevision?: number;
+  profileHistory?: any[];
   employee_code?: string;
   employeeCode?: string;
   full_name?: string;
@@ -92,6 +101,8 @@ export interface IEmployee extends Document {
 
 const ProfileChangeRequestSchema = new Schema<IProfileChangeRequest>(
   {
+    id: { type: String },
+    clientMessageId: { type: String },
     requestedBy: { type: String, required: true },
     requestedAt: { type: Date, default: Date.now },
     status: {
@@ -126,6 +137,13 @@ const ProfileChangeRequestSchema = new Schema<IProfileChangeRequest>(
 
 const EmployeeSchema = new Schema<IEmployee>(
   {
+    storeId: { type: Schema.Types.ObjectId, ref: "Store", default: null },
+    storeMappingRef: { type: String, default: null },
+    gutaGrade: { type: String, enum: [...GutaGradeSchema.options, null], default: null },
+    provisioningRequestId: { type: Schema.Types.ObjectId, default: null },
+    profileRevision: { type: Number, default: 0 },
+    personnelKey: { type: String },
+    profileHistory: { type: [Schema.Types.Mixed], default: [] },
     employee_code: { type: String, index: true },
     employeeCode: { type: String, index: true },
     full_name: { type: String },
@@ -164,6 +182,11 @@ const EmployeeSchema = new Schema<IEmployee>(
     strict: false,
   }
 );
+
+// New API creates share one technical uniqueness key. Legacy aliases are checked
+// before insert, but are not backfilled or reindexed during this feature rollout.
+EmployeeSchema.index({ personnelKey: 1 }, { name: "f1_personnel_creation_key", unique: true,
+  partialFilterExpression: { personnelKey: { $type: "string" } } });
 
 export const EmployeeModel =
   mongoose.models.Employee ||

@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import type { EmployeeDetail, EmployeeLevel, ProfileTargetFields } from '@hr-blockbot/contracts';
+import type { EmployeeDetail, EmployeeLevel, ProfileTargetFields, ProfileChangeRequest } from '@hr-blockbot/contracts';
 import {
   ApiError,
   createProfileChangeRequest,
   fetchMyProfile,
+  fetchEmployeeChangeRequests,
   updateEmployeeFields,
 } from '../services/api';
 import type { NotifyFn } from './Toast';
+import { AuthorizationStatus } from './AuthorizationStatus';
 
 interface EmployeeProfileViewProps {
   onLogout: () => void;
@@ -33,6 +35,8 @@ export const EmployeeProfileView: React.FC<EmployeeProfileViewProps> = ({ onLogo
   const [changeError, setChangeError] = useState<string>('');
   const [changeBusy, setChangeBusy] = useState<boolean>(false);
   const [lastRequestId, setLastRequestId] = useState<string>('');
+  const [requests, setRequests] = useState<ProfileChangeRequest[]>([]);
+  const [historyError, setHistoryError] = useState('');
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -42,6 +46,8 @@ export const EmployeeProfileView: React.FC<EmployeeProfileViewProps> = ({ onLogo
       setProfile(result);
       setPhone(result.phone ?? '');
       setSkills(result.skills.join(', '));
+      try { setRequests(await fetchEmployeeChangeRequests(result.employeeId)); setHistoryError(''); }
+      catch (failure) { setHistoryError(failure instanceof Error ? failure.message : 'Không tải được lịch sử.'); }
     } catch (err: unknown) {
       const message = err instanceof ApiError ? `${err.code}: ${err.message}` : err instanceof Error ? err.message : 'Lỗi tải hồ sơ';
       setLoadError(message);
@@ -64,10 +70,11 @@ export const EmployeeProfileView: React.FC<EmployeeProfileViewProps> = ({ onLogo
         .map((item) => item.trim())
         .filter((item) => item.length > 0);
       const updated = await updateEmployeeFields(profile.employeeId, {
-        ...(phone.trim() ? { phone: phone.trim() } : {}),
+        phone: phone.trim(),
         skills: skillList,
+        expectedVersion: profile.profileVersion,
       });
-      if ('employeeCode' in updated) setProfile(updated);
+      if ('profileVersion' in updated) setProfile(updated);
       onNotify('Đã cập nhật thông tin thường.', 'success', 'Lưu hồ sơ');
       setIsEditingRegular(false);
     } catch (err: unknown) {
@@ -98,7 +105,11 @@ export const EmployeeProfileView: React.FC<EmployeeProfileViewProps> = ({ onLogo
         targetFields,
         ...(lastRequestId ? { previousRequestId: lastRequestId } : {}),
       });
-      setLastRequestId(created.id);
+      setLastRequestId('');
+      setRequests((old) => [...old, created]);
+      // Submission increments the profile revision without changing sensitive fields.
+      try { setProfile(await fetchMyProfile()); }
+      catch { setHistoryError('Yêu cầu đã lưu. Hãy làm mới hồ sơ để lấy phiên bản mới trước lần chỉnh sửa tiếp theo.'); }
       onNotify('Đã gửi yêu cầu đổi thông tin nhạy cảm — chờ Admin duyệt.', 'success', 'Gửi yêu cầu');
       setIsRequestingChange(false);
       setTargetLevel('');
@@ -145,6 +156,7 @@ export const EmployeeProfileView: React.FC<EmployeeProfileViewProps> = ({ onLogo
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '980px' }}>
+      <AuthorizationStatus />
       <div
         style={{
           background: 'rgba(14, 20, 32, 0.85)',
@@ -170,7 +182,21 @@ export const EmployeeProfileView: React.FC<EmployeeProfileViewProps> = ({ onLogo
         <button type="button" className="btn btn--ghost" onClick={onLogout}>
           Đăng xuất
         </button>
+        <button type="button" className="btn" disabled={regularBusy || changeBusy} onClick={() => void load()}>Làm mới hồ sơ</button>
       </div>
+      <section className="card card--pad crm-work-detail" aria-label="Lịch sử thay đổi hồ sơ">
+        <h3>Lịch sử yêu cầu & quyết định</h3>
+        <p>Quyết định được lưu bền; mở lại hồ sơ để xem kết quả và lý do. Chưa có thông báo đẩy thời gian thực.</p>
+        {historyError && <p role="alert">{historyError}</p>}
+        {!requests.length && !historyError && <p>Chưa có yêu cầu thay đổi hồ sơ.</p>}
+        {[...requests].reverse().map((request) => <article className="crm-report-card" key={request.id}>
+          <strong>{request.status === 'PENDING' ? 'Chờ HR có thẩm quyền xử lý' : request.status === 'APPROVED' ? 'Đã duyệt thay đổi' : 'Đã từ chối thay đổi'}</strong>
+          <p>{new Date(request.requestedAt).toLocaleString('vi-VN')} · {Object.entries(request.targetFields).map(([key, value]) => `${key}: ${value}`).join(' · ')}</p>
+          {request.reviewedAt && <p>Quyết định lúc {new Date(request.reviewedAt).toLocaleString('vi-VN')} · Người duyệt: {request.reviewedBy}</p>}
+          {request.rejectionReason && <p>Lý do: {request.rejectionReason}</p>}
+          {request.status === 'REJECTED' && !requests.some((item) => item.status === 'PENDING') && <button type="button" className="btn" disabled={changeBusy} onClick={() => { setLastRequestId(request.id); setTargetLevel(request.targetFields.level ?? ''); setTargetHiredAt(request.targetFields.hiredAt?.slice(0, 10) ?? ''); setTargetJobTitle(request.targetFields.jobTitle ?? ''); setIsRequestingChange(true); setChangeError(''); }}>Sửa và gửi lại yêu cầu</button>}
+        </article>)}
+      </section>
 
       <div className="banner" style={{ background: 'rgba(16, 185, 129, 0.06)', borderColor: 'rgba(16, 185, 129, 0.25)', color: '#a7f3d0' }}>
         <span>
@@ -239,10 +265,10 @@ export const EmployeeProfileView: React.FC<EmployeeProfileViewProps> = ({ onLogo
 
         <div className="card card--pad" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <h3 style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-primary)', textTransform: 'uppercase' }}>
-            Yêu cầu đổi thông tin nhạy cảm
+            Yêu cầu thay đổi thông tin cần xét duyệt
           </h3>
           <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-            level / hiredAt / jobTitle phải qua hàng đợi duyệt của Admin (FR-003/FR-004). Không tự đổi được.
+            Ngày vào làm cần HR độc lập có grant phù hợp duyệt. Đổi cấp bậc/chức danh giữ PENDING đến khi có chính sách riêng; Admin kỹ thuật không duyệt nghiệp vụ này.
           </p>
 
           {!isRequestingChange ? (

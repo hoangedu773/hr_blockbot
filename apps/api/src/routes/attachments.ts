@@ -3,6 +3,8 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
+import { authorizeAttachment } from "../services/document-authorization.service.js";
+import { workflowEndpoint as endpoint } from "./projects.js";
 
 const router = Router();
 
@@ -56,7 +58,7 @@ const CATEGORY_DIRS: Record<Category, string> = {
   images: path.resolve(DATA_ROOT, "guta_bo_du_lieu_chatbot", "anh_tham_chieu"),
 };
 
-router.get("/attachments/:category/:filename", authenticateToken, (req: Request, res: Response): void => {
+router.get("/attachments/:category/:filename", authenticateToken, endpoint(async (req: Request, res: Response) => {
   const { category, filename } = req.params;
 
   if (!category || !ALLOWED_CATEGORIES.includes(category as Category)) {
@@ -101,7 +103,11 @@ router.get("/attachments/:category/:filename", authenticateToken, (req: Request,
     return;
   }
 
-  const baseDir = CATEGORY_DIRS[validCategory];
+  // Trusted deployment configuration, never a request parameter. Also permits
+  // hermetic tests without copying confidential GUTA documents into the repo.
+  const configuredRoot = process.env.ATTACHMENTS_DATA_ROOT;
+  const baseDir = configuredRoot ? path.resolve(configuredRoot, validCategory === "pdf"
+    ? "guta_mau_bien_ban_cho_agent" : "guta_bo_du_lieu_chatbot/anh_tham_chieu") : CATEGORY_DIRS[validCategory];
   const resolvedPath = path.resolve(baseDir, filename);
 
   // Strict boundary containment check
@@ -115,7 +121,8 @@ router.get("/attachments/:category/:filename", authenticateToken, (req: Request,
     return;
   }
 
-  if (!fs.existsSync(resolvedPath) || !fs.statSync(resolvedPath).isFile()) {
+  await authorizeAttachment(req.user!, category, filename);
+  if (!fs.existsSync(resolvedPath) || !fs.statSync(resolvedPath).isFile() || !fs.realpathSync(resolvedPath).startsWith(fs.realpathSync(baseDir) + path.sep)) {
     res.status(404).json({
       error: {
         code: "FILE_NOT_FOUND",
@@ -127,9 +134,10 @@ router.get("/attachments/:category/:filename", authenticateToken, (req: Request,
 
   const contentType = MIME_TYPES[ext] || "application/octet-stream";
   res.setHeader("Content-Type", contentType);
-  res.setHeader("Cache-Control", "public, max-age=86400");
+  res.setHeader("Cache-Control", "private, no-store");
+  res.setHeader("Vary", "Authorization");
 
   res.sendFile(resolvedPath);
-});
+}));
 
 export default router;
