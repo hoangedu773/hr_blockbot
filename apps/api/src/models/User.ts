@@ -16,6 +16,8 @@ export interface IUser extends Document {
   lifecycleAppliedRequestId?: string | null;
   securityAudit?: any[];
   passwordRecovery?: any;
+  legacyImportActivation?: any;
+  legacyImportApprovalId?: mongoose.Types.ObjectId | null;
   securityVersion: number;
   authorization?: AuthorizationState | null;
   /** Legacy display label only; not an authorization profile or a capability grant. */
@@ -58,6 +60,8 @@ const UserSchema = new Schema<IUser>(
     lifecycleAppliedRequestId: { type: String, default: null },
     securityAudit: { type: [Schema.Types.Mixed], default: [] },
     passwordRecovery: { type: Schema.Types.Mixed, default: null },
+    legacyImportActivation: { type: Schema.Types.Mixed, default: null },
+    legacyImportApprovalId: { type: Schema.Types.ObjectId, default: null },
     securityVersion: { type: Number, min: 0, default: 0, validate: Number.isSafeInteger },
     // No automatic role/title migration. Null means the new policy is NOT configured.
     authorization: { type: Schema.Types.Mixed, default: null,

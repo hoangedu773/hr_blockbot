@@ -36,7 +36,7 @@ export const AUTHORIZATION_POLICY: Readonly<Record<AuthorizationCapability, Rule
   "projects.create": operational(managers, true), "projects.assign": operational(managers, true), "assignment.respond": assigned(), "assignment.review": operational(),
   "assignment.handover": assigned(), "assignment.discuss": assigned(), "assignment.escalation_review": operational(),
   "projects.execute": assigned(), "reports.submit": assigned(), "reports.review": operational(managers, true), "assignment.audit_read": assigned(),
-  "delegations.manage": denied(), "delegations.request": operational(managers), "delegations.review": operational(["om", "sam", "am"]),
+  "delegations.manage": denied(), "delegations.request": operational(managers), "delegations.review": operational(managers),
   "policies.read": operational(everyone), "attachments.read": operational(everyone),
   "chatbot.data_read": self(), "chatbot.execute": denied(), "legacy.operations": denied(),
   "kpi.write": denied(), "payroll.write": denied(), "promotion.approve": denied(), "raw_source.read": denied(),
@@ -132,7 +132,11 @@ export function validateDelegation(delegation: AuthorizationDelegation, source: 
   if (!delegation.approvedByUserId || !delegation.approvedAt || !approval?.directManagerVerified || !approval.approver.accountActive || approval.approver.mustChangePassword ||
     approval.approver.userId !== delegation.approvedByUserId || [delegator.userId, recipient.userId].includes(approval.approver.userId)) return deny("INDEPENDENT_DELEGATION_APPROVAL_REQUIRED");
   const sourceProfile = delegator.authorization?.profile, recipientProfile = recipient.authorization?.profile;
-  if (sourceProfile === "sm" && (recipientProfile !== "ptch" || approval.approver.authorization?.profile !== "am")) return deny("DELEGATION_PROFILE_DENIED");
+  // Both approved branches may have an operational direct superior (AM or SM
+  // acting as the SM3 position). Profile/grade never proves direct authority:
+  // verified() must check a current direct edge + explicit scoped review grant
+  // for EVERY selected store before calling this validator.
+  if (sourceProfile === "sm" && (recipientProfile !== "ptch" || !managers.includes(approval.approver.authorization?.profile ?? "staff"))) return deny("DELEGATION_PROFILE_DENIED");
   if (sourceProfile === "om" && recipientProfile !== "aom") return deny("DELEGATION_PROFILE_DENIED");
   if (!["om", "sam", "am", "sm"].includes(sourceProfile ?? "") || !["aom", "sam", "am", "sm", "ptch"].includes(recipientProfile ?? "")) return deny("DELEGATION_PROFILE_DENIED");
   if (delegation.capabilities.some((capability) => !AUTHORIZATION_POLICY[capability].delegable || AUTHORIZATION_POLICY[capability].status !== "APPROVED" || !source.capabilities.includes(capability))) return deny("CAPABILITY_NOT_DELEGABLE");

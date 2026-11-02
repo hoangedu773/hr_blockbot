@@ -13,8 +13,11 @@ import { verifyProjectAudit } from '../dist/services/project-audit.service.js';
 import { StoreModel } from '../dist/models/Store.js';
 import { ManagementRelationModel } from '../dist/models/AuthorizationMapping.js';
 import { testGrant, SELF_CAPS, MANAGEMENT_CAPS } from './helpers/authorization-v1-fixture.mjs';
+import { createHash } from 'node:crypto';
 
 let server, base, kpiBaseline;
+let preExistingWorkloadIds, preExistingWorkloadDigest;
+const workloadDigest = (rows) => createHash('sha256').update(mongoose.mongo.BSON.serialize({ rows })).digest('hex');
 const actors = {};
 const a = new mongoose.Types.ObjectId(), b = new mongoose.Types.ObjectId();
 const storeA = new mongoose.Types.ObjectId(), storeB = new mongoose.Types.ObjectId();
@@ -49,6 +52,13 @@ async function review(project, actor, action, extra = {}) {
 }
 before(async () => {
   await connectDB();
+  // Imported employees legitimately have mixed/missing activeLoad values. The
+  // old global `every(activeLoad === 999)` failed BEFORE any workflow write.
+  // Preserve every pre-existing raw value (including missing vs null), while
+  // retaining the 999 assertion for ALL newly created consent fixtures.
+  const preExisting = await EmployeeModel.collection.find({}, { projection: { _id: 1, activeLoad: 1 } }).sort({ _id: 1 }).toArray();
+  preExistingWorkloadIds = preExisting.map((row) => row._id);
+  preExistingWorkloadDigest = workloadDigest(preExisting);
   await mongoose.connection.collection('departments').insertMany([{ _id: a, name: 'Unit A', code: 'A' }, { _id: b, name: 'Unit B', code: 'B' }]);
   await StoreModel.create([{ _id: storeA, store_name: 'Isolated consent A', kind: 'outlet', status: 'ACTIVE', scopeApprovalRef: 'fixture-a', departmentId: a }, { _id: storeB, store_name: 'Isolated consent B', kind: 'outlet', status: 'ACTIVE', scopeApprovalRef: 'fixture-b', departmentId: b }]);
   for (const [name, role, department, global] of [
@@ -76,7 +86,12 @@ before(async () => {
 });
 afterEach(async () => {
   assert.equal(JSON.stringify(await mongoose.connection.collection('evaluations').find({}).sort({ _id: 1 }).toArray()), kpiBaseline, 'No consent/assignment/rejection/handover operation may change KPI');
-  assert.ok((await EmployeeModel.find({}).lean()).every((employee) => employee.activeLoad === 999), 'No silent rewriting of employee workload/KPI caches');
+  const persistedExisting = await EmployeeModel.collection.find({ _id: { $in: preExistingWorkloadIds } }, { projection: { _id: 1, activeLoad: 1 } }).sort({ _id: 1 }).toArray();
+  assert.equal(workloadDigest(persistedExisting), preExistingWorkloadDigest, 'No silent rewriting/removal of any imported employee workload cache');
+  const fixtureIds = Object.values(actors).filter((actor) => actor.employee).map((actor) => actor.employee._id);
+  const fixtureEmployees = await EmployeeModel.collection.find({ _id: { $in: fixtureIds } }).toArray();
+  assert.equal(fixtureEmployees.length, fixtureIds.length, 'All consent fixture employees must remain present');
+  assert.ok(fixtureEmployees.every((employee) => employee.activeLoad === 999), 'No silent rewriting of consent fixture workload/KPI caches');
 });
 after(async () => {
   if (server) { server.closeAllConnections(); await new Promise((resolve) => server.close(resolve)); }

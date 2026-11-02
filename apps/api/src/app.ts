@@ -25,6 +25,8 @@ import type { OnboardingOptions } from "./services/onboarding.service.js";
 import type { RecoveryOptions } from "./services/password-recovery.service.js";
 import { isInfrastructureError } from "./middlewares/auth.middleware.js";
 import { redactSecrets } from "./lib/redact.js";
+import legacyImportRouter from "./routes/legacy-import.js";
+import type { LegacyImportOptions } from "./services/legacy-import.service.js";
 
 const CLIENT_ERROR_CODES: Record<number, string> = {
   400: "VALIDATION_FAILED",
@@ -53,10 +55,11 @@ function sanitize(err: unknown): string {
 dotenv.config();
 dotenv.config({ path: "../../.env" });
 
-export function createApp(options: { onboarding?: OnboardingOptions; recovery?: RecoveryOptions } = {}): Express {
+export function createApp(options: { onboarding?: OnboardingOptions; recovery?: RecoveryOptions; legacyImport?: LegacyImportOptions } = {}): Express {
   const app = express();
   app.locals.onboardingOptions = options.onboarding ?? {};
   app.locals.recoveryOptions = options.recovery ?? {};
+  app.locals.legacyImportOptions = options.legacyImport ?? {};
 
   // Strict CORS: frontend origin whitelist + credentials
   const allowedOrigin = process.env.FRONTEND_URL || "http://localhost:5173";
@@ -81,6 +84,7 @@ export function createApp(options: { onboarding?: OnboardingOptions; recovery?: 
   // Mount Canonical Endpoints under /api prefix
   app.use("/api", healthRouter);
   app.use("/api", authRouter);
+  app.use("/api", legacyImportRouter);
   app.use("/api", onboardingRouter);
   app.use("/api", onboardingReportingRouter);
   app.use("/api", authorizationGatewayRouter);

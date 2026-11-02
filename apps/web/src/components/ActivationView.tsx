@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from 'react';
 import { API_BASE } from '../services/auth';
-export function ActivationView({ token, onDone, purpose = 'onboarding' }: { token: string; onDone: () => void; purpose?: 'onboarding' | 'reactivation' | 'recovery' }) {
+export function ActivationView({ token, onDone, purpose = 'onboarding' }: { token: string; onDone: () => void; purpose?: 'onboarding' | 'reactivation' | 'recovery' | 'legacy-import' }) {
   const [password, setPassword] = useState(''), [confirmation, setConfirmation] = useState(''), [error, setError] = useState(''), [busy, setBusy] = useState(false), [done, setDone] = useState(false);
   const submit = async (event: FormEvent) => {
     event.preventDefault(); if (busy) return;
     if (password.length < 12 || password !== confirmation) { setError('Mật khẩu cần ít nhất 12 ký tự và hai lần nhập phải khớp.'); return; }
     setBusy(true); setError('');
-    try { const response = await fetch(`${API_BASE}/auth/${purpose === 'recovery' ? 'recover-password' : purpose === 'reactivation' ? 'reactivate' : 'activate'}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'omit', referrerPolicy: 'no-referrer', body: JSON.stringify({ token, newPassword: password }) });
+    try { const response = await fetch(`${API_BASE}/auth/${purpose === 'legacy-import' ? 'activate-legacy' : purpose === 'recovery' ? 'recover-password' : purpose === 'reactivation' ? 'reactivate' : 'activate'}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'omit', referrerPolicy: 'no-referrer', body: JSON.stringify({ token, newPassword: password }) });
       if (!response.ok) throw new Error(purpose === 'recovery'
         ? response.status === 400 ? 'Liên kết hết hạn, đã dùng hoặc không còn hợp lệ. Liên hệ quản trị kỹ thuật để kiểm tra.' : 'Chưa xác nhận được kết quả. Thử đăng nhập bằng mật khẩu vừa đặt; nếu chưa được, liên hệ quản trị kỹ thuật để đối chiếu hoặc phát hành lại. Không tạo tài khoản mới.'
         : response.status === 400 ? 'Lời mời đã hết hạn, đã dùng hoặc không hợp lệ. Liên hệ HR để kiểm tra.' : 'Chưa thể hoàn tất kích hoạt. Liên hệ HR kiểm tra trạng thái, không tạo tài khoản mới.');

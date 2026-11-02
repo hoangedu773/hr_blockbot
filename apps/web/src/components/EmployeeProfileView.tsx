@@ -9,6 +9,7 @@ import {
 } from '../services/api';
 import type { NotifyFn } from './Toast';
 import { AuthorizationStatus } from './AuthorizationStatus';
+import { useAuthorization } from '../context/useAuthorization';
 
 interface EmployeeProfileViewProps {
   onLogout: () => void;
@@ -18,6 +19,9 @@ interface EmployeeProfileViewProps {
 const LEVELS: EmployeeLevel[] = ['Intern', 'Junior', 'Middle', 'Senior', 'Lead'];
 
 export const EmployeeProfileView: React.FC<EmployeeProfileViewProps> = ({ onLogout, onNotify }) => {
+  const { can } = useAuthorization();
+  const canEditRegular = can('profile.update_self_basic');
+  const canRequestChange = can('profile.request_self');
   const [profile, setProfile] = useState<EmployeeDetail | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string>('');
@@ -60,7 +64,13 @@ export const EmployeeProfileView: React.FC<EmployeeProfileViewProps> = ({ onLogo
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (!canEditRegular) setIsEditingRegular(false);
+    if (!canRequestChange) setIsRequestingChange(false);
+  }, [canEditRegular, canRequestChange]);
+
   const saveRegularFields = async () => {
+    if (!canEditRegular) return;
     if (!profile) return;
     setRegularBusy(true);
     setRegularError('');
@@ -87,6 +97,7 @@ export const EmployeeProfileView: React.FC<EmployeeProfileViewProps> = ({ onLogo
   };
 
   const submitChangeRequest = async () => {
+    if (!canRequestChange) return;
     if (!profile) return;
     const targetFields: ProfileTargetFields = {};
     if (targetLevel) targetFields.level = targetLevel as EmployeeLevel;
@@ -194,7 +205,7 @@ export const EmployeeProfileView: React.FC<EmployeeProfileViewProps> = ({ onLogo
           <p>{new Date(request.requestedAt).toLocaleString('vi-VN')} · {Object.entries(request.targetFields).map(([key, value]) => `${key}: ${value}`).join(' · ')}</p>
           {request.reviewedAt && <p>Quyết định lúc {new Date(request.reviewedAt).toLocaleString('vi-VN')} · Người duyệt: {request.reviewedBy}</p>}
           {request.rejectionReason && <p>Lý do: {request.rejectionReason}</p>}
-          {request.status === 'REJECTED' && !requests.some((item) => item.status === 'PENDING') && <button type="button" className="btn" disabled={changeBusy} onClick={() => { setLastRequestId(request.id); setTargetLevel(request.targetFields.level ?? ''); setTargetHiredAt(request.targetFields.hiredAt?.slice(0, 10) ?? ''); setTargetJobTitle(request.targetFields.jobTitle ?? ''); setIsRequestingChange(true); setChangeError(''); }}>Sửa và gửi lại yêu cầu</button>}
+          {canRequestChange && request.status === 'REJECTED' && !requests.some((item) => item.status === 'PENDING') && <button type="button" className="btn" disabled={changeBusy} onClick={() => { setLastRequestId(request.id); setTargetLevel(request.targetFields.level ?? ''); setTargetHiredAt(request.targetFields.hiredAt?.slice(0, 10) ?? ''); setTargetJobTitle(request.targetFields.jobTitle ?? ''); setIsRequestingChange(true); setChangeError(''); }}>Sửa và gửi lại yêu cầu</button>}
         </article>)}
       </section>
 
@@ -209,14 +220,14 @@ export const EmployeeProfileView: React.FC<EmployeeProfileViewProps> = ({ onLogo
         <div className="card card--pad" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-primary)', textTransform: 'uppercase' }}>Thông tin cơ bản</h3>
-            {!isEditingRegular && (
+            {canEditRegular && !isEditingRegular && (
               <button type="button" className="btn btn--sm" onClick={() => setIsEditingRegular(true)}>
                 Sửa
               </button>
             )}
           </div>
 
-          {!isEditingRegular ? (
+          {!isEditingRegular || !canEditRegular ? (
             <dl style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '8px 14px', fontSize: '12px' }}>
               <dt style={{ color: 'var(--text-muted)' }}>Điện thoại</dt>
               <dd style={{ fontFamily: 'var(--mono)' }}>{profile.phone ?? '—'}</dd>
@@ -271,7 +282,9 @@ export const EmployeeProfileView: React.FC<EmployeeProfileViewProps> = ({ onLogo
             Ngày vào làm cần HR độc lập có grant phù hợp duyệt. Đổi cấp bậc/chức danh giữ PENDING đến khi có chính sách riêng; Admin kỹ thuật không duyệt nghiệp vụ này.
           </p>
 
-          {!isRequestingChange ? (
+          {!canRequestChange ? (
+            <p role="status">Tài khoản hiện chỉ được xem hồ sơ; chưa được cấp quyền gửi yêu cầu thay đổi.</p>
+          ) : !isRequestingChange ? (
             <button type="button" className="btn btn--primary" onClick={() => setIsRequestingChange(true)} style={{ alignSelf: 'flex-start' }}>
               Tạo yêu cầu
             </button>

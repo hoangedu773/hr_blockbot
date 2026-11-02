@@ -1,0 +1,11 @@
+import { Router } from "express";
+import { ActivationRequestSchema } from "@hr-blockbot/contracts";
+import { authenticateToken } from "../middlewares/auth.middleware.js";
+import { endpoint } from "../lib/endpoint.js";
+import { WorkflowError } from "../services/project-workflow.service.js";
+import { issueLegacyImport, completeLegacyImport, revokeLegacyImport } from "../services/legacy-import.service.js";
+const router = Router();
+router.post("/admin/users/:id/legacy-import-invitation", authenticateToken, endpoint(async (req, res) => { res.json(await issueLegacyImport(req.user!, req.params.id, req.body, req.app.locals.legacyImportOptions)); }));
+router.post("/admin/legacy-import-approvals/:id/revoke", authenticateToken, endpoint(async (req, res) => { res.json(await revokeLegacyImport(req.user!, req.params.id, req.body, req.app.locals.legacyImportOptions)); }));
+router.post("/auth/activate-legacy", endpoint(async (req, res) => { const body = ActivationRequestSchema.safeParse(req.body); if (!body.success) throw new WorkflowError(400, "VALIDATION_FAILED", "Token/mật khẩu không hợp lệ."); await completeLegacyImport(body.data.token, body.data.newPassword, req.app.locals.legacyImportOptions); res.status(204).end(); }));
+export default router;

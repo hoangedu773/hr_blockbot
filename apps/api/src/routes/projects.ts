@@ -14,10 +14,11 @@ import {
   WorkflowError, projectReadScope, visibleProject, assertProjectWrite, assertProjectManagement,
   referenceMatch, objectId, projectDto, projectDtos, versionFilter, conflict, historyEntry, assertExecutionAllowed,
 } from "../services/project-workflow.service.js";
-import { auditedUpdate, auditEntry } from "../services/project-audit.service.js";
+import { auditedUpdate, auditEntry, verifyProjectAudit, assertAssignmentConsistency } from "../services/project-audit.service.js";
 import { notice, managers, ownAssignment } from "../services/assignment.service.js";
 import { requireCapability, resourceScope, allowedStoreIds, employeeScopeQuery, managedEmployeeIds } from "../services/authorization-scope.service.js";
 import { withCrmWriter, assertEmployeeReceivesWork } from "../services/crm-writer.service.js";
+import { resolvePrincipal } from "../services/principal.service.js";
 
 const router = Router();
 const filtersSchema = PaginationQuerySchema.extend({
@@ -189,19 +190,35 @@ router.post("/projects/:id/transition", authenticateToken, endpoint(async (req, 
   res.json({ id: String(updated._id), status: updated.status, version: updated.version });
 }));
 
-router.post("/projects/:id/progress", authenticateToken, endpoint(async (req, res) => {
+router.post("/projects/:id/progress", authenticateToken, endpoint(async (req, res) => withCrmWriter(async () => {
   const parsed = ProjectProgressSchema.safeParse(req.body);
   if (!parsed.success) throw new WorkflowError(400, "VALIDATION_FAILED", "Tiến độ phải là số nguyên 0–100 và có phiên bản hiện tại.");
+  req.user = await resolvePrincipal({ sub: req.user!.userId, role: req.user!.role, securityVersion: req.user!.securityVersion });
   const project = await visibleProject(req.user!, req.params.id);
   assertProjectWrite(req.user!, project);
   if (project.status !== "IN_PROGRESS") throw new WorkflowError(409, "PROJECT_READ_ONLY", "Chỉ cập nhật tiến độ khi công việc đang thực hiện.");
   assertExecutionAllowed(project);
+  // A retry is still authorized against the CURRENT principal, scope and
+  // participant. Never use a client ID to replay another user's write.
+  if (!verifyProjectAudit(project)) throw new WorkflowError(409, "AUDIT_INTEGRITY_FAILED", "Dữ liệu/lịch sử không khớp mã băm.");
+  assertAssignmentConsistency(project);
+  const { clientMessageId, progress, expectedVersion } = parsed.data;
+  const duplicate = clientMessageId && (project.assignmentAudit ?? []).find((entry: any) =>
+    entry.type === "PROGRESS_UPDATED" && entry.actorId === req.user!.userId && entry.details?.clientMessageId === clientMessageId);
+  if (duplicate) {
+    if (duplicate.details.progress !== progress || duplicate.details.expectedVersion !== expectedVersion) {
+      throw new WorkflowError(409, "CLIENT_MESSAGE_CONFLICT", "Mã gửi lặp đã được dùng với nội dung hoặc phiên bản khác.");
+    }
+    // Return current state without changing progress/version/audit again.
+    res.json({ id: String(project._id), progress: project.progress, version: project.version });
+    return;
+  }
   const updated = await auditedUpdate(project, req.user!, parsed.data.expectedVersion, "PROGRESS_UPDATED", "Cập nhật tiến độ " + parsed.data.progress + "%", {
     $set: { progress: parsed.data.progress },
     $push: { statusHistory: historyEntry(req.user!, project.status, project.status, "Cập nhật tiến độ " + parsed.data.progress + "%") },
-  }, { progress: parsed.data.progress });
+  }, { progress, ...(clientMessageId ? { clientMessageId, expectedVersion } : {}) });
   if (!updated) conflict();
   res.json({ id: String(updated._id), progress: updated.progress, version: updated.version });
-}));
+})));
 
 export default router;

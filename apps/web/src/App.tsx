@@ -28,10 +28,18 @@ export const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'crm' | 'chat'>('crm');
   const [activationToken, setActivationToken] = useState(() => {
     const parameters = new URLSearchParams(window.location.hash.slice(1));
-    const token = parameters.get('activate') || parameters.get('reactivate') || parameters.get('recover');
-    if (token) window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
-    return token && /^[a-f0-9]{64}$/.test(token) ? { token, purpose: parameters.has('recover') ? 'recovery' as const : parameters.has('reactivate') ? 'reactivation' as const : 'onboarding' as const } : null;
+    const token = parameters.get('legacy-import') || parameters.get('activate') || parameters.get('reactivate') || parameters.get('recover');
+    return token && /^[a-f0-9]{64}$/.test(token) ? { token, purpose: parameters.has('legacy-import') ? 'legacy-import' as const : parameters.has('recover') ? 'recovery' as const : parameters.has('reactivate') ? 'reactivation' as const : 'onboarding' as const } : null;
   });
+  // StrictMode may invoke state initializers twice before committing. Capture
+  // the token purely above, then remove the URL fragment after commit so the
+  // second initializer cannot lose it. Never persist this token in storage.
+  useEffect(() => {
+    const parameters = new URLSearchParams(window.location.hash.slice(1));
+    if (parameters.get('legacy-import') || parameters.get('activate') || parameters.get('reactivate') || parameters.get('recover')) {
+      window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
+    }
+  }, []);
   useEffect(() => { if (hasSession && !user?.authorization?.capabilities.includes('chatbot.data_read')) setActiveTab('crm'); }, [hasSession, user?.authorization]);
 
   useEffect(() => {

@@ -421,7 +421,7 @@ export type ProjectTransition = z.infer<typeof ProjectTransitionSchema>;
 export const ProjectProgressSchema = z.object({
   progress: z.number().int().min(0).max(100),
   expectedVersion: z.number().int().positive(),
-  clientMessageId: z.string().optional(),
+  clientMessageId: z.string().trim().min(1).max(100).optional(),
 });
 export type ProjectProgress = z.infer<typeof ProjectProgressSchema>;
 

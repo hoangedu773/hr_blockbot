@@ -74,10 +74,13 @@ export async function mutateAccountSecurity(actor: AuthenticatedUser, targetId: 
   if (securityVersion(before) !== expectedVersion) throw new WorkflowError(409, "ACCOUNT_VERSION_CONFLICT", "Tài khoản đã thay đổi.");
   const previous = accountAuditHead(before);
   const event = { id: randomUUID(), actorId: actor.userId, at: new Date().toISOString(), reason,
-    before: { status: before.status, profile: before.authorization?.profile ?? null, securityVersion: expectedVersion },
-    after: { status: changes.status ?? before.status, profile: changes.authorization?.profile ?? before.authorization?.profile ?? null, securityVersion: expectedVersion + 1 },
+    // Legacy rows may have no persisted status. BSON stores undefined nested
+    // values as null; hash that exact representation before writing the event.
+    before: { status: before.status ?? null, profile: before.authorization?.profile ?? null, securityVersion: expectedVersion },
+    after: { status: changes.status ?? before.status ?? null, profile: changes.authorization?.profile ?? before.authorization?.profile ?? null, securityVersion: expectedVersion + 1 },
     beforeAuthorizationHash: digest(before.authorization ?? null), authorizationHash: digest(changes.authorization ?? before.authorization ?? null),
-    beforeRecoveryHash: digest(before.passwordRecovery ?? null), recoveryHash: digest(changes.passwordRecovery ?? before.passwordRecovery ?? null), previousHash: previous };
+    beforeRecoveryHash: digest(before.passwordRecovery ?? null), recoveryHash: digest(changes.passwordRecovery ?? before.passwordRecovery ?? null),
+    beforeLegacyImportHash: digest(before.legacyImportActivation ?? null), legacyImportHash: digest(changes.legacyImportActivation ?? before.legacyImportActivation ?? null), previousHash: previous };
   const history = [...(before.securityAudit ?? []), { ...event, hash: digest(event) }];
   if (history.length > 1000 || mongoose.mongo.BSON.calculateObjectSize({ ...before, ...changes, securityAudit: history }) > 8 * 1024 * 1024) throw new WorkflowError(409, "SECURITY_AUDIT_STORAGE_LIMIT", "Không xóa audit để mở quyền.");
   const updated: any = await UserModel.findOneAndUpdate({ _id: before._id, ...securityVersionFilter(expectedVersion), ...predicate },
