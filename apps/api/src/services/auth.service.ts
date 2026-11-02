@@ -59,6 +59,8 @@ export interface TokenClaims {
   sub: string;
   role: "Admin" | "Employee";
   securityVersion?: number;
+  /** Session family id (refresh_sessions.familyId). New access tokens are bound to it. */
+  sid?: string;
 }
 
 /**
@@ -95,7 +97,9 @@ export function generateTemporaryPassword(length = 12): string {
  * Sign Access Token using jose (memory-only on client)
  */
 export async function signAccessToken(claims: TokenClaims): Promise<string> {
-  return new SignJWT({ role: claims.role, sub: claims.sub, av: claims.securityVersion ?? 0 })
+  const payload: Record<string, unknown> = { role: claims.role, sub: claims.sub, av: claims.securityVersion ?? 0 };
+  if (claims.sid) payload.sid = claims.sid;
+  return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setAudience("hr-blockbot-api")
     .setIssuedAt()
@@ -123,10 +127,16 @@ export async function verifyAccessToken(token: string): Promise<TokenClaims> {
     throw new Error("Legacy or invalid security version; sign in again");
   }
 
+  const sid = typeof payload.sid === "string" ? payload.sid : "";
+  // Production tokens must be session-bound. Tests and explicit local runs may
+  // still exercise legacy signAccessToken helpers without creating a session.
+  const allowLegacy = process.env.NODE_ENV === "test" || process.env.ALLOW_LEGACY_ACCESS_TOKENS === "1";
+  if (!sid && !allowLegacy) throw new Error("Access token is not bound to a session; sign in again");
   return {
     sub: payload.sub,
     role: payload.role,
     securityVersion: payload.av as number,
+    ...(sid ? { sid } : {}),
   };
 }
 
@@ -209,6 +219,7 @@ export async function createLoginSession(
     sub: user._id.toString(),
     role: user.role,
     securityVersion: securityVersion(user),
+    sid: familyId,
   });
 
   return { accessToken, rawRefreshToken, familyId };
@@ -364,6 +375,7 @@ export async function rotateRefreshToken(
     sub: user._id.toString(),
     role: user.role,
     securityVersion: securityVersion(user),
+    sid: updatedSession.familyId,
   });
 
   return {

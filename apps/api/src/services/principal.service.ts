@@ -5,12 +5,13 @@ import type { TokenClaims } from "./auth.service.js";
 import type { AuthenticatedUser } from "../middlewares/auth.middleware.js";
 import { resolveCanonicalContext } from "./authorization-scope.service.js";
 import mongoose from "mongoose";
+import { RefreshSessionModel } from "../models/RefreshSession.js";
 import { legacyApprovalBindsUser } from "./legacy-import-approval.service.js";
 
 export type PrincipalUnavailableReason = "UNAVAILABLE" | "ACCOUNT_MISSING" | "ACCOUNT_STATUS_UNREVIEWED" |
   "ACCOUNT_NOT_ACTIVE" | "PROVISIONING_NOT_ACTIVE" | "EMPLOYEE_LINK_MISSING" | "EMPLOYEE_STATUS_UNREVIEWED" |
   "EMPLOYEE_NOT_ACTIVE" | "EMPLOYEE_LINK_MISMATCH" | "LIFECYCLE_NOT_COMPLETED" |
-  "SECURITY_VERSION_INVALID" | "SESSION_VERSION_MISMATCH" | "LEGACY_IMPORT_APPROVAL_UNAVAILABLE";
+  "SECURITY_VERSION_INVALID" | "SESSION_VERSION_MISMATCH" | "SESSION_REVOKED" | "LEGACY_IMPORT_APPROVAL_UNAVAILABLE";
 export class PrincipalUnavailableError extends Error {
   status = 401;
   code = "UNAUTHENTICATED";
@@ -59,6 +60,15 @@ export async function resolvePrincipal(claims: TokenClaims, options: { delegatio
   const { user, employee } = await loadAccount(claims.sub);
   const version = securityVersion(user);
   if (claims.securityVersion !== version) throw new PrincipalUnavailableError("SESSION_VERSION_MISMATCH");
+  if (claims.sid) {
+    const activeSession = await RefreshSessionModel.exists({
+      familyId: claims.sid,
+      userId: user._id,
+      revokedAt: null,
+      expiresAt: { $gt: new Date() },
+    });
+    if (!activeSession) throw new PrincipalUnavailableError("SESSION_REVOKED");
+  }
   const parsed = AuthorizationStateSchema.safeParse(user.authorization);
   const principal: AuthenticatedUser = {
     userId: String(user._id), username: user.username, role: user.role,
