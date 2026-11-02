@@ -39,7 +39,7 @@ describe("Phase 3: Attachments Security & Static File Integrity", () => {
     accessToken = fixture.actors.staff.token;
     await UserModel.updateOne({ _id: fixtureUserId }, { $push: { 'authorization.grants.1.capabilities': 'attachments.read' } });
     await mongoose.connection.collection('policies').insertOne({ title: 'Synthetic attachment security fixture', version: 'test-only',
-      acl: { reviewStatus: 'APPROVED', approvalRef: 'isolated-attachment-acl', classification: 'operational', allowedProfiles: ['staff'], validFrom: new Date(Date.now() - 60000).toISOString(), validUntil: null, revokedAt: null, scopeKind: 'stores', storeIds: [String(fixture.stores[0]._id)] },
+      acl: { reviewStatus: 'APPROVED', approvalRef: 'isolated-attachment-acl', tier: 'T2_OPERATIONAL', classification: 'operational', allowedProfiles: ['staff'], validFrom: new Date(Date.now() - 60000).toISOString(), validUntil: null, revokedAt: null, scopeKind: 'stores', storeIds: [String(fixture.stores[0]._id)] },
       attachments: [{ category: 'pdf', filename: 'GUTA_Bien_ban_ban_giao_cong_viec.pdf' }, { category: 'pdf', filename: 'GUTA_Bien_ban_ban_giao_tai_san.pdf' }, { category: 'images', filename: 'A-001d06816e.png' }] });
 
     const app = createApp();

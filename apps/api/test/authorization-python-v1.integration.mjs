@@ -27,7 +27,7 @@ try {
   for (const name of ['AI_LLM_API_KEYS', 'GEMINI_API_KEYS', 'OPENAI_API_KEY']) delete process.env[name];
   await UserModel.updateOne({ _id: fixture.actors.staff.user._id }, { $push: { 'authorization.grants.1.capabilities': 'policies.read' } });
   await ProjectModel.create([['staff', 0], ['staffB', 1]].map(([actor, index]) => ({ title: index ? 'FORBIDDEN_CROSS_LANGUAGE_STORE_B' : 'Allowed own cross-language task', departmentId: fixture.departmentId, storeId: fixture.stores[index]._id, storeMappingRef: 'isolated-cross-language-mapping', createdBy: fixture.actors.sm.user._id, assigneeId: fixture.actors[actor].employee._id, status: 'ASSIGNED', version: 1 })));
-  const acl = { reviewStatus: 'APPROVED', approvalRef: 'isolated-cross-language-acl', classification: 'operational', allowedProfiles: ['staff'], validFrom: new Date(Date.now() - 60000).toISOString(), validUntil: null, revokedAt: null, scopeKind: 'stores', storeIds: [String(fixture.stores[0]._id)] };
+  const acl = { reviewStatus: 'APPROVED', approvalRef: 'isolated-cross-language-acl', tier: 'T2_OPERATIONAL', classification: 'operational', allowedProfiles: ['staff'], validFrom: new Date(Date.now() - 60000).toISOString(), validUntil: null, revokedAt: null, scopeKind: 'stores', storeIds: [String(fixture.stores[0]._id)] };
   await mongoose.connection.collection('policies').insertMany([{ title: 'Allowed cross-language document', version: 'synthetic-1', content: 'APPROVED_CROSS_LANGUAGE_CONTENT', acl }, { title: 'Unclassified', content: 'NEVER_RETRIEVE_CROSS_LANGUAGE_UNCLASSIFIED' }]);
   provider = createServer(async (request, response) => {
     let text = ''; for await (const chunk of request) text += chunk;

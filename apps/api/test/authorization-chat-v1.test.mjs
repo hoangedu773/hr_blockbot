@@ -22,7 +22,7 @@ before(async () => {
   process.env.AI_SERVICE_API_KEY = 'isolated-scoped-service-key'; process.env.AI_LLM_API_KEY = 'isolated-provider-key'; process.env.AI_LLM_BASE_URL = 'https://provider.invalid/v1';
   for (const actor of ['staff', 'sm']) await UserModel.updateOne({ _id: fixture.actors[actor].user._id }, { $push: { 'authorization.grants.1.capabilities': { $each: ['policies.read', 'attachments.read'] } } });
   [ownProject, otherProject] = await ProjectModel.create([['staff', 0], ['staffB', 1]].map(([actor, i]) => ({ title: i ? 'FORBIDDEN STORE B TASK' : 'Allowed own task', departmentId: fixture.departmentId, storeId: fixture.stores[i]._id, storeMappingRef: 'isolated-project-proof', createdBy: fixture.actors.sm.employee._id, assigneeId: fixture.actors[actor].employee._id, status: 'ASSIGNED', version: 1 })));
-  const acl = { reviewStatus: 'APPROVED', approvalRef: 'isolated-reviewed-acl', classification: 'operational', allowedProfiles: ['staff', 'sm'], validFrom: new Date(Date.now() - 60000).toISOString(), validUntil: null, revokedAt: null, scopeKind: 'stores', storeIds: [String(fixture.stores[0]._id)] };
+  const acl = { reviewStatus: 'APPROVED', approvalRef: 'isolated-reviewed-acl', tier: 'T2_OPERATIONAL', classification: 'operational', allowedProfiles: ['staff', 'sm'], validFrom: new Date(Date.now() - 60000).toISOString(), validUntil: null, revokedAt: null, scopeKind: 'stores', storeIds: [String(fixture.stores[0]._id)] };
   const docs = await mongoose.connection.collection('policies').insertMany([
     { title: 'Allowed handbook', content: 'allowed-handbook', version: 'fixture-1', acl, attachments: [{ category: 'pdf', filename: 'isolated.pdf' }] },
     { title: 'FORBIDDEN INTERNAL', content: 'NEVER_RETRIEVE_UNCLASSIFIED' },
@@ -77,6 +77,8 @@ test('gateway isolates same-department stores for tasks, directory and ACL retri
   assert.doesNotMatch(JSON.stringify(await tool('directory')), /staffB|fixture-contact|NEVER_SEND_BANK|hiredAt/);
   const policy = await tool('query_policy'); assert.match(JSON.stringify(policy), /allowed-handbook/); assert.doesNotMatch(JSON.stringify(policy), /NEVER_RETRIEVE/);
   assert.equal(documentAllowed(actor, { acl: { reviewStatus: 'APPROVED', validUntil: 'not-a-date' } }), false);
+  assert.equal(documentAllowed(actor, { acl: { reviewStatus: 'APPROVED', approvalRef: 'tier-test', tier: 'T3_HR_SENSITIVE', classification: 'operational', allowedProfiles: ['system_admin'], validFrom: new Date(Date.now() - 60000).toISOString(), validUntil: null, revokedAt: null, scopeKind: 'global', storeIds: [] } }), false);
+  assert.equal(documentAllowed(actor, { acl: { reviewStatus: 'APPROVED', approvalRef: 'tier-test', tier: 'T2_OPERATIONAL', classification: 'operational', allowedProfiles: ['staff'], validFrom: new Date(Date.now() - 60000).toISOString(), validUntil: null, revokedAt: null, scopeKind: 'global', storeIds: [] } }), true);
   await assert.rejects(tool('submit_report', { projectId: String(ownProject._id) }), (error) => error.status === 409);
 });
 test('attachment ACL is checked independently; no public caching or unclassified file access', async () => {

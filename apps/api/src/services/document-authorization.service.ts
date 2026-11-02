@@ -8,12 +8,47 @@ import { AuthorizationProfileSchema } from "@hr-blockbot/contracts";
 
 const AclSchema = z.object({
   reviewStatus: z.literal("APPROVED"), approvalRef: z.string().trim().min(1).max(200),
+  tier: z.enum(["T1_GENERAL", "T2_OPERATIONAL", "T3_HR_SENSITIVE", "T3_TECHNICAL"]),
   classification: z.enum(["operational", "technical"]), allowedProfiles: z.array(AuthorizationProfileSchema).min(1).max(9),
   validFrom: z.string().datetime({ offset: true }), validUntil: z.string().datetime({ offset: true }).nullable(),
   revokedAt: z.string().datetime({ offset: true }).nullable(), scopeKind: z.enum(["global", "stores"]),
   storeIds: z.array(z.string().regex(/^[a-f0-9]{24}$/)).max(500),
-}).strict().refine((acl) => acl.validUntil === null || Date.parse(acl.validFrom) < Date.parse(acl.validUntil))
-  .refine((acl) => acl.scopeKind === "global" ? acl.storeIds.length === 0 : acl.storeIds.length > 0);
+}).strict().superRefine((acl, context) => {
+  const profiles = new Set(acl.allowedProfiles);
+  if (acl.tier === "T1_GENERAL" && profiles.size !== AuthorizationProfileSchema.options.length) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["allowedProfiles"], message: "T1_GENERAL must allow all nine profiles" });
+  }
+  if (acl.tier === "T2_OPERATIONAL" && profiles.has("system_admin")) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["allowedProfiles"], message: "T2_OPERATIONAL cannot grant system_admin" });
+  }
+  if (acl.tier === "T3_HR_SENSITIVE" && (profiles.size !== 1 || !profiles.has("hr"))) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["allowedProfiles"], message: "T3_HR_SENSITIVE is restricted to hr" });
+  }
+  if (acl.tier === "T3_TECHNICAL" && (profiles.size !== 1 || !profiles.has("system_admin"))) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["allowedProfiles"], message: "T3_TECHNICAL is restricted to system_admin" });
+  }
+  if (acl.tier === "T1_GENERAL" && acl.classification !== "operational") {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["classification"], message: "T1_GENERAL must use operational classification" });
+  }
+  if (acl.tier === "T2_OPERATIONAL" && acl.classification !== "operational") {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["classification"], message: "T2_OPERATIONAL must use operational classification" });
+  }
+  if (acl.tier === "T3_HR_SENSITIVE" && acl.classification !== "operational") {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["classification"], message: "T3_HR_SENSITIVE must use operational classification" });
+  }
+  if (acl.tier === "T3_TECHNICAL" && acl.classification !== "technical") {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["classification"], message: "T3_TECHNICAL must use technical classification" });
+  }
+  if (acl.validUntil !== null && Date.parse(acl.validFrom) >= Date.parse(acl.validUntil)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["validUntil"], message: "validUntil must be after validFrom" });
+  }
+  if (acl.scopeKind === "global" && acl.storeIds.length !== 0) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["storeIds"], message: "global ACL cannot carry storeIds" });
+  }
+  if (acl.scopeKind === "stores" && acl.storeIds.length === 0) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["storeIds"], message: "store-scoped ACL requires storeIds" });
+  }
+});
 
 // An approved ACL envelope must be maintained outside model/prompt authority.
 export function documentAllowed(user: AuthenticatedUser, document: any, capability: "policies.read" | "attachments.read" = "policies.read"): boolean {

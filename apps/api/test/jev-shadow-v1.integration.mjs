@@ -46,7 +46,7 @@ try {
   await UserModel.updateOne({ _id: staff.user._id }, { $push: { 'authorization.grants.1.capabilities': 'policies.read' } });
   await ProjectModel.create([['staff', 0], ['staffB', 1]].map(([actor, index]) => ({ title: index ? 'NEVER_CROSS_STORE_B' : 'PRIVATE_ALLOWED_TASK', departmentId: fixture.departmentId, storeId: fixture.stores[index]._id,
     storeMappingRef: 'owned-shadow-mapping', createdBy: fixture.actors.sm.user._id, assigneeId: fixture.actors[actor].employee._id, status: 'ASSIGNED', version: 1 })));
-  const acl = { reviewStatus: 'APPROVED', approvalRef: 'owned-shadow-acl', classification: 'operational', allowedProfiles: ['staff'], validFrom: new Date(Date.now() - 60000).toISOString(), validUntil: null, revokedAt: null, scopeKind: 'stores', storeIds: [String(fixture.stores[0]._id)] };
+  const acl = { reviewStatus: 'APPROVED', approvalRef: 'owned-shadow-acl', tier: 'T2_OPERATIONAL', classification: 'operational', allowedProfiles: ['staff'], validFrom: new Date(Date.now() - 60000).toISOString(), validUntil: null, revokedAt: null, scopeKind: 'stores', storeIds: [String(fixture.stores[0]._id)] };
   const document = await mongoose.connection.collection('policies').insertOne({ title: 'Synthetic policy', content: 'PRIVATE_ALLOWED_DOCUMENT', version: 'owned-1', acl });
   await mongoose.connection.collection('policies').insertOne({ title: 'Synthetic policy', content: 'NEVER_UNCLASSIFIED_DOCUMENT' });
   await mongoose.connection.collection('evaluations').insertOne({ tag: 'shadow-no-writes', finalScore: 80 });
