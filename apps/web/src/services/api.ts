@@ -11,7 +11,7 @@ import type {
   UpdateAdminUser,
   Conversation,
   CreateProfileChangeRequest,
-  DashboardOverview,
+  DashboardOverview, DashboardRevenue,
   KpiEvaluation,
   KpiDashboard,
   NotificationItem,
@@ -639,6 +639,9 @@ export async function deleteStore(id: string): Promise<void> {
 
 export async function fetchDashboardOverview(): Promise<DashboardOverview> {
   return requestJson<DashboardOverview>('/dashboard/overview');
+}
+export async function fetchStoreRevenue(storeId: string): Promise<DashboardRevenue> {
+  return requestJson<DashboardRevenue>(`/dashboard/revenue?storeId=${encodeURIComponent(storeId)}`);
 }
 
 export type { StoreCreate, StoreKind, StoreListResponse, StoreStatus, StoreSummary, StoreUpdate };

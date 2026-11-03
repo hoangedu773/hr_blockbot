@@ -1157,6 +1157,12 @@ export const DashboardMetricSchema = z.object({
   asOf: z.string().nullable(),
 });
 export type DashboardMetric = z.infer<typeof DashboardMetricSchema>;
+export const DashboardRevenueSchema = DashboardMetricSchema.extend({
+  orderCount: z.number().int().nonnegative(),
+  dataKind: z.enum(['none', 'demo', 'live']),
+  period: z.object({ from: z.string().datetime(), to: z.string().datetime(), timezone: z.literal('Asia/Ho_Chi_Minh') }),
+});
+export type DashboardRevenue = z.infer<typeof DashboardRevenueSchema>;
 
 export const DashboardOverviewSchema = z.object({
   stores: z.object({ outlets: z.number(), groups: z.number(), support: z.number() }),
@@ -1164,7 +1170,7 @@ export const DashboardOverviewSchema = z.object({
   profileCompletionRate: DashboardMetricSchema,
   managersCovered: DashboardMetricSchema,
   employeesPerOutlet: DashboardMetricSchema,
-  revenue: DashboardMetricSchema,
+  revenue: DashboardRevenueSchema.or(DashboardMetricSchema),
   onTimeRate: DashboardMetricSchema,
   latestScheduleDate: z.string().nullable(),
   generatedAt: z.string(),

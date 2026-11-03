@@ -8,3 +8,4 @@ export * from "./Cash.js";
 export * from "./Project.js";
 export * from "./Report.js";
 export * from "./Settings.js";
+export * from "./PosOrder.js";

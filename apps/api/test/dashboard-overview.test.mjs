@@ -267,7 +267,7 @@ describe("Dashboard overview: số liệu derive từ DB, KPI thiếu nguồn tr
     assert.equal(typeof overview.revenue.reason, "string");
     assert.ok(overview.revenue.reason.length > 0);
     // n/m/k phải là số thật từ DB, không phải hằng số trong code.
-    assert.match(overview.revenue.reason, /ngoài phạm vi Authorization V1/);
+    assert.match(overview.revenue.reason, /Chưa có giao dịch POS/);
   });
 
   test("onTimeRate trả null vì nguồn không có dữ liệu chấm công", async () => {

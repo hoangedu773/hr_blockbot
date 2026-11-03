@@ -10,6 +10,7 @@ import { ProjectListView } from './ProjectListView';
 import { StoreDirectoryView } from './StoreDirectoryView';
 import { StoreLeadership } from './StoreLeadership';
 import { StoreSmAppointments } from './StoreSmAppointments';
+import { StoreRevenue } from './StoreRevenue';
 import { ThemeToggle } from './ThemeToggle';
 import { useAuthorization } from '../context/useAuthorization';
 import { OnboardingView } from './OnboardingView';
@@ -569,6 +570,7 @@ const StoreDetailDrawer: React.FC<StoreDetailDrawerProps> = ({ store, outlets, o
 
           {store && <StoreLeadership store={store} />}
           {store && open && <StoreSmAppointments key={store.id} storeId={store.id} />}
+          {store && open && <StoreRevenue key={`revenue-${store.id}`} storeId={store.id} />}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="p-3.5 rounded-xl border border-border bg-background/80 shadow-2xs">
@@ -597,7 +599,7 @@ const StoreDetailDrawer: React.FC<StoreDetailDrawerProps> = ({ store, outlets, o
               <span>Nguồn dữ liệu</span>
             </div>
             <p className="text-[11px] text-foreground/80 leading-relaxed">
-              Hồ sơ cửa hàng và số nhân sự lấy trực tiếp từ danh mục cửa hàng. Doanh thu két và chấm công theo ca chưa có nguồn dữ liệu xác thực nên không hiển thị.
+              Hồ sơ và nhân sự lấy từ danh mục cửa hàng. Doanh thu tính từ đơn hàng sau giảm giá và hoàn tiền; không tính đơn đã hủy. Chấm công theo ca chưa có dữ liệu xác minh.
             </p>
           </div>
         </div>
