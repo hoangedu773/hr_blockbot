@@ -1,7 +1,8 @@
 import './require-isolated-db.mjs';
 import { before,after,test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { pathToFileURL,fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -16,7 +17,8 @@ let f,legacy,e;
 before(async()=>{
  await connectDB();f=await performanceFixture();for(const alias of ['sm','staff'])await UserModel.updateOne({_id:f.actors[alias].user._id},{$addToSet:{'authorization.grants.0.capabilities':'kpi.read_self','authorization.grants.1.capabilities':{$each:['kpi.manage','kpi.publish','kpi.override']}}});
  e=(await openPerformancePeriod(await f.principal('hr'),'2026-11',cmd(f.policies.STAFF.version,{policyId:f.policies.STAFF.id,employeeIds:[String(f.actors.staff.employee._id)],reason:'Mở KPI mới để kiểm thử code Main cũ.'}))).evaluations[0];
- const source=execFileSync('git',['show','9488b8a100c65c072ed5ea4a6e2fed0d227cf297:apps/api/src/services/kpi.service.ts'],{encoding:'utf8',cwd:fileURLToPath(new URL('../../../',import.meta.url))});
+ const source=await readFile(new URL('./fixtures/kpi-v1-released-9488.fixture.txt',import.meta.url),'utf8');
+ assert.equal(createHash('sha256').update(source).digest('hex'),"bbb09aadc0d566b3b90111855d942f99ad9e7b9ec5d246e727c7883b79bde733");
  let js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
  js=js.replace(/from ["']([^"']+)["']/g,(_match,spec)=>{const file=spec.startsWith('.')?path.resolve(path.dirname(fileURLToPath(new URL('../dist/services/kpi.service.js',import.meta.url))),spec):require.resolve(spec);return 'from '+JSON.stringify(pathToFileURL(file).href);});
  legacy=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
