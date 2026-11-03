@@ -1,3 +1,4 @@
+import { getPerformanceEvaluation } from './performance-kpi-evaluation.service.js';
 import mongoose from 'mongoose';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
@@ -110,12 +111,15 @@ async function evidenceAllowed(user: AuthenticatedUser, evidence: any) {
     for (const r of evidence.documents) { const d = await mongoose.connection.collection('policies').findOne({ _id: objectId(r.documentId) }); if (!d || !documentAllowed(user, d) || documentReceipt(d).digest !== r.digest) return false; }
     for (const r of evidence.projects) { const p = await visibleProject(user, r.projectId); if ((p.version ?? 1) !== r.version) return false; }
     for (const r of evidence.schedules) { const d = await personalSchedule(user, r.from, r.to); if (digest(d.assignments.map(({ weekVersion, ...a }) => a)) !== r.digest) return false; }
+    for (const r of evidence.performanceEvaluations ?? []) { const e = await getPerformanceEvaluation(user,r.id); if(e.version!==r.version)return false; }
     return true;
   } catch (e: any) { if ([401, 403, 404, 409].includes(e?.status)) return false; throw e; }
 }
 async function turnDto(user: AuthenticatedUser, row: any) {
   const visible = row.status === 'COMPLETED' && await evidenceAllowed(user, row.evidence);
-  return { id: row.clientMessageId, userMessage: row.userMessage, createdAt: row.createdAt.toISOString(), status: row.status,
+  let performanceKpi;
+  if(visible&&row.evidence?.performanceEvaluations?.length){const e=await getPerformanceEvaluation(user,row.evidence.performanceEvaluations[0].id);performanceKpi={evaluationId:e.id,period:e.period,status:e.evaluationStatus,score:e.finalScore,canReconsider:e.employeeId===user.employeeId&&e.evaluationStatus==='PROVISIONAL'&&!e.reconsideration,canAppeal:e.employeeId===user.employeeId&&!!e.reconsideration&&e.evaluationStatus!=='FINAL'&&e.evaluationStatus!=='CORRECTED'};}
+  return { ...(performanceKpi?{performanceKpi}:{}), id: row.clientMessageId, userMessage: row.userMessage, createdAt: row.createdAt.toISOString(), status: row.status,
     reply: visible ? row.reply : null, citations: visible ? row.citations : [],
     replyHidden: row.status === 'COMPLETED' && !visible, attachments: [], proposedAction: null };
 }

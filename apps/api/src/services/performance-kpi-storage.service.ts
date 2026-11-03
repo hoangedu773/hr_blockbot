@@ -18,13 +18,11 @@ export async function ensurePerformanceKpiStorage(){
   for(const name of ['performance_kpi_grants','performance_kpi_events']){try{await db.createCollection(name);}catch(e:any){if(e.code!==48)throw e;}}
   await db.collection('performance_kpi_grants').createIndex({userId:1,sourceGrantId:1},{unique:true});
   await db.collection('evaluations').createIndex({period:1,frameworkVersion:1,evaluationStatus:1});
-  // A shared old Main binary must not mutate a v2 record through a v1 endpoint.
-  // Existing v1 rows bypass this validator. Never replace an unrelated validator.
+  // Atlas shared tiers may reject collMod. Keep an unrelated validator untouched.
+  // v2 uses legacy ANALYZED + machineScore=null: every released v1 writer rejects
+  // that combination before changing data. Exercise the actual pinned v1 code.
   const info:any=await db.listCollections({name:'evaluations'}).next();
-  const validator={$or:[{frameworkVersion:{$exists:false}},{frameworkVersion:null},{frameworkVersion:1},{$and:[{frameworkVersion:{$gte:2}},{$expr:{$and:[{$eq:['$version','$performanceSnapshot.version']},{$eq:['$finalScore','$performanceSnapshot.finalScore']},{$eq:['$employeeId',{$toObjectId:'$performanceSnapshot.employeeId'}]},{$eq:['$period','$performanceSnapshot.period']},{$eq:['$status','OPEN']},{$eq:['$managerReview',null]},{$eq:['$selfReview',null]},{$eq:[{$size:{$ifNull:['$history',[]]}},0]}]}}]}]};
-  const existing=info?.options?.validator;
-  if(existing&&Object.keys(existing).length&&JSON.stringify(existing)!==JSON.stringify(validator))throw Error('Unreviewed evaluations validator');
-  await db.command({collMod:'evaluations',validator,validationLevel:'strict',validationAction:'error'});
- })().catch(()=>{ready.delete(db);throw new WorkflowError(503,'PERFORMANCE_KPI_STORAGE_UNAVAILABLE','Chưa thể khởi tạo lưu trữ KPI hiệu suất.');}));
+  if(info?.options?.validator&&Object.keys(info.options.validator).length)throw Error('Unreviewed evaluations validator');
+ })().catch((e:any)=>{ready.delete(db);throw Object.assign(new WorkflowError(503,'PERFORMANCE_KPI_STORAGE_UNAVAILABLE','Chưa thể khởi tạo lưu trữ KPI hiệu suất.'),{storageCauseCode:e.code??e.codeName??'UNKNOWN'});}));
  await ready.get(db);
 }

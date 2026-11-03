@@ -184,6 +184,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
     lifecycle: can('employees.lifecycle_request') || can('employees.lifecycle_review') || can('employees.transfer_confirm'), initialReporting: can('onboarding.reporting_propose') || can('onboarding.reporting_review') };
   const authorizationKey = JSON.stringify(allowedViews);
   const [activeView, setActiveView] = useState<ActiveCrmView>('stores');
+  useEffect(()=>{if(allowedViews.performanceKpi&&sessionStorage.getItem('performance-kpi-navigation'))setActiveView('performanceKpi');},[performanceEnabled,authorizationKey]);
   const [themePortalEl, setThemePortalEl] = useState<HTMLElement | null>(null);
   useEffect(() => { if (!allowedViews[activeView]) setActiveView((Object.keys(allowedViews) as ActiveCrmView[]).find((view) => allowedViews[view]) ?? 'profile'); }, [authorizationKey, activeView]);
   const [storesPortalEl, setStoresPortalEl] = useState<HTMLElement | null>(null);

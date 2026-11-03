@@ -822,7 +822,9 @@ export type ChatRequest = z.infer<typeof ChatRequestSchema>;
 
 export const ChatConversationSummarySchema = z.object({ id: z.string().uuid(), title: z.string().max(100), updatedAt: z.string().datetime() });
 export const ChatConversationListSchema = z.object({ items: z.array(ChatConversationSummarySchema).max(30), nextCursor: z.string().max(300).nullable() });
+export const PerformanceChatCardSchema = z.object({evaluationId:z.string().regex(/^[a-f0-9]{24}$/),period:z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/),status:z.string(),score:z.number().min(0).max(100).nullable(),canReconsider:z.boolean(),canAppeal:z.boolean()}).strict();
 export const ChatHistoryTurnSchema = z.object({
+  performanceKpi: PerformanceChatCardSchema.optional(),
   id: z.string().uuid(), userMessage: z.string().max(2000), createdAt: z.string().datetime(),
   status: z.enum(['QUEUED', 'PENDING', 'COMPLETED', 'FAILED', 'INTERRUPTED']),
   reply: z.string().max(64000).nullable(), replyHidden: z.boolean(),

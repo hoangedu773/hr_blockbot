@@ -137,7 +137,7 @@ export async function executeGatewayTool(token: string, body: unknown) {
   return { result, proposalOnly: true };
 }
 export async function authorizedChat(user: AuthenticatedUser, message: string, conversationId?: string,
-  onValidated?: (response: any, evidence: { documents: any[]; projects: any[]; schedules: any[] }) => Promise<void>) {
+  onValidated?: (response: any, evidence: { documents: any[]; projects: any[]; schedules: any[]; performanceEvaluations: any[] }) => Promise<void>) {
   const authorization = await beginAuthorizedChat(user);
   try {
     const result = await chatWithAiService(message, {}, conversationId, authorization);
@@ -166,7 +166,7 @@ export async function authorizedChat(user: AuthenticatedUser, message: string, c
     }
     // Provider output cannot invent citations, attachment access, or executable actions.
     const response = { ...result, citations, attachments: [], proposedAction: null };
-    if (onValidated) await onValidated(response, { documents: row.documents, projects: row.projects, schedules: row.schedules ?? [] });
+    if (onValidated) await onValidated(response, { documents: row.documents, projects: row.projects, schedules: row.schedules ?? [], performanceEvaluations: row.performanceEvaluations ?? [] });
     return response;
   } finally { await receipts().updateOne({ _id: authorization.requestId }, { $set: { status: "CLOSED" } }); }
 }

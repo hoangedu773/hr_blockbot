@@ -83,6 +83,7 @@ interface Message {
   id: number | string;
   sender: 'user' | 'assistant';
   text: string;
+  performanceKpi?: ChatHistoryTurn['performanceKpi'];
   citations?: Citation[];
   attachments?: Attachment[];
   proposedAction?: ProposedAction | null;
@@ -269,7 +270,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
       rows.push({ id: turn.id + ':assistant', sender: 'assistant', text: turn.replyHidden
         ? 'Phản hồi cũ được ẩn vì quyền truy cập hoặc dữ liệu nguồn đã thay đổi. Bạn có thể hỏi lại với quyền hiện tại.'
         : turn.status === 'COMPLETED' ? turn.reply || 'Chưa tải được phản hồi đã lưu.'
-        : 'Lượt trả lời bị gián đoạn hoặc chưa thành công. Câu hỏi đã được lưu; bạn có thể gửi lại.', citations: turn.citations });
+        : 'Lượt trả lời bị gián đoạn hoặc chưa thành công. Câu hỏi đã được lưu; bạn có thể gửi lại.', citations: turn.citations, performanceKpi: turn.replyHidden ? undefined : turn.performanceKpi });
     }
     setMessages(rows);
   };
@@ -506,6 +507,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
                   <article className="guta-chat-message" data-sender={message.sender} key={message.id}>
                     <strong>{message.sender === 'user' ? 'Bạn' : 'Guta AI'}</strong>
                     <p>{message.text}</p>
+                    {message.performanceKpi&&<section className="guta-chat-card" aria-label="Giải thích KPI hiệu suất"><strong>{['FINAL','CORRECTED'].includes(message.performanceKpi.status)?'Điểm chính thức':'Điểm tạm tính'} · {message.performanceKpi.period}</strong><p>{message.performanceKpi.score==null?'Chưa đủ dữ liệu':new Intl.NumberFormat('vi-VN',{maximumFractionDigits:2}).format(message.performanceKpi.score)+' / 100'}</p><div style={{display:'flex',flexWrap:'wrap',gap:8}}>{[['detail','Xem chi tiết'],...(message.performanceKpi.canReconsider?[['reconsideration','Kiến nghị']]:[]),...(message.performanceKpi.canAppeal?[['appeal','Khiếu nại']]:[])].map(([kind,label])=><button type="button" className="btn" key={kind} onClick={()=>{sessionStorage.setItem('performance-kpi-navigation',JSON.stringify({id:message.performanceKpi!.evaluationId,period:message.performanceKpi!.period,kind}));onSwitchTab('crm');}}>{label}</button>)}</div><small>Mở đúng hồ sơ để xem hoặc điền yêu cầu; bạn xác nhận trước khi gửi.</small></section>}
                     {!!message.citations?.length && <details className="guta-chat-card guta-chat-citation-details" aria-label="Trích dẫn">
                       <summary>
                         <strong>Căn cứ quy định (Citations)</strong>
