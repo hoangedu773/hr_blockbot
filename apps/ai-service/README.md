@@ -40,6 +40,13 @@ user identities, grants, policy context, provider credentials and delegation
 tokens are excluded. Source is accurately labelled `jev_usejevai`.
 This adapter does not import the legacy agent/tools/Mongo runtime.
 
+When multiple APIs use this AI service with independent JWT secrets, each API
+sets its own `AUTHORIZATION_SELF_ORIGIN`. AI accepts that callback only if it
+exactly matches `AUTHORIZATION_API_ORIGIN` or the comma-separated server setting
+`AUTHORIZATION_API_ORIGINS`. No browser-selected URL is forwarded. Readiness
+still checks the primary origin; every chat request validates its own current
+user and receipt at the issuing API.
+
 The V1 gateway includes an explicit, fail-closed Jev System One adapter. It runs
 only after the API's `validate_context` preflight succeeds and receives only the
 user's message; it never receives Mongo credentials, delegation tokens, user

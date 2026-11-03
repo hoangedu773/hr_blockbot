@@ -285,6 +285,8 @@ export async function chatWithAiService(
           conversationId,
           requestId: authorization.requestId,
           delegationToken: authorization.delegationToken,
+          // Server-owned callback origin; never selected by browser/context input.
+          authorizationOrigin: process.env.AUTHORIZATION_SELF_ORIGIN?.replace(/\/+$/, ""),
           providerConfig: {
             configVersion: activeProviders[0]?.model ? `1-${activeProviders[0].model}` : 1,
             providers: activeProviders,

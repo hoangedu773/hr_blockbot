@@ -41,6 +41,7 @@ class AuthorizedChatRequest(BaseModel):
     delegationToken: str = Field(min_length=32, max_length=4096)
     providerConfig: dict | None = None
     deadlineAtMs: StrictInt | None = None
+    authorizationOrigin: str | None = Field(default=None, max_length=500)
 
 
 def _service_key(provided: str | None) -> str:
@@ -52,8 +53,12 @@ def _service_key(provided: str | None) -> str:
     return expected
 
 
-def _gateway_url() -> str:
-    origin = (os.getenv("AUTHORIZATION_API_ORIGIN") or "").rstrip("/")
+def _gateway_url(requested_origin: str | None = None) -> str:
+    default_origin = (os.getenv("AUTHORIZATION_API_ORIGIN") or "").rstrip("/")
+    allowed = {default_origin} | {value.strip().rstrip("/") for value in (os.getenv("AUTHORIZATION_API_ORIGINS") or "").split(",") if value.strip()}
+    origin = requested_origin.rstrip("/") if requested_origin else default_origin
+    if origin not in allowed:
+        raise HTTPException(503, "Scoped gateway origin is not allowlisted")
     parsed = urlsplit(origin)
     if parsed.scheme not in ("http", "https") or not parsed.netloc or parsed.path or parsed.query or parsed.fragment or parsed.username:
         raise HTTPException(503, "Scoped gateway origin is not configured")
@@ -115,7 +120,7 @@ async def authorized_chat(request: AuthorizedChatRequest, x_ai_service_key: str 
 
 async def _authorized_chat(request: AuthorizedChatRequest, x_ai_service_key: str | None) -> dict:
     key = _service_key(x_ai_service_key)
-    url = _gateway_url()
+    url = _gateway_url(request.authorizationOrigin)
     try:
         raw_mode = (os.getenv("JEV_V1_MODE") or "OFF").strip().upper()
         mode = "LIVE" if live_mode_enabled() else shadow_mode()

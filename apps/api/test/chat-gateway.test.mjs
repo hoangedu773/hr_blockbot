@@ -32,6 +32,15 @@ test('optional shadow metadata is validated separately and cannot break a valid 
     assert.equal(response.reply, answer.reply); assert.equal(response.decisionAnalysis, undefined);
   }
 });
+test('callback origin comes only from server configuration, never caller context', async (t) => {
+  mockSettings(t);
+  process.env.AUTHORIZATION_SELF_ORIGIN='https://trusted-api.invalid/';
+  let body;
+  t.mock.method(globalThis,'fetch',async (_url,init)=>{body=JSON.parse(init.body);return Response.json(answer);});
+  await chatWithAiService('synthetic',{...context,authorizationOrigin:'https://attacker.invalid'});
+  assert.equal(body.authorizationOrigin,'https://trusted-api.invalid');
+  assert.equal(body.userContext,undefined);
+});
 
 // Only the external DB/provider boundaries are stubbed; no database connection or mutation.
 function mockSettings(t) {

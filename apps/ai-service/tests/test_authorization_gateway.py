@@ -24,7 +24,7 @@ def boundary(monkeypatch):
     statuses = {}
 
     async def handler(request):
-        assert str(request.url) == "http://isolated-gateway.invalid/api/internal/authorization/tools"
+        assert str(request.url) == statuses.get("__expected_origin", "http://isolated-gateway.invalid") + "/api/internal/authorization/tools"
         assert request.headers["x-ai-service-key"] == "isolated-v1-service-key"
         assert request.headers["authorization"] == "Bearer " + "x" * 64
         body = json.loads(request.content)
@@ -153,6 +153,19 @@ def test_missing_or_untrusted_origin_denies_before_gateway_or_provider(boundary,
         monkeypatch.setenv("AUTHORIZATION_API_ORIGIN", origin)
         assert send(client).status_code == 503
     assert not calls and not prompts
+
+
+def test_callback_origin_requires_exact_server_allowlist_and_cannot_select_arbitrary_host(boundary, monkeypatch):
+    client, calls, prompts, statuses = boundary
+    for origin in ("https://attacker.invalid", "http://isolated-gateway.invalid.evil", "http://isolated-gateway.invalid/arbitrary"):
+        assert send(client, payload(authorizationOrigin=origin)).status_code == 503
+    assert not calls and not prompts
+    monkeypatch.setenv("AUTHORIZATION_API_ORIGINS", "http://second-isolated-gateway.invalid")
+    statuses["__expected_origin"] = "http://second-isolated-gateway.invalid"
+    response = send(client, payload(authorizationOrigin="http://second-isolated-gateway.invalid"))
+    assert response.status_code == 200
+    assert response.json()["reply"] == "Allowed answer"
+    assert len(calls) == 4
 
 
 @pytest.mark.parametrize("condition", ["ready", "bad-key", "db-down", "redirect", "wrong-body", "offline"])
