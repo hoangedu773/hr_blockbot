@@ -6,7 +6,7 @@ import { getIO } from "../socket.js";
 export interface NotifyInput {
   userId: string;
   employeeId?: string | null;
-  type: "deadline_3d" | "deadline_1d" | "deadline_overdue" | "report_submitted" | "report_approved" | "report_rejected" | "kpi_published" | "kpi_review_digest" | "system";
+  type: import('@hr-blockbot/contracts').NotificationType;
   title: string;
   body: string;
   dedupeKey: string;

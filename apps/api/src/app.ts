@@ -17,6 +17,7 @@ import attachmentsRouter from "./routes/attachments.js";
 import storesRouter from "./routes/stores.js";
 import dashboardRouter from "./routes/dashboard.js";
 import kpiRouter from "./routes/kpi.js";
+import revenueKpiRouter from './routes/revenue-kpi.js';
 import notificationsRouter from "./routes/notifications.js";
 import assignmentRouter from "./routes/assignment.js";
 import personnelAdminRouter from "./routes/personnel-admin.js";
@@ -89,6 +90,7 @@ export function createApp(options: { onboarding?: OnboardingOptions; recovery?: 
   app.use("/api", healthRouter);
   app.use("/api", smAppointmentsRouter);
   app.use("/api", schedulingRouter);
+  app.use('/api', revenueKpiRouter);
   app.use("/api", authRouter);
   app.use("/api", legacyImportRouter);
   app.use("/api", onboardingRouter);

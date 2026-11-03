@@ -22,10 +22,23 @@ from app.deadline import remaining_seconds, use_deadline
 from app.jev_shadow import analyze, eligible, shadow_mode, unavailable
 from app.jev_live import analyze_live, live_mode_enabled
 from app.kpi_analysis import ReviewItem, analyze as analyze_reviews
+from app.kpi_analysis import ProposeTargetRequest, propose_target
 from app.llm.base import ChatMessage, CompletionOptions, LLMUnavailable
 from app.llm.chain import provider_cache
 
 app = FastAPI(title="HR BlockBot authorized transport", docs_url=None, redoc_url=None)
+
+
+@app.post("/api/v1/kpi/propose-target")
+async def kpi_propose_target(request: ProposeTargetRequest, x_ai_service_key: str | None = Header(default=None)) -> dict:
+    _service_key(x_ai_service_key)
+    try:
+        with anyio.fail_after(20):
+            return await anyio.to_thread.run_sync(lambda: propose_target(request, request.providerConfig), abandon_on_cancel=True)
+    except ValueError:
+        raise HTTPException(422, "Invalid target range") from None
+    except TimeoutError:
+        raise HTTPException(503, "Target proposal deadline exceeded") from None
 
 
 class KpiAnalyzeRequest(BaseModel):

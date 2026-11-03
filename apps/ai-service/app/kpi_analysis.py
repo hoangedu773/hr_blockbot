@@ -122,3 +122,54 @@ def analyze(reviews: list[ReviewItem], provider_config: dict[str, Any] | None) -
     except (LLMUnavailable, ValidationError, ValueError, KeyError, TypeError, json.JSONDecodeError):
         analysis = lexicon_analysis(reviews)
         return {**analysis.model_dump(), "model": "lexicon-vi-v1", "degraded": True, "analyzedAt": analyzed_at}
+
+
+class RevenueMonth(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    period: str = Field(pattern=r"^20\d{2}-(0[1-9]|1[0-2])$")
+    revenueVnd: int = Field(gt=0, le=9007199254740991)
+    orderCount: int = Field(gt=0, le=9007199254740991)
+
+
+class ProposeTargetRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    unitType: Literal["STORE"]
+    months: list[RevenueMonth] = Field(min_length=3, max_length=3)
+    baselinePercent: float = Field(ge=-20, le=30, allow_inf_nan=False)
+    allowedMinPercent: float = Field(ge=-20, le=30, allow_inf_nan=False)
+    allowedMaxPercent: float = Field(ge=-20, le=30, allow_inf_nan=False)
+    providerConfig: dict[str, Any] | None = None
+
+
+class ProposeTargetResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    suggestedGrowthPercent: float = Field(ge=-20, le=30, allow_inf_nan=False)
+    rationale: str = Field(min_length=1, max_length=2000)
+    confidence: Literal["low", "medium", "high"]
+
+
+def propose_target(request: ProposeTargetRequest, provider_config: dict[str, Any] | None) -> dict[str, Any]:
+    lo, hi = request.allowedMinPercent, request.allowedMaxPercent
+    if lo > hi or not lo <= request.baselinePercent <= hi:
+        raise ValueError("Invalid proposal range")
+    # No identifiers, personal data or provider secrets enter the model prompt.
+    payload = request.model_dump(exclude={"providerConfig"})
+    fallback = {"suggestedGrowthPercent": request.baselinePercent,
+                "rationale": "Xu hướng ba tháng là đề xuất dự phòng; HR cần xem xét mục tiêu.",
+                "confidence": "low", "model": "deterministic-trend-v1", "degraded": True}
+    try:
+        chain = provider_cache.get(provider_config) if provider_config else None
+        if not chain:
+            return fallback
+        result = chain.complete([
+            ChatMessage("system", "Bạn đề xuất phần trăm tăng trưởng doanh thu cửa hàng từ ba tháng aggregate. "
+                        "Chỉ trả JSON: suggestedGrowthPercent, rationale tiếng Việt, confidence low|medium|high. "
+                        "Giữ phần trăm trong allowedMinPercent..allowedMaxPercent. Không đặt mục tiêu cuối, "
+                        "không quyết đạt hay không đạt; HR quyết định."),
+            ChatMessage("user", json.dumps(payload, ensure_ascii=False))],
+            CompletionOptions(temperature=0.0, max_tokens=600))
+        answer = ProposeTargetResponse.model_validate(_parse_json(result.text)).model_dump()
+        answer["suggestedGrowthPercent"] = round(max(lo, min(hi, answer["suggestedGrowthPercent"])), 2)
+        return {**answer, "model": (result.model or "configured-llm")[:120], "degraded": False}
+    except (LLMUnavailable, ValidationError, ValueError, KeyError, TypeError):
+        return fallback

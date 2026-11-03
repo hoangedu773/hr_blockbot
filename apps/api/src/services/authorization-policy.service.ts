@@ -21,6 +21,11 @@ const schedulingOperational = (profiles: AuthorizationProfile[] = managers) => r
 
 // Eligibility is not authority. Pending policy cannot be enabled by a grant/body/title.
 export const AUTHORIZATION_POLICY: Readonly<Record<AuthorizationCapability, Rule>> = Object.freeze({
+  "revenue_kpi.read_self": rule(['hr', 'am', 'sm'], 'self', 'APPROVED', 'Owner revenue KPI plan 2026-11-04; own assignment only'),
+  "revenue_kpi.respond": rule(['am', 'sm'], 'self', 'APPROVED', 'Owner revenue KPI plan; assigned participant only'),
+  "revenue_kpi.request_adjustment": rule(['am', 'sm'], 'self', 'APPROVED', 'Owner revenue KPI plan; assigned participant only'),
+  "revenue_kpi.read_scope": operational(['hr', 'am']), "revenue_kpi.assign": operational(['hr']),
+  "revenue_kpi.approve": operational(['hr']), "revenue_kpi.verify_adjustment": operational(['am']), "revenue_kpi.close": operational(['hr']),
   "authorization.inspect_self": self(), "accounts.manage": technical(), "grants.manage": denied(),
   "grants.configure": technical(), "grants.revoke": technical(),
   "provider_settings.manage": technical(), "security_audit.read": technical(),

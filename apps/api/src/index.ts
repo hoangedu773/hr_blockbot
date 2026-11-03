@@ -7,6 +7,7 @@ import { app } from "./app.js";
 import { connectDB } from "./db.js";
 import { initSocket } from "./socket.js";
 import { startReminderScheduler } from "./services/scheduler.service.js";
+import { startRevenueKpiReminderScheduler } from './services/revenue-kpi-notification.service.js';
 
 const httpServer = createServer(app);
 
@@ -18,7 +19,8 @@ const PORT = process.env.PORT || 3001;
 async function bootstrap() {
   try {
     await connectDB();
-    startReminderScheduler();
+startReminderScheduler();
+startRevenueKpiReminderScheduler();
     httpServer.listen(PORT, () => {
       console.log(`[HR BlockBot API] Server running at http://localhost:${PORT}`);
       console.log(`[HR BlockBot API] Health check: http://localhost:${PORT}/api/health`);

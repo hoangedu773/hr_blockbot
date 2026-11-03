@@ -14,7 +14,7 @@ export const RevenueKpiAdjustmentStatusSchema = z.enum(['PENDING', 'VERIFIED', '
 export const RevenueKpiPolicySchema = z.object({ defaultGrowthPercent: percent.min(-50).max(100).default(3), growthBase: z.literal('PREVIOUS_MONTH').default('PREVIOUS_MONTH'),
   underperformingRateThresholdPercent: percent.min(0).max(100).default(30), acceptanceWindowWorkingDays: z.number().int().min(1).max(30).default(3),
   allowDemoData: z.boolean().default(false), aiProposalEnabled: z.boolean().default(true) }).strict();
-export const RevenueKpiHistorySchema = z.object({ at: time, by: id, action: z.string().min(1), fromStatus: z.string().nullable(), toStatus: z.string().nullable(),
+export const RevenueKpiHistorySchema = z.object({ at: time, by: id, actorKind: z.enum(['USER', 'SYSTEM']).default('USER'), action: z.string().min(1), fromStatus: z.string().nullable(), toStatus: z.string().nullable(),
   fromTargetVnd: money.nullable(), toTargetVnd: money.nullable(), reason: z.string().nullable(), requestId: z.string().uuid(), payloadHash: z.string().length(64) }).strict();
 const history = z.array(RevenueKpiHistorySchema).max(2000);
 export const RevenueKpiStoreSnapshotSchema = z.object({ storeId: id, storeName: z.string().min(1), baseRevenueVnd: money.nullable(), growthPercent: percent.min(-50).max(100).nullable(), targetVnd: target }).strict();
@@ -42,6 +42,7 @@ export const RevenueKpiAssignmentSchema = z.object({ id, period: RevenueKpiMonth
 export const RevenueKpiStoreResultSchema = z.object({ storeId: id, storeName: z.string(), targetVnd: money, actualRevenueVnd: money.nullable(), achievementPercent: percent.nonnegative().nullable(), achieved: z.boolean().nullable(),
   orderCount: money, invalidOrderCount: money, dataKind: z.enum(['none', 'demo', 'live']) }).strict();
 export const RevenueKpiResultSchema = z.object({ id, assignmentId: id, period: RevenueKpiMonthSchema, unitType: RevenueKpiUnitTypeSchema, storeId: id.nullable(), areaKey: z.string().nullable(), assigneeEmployeeId: id,
+  assignmentVersion: z.number().int().positive(),
   status: RevenueKpiResultStatusSchema, targetVnd: target, actualRevenueVnd: money.nullable(), achievementPercent: percent.nonnegative().nullable(), achieved: z.boolean().nullable(),
   underperformingStoreCount: money.nullable(), underperformingStoreRatePercent: percent.min(0).max(100).nullable(), stores: z.array(RevenueKpiStoreResultSchema).max(500),
   dataKind: RevenueKpiDataKindSchema, orderCount: money, invalidOrderCount: money, pendingReasons: z.array(z.string()).max(1000),
@@ -65,6 +66,7 @@ export const RevenueKpiReviewReasonSchema = RevenueKpiCommandSchema.extend({ dec
 export const RevenueKpiConfirmSchema = RevenueKpiCommandSchema.extend({ waiveReason: reason.optional() }).strict();
 export const RevenueKpiCorrectSchema = RevenueKpiRefuseSchema; // recompute actual ledger; no client-invented actual/target.
 export const RevenueKpiAiProposalRequestSchema = RevenueKpiCommandSchema;
+export const RevenueKpiResponsibilityChangeSchema = RevenueKpiRefuseSchema.extend({ assigneeEmployeeId: id, from: time }).strict();
 export const RevenueKpiDashboardSchema = z.object({ period: RevenueKpiPeriodSchema, assignments: z.array(RevenueKpiAssignmentSchema), results: z.array(RevenueKpiResultSchema),
   candidates: z.array(z.object({ employeeId: id, name: z.string(), role: z.enum(['SM', 'AM']), storeIds: z.array(id) }).strict()),
   stores: z.array(z.object({ id, name: z.string(), smStatus: z.enum(['IDENTIFIED', 'AMBIGUOUS', 'MISSING']), smEmployeeIds: z.array(id) }).strict()),

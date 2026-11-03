@@ -1046,6 +1046,7 @@ export type ChatErrorPayload = z.infer<typeof ChatErrorPayloadSchema>;
 export const NotificationNewPayloadSchema = z.object({
   notificationId: z.string().min(1),
   type: z.enum([
+    'revenue_kpi_assigned', 'revenue_kpi_accepted', 'revenue_kpi_refused', 'revenue_kpi_adjusted', 'revenue_kpi_result_ready', 'revenue_kpi_reason_required', 'revenue_kpi_closed',
     "deadline_3d",
     "deadline_1d",
     "deadline_overdue",

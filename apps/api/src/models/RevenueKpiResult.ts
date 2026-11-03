@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { revenueSchema } from './RevenueKpiPeriod.js';
-const schema = revenueSchema(['assignmentId', 'period', 'unitType', 'storeId', 'areaKey', 'assigneeEmployeeId', 'status', 'targetVnd', 'actualRevenueVnd', 'achievementPercent', 'achieved',
+const schema = revenueSchema(['assignmentId', 'assignmentVersion', 'period', 'unitType', 'storeId', 'areaKey', 'assigneeEmployeeId', 'status', 'targetVnd', 'actualRevenueVnd', 'achievementPercent', 'achieved',
   'underperformingStoreCount', 'underperformingStoreRatePercent', 'stores', 'dataKind', 'orderCount', 'invalidOrderCount', 'pendingReasons', 'missReason', 'computedBy', 'computedAt', 'confirmedBy', 'confirmedAt',
   'version', 'supersedesResultId', 'history', 'createdAt', 'updatedAt'], 'revenue_kpi_results');
 schema.index({ assignmentId: 1, version: 1 }, { unique: true });
