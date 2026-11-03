@@ -10,6 +10,7 @@ import { EmployeeModel } from "../dist/models/Employee.js";
 import { StoreModel } from "../dist/models/Store.js";
 import { ScheduleEntryModel } from "../dist/models/ScheduleEntry.js";
 import { CashCountModel } from "../dist/models/Cash.js";
+import { PosOrderModel } from "../dist/models/PosOrder.js";
 import { signAccessToken } from "../dist/services/auth.service.js";
 import { DashboardOverviewSchema } from "@hr-blockbot/contracts";
 import { testGrant, SELF_CAPS } from './helpers/authorization-v1-fixture.mjs';
@@ -78,6 +79,7 @@ describe("Dashboard overview: số liệu derive từ DB, KPI thiếu nguồn tr
       StoreModel.deleteMany({ store_name: /Dashboard/ }),
       ScheduleEntryModel.deleteMany({ employee_code: /^TEST-DASH-/ }),
       CashCountModel.deleteMany({ store_name: /TEST Dashboard/ }),
+      PosOrderModel.deleteMany({ orderId: /^TEST-DASH-ORDER-/ }),
     ]);
 
     // Cửa hàng: 3 outlet + 1 group + 1 support (legacy, không `kind`) + 1 outlet đã xoá.
@@ -178,6 +180,11 @@ describe("Dashboard overview: số liệu derive từ DB, KPI thiếu nguồn tr
       await StoreModel.updateOne({ _id: store._id }, { $set: { kind: 'outlet', status: 'ACTIVE', scopeApprovalRef: 'isolated-dashboard-mapping' } });
       await EmployeeModel.updateMany({ store_raw: store.store_name }, { $set: { storeId: store._id, storeMappingRef: 'isolated-dashboard-personnel' } });
     }
+    await PosOrderModel.insertMany([
+      { orderId: 'TEST-DASH-ORDER-1', storeId: canonicalStores[0]._id, orderedAt: new Date(), channel: 'IN_STORE', paymentMethod: 'CASH', status: 'COMPLETED', subtotalVnd: 125000, discountVnd: 5000, refundVnd: 0, netRevenueVnd: 120000, items: [], source: 'demo' },
+      { orderId: 'TEST-DASH-ORDER-2', storeId: canonicalStores[1]._id, orderedAt: new Date(), channel: 'APP', paymentMethod: 'MOMO', status: 'COMPLETED', subtotalVnd: 85000, discountVnd: 0, refundVnd: 0, netRevenueVnd: 85000, items: [], source: 'demo' },
+      { orderId: 'TEST-DASH-ORDER-3', storeId: canonicalStores[2]._id, orderedAt: new Date(), channel: 'IN_STORE', paymentMethod: 'CASH', status: 'CANCELLED', subtotalVnd: 90000, discountVnd: 0, refundVnd: 0, netRevenueVnd: 0, items: [], source: 'demo' },
+    ]);
     const linked = await EmployeeModel.findOne({ employeeCode: 'TEST-DASH-E1' });
     const user = await UserModel.create({
       username: "test-dash-employee",
@@ -205,6 +212,7 @@ describe("Dashboard overview: số liệu derive từ DB, KPI thiếu nguồn tr
         await StoreModel.deleteMany({ store_name: /Dashboard/ });
         await ScheduleEntryModel.deleteMany({ employee_code: /^TEST-DASH-/ });
         await CashCountModel.deleteMany({ store_name: /TEST Dashboard/ });
+        await PosOrderModel.deleteMany({ orderId: /^TEST-DASH-ORDER-/ });
         await disconnectDB();
       })(),
       new Promise((resolve) => setTimeout(resolve, 3000)),
@@ -256,18 +264,37 @@ describe("Dashboard overview: số liệu derive từ DB, KPI thiếu nguồn tr
     assert.equal(overview.employeesPerOutlet.source, "canonical employees/storeId");
   });
 
-  test("revenue trả null kèm reason đọc được, không bịa số", async () => {
+  test("revenue aggregate chỉ tính order hoàn tất trong phạm vi được cấp", async () => {
     const res = await httpFetch(`${baseUrl}/api/dashboard/overview`, {
       headers: { Authorization: `Bearer ${employeeToken}` },
     });
     const overview = DashboardOverviewSchema.parse(await res.json());
 
-    assert.equal(overview.revenue.value, null);
-    assert.equal(overview.revenue.source, "none");
-    assert.equal(typeof overview.revenue.reason, "string");
-    assert.ok(overview.revenue.reason.length > 0);
-    // n/m/k phải là số thật từ DB, không phải hằng số trong code.
-    assert.match(overview.revenue.reason, /ngoài phạm vi Authorization V1/);
+    assert.equal(overview.revenue.value, 205000);
+    assert.equal(overview.revenue.source, "pos_orders");
+    assert.equal(overview.revenue.reason, null);
+    assert.ok(typeof overview.revenue.asOf === "string");
+  });
+
+  test("SM chỉ thấy doanh thu của cửa hàng được cấp", async () => {
+    const user = await UserModel.findOne({ username: "test-dash-employee" }).lean();
+    const originalAuthorization = user.authorization;
+    const linked = await EmployeeModel.findOne({ employeeCode: "TEST-DASH-E1" }).lean();
+    await UserModel.updateOne(
+      { username: "test-dash-employee" },
+      { $set: { authorization: { schemaVersion: 1, profile: "sm", grants: [testGrant("sm", { kind: "organization", storeIds: [String(linked.storeId)] }, ["dashboard.read"], user._id)] } } }
+    );
+    try {
+      const res = await httpFetch(`${baseUrl}/api/dashboard/overview`, {
+        headers: { Authorization: `Bearer ${employeeToken}` },
+      });
+      assert.equal(res.status, 200);
+      const overview = DashboardOverviewSchema.parse(await res.json());
+      assert.equal(overview.stores.outlets, 1);
+      assert.equal(overview.revenue.value, 120000);
+    } finally {
+      await UserModel.updateOne({ username: "test-dash-employee" }, { $set: { authorization: originalAuthorization } });
+    }
   });
 
   test("onTimeRate trả null vì nguồn không có dữ liệu chấm công", async () => {

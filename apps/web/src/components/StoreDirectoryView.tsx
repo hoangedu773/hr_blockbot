@@ -395,7 +395,7 @@ export const StoreDirectoryView: React.FC<StoreDirectoryViewProps> = ({
 
         <div className="crm-kpi-card">
           <div className="crm-kpi-header">
-            <span className="crm-kpi-title">Doanh thu két sáng</span>
+            <span className="crm-kpi-title">Doanh thu kỳ này</span>
           </div>
           <div className="crm-kpi-value crm-kpi-value--lead" title={revenueMetric.title}>
             {revenueMetric.text}
@@ -404,7 +404,7 @@ export const StoreDirectoryView: React.FC<StoreDirectoryViewProps> = ({
             {overview
               ? (overview.revenue.value === null
                   ? (overview.revenue.reason ?? 'Chưa có nguồn dữ liệu')
-                  : `Nguồn: ${overview.revenue.source}`)
+                  : `Cập nhật đến ${overview.revenue.asOf ? new Date(overview.revenue.asOf).toLocaleDateString('vi-VN') : 'hiện tại'}`)
               : overviewError ? 'Không tải được số liệu' : 'Đang tải số liệu…'}
           </div>
         </div>
