@@ -54,18 +54,19 @@ try {
     await page.getByLabel('Tuần bắt đầu', { exact: true }).fill('2026-11-16');
     if (name === 'sm') {
       await page.locator('.schedule-grid .schedule-cell').first().waitFor();
-      assert.match(await page.locator('.schedule-source-notice').innerText(), /Lịch mẫu/);
-      assert.ok(await page.locator('.schedule-grid').getByText('Lịch mẫu ngẫu nhiên', { exact: true }).count() > 0);
+      assert.doesNotMatch(await page.locator('.schedule-workspace').innerText(), /Lịch mẫu ngẫu nhiên|Có dữ liệu lịch mẫu/);
+      assert.ok(await page.locator('.schedule-grid .schedule-cell').count() > 0);
       await page.screenshot({ path: path.join(output, 'manager.png') });
     } else {
       await page.locator('.schedule-personal .schedule-request').first().waitFor();
-      assert.ok(await page.locator('.schedule-personal').getByText('Lịch mẫu ngẫu nhiên', { exact: true }).count() > 0);
+      assert.doesNotMatch(await page.locator('.schedule-workspace').innerText(), /Lịch mẫu ngẫu nhiên|Có dữ liệu lịch mẫu/);
+      assert.ok(await page.locator('.schedule-personal .schedule-request').count() > 0);
       assert.doesNotMatch(await page.locator('.schedule-personal').innerText(), /V1-staffB|V1-sm/);
       await page.setViewportSize({ width: 390, height: 844 }); await page.screenshot({ path: path.join(output, 'personal-mobile.png') });
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
     }
   }
-  assert.deepEqual(errors, []); console.log('PASS published demo: transaction -> manager grid/source label -> personal source label -> mobile; no external provider');
+  assert.deepEqual(errors, []); console.log('PASS published schedules: transaction -> populated manager grid -> populated personal schedule -> mobile; no random/demo source labels or external provider');
 } finally {
   for (const c of contexts) await c.close().catch(() => {}); await browser?.close();
   for (const s of [api, web]) if (s) { s.closeAllConnections(); await new Promise(r => s.close(r)); }

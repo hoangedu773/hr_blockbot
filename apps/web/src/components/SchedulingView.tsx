@@ -17,7 +17,7 @@ const hours = (a: { intervals: { startMinute: number; endMinute: number }[] }) =
 const future = (a: ScheduleAssignment) => a.intervals.every((p) => Date.parse(a.date + 'T00:00:00+07:00') + p.startMinute * 60000 > Date.now());
 const STATUS: Record<ScheduleChange['status'], string> = { PENDING_MANAGER: 'Chờ quản lý điều phối', PENDING_RECEIVER: 'Chờ người nhận', PENDING_REQUESTER: 'Chờ người đề nghị xác nhận', READY_FOR_REVIEW: 'Chờ quản lý duyệt', APPROVED: 'Đã cập nhật lịch', REJECTED: 'Đã từ chối', CANCELLED: 'Đã hủy' };
 const pending = (r: ScheduleChange) => ['PENDING_MANAGER', 'PENDING_RECEIVER', 'PENDING_REQUESTER', 'READY_FOR_REVIEW'].includes(r.status);
-const sourceLabel = (a: Pick<ScheduleAssignment, 'source'>) => a.source?.kind === 'DEMO_RANDOM' ? 'Lịch mẫu ngẫu nhiên' : a.source?.kind === 'LEGACY_MATCHED' ? 'Đối chiếu lịch cũ' : '';
+const sourceLabel = (a: Pick<ScheduleAssignment, 'source'>) => a.source?.kind === 'LEGACY_MATCHED' ? 'Đối chiếu lịch cũ' : '';
 type Roster = { employeeId: string; fullName: string; employeeCode: string; jobTitle: string | null; assignments?: Pick<ScheduleAssignment, 'id' | 'date' | 'shiftCode' | 'intervals'>[] };
 type Draft = { id: string; employeeId: string; date: string; shiftId: string }[];
 const draftOf = (w: ScheduleWeek | null): Draft => w?.draft.map(({ id, employeeId, date, shiftId }) => ({ id, employeeId, date, shiftId })) ?? [];
@@ -136,7 +136,6 @@ export function SchedulingView() {
       </>}
     </> : <>
       <h3>Lịch của tôi · {weekStart}–{dayPlus(weekStart, 6)}</h3><p>Chỉ hiển thị ca đã công bố. Ô trống nghĩa là chưa có ca được công bố trong hệ thống.</p>
-      {mine?.assignments.some((a) => a.source) && <p className="schedule-source-notice">Có dữ liệu lịch mẫu để test hoặc đối chiếu lịch cũ; xem nhãn tại từng ca. LĐ là đứng trước quán vẫy/đón khách.</p>}
       {!mine?.assignments.length && <div className="empty"><h3>Chưa có ca đã công bố trong tuần này</h3><p>Liên hệ quản lý cửa hàng nếu bạn đang chờ lịch.</p></div>}
       <div className="schedule-personal">{mine?.assignments.map((a) => <article key={a.weekId + a.id} className="schedule-request"><div><strong>{a.date} · {a.shiftCode} · {a.shiftName}</strong><p>{hours(a)}</p><p>{a.storeName}</p>{sourceLabel(a) && <p className="schedule-source-notice">{sourceLabel(a)}</p>}</div>{access.canRequest && future(a) && <button className="btn" disabled={busy || mine.requests.some((r) => pending(r) && (r.source.id === a.id || r.target?.id === a.id))} onClick={() => void openRequest(a)}>Xin đổi / nhận ca thay</button>}</article>)}</div>
       <h3>Yêu cầu tôi tham gia</h3>{!mine?.requests.length && <p>Chưa có yêu cầu đổi ca.</p>}{mine?.requests.map((r) => renderRequest(r, r.weekId, r.weekVersion))}
