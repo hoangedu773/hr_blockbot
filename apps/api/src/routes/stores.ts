@@ -7,6 +7,7 @@ import {
   StoreSummarySchema,
   StoreUpdateSchema,
   type StoreKind,
+  type StoreManager,
 } from "@hr-blockbot/contracts";
 import {
   StoreModel,
@@ -22,6 +23,7 @@ import { redactSecrets } from "../lib/redact.js";
 import { departmentIdMatch } from "../lib/department-scope.js";
 import { employeeDepartmentScope } from "../services/employee-profile.service.js";
 import { allowedStoreIds, hasCapability } from "../services/authorization-scope.service.js";
+import { groupStoreManagers, summarizeStoreLeadership } from "../services/store-leadership.service.js";
 
 const router = Router();
 
@@ -197,19 +199,14 @@ async function employeeCountsByStore(storeIds: string[]): Promise<Map<string, St
   return new Map(rows.map((row) => [String(row._id), { total: row.total, active: row.active, unknown: row.unknown }]));
 }
 
-interface StoreManager {
-  id: string;
-  name: string;
-}
-
 async function managersByStore(storeIds: string[]): Promise<Map<string, StoreManager[]>> {
+  if (!storeIds.length) return new Map();
   const edges = await mongoose.connection.collection("management_relations").find({ storeId: { $in: storeIds.map((id) => new mongoose.Types.ObjectId(id)) }, approvalRef: { $type: "string", $ne: "" }, revokedAt: null, validFrom: { $lte: new Date() }, $or: [{ validUntil: null }, { validUntil: { $gt: new Date() } }] }).toArray();
-  const people: any[] = await EmployeeModel.find({ _id: { $in: edges.map((edge) => edge.managerEmployeeId) }, status: "active", storeMappingRef: { $type: "string", $ne: "" }, lifecyclePendingRequestId: null }).select("fullName full_name").lean();
-  const names = new Map(people.map((person) => [String(person._id), String(person.fullName || person.full_name || person._id)]));
-  const result = new Map<string, StoreManager[]>();
-  for (const edge of edges) { const id = String(edge.managerEmployeeId), key = String(edge.storeId); if (!names.has(id)) continue; const list = result.get(key) ?? []; if (!list.some((manager) => manager.id === id)) list.push({ id, name: names.get(id)! }); result.set(key, list); }
-  for (const list of result.values()) list.sort((a, b) => a.name.localeCompare(b.name, "vi") || a.id.localeCompare(b.id));
-  return result;
+  const people: any[] = await EmployeeModel.find({ _id: { $in: edges.map((edge) => edge.managerEmployeeId) }, status: "active", storeMappingRef: { $type: "string", $ne: "" }, lifecyclePendingRequestId: null })
+    .select("fullName full_name job_title storeId storeIds smCoverRef hrmProfileMappingV1.identityMappingVerified hrmProfileMappingV1.sourceTitleVerified hrmProfileMappingV1.sourceJobTitle").lean();
+  return groupStoreManagers(people, edges.map((edge) => ({
+    managerEmployeeId: edge.managerEmployeeId, storeId: edge.storeId, validUntil: edge.validUntil,
+  })));
 }
 
 /**
@@ -230,9 +227,7 @@ function toStoreSummary(
     kind: classifyStoreKind(store.store_name, store.kind),
     district:
       typeof store.district === "string" && store.district.trim() !== "" ? store.district : null,
-    managerName: managers.length ? managers.map((manager) => manager.name).join(", ") : null,
-    managerEmployeeId: managers.length === 1 ? managers[0].id : null,
-    managers: managers.map((manager) => ({ employeeId: manager.id, fullName: manager.name })),
+    ...summarizeStoreLeadership(managers),
     employeeCount: counts?.total ?? 0,
     activeEmployeeCount: counts?.active ?? 0,
     unknownEmployeeCount: counts?.unknown ?? 0,

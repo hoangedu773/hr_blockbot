@@ -19,6 +19,12 @@ import { authorizationV1Fixture, testGrant } from "./helpers/authorization-v1-fi
 let fixture, server, base, legacyToken, snapshot, extraStore;
 before(async () => {
   await connectDB(); fixture = await authorizationV1Fixture();
+  for (const actor of ['om', 'sam', 'am', 'sm']) {
+    await EmployeeModel.updateOne({ _id: fixture.actors[actor].employee._id }, { $set: {
+      job_title: actor.toUpperCase(),
+      hrmProfileMappingV1: { identityMappingVerified: true, sourceTitleVerified: true, sourceJobTitle: actor.toUpperCase() },
+    } });
+  }
   const root = await UserModel.create({ username: "legacy-store-root", role: "Admin", isGlobalAdmin: true, passwordHash: "unused" });
   legacyToken = await signAccessToken({ sub: String(root._id), role: "Admin" });
   await UserModel.updateOne({ _id: fixture.actors.om.user._id }, { $push: { "authorization.grants.1.scope.storeIds": String(fixture.stores[1]._id) } });
@@ -59,10 +65,14 @@ test("explicit multi-store OM reads only verified canonical outlets; ETL totals/
   assert.deepEqual(result.body.items.map((row) => row.id).sort(), [storeA(), storeB()].sort());
   const own = result.body.items.find((row) => row.id === storeA());
   assert.equal(own.employeeCount, 10); assert.equal(own.activeEmployeeCount, 10);
-  // Approved CRM UX05: show ALL active approved graph parents, never infer a
-  // primary manager from a title. The fixture explicitly maps these four.
+  // All graph parents remain visible with their business roles. Only the sole
+  // verified home-store SM is named in the store-manager summary.
   assert.deepEqual(own.managers.map((row) => row.employeeId).sort(), ['om', 'sam', 'am', 'sm'].map((actor) => String(fixture.actors[actor].employee._id)).sort());
-  assert.equal(own.managerEmployeeId, null, 'multiple managers do not invent a primary');
+  assert.equal(own.managerEmployeeId, String(fixture.actors.sm.employee._id));
+  assert.equal(own.storeManagerStatus, 'identified');
+  assert.equal(own.managers.find((row) => row.employeeId === String(fixture.actors.am.employee._id)).role, 'am');
+  assert.equal(own.managerName, fixture.actors.sm.employee.fullName);
+  assert.deepEqual((await call('om', 'GET', '/' + storeA())).body, own, 'detail and list use the same role metadata');
   assert.deepEqual(result.body.summary, { totalOutlets: 2, totalGroups: 0 });
 });
 test("technical admin cannot read operational store counts", async () => { assert.equal((await call("system_admin")).status, 403); });

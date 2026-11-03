@@ -1084,6 +1084,16 @@ export type StoreKind = z.infer<typeof StoreKindSchema>;
 export const StoreStatusSchema = z.enum(["ACTIVE", "INACTIVE"]);
 export type StoreStatus = z.infer<typeof StoreStatusSchema>;
 
+// Display metadata only; these roles never grant application capabilities.
+export const StoreManagerSchema = z.object({
+  employeeId: z.string(),
+  fullName: z.string(),
+  role: z.enum(["sm", "am", "sam", "om", "aom", "ptch", "unknown"]).optional(),
+  assignmentKind: z.enum(["home", "cover", "supervisory", "unclassified"]).optional(),
+  relationValidUntil: z.string().datetime().nullable().optional(),
+});
+export type StoreManager = z.infer<typeof StoreManagerSchema>;
+
 export const StoreSummarySchema = z.object({
   id: z.string(),
   code: z.string().nullable(),
@@ -1095,7 +1105,8 @@ export const StoreSummarySchema = z.object({
   employeeCount: z.number().int().nonnegative(),
   activeEmployeeCount: z.number().int().nonnegative(),
   unknownEmployeeCount: z.number().int().nonnegative().optional(),
-  managers: z.array(z.object({ employeeId: z.string(), fullName: z.string() })).optional(),
+  managers: z.array(StoreManagerSchema).optional(),
+  storeManagerStatus: z.enum(["identified", "ambiguous", "unconfirmed"]).optional(),
   status: StoreStatusSchema,
 });
 export type StoreSummary = z.infer<typeof StoreSummarySchema>;

@@ -8,6 +8,7 @@ import { EmployeeListView } from './EmployeeListView';
 import { EmployeeProfileView } from './EmployeeProfileView';
 import { ProjectListView } from './ProjectListView';
 import { StoreDirectoryView } from './StoreDirectoryView';
+import { StoreLeadership } from './StoreLeadership';
 import { ThemeToggle } from './ThemeToggle';
 import { useAuthorization } from '../context/useAuthorization';
 import { OnboardingView } from './OnboardingView';
@@ -551,7 +552,7 @@ const StoreDetailDrawer: React.FC<StoreDetailDrawerProps> = ({ store, outlets, o
             </span>
             <h2 className="text-base font-bold text-foreground mt-2" id="d-name">{store?.name ?? ''}</h2>
             <p className="text-xs text-muted-foreground mt-0.5" id="d-district">
-              Quận: {store?.district ?? '—'} • Cửa hàng trưởng: {store?.managerName ?? '—'}
+              Quận: {store?.district ?? '—'}
             </p>
           </div>
           <button type="button" aria-label="Đóng chi tiết" data-close-drawer onClick={onClose} className="size-8 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground flex items-center justify-center transition-colors cursor-pointer shrink-0">
@@ -563,6 +564,8 @@ const StoreDetailDrawer: React.FC<StoreDetailDrawerProps> = ({ store, outlets, o
           <p className="text-xs text-muted-foreground" role="note">
             {outlets === null ? 'Đang tải số liệu danh mục cửa hàng' : `Hệ thống dữ liệu vận hành ${outlets} chi nhánh chuỗi GUTA Cafe`}
           </p>
+
+          {store && <StoreLeadership store={store} />}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="p-3.5 rounded-xl border border-border bg-background/80 shadow-2xs">

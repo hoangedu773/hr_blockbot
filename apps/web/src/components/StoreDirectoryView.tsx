@@ -13,6 +13,7 @@ import {
 } from '../services/api';
 import type { NotifyFn } from './Toast';
 import { useAuthorization } from '../context/useAuthorization';
+import { storeManagerText } from './StoreLeadership';
 
 export interface StoreDirectoryViewProps {
   userRole: string;
@@ -500,7 +501,7 @@ export const StoreDirectoryView: React.FC<StoreDirectoryViewProps> = ({
         <thead className="crm-table-head">
           <tr>
             <th scope="col">Cửa hàng</th>
-            <th scope="col">Quản lý</th>
+            <th scope="col">Cửa hàng trưởng</th>
             <th scope="col" className="crm-num-head">Khu vực</th>
             <th scope="col" className="crm-num-head">Nhân sự</th>
             <th scope="col">Trạng thái</th>
@@ -601,7 +602,7 @@ export const StoreDirectoryView: React.FC<StoreDirectoryViewProps> = ({
                 </span>
               </td>
               <td data-col="sm">
-                <span className="crm-cell-primary">{store.managerName ?? '—'}</span>
+                <span className="crm-cell-primary">{storeManagerText(store)}</span>
               </td>
               <td data-col="district" className="crm-num">
                 <span className="crm-cell-primary">{store.district ?? '—'}</span>
