@@ -9,6 +9,7 @@ import { RevenueKpiResultModel as Result } from '../dist/models/RevenueKpiResult
 import { RevenueKpiAssignmentModel as Assignment } from '../dist/models/RevenueKpiAssignment.js';
 import { NotificationModel } from '../dist/models/Notification.js';
 import { runRevenueKpiReminders, flushRevenueKpiNotices } from '../dist/services/revenue-kpi-notification.service.js';
+import { proposeRevenueTarget } from '../dist/services/revenue-kpi-ai.service.js';
 import { revenueFixture, command } from './helpers/revenue-kpi-fixture.mjs';
 let f, hr, sm, am, p, a;
 before(async () => { await connectDB(); f = await revenueFixture(); hr = await f.principal('hr'); sm = await f.principal('sm'); am = await f.principal('am'); });
@@ -65,4 +66,11 @@ test('overdue reminder is explicit SYSTEM event and never auto accepts; replay n
   assigned = (await S.revenueKpiAssignmentResult(sm, assigned.id)).assignment;
   assert.equal(assigned.status, 'PENDING_ACCEPTANCE'); assert.equal(assigned.overdue, true); assert.equal(assigned.history.at(-1).actorKind, 'SYSTEM');
   const n = await NotificationModel.countDocuments({ entityKind: 'revenue_kpi' }); await runRevenueKpiReminders(new Date(Date.parse(assigned.deadlineAt) + 2000)); assert.equal(await NotificationModel.countDocuments({ entityKind: 'revenue_kpi' }), n);
+});
+test('incomplete three-month history never invokes AI or changes the target', async () => {
+  let july = await S.createRevenueKpiPeriod(hr, command(0, { period: '2026-07', policy: RevenueKpiPolicySchema.parse({ allowDemoData: true }) })); july = await S.openRevenueKpiPeriod(hr, july.period, command(july.version));
+  const draft = await S.saveRevenueKpiAssignment(hr, command(0, { period: july.period, unitType: 'STORE', storeId: String(f.stores[0]._id), assigneeEmployeeId: String(f.actors.sm.employee._id), targetMode: 'ABSOLUTE_VND', targetVnd: 100, reason: 'Nhập mục tiêu cho cửa hàng chưa có đủ lịch sử.' }));
+  const original = globalThis.fetch; let calls = 0; globalThis.fetch = async () => { calls++; throw Error('Should not call provider'); };
+  try { const proposal = await proposeRevenueTarget(hr, draft.id, command(draft.version)); assert.equal(proposal.aiProposal.insufficientData, true); assert.equal(proposal.aiProposal.suggestedGrowthPercent, null); assert.equal(proposal.targetVnd, draft.targetVnd); assert.equal(calls, 0); }
+  finally { globalThis.fetch = original; }
 });
