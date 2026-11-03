@@ -94,19 +94,22 @@ async function recipientsFor(role: 'sm' | 'am', u: AuthenticatedUser, storeIds: 
   const rows: any[] = await UserModel.find({ status: 'active', 'authorization.profile': role, employeeId: { $ne: null } }).select('_id employeeId role securityVersion').limit(1001).lean();
   if (rows.length > 1000) fail('REVENUE_KPI_DATA_PENDING', 'Danh mục người phụ trách vượt giới hạn kiểm tra.');
   const result: any[] = [];
-  for (const row of rows) {
+  const inspect = async (row: any) => {
     try {
       const actor = await resolvePrincipal({ sub: String(row._id), role: row.role, securityVersion: row.securityVersion ?? 0 });
-      if (!actor.employeeActive || !actor.employeeId || !hasCapability(actor, 'revenue_kpi.respond')) continue;
+      if (!actor.employeeActive || !actor.employeeId || !hasCapability(actor, 'revenue_kpi.respond')) return;
       const employee: any = await EmployeeModel.findById(actor.employeeId).select('fullName full_name storeId status lifecyclePendingRequestId').lean();
-      if (!employee || employee.lifecyclePendingRequestId) continue;
+      if (!employee || employee.lifecyclePendingRequestId) return;
       const fullScope = role === 'am' ? capStores(actor, 'revenue_kpi.read_scope') : [];
       // HR may not silently create a partial KPI for an AM with broader scope.
       const ids = role === 'sm' ? storeIds.filter(id => id === actor.canonical?.ownStoreId) : fullScope.every(id => storeIds.includes(id)) ? fullScope : [];
       if (ids.length) result.push({ employeeId: actor.employeeId, name: employee.fullName || employee.full_name || 'Chưa cập nhật tên', role: role.toUpperCase(), storeIds: ids });
     } catch { /* malformed/inactive/held principals are not eligible recipients */ }
-  }
-  return result;
+  };
+  // Bounded concurrent independent principal reads prevent N+1 network latency
+  // from making HR's catalog/open operation exceed a normal browser deadline.
+  for (let i = 0; i < rows.length; i += 8) await Promise.all(rows.slice(i, i + 8).map(inspect));
+  return result.sort((a, b) => a.employeeId.localeCompare(b.employeeId));
 }
 async function catalog(u: AuthenticatedUser, period: string, cap: C.AuthorizationCapability = 'revenue_kpi.assign') {
   const ids = capStores(u, cap), candidates = [...await recipientsFor('sm', u, ids), ...await recipientsFor('am', u, ids)];
