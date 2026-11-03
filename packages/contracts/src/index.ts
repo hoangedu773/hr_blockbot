@@ -204,6 +204,7 @@ export const EmployeeSummarySchema = z.object({
   storeId: z.string().nullable().optional(),
   storeName: z.string().nullable().optional(),
   fullName: z.string(),
+  jobTitle: z.string().nullable().optional(),
   level: EmployeeLevelSchema,
   department: z.string(),
   skills: z.array(z.string()),
@@ -225,7 +226,7 @@ export const EmployeeDetailSchema = EmployeeSummarySchema.extend({
   hiredAt: z.string().nullable().optional(),
 });
 export type EmployeeDetail = z.infer<typeof EmployeeDetailSchema>;
-// Explicit management endpoint only; never widen generic directory/tool DTOs.
+// Management responses always include the recorded title; older summary clients may omit it.
 export const EmployeeManagementSchema = EmployeeDetailSchema.extend({ jobTitle: z.string().nullable() });
 export type EmployeeManagement = z.infer<typeof EmployeeManagementSchema>;
 

@@ -29,11 +29,12 @@ function escapeRegex(str: string): string {
 router.get("/employees", authenticateToken, endpoint(async (req, res) => {
   const user = req.user!;
   const cap = "employees.read_operational";
-  const parsed = PaginationQuerySchema.extend({ q: z.string().trim().max(50).optional(), storeId: z.string().regex(/^[a-f0-9]{24}$/i).optional(), departmentId: z.string().trim().min(1).max(200).optional(), level: EmployeeLevelSchema.optional(), status: z.enum(["active", "inactive", "UNKNOWN"]).optional() }).safeParse(req.query);
+  const parsed = PaginationQuerySchema.extend({ q: z.string().trim().max(50).optional(), jobTitle: z.string().trim().max(100).optional(), storeId: z.string().regex(/^[a-f0-9]{24}$/i).optional(), departmentId: z.string().trim().min(1).max(200).optional(), level: EmployeeLevelSchema.optional(), status: z.enum(["active", "inactive", "UNKNOWN"]).optional() }).safeParse(req.query);
   if (!parsed.success) throw new WorkflowError(400, "VALIDATION_FAILED", "Phân trang không hợp lệ.");
   const clauses: Record<string, any>[] = [employeeScopeQuery(user, cap)];
   const q = typeof req.query.q === "string" ? req.query.q.trim().slice(0, 200) : "";
   if (q) clauses.push(employeeSearch(q));
+  if (parsed.data.jobTitle) clauses.push({ job_title: { $regex: escapeRegex(parsed.data.jobTitle), $options: "i" } });
   if (parsed.data.storeId) clauses.push({ storeId: objectId(parsed.data.storeId) });
   if (req.query.status !== undefined) {
     clauses.push({ status: req.query.status === "UNKNOWN" ? { $nin: ["active", "inactive"] } : req.query.status });
@@ -46,7 +47,7 @@ router.get("/employees", authenticateToken, endpoint(async (req, res) => {
   }
   const { page, limit } = parsed.data, query = { $and: clauses };
   const [rows, totalItems] = await Promise.all([
-    EmployeeModel.find(query).select("fullName full_name employeeCode employee_code storeId level skills departmentId department status").sort({ fullName: 1, _id: 1 }).skip((page - 1) * limit).limit(limit).lean(),
+    EmployeeModel.find(query).select("fullName full_name employeeCode employee_code job_title storeId level skills departmentId department status").sort({ fullName: 1, _id: 1 }).skip((page - 1) * limit).limit(limit).lean(),
     EmployeeModel.countDocuments(query),
   ]);
   // Store directory never exposes phone, hiring date, personal notes, workload or banking.

@@ -26,6 +26,7 @@ export function canActOnEmployee(user: AuthenticatedUser, employee: any): boolea
 export function employeeDto(user: AuthenticatedUser, employee: any) {
   const summary = {
     employeeId: String(employee._id), fullName: employee.fullName || employee.full_name || "", level: employee.level || "Junior",
+    jobTitle: typeof employee.job_title === "string" && employee.job_title.trim() ? employee.job_title.trim() : null,
     employeeCode: employee.employeeCode || employee.employee_code || "", storeId: employee.storeId ? String(employee.storeId) : null,
     storeName: user.canonical?.verifiedStores.find((store) => store.id === String(employee.storeId))?.name ?? null,
     department: employeeDepartment(employee), skills: employee.skills ?? [], activeLoad: employee.activeLoad ?? null,

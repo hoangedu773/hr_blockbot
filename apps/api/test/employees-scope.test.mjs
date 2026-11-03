@@ -17,6 +17,9 @@ import { authorizationV1Fixture, testGrant, SELF_CAPS } from "./helpers/authoriz
 let fixture, server, base, legacyToken, unmappedToken, blankToken, stringDeptToken, stringEmployee, projectA, projectB, rawProject, rawReport, reviewableRaw, ownProject;
 before(async () => {
   await connectDB(); fixture = await authorizationV1Fixture();
+  for (const [actor, jobTitle] of [['sm', 'SM'], ['staff', 'CAFE - Nhân viên bán hàng'], ['om', 'R&D (TEST).*'], ['staffB', 'OUTSIDE ONLY']]) {
+    await EmployeeModel.updateOne({ _id: fixture.actors[actor].employee._id }, { $set: { job_title: jobTitle } });
+  }
   for (const [name, isGlobalAdmin] of [["legacy", true], ["unmapped", false], ["blank", false]]) {
     const employee = name === "blank" ? await EmployeeModel.create({ employeeCode: "SCOPE-BLANK", fullName: "Blank department fixture", departmentId: "   ", status: "active" }) : null;
     const row = await UserModel.create({ username: "scope-" + name, role: "Admin", isGlobalAdmin: isGlobalAdmin, employeeId: employee?._id, passwordHash: "unused" });
@@ -58,6 +61,36 @@ test("department query is an intersection, never an authority selector", async (
   assert.equal(response.status, 200); assert.deepEqual(response.body.items, []);
   const sameDept = await request("sm", "/employees?departmentId=" + fixture.departmentId);
   assert.ok(!sameDept.body.items.some((row) => row.employeeId === String(fixture.actors.staffB.employee._id)));
+});
+
+test('recorded job title is consistent in the scoped list/detail without exposing personal fields', async () => {
+  const response = await request('sm', '/employees?limit=100');
+  const row = response.body.items.find((item) => item.employeeId === String(fixture.actors.staff.employee._id));
+  assert.equal(row.jobTitle, 'CAFE - Nhân viên bán hàng');
+  const detail = await request('sm', '/employees/' + row.employeeId);
+  assert.equal(detail.status, 200); assert.equal(detail.body.jobTitle, row.jobTitle);
+  for (const item of [row, detail.body]) for (const key of ['phone', 'hiredAt', 'bank_account_number', 'profileChangeRequests', 'authorization'])
+    assert.equal(key in item, false, key);
+  assert.equal((await request('string', '/employees')).body.items[0].jobTitle, null, 'missing title is never inferred from Junior or an SM account');
+});
+
+test('job-title filter is case-insensitive literal search with scoped pagination', async () => {
+  const response = await request('sm', '/employees?jobTitle=' + encodeURIComponent('nhân viên') + '&limit=1');
+  assert.equal(response.status, 200); assert.equal(response.body.paging.totalItems, 1);
+  assert.equal(response.body.items[0].employeeId, String(fixture.actors.staff.employee._id));
+  const literal = await request('sm', '/employees?jobTitle=' + encodeURIComponent('.*'));
+  assert.equal(literal.status, 200); assert.equal(literal.body.paging.totalItems, 1);
+  assert.equal(literal.body.items[0].employeeId, String(fixture.actors.om.employee._id));
+});
+
+test('title filter and foreign store ID never expand scope or confer access', async () => {
+  for (const suffix of ['', '&storeId=' + fixture.stores[1]._id]) {
+    const result = await request('sm', '/employees?jobTitle=OUTSIDE%20ONLY' + suffix);
+    assert.equal(result.status, 200); assert.equal(result.body.paging.totalItems, 0); assert.deepEqual(result.body.items, []);
+  }
+  assert.equal((await request('staff', '/employees?jobTitle=SM')).status, 403);
+  assert.equal((await request('sm', '/employees?jobTitle=' + 'x'.repeat(101))).status, 400);
+  assert.equal((await request('sm', '/employees?jobTitle[]=SM')).status, 400);
 });
 test("only explicitly granted HR can read scoped pending profile queue", async () => {
   assert.equal((await request("sm", "/change-requests")).status, 403);

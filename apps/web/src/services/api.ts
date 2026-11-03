@@ -148,6 +148,7 @@ export function isEmployeeDetail(value: EmployeeDetail | EmployeeSummary): value
 // ---------------------------------------------------------------------------
 
 export interface EmployeeListParams {
+  jobTitle?: string;
   departmentId?: string;
   storeId?: string;
   level?: EmployeeLevel;
@@ -167,6 +168,7 @@ export async function fetchEmployees(params?: EmployeeListParams): Promise<Pagin
   if (params?.departmentId) query.set('departmentId', params.departmentId);
   if (params?.storeId) query.set('storeId', params.storeId);
   if (params?.level) query.set('level', params.level);
+  if (params?.jobTitle) query.set('jobTitle', params.jobTitle);
   if (params?.status) query.set('status', params.status);
   if (params?.q) query.set('q', params.q);
   if (params?.page) query.set('page', String(params.page));
