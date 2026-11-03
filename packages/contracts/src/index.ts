@@ -816,8 +816,23 @@ export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export const ChatRequestSchema = z.object({
   message: z.string().trim().min(1).max(2000),
   conversationId: z.string().trim().min(1).max(200).optional(),
+  clientMessageId: z.string().uuid().optional(),
 });
 export type ChatRequest = z.infer<typeof ChatRequestSchema>;
+
+export const ChatConversationSummarySchema = z.object({ id: z.string().uuid(), title: z.string().max(100), updatedAt: z.string().datetime() });
+export const ChatConversationListSchema = z.object({ items: z.array(ChatConversationSummarySchema).max(30), nextCursor: z.string().max(300).nullable() });
+export const ChatHistoryTurnSchema = z.object({
+  id: z.string().uuid(), userMessage: z.string().max(2000), createdAt: z.string().datetime(),
+  status: z.enum(['QUEUED', 'PENDING', 'COMPLETED', 'FAILED', 'INTERRUPTED']),
+  reply: z.string().max(64000).nullable(), replyHidden: z.boolean(),
+  citations: z.array(z.object({ document: z.string(), version: z.string().optional(), article: z.string().optional(), score: z.number().finite().optional() })),
+  attachments: z.array(z.unknown()).max(0), proposedAction: z.null(),
+});
+export const ChatHistoryPageSchema = z.object({ conversation: ChatConversationSummarySchema, items: z.array(ChatHistoryTurnSchema).max(30), nextCursor: z.string().max(300).nullable() });
+export const ChatHistorySendSchema = z.object({ conversationId: z.string().uuid(), turn: ChatHistoryTurnSchema });
+export type ChatHistoryTurn = z.infer<typeof ChatHistoryTurnSchema>;
+export type ChatConversationSummary = z.infer<typeof ChatConversationSummarySchema>;
 
 export const RagQueryRequestSchema = z.object({
   question: z.string(),

@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { BrandMark } from '../BrandMark';
 import { ThemeToggle } from '../ThemeToggle';
 import { apiFetch, API_BASE } from '../../services/auth';
+import { ChatConversationListSchema, ChatHistoryPageSchema, ChatHistorySendSchema, type ChatConversationSummary, type ChatHistoryTurn } from '@hr-blockbot/contracts';
 import type {
   Citation,
   ProposedAction,
@@ -79,7 +80,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
 
 
 interface Message {
-  id: number;
+  id: number | string;
   sender: 'user' | 'assistant';
   text: string;
   citations?: Citation[];
@@ -95,6 +96,13 @@ const TOPICS = [
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
+
+function messageId(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16)); bytes[6] = bytes[6] & 15 | 64; bytes[8] = bytes[8] & 63 | 128;
+  const hex = [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
 
 const SAFE_URL_PROTOCOLS = new Set(['http:', 'https:']);
 
@@ -206,6 +214,12 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const [conversations, setConversations] = useState<ChatConversationSummary[]>([]);
+  const [listCursor, setListCursor] = useState<string | null>(null), [messageCursor, setMessageCursor] = useState<string | null>(null);
+  const [selectedConversation, setSelectedConversation] = useState<string | undefined>();
+  const [historyError, setHistoryError] = useState(''), [historyLoading, setHistoryLoading] = useState(false);
+  const historySequence = useRef(0), listSequence = useRef(0), turns = useRef(new Map<string, ChatHistoryTurn>());
+  const owner = useRef(user?.id); owner.current = user?.id;
 
   const cancelPending = () => {
     if (timer.current !== null) clearTimeout(timer.current);
@@ -231,21 +245,79 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'auto' }); }, [messages, isTyping]);
 
-  const newChat = () => {
+  const newChat = (focus = true) => {
     cancelPending();
+    historySequence.current++;
+    turns.current.clear(); setSelectedConversation(undefined); setMessageCursor(null); setHistoryError(''); setHistoryLoading(false);
     conversationId.current = undefined;
     setMessages([]);
     setIsTyping(false);
     setSidebarOpen(false);
-    inputRef.current?.focus();
+    if (focus) inputRef.current?.focus();
   };
+
+  const mergeTurns = (items: ChatHistoryTurn[]) => {
+    for (const turn of items) turns.current.set(turn.id, turn);
+    const rows: Message[] = [];
+    for (const turn of [...turns.current.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))) {
+      rows.push({ id: turn.id + ':user', sender: 'user', text: turn.userMessage });
+      if (['QUEUED', 'PENDING'].includes(turn.status)) continue;
+      rows.push({ id: turn.id + ':assistant', sender: 'assistant', text: turn.replyHidden
+        ? 'Phản hồi cũ được ẩn vì quyền truy cập hoặc dữ liệu nguồn đã thay đổi. Bạn có thể hỏi lại với quyền hiện tại.'
+        : turn.status === 'COMPLETED' ? turn.reply || 'Chưa tải được phản hồi đã lưu.'
+        : 'Lượt trả lời bị gián đoạn hoặc chưa thành công. Câu hỏi đã được lưu; bạn có thể gửi lại.', citations: turn.citations });
+    }
+    setMessages(rows);
+  };
+  const loadConversations = async (before?: string) => {
+    const seq = ++listSequence.current, userId = user?.id;
+    try {
+      const response = await apiFetch(`${API_BASE}/chat/conversations?limit=15${before ? '&before=' + encodeURIComponent(before) : ''}`);
+      if (!response.ok) throw new Error();
+      const data = ChatConversationListSchema.parse(await response.json());
+      if (seq !== listSequence.current || owner.current !== userId) return [];
+      setConversations(old => [...data.items, ...old.filter(item => !data.items.some(row => row.id === item.id))].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id)));
+      setListCursor(data.nextCursor); return data.items;
+    } catch { if (seq === listSequence.current && owner.current === userId) setHistoryError('Chưa tải được lịch sử. Các tin nhắn gửi thành công vẫn được lưu trên hệ thống.'); return []; }
+  };
+  const loadMessages = async (id: string, before?: string, silent = false) => {
+    const seq = historySequence.current, userId = user?.id;
+    if (!silent) setHistoryLoading(true);
+    try {
+      const response = await apiFetch(`${API_BASE}/chat/conversations/${encodeURIComponent(id)}/messages?limit=15${before ? '&before=' + encodeURIComponent(before) : ''}`);
+      if (!response.ok) throw new Error();
+      const data = ChatHistoryPageSchema.parse(await response.json());
+      if (seq !== historySequence.current || conversationId.current !== id || owner.current !== userId) return;
+      mergeTurns(data.items); if (!silent || before) setMessageCursor(data.nextCursor);
+      setHistoryError(''); setIsTyping(data.items.some(turn => ['QUEUED', 'PENDING'].includes(turn.status)));
+    } catch { if (seq === historySequence.current && owner.current === userId) setHistoryError('Chưa mở được hội thoại. Hãy tải lại hoặc chọn hội thoại khác.'); }
+    finally { if (seq === historySequence.current && owner.current === userId && !silent) setHistoryLoading(false); }
+  };
+  const openConversation = (id: string) => {
+    cancelPending(); historySequence.current++; turns.current.clear(); setMessages([]); setIsTyping(false); setServiceUnavailable(false);
+    conversationId.current = id; setSelectedConversation(id); setSidebarOpen(false); setMessageCursor(null); setHistoryError(''); void loadMessages(id);
+  };
+  useEffect(() => {
+    newChat(false); setConversations([]); setListCursor(null);
+    const seq = historySequence.current;
+    void loadConversations().then(items => { if (seq === historySequence.current && items[0]) openConversation(items[0].id); });
+    return () => { historySequence.current++; listSequence.current++; cancelPending(); };
+  }, [user?.id]);
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === 'hidden') return; void loadConversations(); if (conversationId.current && !pending.current) void loadMessages(conversationId.current, undefined, true); };
+    window.addEventListener('focus', refresh);
+    const timer = window.setInterval(() => { if (isTyping && !pending.current) refresh(); }, 2000);
+    return () => { window.removeEventListener('focus', refresh); window.clearInterval(timer); };
+  }, [selectedConversation, isTyping, user?.id]);
 
   const send = (prompt: string) => {
     const text = prompt.trim();
     if (!text || text.length > 2000 || pending.current) return;
+    historySequence.current++;
     const controller = new AbortController();
+    const clientMessageId = messageId();
     pending.current = controller;
-    setMessages((previous) => [...previous, { id: ++nextId.current, sender: 'user', text }]);
+    setMessages((previous) => [...previous, { id: clientMessageId + ':user', sender: 'user', text }]);
     setIsTyping(true);
     setSidebarOpen(false);
     // Preserve the delay and cancel it on reset/unmount before starting a request.
@@ -261,11 +333,19 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
           body: JSON.stringify({
             message: text,
             conversationId: conversationId.current,
+            clientMessageId,
           }),
           signal: controller.signal,
         });
         if (!response.ok) throw new Error(`Chat HTTP ${response.status}`);
         const data: unknown = await response.json();
+        const saved = ChatHistorySendSchema.safeParse(data);
+        if (saved.success) {
+          if (pending.current !== controller) return;
+          pending.current = null; conversationId.current = saved.data.conversationId; setSelectedConversation(saved.data.conversationId);
+          mergeTurns([saved.data.turn]); setIsTyping(['QUEUED', 'PENDING'].includes(saved.data.turn.status));
+          setServiceUnavailable(saved.data.turn.status === 'FAILED'); void loadConversations(); return;
+        }
         reply = parseReply(data);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Lỗi kết nối máy chủ';
@@ -285,7 +365,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     }, 600);
   };
 
-  const confirm = (id: number, approved: boolean) => {
+  const confirm = (id: number | string, approved: boolean) => {
     setMessages((previous) => previous.map((message) => message.id === id && message.proposedAction?.status === 'pending'
       ? { ...message, proposedAction: { ...message.proposedAction, status: approved ? 'confirmed' : 'cancelled' } }
       : message));
@@ -293,7 +373,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
 
   const composer = (
     <ChatComposer
-      isTyping={isTyping}
+      isTyping={isTyping || historyLoading}
       onSend={(text) => send(text)}
       inputRef={inputRef}
     />
@@ -303,7 +383,13 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     <div className="guta-chat" data-testid="chat-page">
             <aside id="copilot-sidebar" className="guta-chat-sidebar" data-open={sidebarOpen} aria-label="Điều hướng hội thoại">
         <div className="guta-chat-brand"><BrandMark className="guta-chat-logo" alt="" />Guta Workspace</div>
-        <button className="chat-new" type="button" onClick={newChat}>Hội thoại mới</button>
+        <button className="chat-new" type="button" onClick={() => newChat()}>Hội thoại mới</button>
+        <nav className="guta-chat-history" aria-label="Lịch sử hội thoại"><p className="guta-chat-sidebar-label">Hội thoại gần đây</p>
+          {!conversations.length && <p className="guta-chat-note">Chưa có hội thoại đã lưu.</p>}
+          {conversations.map(item => <button type="button" key={item.id} aria-current={selectedConversation === item.id ? 'page' : undefined} onClick={() => openConversation(item.id)} title={item.title}>{item.title}</button>)}
+          {listCursor && <button type="button" onClick={() => void loadConversations(listCursor)}>Hội thoại cũ hơn</button>}
+          <button type="button" disabled={isTyping || historyLoading} onClick={() => { void loadConversations(); if (conversationId.current) void loadMessages(conversationId.current); }}>Tải lại lịch sử</button>
+        </nav>
         {/* One nav, not two. The role quick replies already render in the centre
             column where the user is looking; repeating them here made the
             sidebar a second, competing menu. */}
@@ -340,6 +426,9 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
             <button type="button" aria-label="Quay lại CRM" onClick={() => onSwitchTab('crm')}>CRM</button>
           </div>
         </header>
+        {historyError && <p className="guta-chat-banner" role="status">{historyError}</p>}
+        {historyLoading && <p className="guta-chat-note" role="status">Đang tải hội thoại đã lưu…</p>}
+        {messageCursor && selectedConversation && <button type="button" className="btn" disabled={historyLoading} onClick={() => void loadMessages(selectedConversation, messageCursor)}>Xem tin nhắn cũ hơn</button>}
         {serviceUnavailable && (
           <div className="guta-chat-banner" data-testid="chat-service-unavailable">
             <strong>Demo an toàn · Dịch vụ AI chưa khả dụng</strong>

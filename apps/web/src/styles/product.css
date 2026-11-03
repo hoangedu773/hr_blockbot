@@ -2428,6 +2428,10 @@ html:not(.dark) .guta-chat {
   white-space: nowrap;
 }
 
+.guta-chat-sidebar .guta-chat-history { min-height: 100px; max-height: 42vh; overflow-y: auto; }
+.guta-chat-sidebar .guta-chat-history button { display: block; width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+.guta-chat-sidebar .guta-chat-history button[aria-current="page"] { background: var(--chat-border); font-weight: 600; }
+
 .guta-chat-sidebar footer {
   margin-top: auto;
   display: grid;

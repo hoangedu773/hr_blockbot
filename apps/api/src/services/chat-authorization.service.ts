@@ -128,7 +128,8 @@ export async function executeGatewayTool(token: string, body: unknown) {
   if (!record.matchedCount) throw new WorkflowError(403, "CHAT_REQUEST_UNAVAILABLE", "Request closed during read");
   return { result, proposalOnly: true };
 }
-export async function authorizedChat(user: AuthenticatedUser, message: string, conversationId?: string) {
+export async function authorizedChat(user: AuthenticatedUser, message: string, conversationId?: string,
+  onValidated?: (response: any, evidence: { documents: any[]; projects: any[]; schedules: any[] }) => Promise<void>) {
   const authorization = await beginAuthorizedChat(user);
   try {
     const result = await chatWithAiService(message, {}, conversationId, authorization);
@@ -152,6 +153,8 @@ export async function authorizedChat(user: AuthenticatedUser, message: string, c
       if (digest(data.assignments.map(({ weekVersion, ...a }) => a)) !== receipt.digest) throw new WorkflowError(409, 'CHAT_RESOURCE_CHANGED', 'Lịch đã công bố vừa thay đổi. Vui lòng hỏi lại.');
     }
     // Provider output cannot invent citations, attachment access, or executable actions.
-    return { ...result, citations, attachments: [], proposedAction: null };
+    const response = { ...result, citations, attachments: [], proposedAction: null };
+    if (onValidated) await onValidated(response, { documents: row.documents, projects: row.projects, schedules: row.schedules ?? [] });
+    return response;
   } finally { await receipts().updateOne({ _id: authorization.requestId }, { $set: { status: "CLOSED" } }); }
 }

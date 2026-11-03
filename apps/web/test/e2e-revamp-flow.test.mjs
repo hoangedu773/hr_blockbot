@@ -232,6 +232,9 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     });
     await page.route('**/api/dashboard/overview', (route) => route.fulfill({ status: 200, json: DASHBOARD_OVERVIEW_FIXTURE }));
     await page.route('**/api/departments', (route) => route.fulfill({ status: 200, json: { items: [] } }));
+    // This visual suite starts with no persisted conversations; persistence is
+    // exercised separately against real Node/MongoDB by chat-history.integration.mjs.
+    await page.route('**/api/chat/conversations?*', (route) => route.fulfill({ status: 200, json: { items: [], nextCursor: null } }));
     // Invalid payload exercises the safe demo boundary without a live backend.
     await page.route('**/api/chat', (route) => route.fulfill({ status: 200, json: {} }));
 

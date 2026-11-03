@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import {
   chromium,
   reactDomUmdPath,
@@ -35,6 +36,8 @@ function harnessSource(source) {
 }
 
 test('ChatPageView renders citations/attachments, confirms drafts honestly and reports contract violations', async () => {
+  const { build } = createRequire(import.meta.url)('esbuild');
+  const contracts = await build({ entryPoints: [fileURLToPath(new URL('../../../packages/contracts/dist/index.js', import.meta.url))], bundle: true, platform: 'browser', format: 'iife', globalName: 'ChatContracts', write: false });
   const source = await readFile(new URL('../src/components/chat/ChatPageView.tsx', import.meta.url), 'utf8');
   const compiled = await harnessSource(source);
   const browser = await chromium.launch({ headless: true });
@@ -52,11 +55,14 @@ test('ChatPageView renders citations/attachments, confirms drafts honestly and r
     await page.addScriptTag({ path: reactUmdPath });
     await page.addScriptTag({ path: reactDomUmdPath });
     await page.addStyleTag({ content: builtCss });
+    await page.addScriptTag({ content: contracts.outputFiles[0].text });
+    await page.route('**/api/chat/conversations**', route => route.fulfill({ json: { items: [], nextCursor: null } }));
 
     const prelude = [
       'const { useState, useEffect, useRef } = React;',
       "const API_BASE = '/api';",
       'const apiFetch = fetch;',
+      'const { ChatConversationListSchema, ChatHistoryPageSchema, ChatHistorySendSchema } = ChatContracts;',
       "const useAuth = () => ({ user: { authorization: { profile: 'staff' } } });",
       'const BrandMark = () => null;',
       'const ThemeToggle = () => null;',
