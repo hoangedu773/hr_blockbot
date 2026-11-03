@@ -4,7 +4,7 @@ from unittest.mock import patch
 from types import SimpleNamespace
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
-from app.authorization_gateway import app
+from app.authorization_gateway import app, requested_kpi_period
 from app.performance_kpi import SuggestTaskStructureRequest, SummarizeEvaluationRequest, ExplainKpiRequest, suggest_structure, summarize_evaluation, explain_kpi
 
 
@@ -13,6 +13,14 @@ def content():
 
 
 class PerformanceTests(unittest.TestCase):
+    def test_explicit_period_keeps_two_digit_months(self):
+        for month in range(1, 13):
+            expected = f"2026-{month:02d}"
+            self.assertEqual(requested_kpi_period(f"Giải thích KPI {expected} của tôi"), expected)
+            self.assertEqual(requested_kpi_period(f"KPI tháng {month}/2026"), expected)
+            self.assertEqual(requested_kpi_period(f"KPI tháng {month} năm 2026"), expected)
+        self.assertIsNone(requested_kpi_period("KPI 2026-13"))
+
     def test_strict_rubric_and_privacy(self):
         value = {"title": "Kiểm kê cuối ngày", "description": "Đối chiếu mặt hàng", "role": "STAFF", "template": content()}
         self.assertTrue(suggest_structure(SuggestTaskStructureRequest(**value))["degraded"])

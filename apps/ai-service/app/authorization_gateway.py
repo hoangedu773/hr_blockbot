@@ -184,8 +184,7 @@ async def _authorized_chat(request: AuthorizedChatRequest, x_ai_service_key: str
                 lambda: analyze_live(request.message, request.deadlineAtMs), abandon_on_cancel=True)}
         calls = [(tool, {"query": request.message} if tool == "query_policy" else {})
                  for tool in ("get_my_profile", "list_projects", "query_policy", "validate_context")]
-        period_match = re.search(r"(20[0-9]{2})[-/](0?[1-9]|1[0-2])", request.message)
-        period = period_match.group(1) + "-" + str(int(period_match.group(2))).zfill(2) if period_match else None
+        period = requested_kpi_period(request.message)
         if re.search(r"(kpi|điểm|đánh giá|hiệu suất|xếp hạng)", request.message, re.IGNORECASE):
             calls.append(("get_my_kpi", {"period": period} if period else {}))
             if re.search(r"(phòng ban|cửa hàng|đội|nhóm|toàn bộ|tổng hợp)", request.message, re.IGNORECASE):
@@ -304,3 +303,12 @@ async def performance_summary(request: SummarizeEvaluationRequest, x_ai_service_
 @app.post("/api/v1/kpi/explain")
 async def performance_explain(request: ExplainKpiRequest, x_ai_service_key: str | None = Header(default=None)):
     return await _performance_advice(request, explain_kpi, x_ai_service_key)
+
+
+def requested_kpi_period(message: str) -> str | None:
+    # Longest month alternative first: 10/11/12 must never become January.
+    forward = re.search(r"\b(20[0-9]{2})[-/](1[0-2]|0?[1-9])(?![0-9])", message)
+    if forward:
+        return forward.group(1) + "-" + forward.group(2).zfill(2)
+    reverse = re.search(r"(?:tháng\s*)?(1[0-2]|0?[1-9])(?:[/.-]|\s+năm\s+)(20[0-9]{2})(?![0-9])", message, re.IGNORECASE)
+    return reverse.group(2) + "-" + reverse.group(1).zfill(2) if reverse else None
