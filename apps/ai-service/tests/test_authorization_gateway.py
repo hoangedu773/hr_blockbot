@@ -75,11 +75,12 @@ def test_provider_only_receives_gateway_context_and_cannot_execute_model_tools(b
 
 
 @pytest.mark.parametrize("status", ["ok", "unavailable", "external_text_disabled"])
-def test_live_gateway_generates_reply_with_typed_advisory_metadata(boundary, monkeypatch, status):
+@pytest.mark.parametrize("source", ["jev_systemone", "jev_usejevai"])
+def test_live_gateway_generates_reply_with_typed_advisory_metadata(boundary, monkeypatch, status, source):
     client, calls, prompts, _ = boundary
     monkeypatch.setenv("JEV_V1_MODE", "LIVE")
     decision = {"mode": "LIVE", "status": status, "execution": "live" if status == "ok" else "none",
-                "source": "jev_systemone" if status == "ok" else None}
+                "source": source if status == "ok" else None}
     if status == "ok":
         decision.update(intent="general_chat", needsManagerApprovalProbability=0.1,
                         incidentUrgency=0, intentConfidence=0.9, intentProbabilities={"general_chat": 0.9}, latencyMs=1)
@@ -88,7 +89,7 @@ def test_live_gateway_generates_reply_with_typed_advisory_metadata(boundary, mon
     assert response.status_code == 200
     assert response.json()["reply"] == "Allowed answer"
     assert response.json()["decisionAnalysis"] == decision
-    assert response.json()["decisionSource"] == ("jev_systemone" if status == "ok" else "authorization-v1")
+    assert response.json()["decisionSource"] == (source if status == "ok" else "authorization-v1")
     assert response.json()["degraded"] is (status != "ok")
     assert response.json()["proposedAction"] is None
     assert calls[0]["tool"] == "validate_context"

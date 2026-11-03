@@ -189,7 +189,7 @@ async def _authorized_chat(request: AuthorizedChatRequest, x_ai_service_key: str
     if not contexts or not request.providerConfig:
         return {"reply": "Chưa có dữ liệu được phép hoặc provider phù hợp để trả lời. Chưa có thay đổi dữ liệu nào được thực hiện.",
             "citations": [], "attachments": [], "proposedAction": None, "abstain": True, "degraded": True,
-            "decisionSource": "jev_systemone" if mode == "LIVE" and analysis.get("decisionAnalysis", {}).get("status") == "ok" else "authorization-v1",
+            "decisionSource": analysis["decisionAnalysis"]["source"] if mode == "LIVE" and analysis.get("decisionAnalysis", {}).get("status") == "ok" else "authorization-v1",
             **analysis}
 
     def complete() -> str:
@@ -229,5 +229,5 @@ async def _authorized_chat(request: AuthorizedChatRequest, x_ai_service_key: str
     live_ok = mode == "LIVE" and decision_status == "ok"
     return {"reply": text, "citations": [], "attachments": [], "proposedAction": None, "abstain": False,
         "degraded": False if mode in ("OFF", "SHADOW") else not live_ok,
-        "decisionSource": "jev_systemone" if live_ok else "authorization-v1", **analysis,
+        "decisionSource": analysis["decisionAnalysis"]["source"] if live_ok else "authorization-v1", **analysis,
         **({"conversationId": request.conversationId} if request.conversationId else {})}

@@ -27,6 +27,19 @@ not authorize the V1 transport to execute writes.
 
 ### JevAI V1 live adapter
 
+For a key issued by **usejevai.com**, configure `JEV_V1_PROVIDER=usejevai` and
+`USEJEVAI_API_KEY` server-side, in addition to LIVE + explicit external-text
+opt-in. This is a separate provider from thejevai.com; their keys are not
+interchangeable. See https://usejevai.com/jev-api.
+
+V1 submits one idempotent `prefer_trial` run to the pinned UseJevAI origin,
+polls that run within the request deadline and validates the three typed
+answers. Unknown/failed/late runs degrade without resubmitting or switching
+to purchased funding. Only the user message crosses this decision boundary;
+user identities, grants, policy context, provider credentials and delegation
+tokens are excluded. Source is accurately labelled `jev_usejevai`.
+This adapter does not import the legacy agent/tools/Mongo runtime.
+
 The V1 gateway includes an explicit, fail-closed Jev System One adapter. It runs
 only after the API's `validate_context` preflight succeeds and receives only the
 user's message; it never receives Mongo credentials, delegation tokens, user

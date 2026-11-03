@@ -980,7 +980,7 @@ export const DecisionAnalysisSchema = z.union([
     intentProbabilities: z.record(DecisionIntentSchema, z.number().finite().min(0).max(1)),
     latencyMs: z.number().int().min(0).max(15000),
   }).strict(),
-  z.object({ mode: z.literal("LIVE"), status: z.literal("ok"), execution: z.literal("live"), source: z.literal("jev_systemone"),
+  z.object({ mode: z.literal("LIVE"), status: z.literal("ok"), execution: z.literal("live"), source: z.enum(["jev_systemone", "jev_usejevai"]),
     intent: DecisionIntentSchema, needsManagerApprovalProbability: z.number().finite().min(0).max(1),
     incidentUrgency: z.number().finite().min(0).max(1), intentConfidence: z.number().finite().min(0).max(1),
     intentProbabilities: z.record(DecisionIntentSchema, z.number().finite().min(0).max(1)),

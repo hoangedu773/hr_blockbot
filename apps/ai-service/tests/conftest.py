@@ -12,7 +12,7 @@ _environment = pytest.MonkeyPatch()
 _live_requested = os.getenv("RUN_LIVE_TESTS") == "1"
 if not _live_requested:
     for _name in list(os.environ):
-        if _name.startswith(("AI_", "JEV_", "OPENAI_", "GOOGLE_", "GEMINI_")) or _name in (
+        if _name.startswith(("AI_", "JEV_", "USEJEVAI_", "OPENAI_", "GOOGLE_", "GEMINI_")) or _name in (
             "MONGODB_URI", "ATLAS_URI", "CORS_ALLOW_ORIGINS",
         ):
             _environment.delenv(_name, raising=False)
