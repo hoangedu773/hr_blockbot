@@ -1,6 +1,7 @@
 import './require-isolated-db.mjs';
 import { test, before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import mongoose from 'mongoose';
@@ -50,7 +51,7 @@ async function exitRequest(employee) {
 const approve = (row) => ({ decision: 'APPROVE', reason: 'Independent HR approval', expectedVersion: row.version });
 async function addCap(actor, cap) { await UserModel.updateOne({ _id: fixture.actors[actor].user._id }, { $addToSet: { 'authorization.grants.1.capabilities': cap } }); }
 async function newOnboarding(code) {
-  const created = await call('sm', '/onboarding', { employeeCode: code, fullName: 'Synthetic new hire ' + code, phone: 'owned-fixture-contact', hiredAt: '2026-10-31T00:00:00Z', storeId: String(fixture.stores[0]._id), reason: 'Reviewed core onboarding' });
+  const created = await call('sm', '/onboarding', { clientRequestId: randomUUID(), fullName: 'Synthetic new hire ' + code, phone: 'owned-fixture-contact', hiredAt: '2026-10-31T00:00:00Z', storeId: String(fixture.stores[0]._id), reason: 'Reviewed core onboarding' });
   assert.equal(created.status, 201, JSON.stringify(created)); return created.body;
 }
 

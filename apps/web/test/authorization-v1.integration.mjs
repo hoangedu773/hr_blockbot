@@ -1,5 +1,6 @@
 // Browser -> real API -> exclusively owned memory Mongo. No Atlas/provider or real account.
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
@@ -41,8 +42,8 @@ async function login(profile, password) {
   });
   const page = await context.newPage(); page.setDefaultTimeout(15000); page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(origin, { waitUntil: 'networkidle' }); await page.getByRole('button', { name: 'Get Started', exact: true }).click();
-  await page.getByLabel('Tên đăng nhập', { exact: true }).fill(profile.startsWith('browser-') ? profile : `v1-${profile}`);
-  await page.getByLabel('Mật khẩu', { exact: true }).fill(password || (profile.startsWith('browser-') ? 'BrowserRecipient@2026' : fixture.password));
+  await page.getByLabel('Tên đăng nhập', { exact: true }).fill((profile.startsWith('browser-') || profile.startsWith('gt-ch')) ? profile : `v1-${profile}`);
+  await page.getByLabel('Mật khẩu', { exact: true }).fill(password || ((profile.startsWith('browser-') || profile.startsWith('gt-ch')) ? 'BrowserRecipient@2026' : fixture.password));
   await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
   // The integrated shell opens CRM directly for every authorized profile.
   await page.locator('.crm-sidebar').waitFor();
@@ -114,19 +115,22 @@ try {
   await page.locator('nav [data-section="onboarding"]').click(); await page.getByRole('button', { name: 'Tạo đề nghị nhân viên', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Đề nghị tiếp nhận nhân viên', exact: true });
   await dialog.getByLabel('Cửa hàng', { exact: true }).selectOption(String(fixture.stores[0]._id));
-  await dialog.getByLabel('Mã nhân viên', { exact: true }).fill('BROWSER-V1-NEW'); await dialog.getByLabel('Họ tên', { exact: true }).fill('Isolated browser onboarding');
+  assert.equal(await dialog.getByLabel('Mã nhân viên', { exact: true }).isEditable(), false); await dialog.getByLabel('Họ tên', { exact: true }).fill('Isolated browser onboarding');
   await dialog.getByLabel('Thông tin điện thoại', { exact: true }).fill('isolated-contact'); await dialog.getByLabel('Ngày bắt đầu', { exact: true }).fill('2026-10-31');
   await dialog.getByLabel('Lý do đề nghị', { exact: true }).fill('Owned browser workflow test'); await dialog.getByRole('button', { name: 'Lưu đề nghị', exact: true }).click();
-  await page.getByRole('heading', { name: 'Isolated browser onboarding · BROWSER-V1-NEW', exact: true }).waitFor();
-  assert.equal(await UserModel.countDocuments({ username: 'browser-v1-new' }), 0);
+  await dialog.waitFor({ state: 'hidden' });
+  const autoCreated = await OnboardingRequestModel.findOne({ 'payload.fullName': 'Isolated browser onboarding' }).lean();
+  const onboardingCode = autoCreated.payload.employeeCode; assert.match(onboardingCode, /^GT-CH2610\d{4}$/);
+  await page.getByRole('heading', { name: `Isolated browser onboarding · ${onboardingCode}`, exact: true }).waitFor();
+  assert.equal(await UserModel.countDocuments({ username: onboardingCode.toLowerCase() }), 0);
   const hr = await login('hr'); await hr.page.locator('nav [data-section="onboarding"]').click();
-  const card = hr.page.locator('article').filter({ has: hr.page.getByRole('heading', { name: 'Isolated browser onboarding · BROWSER-V1-NEW', exact: true }) });
+  const card = hr.page.locator('article').filter({ has: hr.page.getByRole('heading', { name: `Isolated browser onboarding · ${onboardingCode}`, exact: true }) });
   await card.getByRole('button', { name: 'Đối chiếu và lịch sử', exact: true }).click();
   const review = hr.page.getByRole('dialog', { name: 'Đối chiếu đề nghị tiếp nhận', exact: true });
   await review.getByLabel('Lý do quyết định', { exact: true }).fill('Verify corrected contact before approval'); await review.getByRole('button', { name: 'Từ chối đề nghị', exact: true }).click(); await review.waitFor({ state: 'hidden' });
-  const originalRequest = await OnboardingRequestModel.findOne({ employeeKey: 'browser-v1-new' }).lean();
+  const originalRequest = await OnboardingRequestModel.findOne({ employeeKey: onboardingCode.toLowerCase() }).lean();
   await page.getByRole('button', { name: 'Làm mới yêu cầu', exact: true }).click(); await page.getByRole('button', { name: 'Chỉnh sửa và gửi lại', exact: true }).click();
-  assert.equal(await dialog.getByLabel('Mã nhân viên', { exact: true }).isDisabled(), true); assert.equal(await dialog.getByLabel('Cửa hàng', { exact: true }).isDisabled(), true);
+  assert.equal(await dialog.getByLabel('Mã nhân viên', { exact: true }).isEditable(), false); assert.equal(await dialog.getByLabel('Cửa hàng', { exact: true }).isDisabled(), true);
   await dialog.getByLabel('Thông tin điện thoại', { exact: true }).fill('corrected-browser-contact'); await dialog.getByLabel('Lý do đề nghị', { exact: true }).fill('Verified correction on the original identity');
   await dialog.getByRole('button', { name: 'Gửi lại đề nghị đã chỉnh sửa', exact: true }).click(); await dialog.waitFor({ state: 'hidden' });
   const amended = await OnboardingRequestModel.findById(originalRequest._id).lean(); assert.equal(String(amended.userId), String(originalRequest.userId)); assert.equal(String(amended.employeeId), String(originalRequest.employeeId)); assert.equal(amended.history[1].type, 'HR_REJECTED'); assert.equal(amended.history[2].type, 'AMENDED_AND_RESUBMITTED');
@@ -134,8 +138,8 @@ try {
   await review.getByText('corrected-browser-contact', { exact: true }).waitFor();
   await review.getByLabel('Lý do quyết định', { exact: true }).fill('Independent HR verified canonical identity/store'); await review.getByRole('button', { name: 'Phê duyệt tiếp nhận', exact: true }).click();
   await card.getByText(/Chờ nhân viên kích hoạt/).waitFor();
-  const request = await OnboardingRequestModel.findOne({ employeeKey: 'browser-v1-new' }).lean();
-  assert.equal(await UserModel.countDocuments({ username: 'browser-v1-new', status: 'pending_activation' }), 1);
+  const request = await OnboardingRequestModel.findOne({ employeeKey: onboardingCode.toLowerCase() }).lean();
+  assert.equal(await UserModel.countDocuments({ username: onboardingCode.toLowerCase(), status: 'pending_activation' }), 1);
   const activation = await browser.newPage(); contexts.push(activation.context());
   await activation.route('**/api/**', async (route) => { const url = new URL(route.request().url()); return route.fulfill({ response: await route.fetch({ url: apiOrigin + url.pathname }) }); });
   await activation.goto(origin + '#activate=' + invitations.get(String(request._id)));
@@ -144,7 +148,7 @@ try {
   await activation.getByRole('button', { name: 'Thiết lập mật khẩu', exact: true }).click(); await activation.getByText('Đã thiết lập mật khẩu. Bạn có thể đăng nhập bằng mã nhân viên.').waitFor();
   assert.equal((await UserModel.findById(request.userId)).status, 'active'); assert.equal((await EmployeeModel.findById(request.employeeId)).status, 'active');
   await ManagementRelationModel.create({ managerEmployeeId: fixture.actors.sm.employee._id, employeeId: request.employeeId, storeId: fixture.stores[0]._id, approvalRef: 'reviewed-browser-subject-mapping', validFrom: new Date(Date.now() - 60000), validUntil: null, version: 1 });
-  await login('browser-v1-new');
+  await login(onboardingCode.toLowerCase());
   await page.screenshot({ path: path.join(output, 'authorization-v1-onboarding-desktop.png'), fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 }); await page.screenshot({ path: path.join(output, 'authorization-v1-onboarding-mobile.png'), fullPage: true });
   assert.deepEqual(errors, []);
@@ -233,7 +237,7 @@ try {
     assert.equal(new URL(setup.url()).hash, ''); await setup.getByRole('button', { name: 'Thiết lập mật khẩu', exact: true }).click(); await setup.getByText('Đã thiết lập mật khẩu. Bạn có thể đăng nhập bằng mã nhân viên.').waitFor();
   };
   await setupPassword('#reactivate=' + invitations.get(String(reactivation._id)), 'BrowserReactivated@2026');
-  await login('browser-v1-new', 'BrowserReactivated@2026');
+  await login(onboardingCode.toLowerCase(), 'BrowserReactivated@2026');
   assert.equal((await EmployeeLifecycleRequestModel.findById(reactivation._id)).status, 'COMPLETED');
   console.log('PASS browser/database reactivation: independent HR -> disabled until new-password consent -> same identity/login, no restored managerial grants');
 
@@ -259,7 +263,7 @@ try {
   await lifecycleReview.getByRole('button', { name: 'Kiểm tra điều kiện và tiếp tục xử lý', exact: true }).click(); await lifecycleReview.waitFor({ state: 'hidden' });
   assert.equal(String((await EmployeeModel.findById(request.employeeId)).storeId), String(fixture.stores[1]._id));
   assert.equal((await EmployeeLifecycleRequestModel.findOne({ employeeId: request.employeeId, kind: 'TRANSFER' })).status, 'COMPLETED');
-  const transferred = await login('browser-v1-new', 'BrowserReactivated@2026'); await transferred.page.locator('nav [data-section="directory"]').click();
+  const transferred = await login(onboardingCode.toLowerCase(), 'BrowserReactivated@2026'); await transferred.page.locator('nav [data-section="directory"]').click();
   const transferredDirectory = transferred.page.getByRole('region', { name: 'Danh bạ công việc', exact: true }); await transferredDirectory.getByRole('heading', { name: 'Isolated V1 staffB', exact: true }).waitFor();
   assert.equal(await transferredDirectory.getByRole('heading', { name: 'Isolated V1 staff', exact: true }).count(), 0);
   console.log('PASS browser/database transfer: HR approval + two independent store managers -> resume -> canonical B directory only; original identity and CRM history preserved');
@@ -312,13 +316,13 @@ try {
   // Real service-created backlog, not fabricated UI paging metadata. The old
   // onboarding request must remain retrievable by page and by immutable ID.
   for (let index = 0; index < 21; index++) {
-    const created = await fetch(apiOrigin + '/api/onboarding', { method: 'POST', headers: { Authorization: 'Bearer ' + sm.token(), 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeCode: 'BROWSER-HISTORY-' + index, fullName: 'Synthetic backlog ' + index, phone: 'synthetic-only', storeId: String(fixture.stores[0]._id), hiredAt: new Date().toISOString(), reason: 'Owned browser pagination fixture' }) });
+    const created = await fetch(apiOrigin + '/api/onboarding', { method: 'POST', headers: { Authorization: 'Bearer ' + sm.token(), 'Content-Type': 'application/json' }, body: JSON.stringify({ clientRequestId: randomUUID(), fullName: 'Synthetic backlog ' + index, phone: 'synthetic-only', storeId: String(fixture.stores[0]._id), hiredAt: new Date().toISOString(), reason: 'Owned browser pagination fixture' }) });
     assert.equal(created.status, 201);
   }
   await page.locator('nav [data-section="onboarding"]').click();
   const pagination = page.getByRole('navigation', { name: 'Phân trang onboarding', exact: true });
   await pagination.getByRole('button', { name: 'Trang sau', exact: true }).click();
-  await page.getByRole('heading', { name: 'Isolated browser onboarding · BROWSER-V1-NEW', exact: true }).waitFor();
+  await page.getByRole('heading', { name: `Isolated browser onboarding · ${onboardingCode}`, exact: true }).waitFor();
   await page.getByLabel('Tra cứu lịch sử bằng mã yêu cầu', { exact: true }).fill(String(originalRequest._id)); await page.getByRole('button', { name: 'Xem lịch sử theo mã', exact: true }).click();
   const historical = page.getByRole('dialog', { name: 'Đối chiếu đề nghị tiếp nhận', exact: true });
   await historical.getByText('Hash-chain local khớp. Đây không phải bằng chứng neo Blockchain công khai.', { exact: true }).waitFor();

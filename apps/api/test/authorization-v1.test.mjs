@@ -1,6 +1,7 @@
 import './require-isolated-db.mjs';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import mongoose from 'mongoose';
 import { createApp } from '../dist/app.js';
@@ -19,7 +20,7 @@ async function call(actor, path, body, method = body ? 'POST' : 'GET') {
   const response = await fetch(base + '/api' + path, { method, headers: { Connection: 'close', ...(actor ? { Authorization: `Bearer ${fixture.actors[actor]?.token ?? actor}` } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
   return { status: response.status, body: response.status === 204 ? null : await response.json() };
 }
-const proposed = (code) => ({ employeeCode: code, fullName: `Isolated new ${code}`, phone: 'fixture-phone-only', storeId: String(fixture.stores[0]._id), hiredAt: new Date().toISOString(), reason: 'Isolated workflow verification' });
+const proposed = (code) => ({ clientRequestId: randomUUID(), fullName: `Isolated new ${code}`, phone: 'fixture-phone-only', storeId: String(fixture.stores[0]._id), hiredAt: new Date().toISOString(), reason: 'Isolated workflow verification' });
 before(async () => {
   await connectDB(); fixture = await authorizationV1Fixture();
   server = createServer(createApp({ onboarding: { deliverActivation: async (invitation) => { invitations.set(invitation.requestId, invitation.token); },
@@ -65,20 +66,21 @@ test('SM proposes, HR independently approves, concurrent decisions provision exa
   assert.equal((await call('sm', '/admin/users', { username: 'forbidden-active-staff', password: 'NeverAllowed@2026', role: 'Employee' })).status, 403);
   assert.equal((await call('sm', '/onboarding', { ...proposed('NEW-V1-A'), role: 'Admin' })).status, 400);
   const request = await call('sm', '/onboarding', proposed('NEW-V1-A')); assert.equal(request.status, 201); assert.equal(request.body.status, 'PENDING_HR_REVIEW');
+  const username = request.body.payload.employeeCode.toLowerCase();
   const results = await Promise.all(['hr', 'hr2'].map((actor) => call(actor, `/onboarding/${request.body.id}/review`, { decision: 'APPROVE', expectedVersion: request.body.version, reason: 'Verified fixture identity/store' })));
   assert.deepEqual(results.map((result) => result.status).sort(), [200, 409]);
-  assert.equal(await UserModel.countDocuments({ username: 'new-v1-a' }), 1);
-  assert.equal(await EmployeeModel.countDocuments({ personnelKey: 'new-v1-a' }), 1);
+  assert.equal(await UserModel.countDocuments({ username }), 1);
+  assert.equal(await EmployeeModel.countDocuments({ personnelKey: username }), 1);
   const accepted = results.find((result) => result.status === 200).body;
   assert.equal(accepted.status, 'PENDING_ACTIVATION');
   assert.doesNotMatch(JSON.stringify(accepted), /passwordHash|activationTokenHash|activationPasswordHash|temporaryPassword/);
   assert.equal((await UserModel.findById(accepted.userId)).status, 'pending_activation');
   assert.equal((await EmployeeModel.findById(accepted.employeeId)).status, 'inactive');
-  assert.equal((await call(null, '/auth/login', { username: 'new-v1-a', password: 'anything' })).status, 401);
+  assert.equal((await call(null, '/auth/login', { username, password: 'anything' })).status, 401);
   const token = invitations.get(request.body.id); assert.ok(token);
   assert.equal((await call(null, '/auth/activate', { token, newPassword: 'RecipientPrivate@2026' })).status, 204);
   assert.equal((await call(null, '/auth/activate', { token, newPassword: 'ReplayNotAllowed@2026' })).status, 400);
-  const login = await call(null, '/auth/login', { username: 'new-v1-a', password: 'RecipientPrivate@2026' }); assert.equal(login.status, 200);
+  const login = await call(null, '/auth/login', { username, password: 'RecipientPrivate@2026' }); assert.equal(login.status, 200);
   const me = await call(login.body.accessToken, '/auth/me');
   assert.equal(me.body.authorization.profile, 'staff'); assert.equal(me.body.mustChangePassword, false);
   assert.equal(me.body.authorization.grants.some((grant) => grant.capabilities.includes('accounts.manage')), false);
@@ -96,23 +98,24 @@ test('draft and HR profile alone do not replace independent explicit review gran
   assert.equal((await call('hr2', `/onboarding/${draft.body.id}/review`, { decision: 'APPROVE', expectedVersion: submitted.body.version, reason: 'Profile alone denied' })).status, 403);
   hr2.authorization = saved; await hr2.save();
   assert.equal((await call('hr2', `/onboarding/${draft.body.id}/review`, { decision: 'REJECT', expectedVersion: submitted.body.version, reason: 'Missing verified information' })).status, 200);
-  assert.equal(await UserModel.countDocuments({ username: 'new-v1-draft' }), 0);
+  assert.equal(await UserModel.countDocuments({ username: draft.body.payload.employeeCode.toLowerCase() }), 0);
 });
 
 test('partial provisioning and activation resume safely; no usable active account at any intermediate failure', async () => {
   const created = await call('sm', '/onboarding', proposed('NEW-V1-RECOVER')); assert.equal(created.status, 201);
+  const username = created.body.payload.employeeCode.toLowerCase();
   failAt = 'after-employee';
   assert.equal((await call('hr', `/onboarding/${created.body.id}/review`, { decision: 'APPROVE', expectedVersion: created.body.version, reason: 'Verified before injected failure' })).status, 500);
-  assert.equal((await EmployeeModel.findOne({ personnelKey: 'new-v1-recover' })).status, 'inactive');
-  assert.equal(await UserModel.countDocuments({ username: 'new-v1-recover' }), 0);
+  assert.equal((await EmployeeModel.findOne({ personnelKey: username })).status, 'inactive');
+  assert.equal(await UserModel.countDocuments({ username }), 0);
   const resumed = await call('hr', `/onboarding/${created.body.id}/resume`, {}); assert.equal(resumed.status, 200);
   const token = invitations.get(created.body.id); assert.ok(token);
   failAt = 'activation-after-user';
   assert.equal((await call(null, '/auth/activate', { token, newPassword: 'RecoveryRecipient@2026' })).status, 500);
-  assert.equal((await call(null, '/auth/login', { username: 'new-v1-recover', password: 'RecoveryRecipient@2026' })).status, 401);
+  assert.equal((await call(null, '/auth/login', { username, password: 'RecoveryRecipient@2026' })).status, 401);
   assert.equal((await call('hr', `/onboarding/${created.body.id}/resume`, {})).body.status, 'ACTIVE');
-  assert.equal((await call(null, '/auth/login', { username: 'new-v1-recover', password: 'RecoveryRecipient@2026' })).status, 200);
-  assert.equal(await EmployeeModel.countDocuments({ personnelKey: 'new-v1-recover' }), 1); assert.equal(await UserModel.countDocuments({ username: 'new-v1-recover' }), 1);
+  assert.equal((await call(null, '/auth/login', { username, password: 'RecoveryRecipient@2026' })).status, 200);
+  assert.equal(await EmployeeModel.countDocuments({ personnelKey: username }), 1); assert.equal(await UserModel.countDocuments({ username }), 1);
 });
 
 test('CRM manager may review work they assigned, but staff and system admin cannot review; consent/audit remain real', async () => {

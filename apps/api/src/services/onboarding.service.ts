@@ -13,11 +13,13 @@ import { resolvePrincipal, securityVersion } from "./principal.service.js";
 import { digest } from "./project-audit.service.js";
 import { workflowPage, workflowDetail, historyIntegrity } from "./workflow-page.service.js";
 import { withCrmWriter } from "./crm-writer.service.js";
+import { employeeCodePeriod, reserveEmployeeCode } from "./employee-code.service.js";
 
 export type ActivationDelivery = (invitation: { token: string; username: string; requestId: string; phone: string; purpose?: "onboarding" | "reactivation" }) => Promise<void>;
 export interface OnboardingOptions { deliverActivation?: ActivationDelivery; failpoint?: (stage: string) => void }
 const tokenHash = (value: string) => createHash("sha256").update(value).digest("hex");
-const termsHash = (row: any) => digest({ employeeKey: row.employeeKey, employeeId: row.employeeId, userId: row.userId, storeId: row.storeId, requestedBy: row.requestedBy, requesterEmployeeId: row.requesterEmployeeId });
+const termsHash = (row: any) => digest({ employeeKey: row.employeeKey, employeeId: row.employeeId, userId: row.userId, storeId: row.storeId, requestedBy: row.requestedBy, requesterEmployeeId: row.requesterEmployeeId,
+  ...(row.creationFingerprint ? { creationFingerprint: row.creationFingerprint } : {}) });
 const approvalHash = (row: any) => digest({ approvedBy: row.approvedBy ?? null, approvedAt: row.approvedAt ?? null, approvalReason: row.approvalReason ?? null });
 function event(row: any, actor: string, type: string, reason: string, next: any) {
   const payload = { id: randomUUID(), actor, at: new Date().toISOString(), type, reason,
@@ -82,18 +84,31 @@ async function assertIndexesReady() {
 export async function createOnboarding(user: AuthenticatedUser, body: unknown, draft = false) {
   const parsed = OnboardingCreateSchema.safeParse(body);
   if (!parsed.success) throw new WorkflowError(400, "VALIDATION_FAILED", "Thông tin đề nghị tối thiểu không hợp lệ hoặc chứa trường cấp quyền.");
-  const payload = parsed.data;
-  requireCapability(user, draft ? "onboarding.draft" : "onboarding.propose", resourceScope(user, { storeId: payload.storeId, storeMappingRef: "approved" }));
-  await canonicalStore(payload.storeId); await assertIndexesReady();
+  const { clientRequestId, ...input } = parsed.data;
+  requireCapability(user, draft ? "onboarding.draft" : "onboarding.propose", resourceScope(user, { storeId: input.storeId, storeMappingRef: "approved" }));
+  await canonicalStore(input.storeId); await assertIndexesReady();
+  employeeCodePeriod(input.hiredAt);
+  const requestId = objectId(createHash("sha256").update("onboarding-auto-code-v1:" + user.userId + ":" + clientRequestId.toLowerCase()).digest("hex").slice(0, 24));
+  const creationFingerprint = digest({ input, draft });
+  const replay = (row: any) => {
+    if (String(row.requestedBy) !== user.userId || row.creationFingerprint !== creationFingerprint)
+      throw new WorkflowError(409, "ONBOARDING_REQUEST_CONFLICT", "Đề nghị đã được gửi với nội dung khác. Tải lại để đối chiếu trước khi tạo đề nghị mới.");
+    verifyHistory(row);
+    return row;
+  };
+  const existing: any = await OnboardingRequestModel.findById(requestId).lean();
+  if (existing) return replay(existing);
+  const payload = { ...input, employeeCode: await reserveEmployeeCode(input.hiredAt) };
   const employeeKey = payload.employeeCode.toLowerCase();
-  const exactCode = { $regex: "^" + payload.employeeCode.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$", $options: "i" };
-  if (await EmployeeModel.exists({ $or: [{ employeeCode: exactCode }, { employee_code: exactCode }] }) || await UserModel.exists({ username: employeeKey })) {
-    throw new WorkflowError(409, "ONBOARDING_DUPLICATE_IDENTITY", "Mã hồ sơ/tài khoản đã tồn tại; cần đối chiếu, không tự liên kết từ tên.");
-  }
-  const values = { employeeKey, payload, storeId: objectId(payload.storeId), requestedBy: objectId(user.userId), requesterEmployeeId: objectId(user.employeeId!),
+  const values = { _id: requestId, creationFingerprint, employeeKey, payload, storeId: objectId(payload.storeId), requestedBy: objectId(user.userId), requesterEmployeeId: objectId(user.employeeId!),
     status: draft ? "DRAFT" : "PENDING_HR_REVIEW", version: 1, employeeId: new mongoose.Types.ObjectId(), userId: new mongoose.Types.ObjectId() };
   try { return (await OnboardingRequestModel.create({ ...values, history: [event(null, user.userId, "REQUESTED", payload.reason, values)] })).toObject(); }
-  catch (error: any) { if (error.code === 11000) throw new WorkflowError(409, "ONBOARDING_DUPLICATE_REQUEST", "Đã có đề nghị cho mã này; xem trạng thái, không tạo lại."); throw error; }
+  catch (error: any) {
+    if (error.code !== 11000) throw error;
+    const saved: any = await OnboardingRequestModel.findById(requestId).lean();
+    if (saved) return replay(saved);
+    throw new WorkflowError(409, "ONBOARDING_DUPLICATE_REQUEST", "Mã vừa được sử dụng. Giữ lại đề nghị để gửi lại; không tạo tài khoản thủ công.");
+  }
 }
 async function onboardingScope(user: AuthenticatedUser) {
   const own = { requestedBy: objectId(user.userId) };

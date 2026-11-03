@@ -1,6 +1,7 @@
 import './require-isolated-db.mjs';
 import { before, after, afterEach, test } from 'node:test';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import mongoose from 'mongoose';
 import { createApp } from '../dist/app.js';
@@ -27,7 +28,7 @@ async function call(actor, path, body, method = body === undefined ? 'GET' : 'PO
   const res = await fetch(base + path, { method, headers: { Connection: 'close', ...(actor ? { Authorization: 'Bearer ' + fixture.actors[actor].token } : {}), ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   return { status: res.status, body: res.status === 204 ? null : await res.json() };
 }
-const personnel = (extra = {}) => ({ employeeCode: 'HR-DRAFT-' + new mongoose.Types.ObjectId(), fullName: 'Synthetic HR draft', storeId: String(fixture.stores[0]._id), phone: 'isolated-contact', hiredAt: '2026-10-31T00:00:00Z', reason: 'Owned fixture reviewed workflow', ...extra });
+const personnel = (extra = {}) => ({ clientRequestId: randomUUID(), fullName: 'Synthetic HR draft', storeId: String(fixture.stores[0]._id), phone: 'isolated-contact', hiredAt: '2026-10-31T00:00:00Z', reason: 'Owned fixture reviewed workflow', ...extra });
 test('POST employees is an HR draft adapter, never direct active personnel/account creation', async () => {
   const body = personnel(), before = await EmployeeModel.countDocuments();
   assert.equal((await call(null, '/employees', body)).status, 401);
@@ -41,14 +42,16 @@ test('draft strictly rejects role, grade, sensitive data, malformed dates and un
   for (const fields of [{ level: 'Senior' }, { fullName: ' ' }, { hiredAt: 'yesterday' }, { role: 'Admin' }, { userId: String(fixture.actors.system_admin.user._id) }, { bank_account_number: 'deny' }, { departmentId: String(fixture.departmentId) }])
     assert.equal((await call('hr', '/employees', personnel(fields))).status, 400, JSON.stringify(fields));
 });
-test('legacy/canonical identity collisions are rejected; concurrent drafts have one database-enforced winner', async () => {
+test('manual code injection is rejected; concurrent retries create exactly one draft identity', async () => {
   await EmployeeModel.collection.insertOne({ employee_code: 'LEGACY-UNIQUE-HR', full_name: 'Synthetic old import', store_raw: 'UNMAPPED' });
-  assert.equal((await call('hr', '/employees', personnel({ employeeCode: 'LEGACY-UNIQUE-HR' }))).status, 409);
-  const body = personnel({ employeeCode: 'HR-DRAFT-RACE' });
-  const outcomes = await Promise.all(['hr', 'hr2'].map((actor) => call(actor, '/employees', body)));
-  assert.deepEqual(outcomes.map((row) => row.status).sort(), [201, 409]);
-  assert.equal(await OnboardingRequestModel.countDocuments({ employeeKey: 'hr-draft-race' }), 1);
-  assert.equal(await UserModel.countDocuments({ username: 'hr-draft-race' }), 0);
+  assert.equal((await call('hr', '/employees', personnel({ employeeCode: 'LEGACY-UNIQUE-HR' }))).status, 400);
+  const body = personnel();
+  const outcomes = await Promise.all([call('hr', '/employees', body), call('hr', '/employees', body)]);
+  assert.deepEqual(outcomes.map((row) => row.status), [201, 201]);
+  assert.equal(outcomes[0].body.id, outcomes[1].body.id);
+  const key = outcomes[0].body.payload.employeeCode.toLowerCase();
+  assert.equal(await OnboardingRequestModel.countDocuments({ employeeKey: key }), 1);
+  assert.equal(await UserModel.countDocuments({ username: key }), 0);
 });
 test('raw unit labels cannot manufacture a canonical store/department', async () => {
   const before = await DepartmentModel.countDocuments();

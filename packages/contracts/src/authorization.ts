@@ -103,7 +103,7 @@ export type AuthorizationSummary = z.infer<typeof AuthorizationSummarySchema>;
 
 export const GutaGradeSchema = z.enum(["NV1", "NV2", "NV3", "PTCH", "SM1", "SM2", "SM3", "AM1", "AM2", "AM3", "SAM", "AOM", "OM"]);
 export const OnboardingCreateSchema = z.object({
-  employeeCode: z.string().trim().min(3).max(64).regex(/^[a-zA-Z0-9._-]+$/),
+  clientRequestId: z.string().uuid(),
   fullName: z.string().trim().min(1).max(200), storeId: Id,
   hiredAt: DateTime, phone: z.string().trim().min(1).max(30),
   reason: z.string().trim().min(1).max(2000),

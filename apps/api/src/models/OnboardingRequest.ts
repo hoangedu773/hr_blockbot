@@ -2,6 +2,7 @@ import mongoose, { Schema } from "mongoose";
 
 const schema = new Schema({
   employeeKey: { type: String, required: true, unique: true },
+  creationFingerprint: { type: String },
   payload: { type: Schema.Types.Mixed, required: true },
   storeId: { type: Schema.Types.ObjectId, required: true, index: true },
   requestedBy: { type: Schema.Types.ObjectId, required: true }, requesterEmployeeId: { type: Schema.Types.ObjectId, required: true },

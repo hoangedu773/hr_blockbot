@@ -29,7 +29,8 @@ const mongoose = requireApi('mongoose');
 const output = path.join(root, 'test-results', 'crm-completion-v1'); fs.mkdirSync(output, { recursive: true });
 let api, web, browser, fixture, origin, apiOrigin, failAt;
 const contexts = [], errors = [], httpErrors = [], invitations = new Map();
-const NEW_CODE = 'CORE-BROWSER-NEW', NEW_PASSWORD = 'CoreBrowserRecipient@2026', TITLE = 'Core browser transfer with real handover';
+let NEW_CODE;
+const NEW_PASSWORD = 'CoreBrowserRecipient@2026', TITLE = 'Core browser transfer with real handover';
 const localDate = (date) => new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 async function login(name, password = fixture.password) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } }); contexts.push(context);
@@ -48,7 +49,7 @@ async function login(name, password = fixture.password) {
   const page = await context.newPage(); page.setDefaultTimeout(15000); page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(origin, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: 'Get Started', exact: true }).click();
-  await page.getByLabel('Tên đăng nhập', { exact: true }).fill(name.startsWith('CORE-') ? name.toLowerCase() : 'v1-' + name);
+  await page.getByLabel('Tên đăng nhập', { exact: true }).fill((name.startsWith('CORE-') || name.startsWith('GT-CH')) ? name.toLowerCase() : 'v1-' + name);
   await page.getByLabel('Mật khẩu', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
   // The integrated shell opens CRM directly for every authorized profile.
@@ -90,9 +91,10 @@ try {
   await sm.page.locator('nav [data-section="onboarding"]').click(); await sm.page.getByRole('button', { name: 'Tạo đề nghị nhân viên', exact: true }).click();
   let dialog = sm.page.getByRole('dialog', { name: 'Đề nghị tiếp nhận nhân viên', exact: true });
   await dialog.getByLabel('Cửa hàng', { exact: true }).selectOption(String(fixture.stores[0]._id));
-  for (const [label, value] of [['Mã nhân viên', NEW_CODE], ['Họ tên', 'Synthetic browser new hire'], ['Thông tin điện thoại', 'owned-contact'], ['Ngày bắt đầu', '2026-10-31'], ['Lý do đề nghị', 'Owned browser complete core flow']]) await dialog.getByLabel(label, { exact: true }).fill(value);
+  for (const [label, value] of [['Họ tên', 'Synthetic browser new hire'], ['Thông tin điện thoại', 'owned-contact'], ['Ngày bắt đầu', '2026-10-31'], ['Lý do đề nghị', 'Owned browser complete core flow']]) await dialog.getByLabel(label, { exact: true }).fill(value);
   await dialog.getByRole('button', { name: 'Lưu đề nghị', exact: true }).click(); await dialog.waitFor({ state: 'hidden' });
-  const onboard = await OnboardingRequestModel.findOne({ employeeKey: NEW_CODE.toLowerCase() }).lean(); assert.ok(onboard);
+  const onboard = await OnboardingRequestModel.findOne({ 'payload.fullName': 'Synthetic browser new hire' }).lean(); assert.ok(onboard);
+  NEW_CODE = onboard.payload.employeeCode; assert.match(NEW_CODE, /^GT-CH2610\d{4}$/);
   await sm.page.locator('nav [data-section="initialReporting"]').click(); await sm.page.getByRole('button', { name: 'Đề xuất quản lý ban đầu', exact: true }).click();
   dialog = sm.page.getByRole('dialog', { name: 'Đề xuất quản lý ban đầu', exact: true });
   await dialog.getByLabel('Nhân viên tiếp nhận', { exact: true }).selectOption(String(onboard._id));

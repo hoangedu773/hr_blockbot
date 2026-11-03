@@ -108,7 +108,7 @@ test('issuer revocation while password hashing is in flight is rechecked under t
   try { assert.equal((await complete(token)).status, 403); const saved = await UserModel.findById(row.user._id); assert.equal(saved.securityVersion, 2); assert.equal(saved.passwordRecovery.state, 'DELIVERED'); assert.equal(await verifyPassword(saved.passwordHash, fixture.password), true); }
   finally { beforeConsume = null; await UserModel.updateOne({ _id: fixture.actors.system_admin.user._id }, { $set: { 'authorization.grants.1.revokedAt': null } }); }
 });
-const proposal = (code) => ({ employeeCode: code, fullName: 'Original synthetic name', storeId: String(fixture.stores[0]._id), hiredAt: new Date().toISOString(), phone: 'synthetic-contact', reason: 'Synthetic proposal' });
+const proposal = () => ({ clientRequestId: randomUUID(), fullName: 'Original synthetic name', storeId: String(fixture.stores[0]._id), hiredAt: new Date().toISOString(), phone: 'synthetic-contact', reason: 'Synthetic proposal' });
 test('rejected onboarding is amended/resubmitted with identical identity, retained snapshots, CAS and a fresh independent review', async () => {
   const created = await call('sm', '/onboarding', proposal('FOLLOWUP-RESUBMIT')); assert.equal(created.status, 201);
   const rejected = await call('hr', `/onboarding/${created.body.id}/review`, { expectedVersion: 1, decision: 'REJECT', reason: 'Correct verified contact first' }); assert.equal(rejected.status, 200);
@@ -118,10 +118,10 @@ test('rejected onboarding is amended/resubmitted with identical identity, retain
   const results = await Promise.all([call('sm', `/onboarding/${created.body.id}/resubmit`, input), call('sm', `/onboarding/${created.body.id}/resubmit`, input)]); assert.deepEqual(results.map((item) => item.status).sort(), [200, 409]);
   const saved = await OnboardingRequestModel.findById(created.body.id).lean(); assert.equal(saved.status, 'PENDING_HR_REVIEW'); assert.equal(String(saved.employeeId), created.body.employeeId); assert.equal(String(saved.userId), created.body.userId);
   assert.equal(saved.history[1].reason, 'Correct verified contact first'); assert.equal(saved.history[2].beforePayload.fullName, 'Original synthetic name'); assert.equal(saved.history[2].afterPayload.fullName, input.fullName); assert.equal(saved.history[2].previousHash, saved.history[1].hash);
-  assert.equal(await UserModel.countDocuments({ username: 'followup-resubmit' }), 0);
+  assert.equal(await UserModel.countDocuments({ username: created.body.payload.employeeCode.toLowerCase() }), 0);
   assert.equal((await call('sm', `/onboarding/${created.body.id}/review`, { expectedVersion: saved.version, decision: 'APPROVE', reason: 'No self approval' })).status, 403);
   const accepted = await call('hr2', `/onboarding/${created.body.id}/review`, { expectedVersion: saved.version, decision: 'APPROVE', reason: 'Independently verified correction' }); assert.equal(accepted.status, 200, JSON.stringify(accepted)); assert.equal(accepted.body.userId, created.body.userId);
-  assert.equal(await UserModel.countDocuments({ username: 'followup-resubmit' }), 1);
+  assert.equal(await UserModel.countDocuments({ username: created.body.payload.employeeCode.toLowerCase() }), 1);
 });
 test('provisioning after-user and activation after-employee interruptions remain fenced, preserve one identity and resume under CAS', async () => {
   const created = await call('sm', '/onboarding', proposal('FOLLOWUP-INTERRUPTION')); failAt = 'after-user';
@@ -129,14 +129,14 @@ test('provisioning after-user and activation after-employee interruptions remain
   assert.equal((await UserModel.findById(created.body.userId)).status, 'pending_activation');
   assert.equal((await call('hr', `/onboarding/${created.body.id}/resume`, {})).status, 200); const token = onboardingTokens.get(created.body.id); failAt = 'activation-after-employee';
   assert.equal((await call(null, '/auth/activate', { token, newPassword: 'InterruptedPrivate@2026' })).status, 500);
-  assert.equal((await call(null, '/auth/login', { username: 'followup-interruption', password: 'InterruptedPrivate@2026' })).status, 401);
+  assert.equal((await call(null, '/auth/login', { username: created.body.payload.employeeCode.toLowerCase(), password: 'InterruptedPrivate@2026' })).status, 401);
   const resumed = await Promise.all([call('hr', `/onboarding/${created.body.id}/resume`, {}), call('hr2', `/onboarding/${created.body.id}/resume`, {})]); assert.equal(resumed.filter((item) => item.status === 200).length, 1); assert.ok(resumed.some((item) => item.status === 409));
-  assert.equal((await call(null, '/auth/login', { username: 'followup-interruption', password: 'InterruptedPrivate@2026' })).status, 200);
-  assert.equal((await UserModel.findById(created.body.userId)).securityVersion, 1); assert.equal(await EmployeeModel.countDocuments({ personnelKey: 'followup-interruption' }), 1);
+  assert.equal((await call(null, '/auth/login', { username: created.body.payload.employeeCode.toLowerCase(), password: 'InterruptedPrivate@2026' })).status, 200);
+  assert.equal((await UserModel.findById(created.body.userId)).securityVersion, 1); assert.equal(await EmployeeModel.countDocuments({ personnelKey: created.body.payload.employeeCode.toLowerCase() }), 1);
 });
 test('onboarding pagination reaches more than 100 old records and detail/history enforces the same current scope', async () => {
   const now = new Date(), ids = [];
-  for (let index = 0; index < 125; index++) ids.push({ _id: new mongoose.Types.ObjectId(), employeeKey: 'synthetic-history-' + index, payload: proposal('synthetic-history-' + index), storeId: fixture.stores[0]._id, requestedBy: fixture.actors.sm.user._id, requesterEmployeeId: fixture.actors.sm.employee._id, employeeId: new mongoose.Types.ObjectId(), userId: new mongoose.Types.ObjectId(), status: 'REJECTED', version: 1, history: [], createdAt: now, updatedAt: now });
+  for (let index = 0; index < 125; index++) ids.push({ _id: new mongoose.Types.ObjectId(), employeeKey: 'synthetic-history-' + index, payload: { ...proposal(), employeeCode: 'synthetic-history-' + index }, storeId: fixture.stores[0]._id, requestedBy: fixture.actors.sm.user._id, requesterEmployeeId: fixture.actors.sm.employee._id, employeeId: new mongoose.Types.ObjectId(), userId: new mongoose.Types.ObjectId(), status: 'REJECTED', version: 1, history: [], createdAt: now, updatedAt: now });
   await OnboardingRequestModel.collection.insertMany(ids);
   const first = await call('sm', '/onboarding?page=1&limit=100'), last = await call('sm', '/onboarding?page=2&limit=100');
   assert.equal(first.body.items.length, 100); assert.ok(last.body.items.length >= 25); assert.equal(first.body.paging.totalItems, last.body.paging.totalItems); assert.equal(first.body.items.some((row) => last.body.items.some((old) => old.id === row.id)), false);
