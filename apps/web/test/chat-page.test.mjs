@@ -105,9 +105,19 @@ test('ChatPageView renders citations/attachments, confirms drafts honestly and r
     assert.equal(requests.length, 1);
     assert.equal(requests[0].message, 'Đi trễ quá 15 phút thì sao?');
 
-    const citations = pageRoot.getByRole('region', { name: 'Trích dẫn' });
+    const citations = pageRoot.locator('details[aria-label="Trích dẫn"]');
+    const citationToggle = citations.locator('summary');
+    assert.equal(await citations.evaluate((node) => node.open), false);
+    assert.equal(await citations.locator('ul').isVisible(), false);
+    await citationToggle.click();
+    assert.equal(await citations.locator('ul').isVisible(), true);
     assert.match(await citations.textContent(), /Tài liệu kiểm thử/);
     assert.match(await citations.textContent(), /Điều 1/);
+    await citationToggle.focus();
+    await page.keyboard.press('Enter');
+    assert.equal(await citations.locator('ul').isVisible(), false);
+    await page.keyboard.press('Space');
+    assert.equal(await citations.locator('ul').isVisible(), true);
 
     const attachments = pageRoot.getByRole('region', { name: 'Tài liệu đính kèm' });
     assert.match(await attachments.textContent(), /bb-cv\.pdf/);

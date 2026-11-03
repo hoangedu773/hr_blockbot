@@ -380,10 +380,13 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
                   <article className="guta-chat-message" data-sender={message.sender} key={message.id}>
                     <strong>{message.sender === 'user' ? 'Bạn' : 'Guta AI'}</strong>
                     <p>{message.text}</p>
-                    {!!message.citations?.length && <section className="guta-chat-card" aria-label="Trích dẫn">
-                      <strong>Căn cứ quy định (Citations)</strong>
+                    {!!message.citations?.length && <details className="guta-chat-card guta-chat-citation-details" aria-label="Trích dẫn">
+                      <summary>
+                        <strong>Căn cứ quy định (Citations)</strong>
+                        <svg className="guta-chat-citation-chevron" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 5 7 7-7 7" /></svg>
+                      </summary>
                       <ul>{message.citations.map((citation, index) => <li key={index}>{citation.document}{citation.version ? ` · ${citation.version}` : ''}{citation.article ? ` · ${citation.article}` : ''}</li>)}</ul>
-                    </section>}
+                    </details>}
                     {!!message.attachments?.length && (
                       <section className="guta-chat-card" aria-label="Tài liệu đính kèm" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <strong>Tài liệu & Biểu mẫu đính kèm (Attachments)</strong>

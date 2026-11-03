@@ -2741,6 +2741,33 @@ html:not(.dark) .guta-chat {
   margin: 8px 0;
 }
 
+.guta-chat-citation-details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.guta-chat-citation-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.guta-chat-citation-details > summary:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+.guta-chat-citation-chevron {
+  flex-shrink: 0;
+}
+
+.guta-chat-citation-details[open] .guta-chat-citation-chevron {
+  transform: rotate(90deg);
+}
+
 .guta-chat-card ul {
   margin: 8px 0 0;
   padding-left: 24px;
