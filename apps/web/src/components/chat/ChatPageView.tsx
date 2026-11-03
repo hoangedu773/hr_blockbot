@@ -418,7 +418,6 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
             </button>
           </div>)}
           {listCursor && <button type="button" onClick={() => void loadConversations(listCursor)}>Hội thoại cũ hơn</button>}
-          <button type="button" title="Lấy hội thoại mới nhất từ server, kể cả thay đổi trên thiết bị khác" disabled={isTyping || historyLoading} onClick={() => { void loadConversations(); if (conversationId.current) void loadMessages(conversationId.current); }}>Tải lại lịch sử</button>
         </nav>
         {/* One nav, not two. The role quick replies already render in the centre
             column where the user is looking; repeating them here made the
