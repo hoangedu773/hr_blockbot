@@ -54,3 +54,6 @@ The scheduler is disabled unless `REMINDER_SCHEDULER_ENABLED=true`. When enabled
 ## Deployment boundary
 
 The Render test API is a free 512 MB service. It remains on F4 `OFF`; fp32 PhoBERT is not suitable for that plan. The AI service can host the KPI analysis endpoint, but live deployment still requires a controlled deploy window and user-owned credential rotation. No private keys, Mongo credentials, or real HR text are included here.
+# KPI hiệu suất v2 (04/11/2026)
+
+Module `/performance-kpi` và `/tasks` mở rộng evaluations theo framework vai trò Staff/PTCH/SM, bật bằng PERFORMANCE_KPI_ENABLED. Kỳ v1 không chuyển công thức hoặc tính lại. Rubric chất lượng, trách nhiệm đã chấp nhận, thời điểm nộp và hạn hiệu lực quyết định dữ liệu nhiệm vụ; tiến độ không phải điểm. Kiến nghị/khiếu nại giữ provisional tới khi đủ điều kiện final. Xem ADR-023-performance-kpi-evidence.md về scope trực tiếp, validator bảo vệ tương thích Main, module grants, AI chỉ tư vấn và seed demo an toàn.

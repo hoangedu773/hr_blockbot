@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "test": "node --test test/**/*.test.mjs",
-    "pretest": "pnpm build"
+    "pretest": "pnpm build",
+    "test:performance-kpi": "node test/performance-kpi.integration.mjs"
   },
   "dependencies": {
     "@hr-blockbot/contracts": "workspace:*",

@@ -33,3 +33,5 @@ export const PerformanceAiSummarySchema=z.object({summary:z.string().max(4000),m
 export type PerformanceEvaluation=z.infer<typeof PerformanceEvaluationSchema>;
 export type PerformanceFramework=z.infer<typeof PerformanceFrameworkSchema>;
 export type PerformancePolicy=z.infer<typeof PerformancePolicySchema>;
+
+export const ClosePerformancePeriodRequestSchema=PerformanceReasonRequestSchema.extend({policyVersions:z.record(id,z.number().int().positive())});
