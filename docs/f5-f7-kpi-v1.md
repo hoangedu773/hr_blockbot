@@ -1,5 +1,14 @@
 # F5/F7 KPI and notification V1
 
+## Separate revenue KPI module (2026-11-04)
+
+`revenue-kpi` is separate from F5 evaluations and its weights. See
+`03-decision-records/ADR-022-revenue-kpi-store-area.md`. It has Vietnam monthly
+store/area targets, assignee consent, independent AM/HR adjustments, deterministic
+POS results, reasons, confirmation/close and append-only corrections. No payroll
+or compensation. Default flag REVENUE_KPI_ENABLED=false. Explicit test-only grants
+bind existing source grants in revenue_kpi_grants so old Main API remains compatible.
+
 ## Scope
 
 F5 now has a complete review lifecycle: open monthly period, employee self-review, manager review, AI semantic analysis, publish, controlled override, and dashboard aggregation. F7 persists notifications and runs deadline/review reminders through the API process scheduler.

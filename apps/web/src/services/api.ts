@@ -48,6 +48,7 @@ import type {
   UpdateLLMProvidersRequest,
 } from '@hr-blockbot/contracts';
 import { API_BASE, apiFetch } from './auth';
+export * from './revenue-kpi-api';
 
 // Legacy ca kíp DTOs stay re-exported only so the not-yet-removed legacy
 // components still compile; no client below calls their 503 endpoints anymore.
@@ -673,7 +674,7 @@ export async function publishKpi(id: string, expectedVersion: number, finalScore
 export async function overrideKpi(id: string, expectedVersion: number, finalScore: number, reason: string): Promise<KpiEvaluation> {
   return requestJson<KpiEvaluation>(`/kpi/${encodeURIComponent(id)}/override`, postJson({ expectedVersion, finalScore, reason }));
 }
-export async function fetchNotifications(limit = 30, entityKind?: 'schedule', before?: string): Promise<{ items: NotificationItem[]; unread: number }> {
+export async function fetchNotifications(limit = 30, entityKind?: 'schedule' | 'revenue_kpi', before?: string): Promise<{ items: NotificationItem[]; unread: number }> {
   return requestJson(`/notifications?limit=${limit}${entityKind ? '&entityKind=' + entityKind : ''}${before ? '&before=' + encodeURIComponent(before) : ''}`);
 }
 export async function markNotificationRead(id: string): Promise<void> {

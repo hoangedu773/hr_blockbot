@@ -7,6 +7,7 @@ import { resolveCanonicalContext } from "./authorization-scope.service.js";
 import mongoose from "mongoose";
 import { RefreshSessionModel } from "../models/RefreshSession.js";
 import { legacyApprovalBindsUser } from "./legacy-import-approval.service.js";
+import { withRevenueModuleGrants } from './revenue-kpi-grants.service.js';
 
 export type PrincipalUnavailableReason = "UNAVAILABLE" | "ACCOUNT_MISSING" | "ACCOUNT_STATUS_UNREVIEWED" |
   "ACCOUNT_NOT_ACTIVE" | "PROVISIONING_NOT_ACTIVE" | "EMPLOYEE_LINK_MISSING" | "EMPLOYEE_STATUS_UNREVIEWED" |
@@ -77,7 +78,7 @@ export async function resolvePrincipal(claims: TokenClaims, options: { delegatio
     level: employee?.level ?? null, skills: Array.isArray(employee?.skills) ? employee.skills : [],
     mustChangePassword: user.mustChangePassword === true, isGlobalAdmin: user.isGlobalAdmin === true,
     securityVersion: version, accountActive: true, employeeActive: !!employee,
-    authorization: parsed.success ? parsed.data : null,
+    authorization: parsed.success ? await withRevenueModuleGrants(String(user._id), parsed.data) : null,
     canonical: parsed.success && !user.mustChangePassword ? await resolveCanonicalContext(employee) : { verifiedStores: [], managedByStore: {}, ownStoreId: null },
   };
   if (options.delegations !== false && parsed.success && !user.mustChangePassword && employee) {

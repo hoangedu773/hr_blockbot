@@ -15,12 +15,13 @@ export const BATCH = 'OWNER_POS_DEMO_20261103';
 const products = [ ['CAFE-SUA-DA', 'Cà phê sữa đá', 28000], ['CAFE-DEN-DA', 'Cà phê đen đá', 26000],
   ['TRA-DAO', 'Trà đào', 32000], ['BAC-XIU-DA', 'Bạc xỉu đá', 35000], ['BANH-MI', 'Bánh mì', 42000] ];
 const hash = text => createHash('sha256').update(text).digest('hex');
-export function planPosDemo(stores, now = new Date()) {
+export function planPosDemo(stores, now = new Date(), fromDate = '2026-07-01') {
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(now);
-  if (today < '2026-10-01' || today > '2026-11-30') throw new Error('This owner-approved batch is limited to October/November 2026');
+  if (today < '2026-07-01' || today > '2026-11-30') throw new Error('This owner-approved batch is limited to July–November 2026');
+  if (!/^2026-\d{2}-\d{2}$/.test(fromDate) || !Number.isFinite(Date.parse(fromDate + 'T00:00:00Z')) || new Date(fromDate + 'T00:00:00Z').toISOString().slice(0, 10) !== fromDate || fromDate < '2026-07-01' || fromDate > today) throw new Error('Invalid owner-approved seed start date');
   const result = [];
   for (const store of stores.filter(s => s.kind === 'outlet' && s.status === 'ACTIVE' && !s.deleted_at)) {
-    for (let day = '2026-10-01'; day <= today; day = new Date(Date.parse(day + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10)) {
+    for (let day = fromDate; day <= today; day = new Date(Date.parse(day + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10)) {
       for (let sequence = 0; sequence < 6; sequence++) {
         const orderedAt = new Date(day + 'T' + ['06:30', '08:15', '10:45', '14:30', '17:00', '20:15'][sequence] + ':00+07:00');
         if (orderedAt > now) continue;
@@ -76,7 +77,7 @@ async function main() {
     await mongoose.connect(c.uri, { dbName: c.dbName, autoIndex: false, autoCreate: false, serverSelectionTimeoutMS: 8000 });
     const actor = await resolvePrincipal(claims); requireCapability(actor, 'accounts.manage');
     const stores = await mongoose.connection.collection('stores').find({}).sort({ _id: 1 }).toArray(), storeHash = digest(stores);
-    const now = new Date(c.now), orders = planPosDemo(stores, now), existing = await PosOrderModel.find({}).sort({ _id: 1 }).lean();
+    const now = new Date(c.now), fromDate = c.fromDate ?? '2026-07-01', orders = planPosDemo(stores, now, fromDate), existing = await PosOrderModel.find({}).sort({ _id: 1 }).lean();
     await fs.mkdir(c.privateDirectory, { recursive: true });
     await fs.writeFile(path.join(c.privateDirectory, `${c.apply ? 'apply' : 'dry-run'}-${Date.now()}.private.json`), JSON.stringify({ storeHash, now, count: orders.length, orderHash: digest(orders), existingHash: digest(existing) }, null, 2), { flag: 'wx' });
     let result = null;
@@ -85,7 +86,7 @@ async function main() {
       await fs.writeFile(path.join(c.privateDirectory, `before-${Date.now()}.private.ejson`), mongoose.mongo.BSON.EJSON.stringify(existing, { relaxed: false }), { flag: 'wx' });
       result = await applyPosDemo(actor, orders, { storeHash }, c.privateDirectory);
     }
-    console.log(JSON.stringify({ status: c.apply ? 'POS_DEMO_APPLIED' : 'POS_DEMO_DRY_RUN', storeHash, orderHash: digest(orders), count: orders.length, stores: new Set(orders.map(o => String(o.storeId))).size, from: '2026-10-01', through: new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(now), result }));
+    console.log(JSON.stringify({ status: c.apply ? 'POS_DEMO_APPLIED' : 'POS_DEMO_DRY_RUN', storeHash, orderHash: digest(orders), count: orders.length, stores: new Set(orders.map(o => String(o.storeId))).size, from: fromDate, through: new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(now), result }));
   } finally { await mongoose.disconnect(); if (cookie) await fetch(c.apiOrigin + '/api/auth/logout', { method: 'POST', headers: { Cookie: cookie } }).catch(() => {}); }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main().catch(e => { console.error(JSON.stringify({ status: 'POS_DEMO_STOPPED', errorClass: e.name, message: 'Private configuration omitted' })); process.exitCode = 1; });

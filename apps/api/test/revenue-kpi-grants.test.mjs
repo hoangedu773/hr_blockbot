@@ -1,0 +1,37 @@
+import './require-isolated-db.mjs';
+import { before, after, test } from 'node:test';
+import assert from 'node:assert/strict';
+import mongoose from 'mongoose';
+import { connectDB, disconnectDB } from '../dist/db.js';
+import { authorizationV1Fixture } from './helpers/authorization-v1-fixture.mjs';
+import { makeRevenueModuleGrant } from '../dist/services/revenue-kpi-grants.service.js';
+import { ensureRevenueKpiStorage } from '../dist/services/revenue-kpi-storage.service.js';
+import { resolvePrincipal } from '../dist/services/principal.service.js';
+import { hasCapability } from '../dist/services/authorization-scope.service.js';
+import { UserModel } from '../dist/models/User.js';
+import { planPosDemo } from '../scripts/seed-pos-demo.mjs';
+let f;
+before(async () => { await connectDB(); f = await authorizationV1Fixture(); await ensureRevenueKpiStorage(); process.env.REVENUE_KPI_ENABLED = 'true'; });
+after(disconnectDB);
+test('module grants preserve legacy account schema, bind exact source scope, revoke/flag fail closed', async () => {
+  const before = await UserModel.findById(f.actors.am.user._id).lean();
+  const resolve = () => resolvePrincipal({ sub: String(before._id), role: before.role, securityVersion: 0 });
+  assert.equal(hasCapability(await resolve(), 'revenue_kpi.respond'), false);
+  const grants = before.authorization.grants.map(g => makeRevenueModuleGrant(String(before._id), before.authorization, g, String(f.actors.system_admin.user._id))).filter(Boolean);
+  await mongoose.connection.collection('revenue_kpi_grants').insertMany(grants);
+  assert.ok(hasCapability(await resolve(), 'revenue_kpi.respond')); assert.ok(hasCapability(await resolve(), 'revenue_kpi.verify_adjustment'));
+  assert.deepEqual(await UserModel.findById(before._id).lean(), before);
+  process.env.REVENUE_KPI_ENABLED = 'false'; assert.equal(hasCapability(await resolve(), 'revenue_kpi.respond'), false); process.env.REVENUE_KPI_ENABLED = 'true';
+  await UserModel.updateOne({ _id: before._id }, { $set: { 'authorization.grants.1.revokedAt': new Date().toISOString() } }); assert.equal(hasCapability(await resolve(), 'revenue_kpi.verify_adjustment'), false);
+  await UserModel.updateOne({ _id: before._id }, { $set: { authorization: before.authorization } });
+  await mongoose.connection.collection('revenue_kpi_grants').updateOne({ userId: String(before._id), 'grant.scope.kind': 'organization' }, { $push: { 'grant.scope.storeIds': String(f.stores[1]._id) } });
+  assert.equal(hasCapability(await resolve(), 'revenue_kpi.verify_adjustment'), false);
+});
+test('July extension preserves all old October IDs/content and prevents invalid/future seed dates', () => {
+  const now = new Date('2026-11-04T05:00:00Z'); const stores = f.stores.map(s => s.toObject());
+  const old = planPosDemo(stores, now, '2026-10-01'), expanded = planPosDemo(stores, now);
+  const map = new Map(expanded.map(o => [o.orderId, o]));
+  for (const o of old) assert.deepEqual(map.get(o.orderId), o);
+  assert.ok(expanded.length > old.length); assert.ok(expanded.every(o => o.orderedAt <= now));
+  for (const from of ['2026-06-30', '2026-02-30', '2026-13-01', '2026-11-05']) assert.throws(() => planPosDemo(stores, now, from));
+});

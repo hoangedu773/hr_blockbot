@@ -5,6 +5,8 @@ import { computeStoreRevenue, priorMonth, periodRangeVN, round2 } from './revenu
 import { revenueKpiAiContext, storeRevenueKpiProposal } from './revenue-kpi.service.js';
 import { getActiveProviderConfig } from './settings.service.js';
 import { getRotatedKeyPool, DEFAULT_GEMINI_PROVIDER } from './ai-client.service.js';
+import { WorkflowError } from './project-workflow.service.js';
+import { digest } from './project-audit.service.js';
 const answerSchema = z.object({ suggestedGrowthPercent: z.number().finite().min(-20).max(30), rationale: z.string().trim().min(1).max(2000), confidence: z.enum(['low', 'medium', 'high']), model: z.string().max(120).optional(), degraded: z.boolean().optional() }).strict();
 const clamp = (n: number, min = -20, max = 30) => Math.min(max, Math.max(min, n));
 export function revenueProposalBaseline(months: { period: string; revenueVnd: number; orderCount: number }[]) {
@@ -28,6 +30,9 @@ export async function fetchRevenueProposal(payload: any, transport: { origin?: s
 }
 export async function proposeRevenueTarget(user: AuthenticatedUser, id: string, raw: unknown) {
   const input = RevenueKpiAiProposalRequestSchema.parse(raw), { a, p } = await revenueKpiAiContext(user, id);
+  const replay = a.history.find(h => h.requestId === input.clientRequestId);
+  if (replay) { if (replay.by !== user.userId || replay.action !== 'AI_PROPOSAL' || replay.payloadHash !== digest(input)) throw new WorkflowError(409, 'REVENUE_KPI_VERSION_CONFLICT', 'Yêu cầu đã được dùng với nội dung khác.'); return a; }
+  if (input.expectedVersion !== a.version) throw new WorkflowError(409, 'REVENUE_KPI_VERSION_CONFLICT', 'Mục tiêu đã thay đổi; tải lại trước khi lấy đề xuất.');
   const months = [], kinds = new Set();
   for (const step of [3, 2, 1]) { const period = priorMonth(a.period, step); if (new Date() < periodRangeVN(period).end) continue; const r = await computeStoreRevenue(a.storeId!, period, p.policy); if (r.actualRevenueVnd !== null && r.actualRevenueVnd > 0 && !r.invalidOrderCount) { months.push({ period, revenueVnd: r.actualRevenueVnd, orderCount: r.orderCount }); kinds.add(r.dataKind); } }
   let proposal;

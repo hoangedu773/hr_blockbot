@@ -22,6 +22,8 @@ export async function ensureRevenueKpiStorage() {
           }
         }
       }
+      try { await db.createCollection('revenue_kpi_grants'); } catch (e: any) { if (e.code !== 48) throw e; }
+      await db.collection('revenue_kpi_grants').createIndex({ userId: 1, sourceGrantId: 1 }, { unique: true });
     })().catch(() => { initialized.delete(db); throw new WorkflowError(503, 'REVENUE_KPI_STORAGE_UNAVAILABLE', 'Chưa thể khởi tạo lưu trữ KPI doanh thu.'); });
     initialized.set(db, ready);
   }

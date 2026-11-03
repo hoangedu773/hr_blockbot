@@ -83,7 +83,7 @@ test('reporting-person subset and revoked store grant do not disclose whole-stor
   } finally { await UserModel.updateOne({ _id: target }, { $set: { authorization: old.authorization } }); }
 });
 test('seed only adds deterministic past demo orders, repeats without deleting/overwriting live rows', async () => {
-  const stores = await StoreModel.find({}).sort({ _id: 1 }).lean(), orders = planPosDemo(stores, now), again = planPosDemo(stores, now);
+  const stores = await StoreModel.find({}).sort({ _id: 1 }).lean(), orders = planPosDemo(stores, now, '2026-10-01'), again = planPosDemo(stores, now, '2026-10-01');
   assert.equal(digest(orders), digest(again)); assert.equal(orders.length, 2 * 34 * 6);
   assert.ok(orders.every(o => o.source === 'demo' && o.orderedAt <= now));
   assert.throws(() => planPosDemo(stores, new Date('2027-01-01')), /limited/);

@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "test:revenue-kpi": "node test/revenue-kpi.integration.mjs",
     "test:sales-report": "node test/sales-report.integration.mjs",
     "test:chat-history": "node test/chat-history.integration.mjs",
     "dev": "vite",

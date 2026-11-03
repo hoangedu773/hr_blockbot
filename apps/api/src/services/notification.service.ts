@@ -52,7 +52,7 @@ export function notificationDto(row: any): NotificationItem {
   });
 }
 
-export async function listNotifications(userId: string, options: { unreadOnly?: boolean; limit?: number; before?: string; entityKind?: 'schedule' } = {}) {
+export async function listNotifications(userId: string, options: { unreadOnly?: boolean; limit?: number; before?: string; entityKind?: 'schedule' | 'revenue_kpi' } = {}) {
   const limit = Math.min(Math.max(options.limit ?? 30, 1), 100);
   const filter: Record<string, any> = { userId: new mongoose.Types.ObjectId(userId) };
   if (options.entityKind) filter.entityKind = options.entityKind;
