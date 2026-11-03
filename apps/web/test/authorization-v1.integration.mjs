@@ -83,17 +83,8 @@ try {
     }
     assert.equal(await visible('onboarding'), ['hr', 'sm'].includes(profile), profile + ' onboarding boundary');
     assert.equal(await visible('employees'), ['hr', 'om', 'sam', 'am', 'sm'].includes(profile), profile + ' HR/operational boundary');
-    await page.locator('nav [data-section="authorization"]').click();
-    const scopePanel = page.getByRole('region', { name: 'Thông tin cấp quyền', exact: true });
-    await scopePanel.getByText(profile, { exact: true }).waitFor();
-    assert.match(await scopePanel.innerText(), /chưa nghiệm thu Authorization V1/);
-    await scopePanel.getByText(/Phạm vi và hiệu lực được cấp/).click();
-    if (profile === 'sm') {
-      await page.setViewportSize({ width: 320, height: 844 });
-      const bounds = await scopePanel.boundingBox(); assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 320);
-      await page.screenshot({ path: path.join(output, 'authorization-v1-scope-mobile320.png'), fullPage: true });
-      await page.setViewportSize({ width: 1440, height: 1000 });
-    }
+    assert.equal(await page.locator('nav [data-section="authorization"]').count(), 0, profile + ' account permission screen is removed');
+    assert.equal(await page.getByRole('region', { name: 'Thông tin cấp quyền', exact: true }).count(), 0, profile + ' no permission panel is rendered');
     if (profile !== 'system_admin') {
       await page.locator('nav [data-section="projects"]').click();
       await page.getByRole('heading', { name: 'Công việc & nghiệm thu', exact: true }).waitFor();

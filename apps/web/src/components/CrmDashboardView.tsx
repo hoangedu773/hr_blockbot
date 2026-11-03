@@ -17,12 +17,11 @@ import { OnboardingView } from './OnboardingView';
 import { DelegationView } from './DelegationView';
 import { WorkDirectoryView } from './WorkDirectoryView';
 import { EmployeeLifecycleView } from './EmployeeLifecycleView';
-import { AuthorizationStatus } from './AuthorizationStatus';
 import { InitialReportingView } from './InitialReportingView';
 import { KpiView } from './KpiView';
 import { SchedulingView } from './SchedulingView';
 
-export type ActiveCrmView = 'stores' | 'employees' | 'profile' | 'schedules' | 'projects' | 'kpi' | 'settings' | 'accounts' | 'onboarding' | 'delegations' | 'directory' | 'lifecycle' | 'authorization' | 'initialReporting';
+export type ActiveCrmView = 'stores' | 'employees' | 'profile' | 'schedules' | 'projects' | 'kpi' | 'settings' | 'accounts' | 'onboarding' | 'delegations' | 'directory' | 'lifecycle' | 'initialReporting';
 export interface CrmDashboardViewProps {
   userName: string;
   userRole: string;
@@ -87,7 +86,6 @@ const CRM_HTML = `
           <button type="button" data-section="delegations" class="crm-nav-item">Ủy quyền nghiệp vụ</button>
           <button type="button" data-section="accounts" id="crm-nav-accounts" class="crm-nav-item">Tài khoản</button>
           <button type="button" data-section="settings" id="crm-nav-settings" class="crm-nav-item">Cài đặt LLM</button>
-          <button type="button" data-section="authorization" class="crm-nav-item">Quyền của tài khoản</button>
         </nav>
       </div>
 
@@ -169,7 +167,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
     kpi: can('kpi.read_self') || can('kpi.read_department') || can('kpi.manage'),
     settings: can('provider_settings.manage'), accounts: can('accounts.manage'), onboarding: can('onboarding.propose') || can('onboarding.draft') || can('onboarding.review'),
     delegations: can('authorization.inspect_self') || can('delegations.request') || can('delegations.review') || !!authorization?.delegations.length, directory: can('directory.read_store'),
-    lifecycle: can('employees.lifecycle_request') || can('employees.lifecycle_review') || can('employees.transfer_confirm'), authorization: can('authorization.inspect_self'), initialReporting: can('onboarding.reporting_propose') || can('onboarding.reporting_review') };
+    lifecycle: can('employees.lifecycle_request') || can('employees.lifecycle_review') || can('employees.transfer_confirm'), initialReporting: can('onboarding.reporting_propose') || can('onboarding.reporting_review') };
   const authorizationKey = JSON.stringify(allowedViews);
   const [activeView, setActiveView] = useState<ActiveCrmView>('stores');
   const [themePortalEl, setThemePortalEl] = useState<HTMLElement | null>(null);
@@ -486,8 +484,6 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
             <WorkDirectoryView />
           ) : activeView === 'lifecycle' && allowedViews.lifecycle ? (
             <EmployeeLifecycleView />
-          ) : activeView === 'authorization' && allowedViews.authorization ? (
-            <AuthorizationStatus />
           ) : activeView === 'settings' && allowedViews.settings ? (
             <AdminSettingsView onNotify={safeNotify} />
           ) : activeView === 'accounts' && allowedViews.accounts ? (
