@@ -41,11 +41,12 @@ export function planPublishedDemo({ stores, employees, sourceRows, shifts, weeks
   if (new Set(outlets.map(s => String(s._id))).size !== outlets.length) throw new Error('Duplicate store identity');
   const names = new Map(); for (const s of outlets) { const n = norm(s.store_name); names.set(n, [...(names.get(n) || []), s]); }
   const people = new Map(), byCode = new Map(), stats = { stores: outlets.length, storesWithPeople: 0, matchedCanonical: 0, matchedExactName: 0,
-    unavailableEmployees: 0, outsideStoreEmployees: 0, newShifts: 0, newWeeks: 0, filledEmptyWeeks: 0, preservedWeeks: 0, resumedWeeks: 0,
+    unavailableEmployees: 0, testSupportEmployees: 0, outsideStoreEmployees: 0, newShifts: 0, newWeeks: 0, filledEmptyWeeks: 0, preservedWeeks: 0, resumedWeeks: 0,
     generatedAssignments: 0, matchedLegacyAssignments: 0, unresolvedSourceRows: 0, conflictSkips: 0, existingConflictSkips: 0, datesReservedBySource: 0 };
   for (const e of employees) {
     if (codeOf(e)) byCode.set(codeOf(e), [...(byCode.get(codeOf(e)) || []), e]);
     if (e.status !== 'active' || e.lifecyclePendingRequestId) { stats.unavailableEmployees++; continue; }
+    if (/^LOCAL-BATCH20-/.test(codeOf(e))) { stats.testSupportEmployees++; continue; }
     const current = outlets.find(s => String(s._id) === String(e.storeId));
     const exact = names.get(norm(e.store_raw)) || [];
     let s;

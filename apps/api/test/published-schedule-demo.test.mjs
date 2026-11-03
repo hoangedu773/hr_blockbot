@@ -45,8 +45,10 @@ test('only corroborated explicit source blocks and basic codes are matched; unkn
 test('unavailable staff, groups and ambiguous locations are excluded; existing custom shifts/weeks are retained', () => {
   const inputs = fixtureInputs(), custom = { _id: id(), storeId: store._id, code: 'A1', name: 'Existing hours', active: true, version: 7, intervals: [{ startMinute: 400, endMinute: 620 }] };
   inputs.shifts.push(custom); inputs.employees.push({ ...person, _id: id(), status: 'inactive' }, { ...person, _id: id(), lifecyclePendingRequestId: id() });
+  inputs.employees.push({ ...person, _id: id(), employeeCode: 'LOCAL-BATCH20-hr' });
   inputs.stores.push({ _id: id(), store_name: 'Group support', kind: 'group', status: 'ACTIVE' });
   const p = planPublishedDemo(inputs); assert.equal(p.stats.stores, 1); assert.equal(p.stats.unavailableEmployees, 2); assert.equal(p.stats.newShifts, 6);
+  assert.equal(p.stats.testSupportEmployees, 1); assert.ok(p.weekChanges.flatMap(w => w.assignments).every(a => a.employeeCode !== 'LOCAL-BATCH20-hr'));
   assert.ok(p.weekChanges.flatMap(w => w.assignments).filter(a => a.shiftCode === 'A1').every(a => a.shiftVersion === 7 && a.intervals[0].startMinute === 400));
   const target = p.weekChanges[2]; inputs.weeks.push({ _id: target._id, storeId: store._id, weekStart: target.weekStart, version: 2, draft: [], published: [], requests: [], publishedAt: new Date().toISOString(), history: [] });
   assert.equal(planPublishedDemo(inputs).stats.preservedWeeks, 1);

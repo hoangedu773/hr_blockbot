@@ -24,6 +24,8 @@ matched personnel retain empty published calendars, without invented employees.
 Current active employees match by existing storeId or unique exact source store
 name. This match is evidence for the demo only, not a canonical scope approval.
 Unconfigured locations do not become visible to additional accounts by seeding.
+Synthetic support employees such as local.hr/local.hr2 are excluded from store
+shift generation even though those test actors can sign in.
 
 Random generation is deterministic per employee/date, includes one unscheduled
 day per complete week, uses four-hour shifts for sales and A/B for manager,
