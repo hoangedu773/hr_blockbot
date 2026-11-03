@@ -10,6 +10,7 @@ import {
 import type { NotifyFn } from './Toast';
 import { AuthorizationStatus } from './AuthorizationStatus';
 import { useAuthorization } from '../context/useAuthorization';
+import { SmAppointments, isSmPositionCandidate } from './SmAppointments';
 
 interface EmployeeProfileViewProps {
   onLogout: () => void;
@@ -168,6 +169,7 @@ export const EmployeeProfileView: React.FC<EmployeeProfileViewProps> = ({ onLogo
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '980px' }}>
       <AuthorizationStatus />
+      {isSmPositionCandidate(profile.jobTitle) && <SmAppointments key={profile.employeeId} employeeId={profile.employeeId} />}
       <div
         style={{
           background: 'rgba(14, 20, 32, 0.85)',

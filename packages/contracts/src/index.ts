@@ -1155,3 +1155,4 @@ export const DashboardOverviewSchema = z.object({
   generatedAt: z.string(),
 });
 export type DashboardOverview = z.infer<typeof DashboardOverviewSchema>;
+export * from './sm-appointments.js';

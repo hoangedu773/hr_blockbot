@@ -621,6 +621,10 @@ export async function fetchStoreById(id: string): Promise<StoreSummary> {
   return requestJson<StoreSummary>(`/stores/${encodeURIComponent(id)}`);
 }
 
+export async function fetchStoreSmAppointments<T>(storeId: string, page: number): Promise<T> {
+  return requestJson<T>(`/stores/${encodeURIComponent(storeId)}/sm-appointments?page=${page}&limit=10`);
+}
+
 export async function createStore(body: StoreCreate): Promise<StoreSummary> {
   return requestJson<StoreSummary>('/stores', postJson(body));
 }

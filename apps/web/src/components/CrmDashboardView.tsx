@@ -9,6 +9,7 @@ import { EmployeeProfileView } from './EmployeeProfileView';
 import { ProjectListView } from './ProjectListView';
 import { StoreDirectoryView } from './StoreDirectoryView';
 import { StoreLeadership } from './StoreLeadership';
+import { StoreSmAppointments } from './StoreSmAppointments';
 import { ThemeToggle } from './ThemeToggle';
 import { useAuthorization } from '../context/useAuthorization';
 import { OnboardingView } from './OnboardingView';
@@ -567,6 +568,7 @@ const StoreDetailDrawer: React.FC<StoreDetailDrawerProps> = ({ store, outlets, o
           </p>
 
           {store && <StoreLeadership store={store} />}
+          {store && open && <StoreSmAppointments key={store.id} storeId={store.id} />}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="p-3.5 rounded-xl border border-border bg-background/80 shadow-2xs">

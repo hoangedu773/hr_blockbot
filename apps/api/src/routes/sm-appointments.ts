@@ -1,0 +1,11 @@
+import { Router } from 'express';
+import { authenticateToken } from '../middlewares/auth.middleware.js';
+import { endpoint } from '../lib/endpoint.js';
+import { listSmAppointments, getSmAppointment, storeSmAppointments, proposeSmAppointment, decideSmAppointment } from '../services/sm-appointment.service.js';
+const router = Router();
+router.get('/stores/:id/sm-appointments', authenticateToken, endpoint(async (req, res) => { res.json(await storeSmAppointments(req.user!, req.params.id, req.query)); }));
+router.get('/employees/:id/sm-appointments', authenticateToken, endpoint(async (req, res) => { res.json(await listSmAppointments(req.user!, req.params.id, req.query)); }));
+router.get('/employees/:id/sm-appointments/:appointmentId', authenticateToken, endpoint(async (req, res) => { res.json(await getSmAppointment(req.user!, req.params.id, req.params.appointmentId)); }));
+router.post('/employees/:id/sm-appointments', authenticateToken, endpoint(async (req, res) => { res.status(201).json(await proposeSmAppointment(req.user!, req.params.id, req.body)); }));
+router.post('/employees/:id/sm-appointments/:appointmentId/decision', authenticateToken, endpoint(async (req, res) => { res.json(await decideSmAppointment(req.user!, req.params.id, req.params.appointmentId, req.body)); }));
+export default router;

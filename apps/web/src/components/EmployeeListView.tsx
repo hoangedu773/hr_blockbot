@@ -8,6 +8,7 @@ import { ProfileApprovalQueue } from './ProfileApprovalQueue';
 import { PersonnelAdmin } from './PersonnelAdmin';
 import { useAuthorization } from '../context/useAuthorization';
 import { EmployeeHrHistory } from './EmployeeHrHistory';
+import { SmAppointments, isSmPositionCandidate } from './SmAppointments';
 
 export const EmployeeListView: React.FC = () => {
   const { can, stores } = useAuthorization();
@@ -92,6 +93,7 @@ export const EmployeeListView: React.FC = () => {
       {!detailLoading && !detailError && can('employees.update_other') && <button type="button" className="btn" onClick={() => { setEditingEmployee(selected.employeeId); setSelected(null); }}>Chỉnh sửa thông tin thường</button>}
       {detailLoading ? <p role="status">Đang tải hồ sơ…</p> : detailError ? <div role="alert" className="banner banner--error">{detailError}<button className="btn" type="button" onClick={() => void details(selected)}>Thử lại</button></div> : <dl className="crm-work-detail"><dt>Họ tên</dt><dd>{selected.fullName}</dd><dt>Chức danh</dt><dd>{selected.jobTitle || 'Chưa cập nhật'}</dd><dt>Phòng ban / điểm bán</dt><dd>{selected.department}</dd><dt>Kỹ năng</dt><dd>{selected.skills.join(', ') || 'Chưa cập nhật'}</dd><dt>Trạng thái</dt><dd>{selected.status === 'active' ? 'Hoạt động' : selected.status === 'inactive' ? 'Tạm dừng' : 'Chưa xác minh'}</dd></dl>}
       {!detailLoading && !detailError && can('employees.read_hr') && 'profileVersion' in selected && <><dl><dt>Mã nhân viên</dt><dd>{selected.employeeCode}</dd><dt>Điện thoại</dt><dd>{selected.phone || 'Chưa có'}</dd><dt>Ngày vào làm</dt><dd>{selected.hiredAt ? new Date(selected.hiredAt).toLocaleDateString('vi-VN') : 'Chưa có'}</dd></dl><EmployeeHrHistory employeeId={selected.employeeId} /></>}
+      {!detailLoading && !detailError && isSmPositionCandidate(selected.jobTitle) && <SmAppointments key={selected.employeeId} employeeId={selected.employeeId} />}
     </CrmDialog>}
   </section>;
 };
