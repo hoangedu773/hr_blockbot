@@ -14,11 +14,13 @@ import { chatWithAiService } from "./ai-client.service.js";
 import { digest } from "./project-audit.service.js";
 import { EvaluationModel } from "../models/Evaluation.js";
 import { currentPeriod, periodRange } from "./kpi.service.js";
+import { personalSchedule, datePlus } from "./scheduling.service.js";
+import { ScheduleDateSchema } from "@hr-blockbot/contracts";
 
 const receipts = () => mongoose.connection.collection<any>("chat_authorization_requests");
 const contextHash = (user: AuthenticatedUser) => digest({ authorization: user.authorization, canonical: user.canonical, delegations: user.effectiveDelegations ?? [], employeeId: user.employeeId });
-export const GatewayToolRequestSchema = z.object({ requestId: z.string().uuid(), tool: z.enum(["get_my_profile", "list_projects", "get_project_status", "query_policy", "directory", "submit_report", "get_my_kpi", "get_department_kpi", "get_upcoming_deadlines", "validate_context"]),
-  args: z.object({ projectId: z.string().regex(/^[a-f0-9]{24}$/i).optional(), query: z.string().max(2000).optional(), period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional() }).strict().default({}) }).strict();
+export const GatewayToolRequestSchema = z.object({ requestId: z.string().uuid(), tool: z.enum(["get_my_profile", "list_projects", "get_project_status", "query_policy", "directory", "submit_report", "get_my_kpi", "get_department_kpi", "get_upcoming_deadlines", "get_my_schedule", "validate_context"]),
+  args: z.object({ projectId: z.string().regex(/^[a-f0-9]{24}$/i).optional(), query: z.string().max(2000).optional(), period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(), from: ScheduleDateSchema.optional(), to: ScheduleDateSchema.optional() }).strict().default({}) }).strict();
 export function serviceKeyValid(provided: string): boolean {
   const expected = process.env.AI_SERVICE_API_KEY;
   if (!expected || !provided) return false;
@@ -29,7 +31,7 @@ export async function beginAuthorizedChat(user: AuthenticatedUser) {
   requireCapability(user, "chatbot.data_read", { userId: user.userId, employeeId: user.employeeId });
   const requestId = randomUUID(), version = user.securityVersion ?? 0;
   await receipts().createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-  await receipts().insertOne({ _id: requestId, userId: user.userId, securityVersion: version, contextHash: contextHash(user), status: "ACTIVE", expiresAt: new Date(Date.now() + 90000), documents: [], projects: [] });
+  await receipts().insertOne({ _id: requestId, userId: user.userId, securityVersion: version, contextHash: contextHash(user), status: "ACTIVE", expiresAt: new Date(Date.now() + 90000), documents: [], projects: [], schedules: [] });
   const delegationToken = await new SignJWT({ av: version, requestId, purpose: "authorized-tools" }).setSubject(user.userId)
     .setProtectedHeader({ alg: "HS256" }).setAudience("hr-blockbot-scoped-tools").setIssuedAt().setExpirationTime("90s").sign(getJwtSecret());
   return { requestId, delegationToken };
@@ -47,7 +49,7 @@ export async function executeGatewayTool(token: string, body: unknown) {
   const request = await receipts().findOne({ _id: requestId, userId: user.userId, securityVersion: payload.av, status: "ACTIVE", expiresAt: { $gt: new Date() } });
   if (!request) throw new WorkflowError(403, "CHAT_REQUEST_UNAVAILABLE", "Request expired or closed");
   if (request.contextHash !== contextHash(user)) throw new WorkflowError(409, "CHAT_AUTHORIZATION_CHANGED", "Authority changed during context preparation");
-  let result: unknown, documents: any[] = [], projects: any[] = [];
+  let result: unknown, documents: any[] = [], projects: any[] = [], schedules: any[] = [];
   if (tool === "get_my_profile") {
     requireCapability(user, "profile.read_self", { employeeId: user.employeeId });
     const employee: any = await EmployeeModel.findById(user.employeeId).select("fullName full_name job_title skills").lean();
@@ -107,10 +109,20 @@ export async function executeGatewayTool(token: string, body: unknown) {
     result = rows.map((row) => ({ projectId: String(row._id), title: row.title, status: row.status,
       dueDate: new Date(row.dueDate).toISOString(), daysLeft: Math.ceil((new Date(row.dueDate).getTime() - now.getTime()) / 86400000),
       progress: row.progress }));
+  } else if (tool === "get_my_schedule") {
+    const from = args.from ?? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+    const to = args.to ?? datePlus(from, 6), data = await personalSchedule(user, from, to);
+    const items = data.assignments.map(({ weekVersion, ...a }) => a);
+    schedules = [{ from, to, digest: digest(items) }];
+    const localTime = (day: string, minutes: number) => datePlus(day, Math.floor(minutes / 1440)) + ' ' + String(Math.floor(minutes % 1440 / 60)).padStart(2, '0') + ':' + String(minutes % 60).padStart(2, '0');
+    result = { from, to, timezone: 'Asia/Ho_Chi_Minh', publishedOnly: true,
+      items: items.slice(0, 30).map((a) => ({ date: a.date, shiftCode: a.shiftCode, shiftName: a.shiftName, storeName: a.storeName,
+        intervals: a.intervals.map((p) => ({ startsAtLocal: localTime(a.date, p.startMinute), endsAtLocal: localTime(a.date, p.endMinute) })) })), truncated: items.length > 30,
+      message: items.length ? null : 'Chưa có ca đã công bố trong khoảng ngày này. Không suy từ lịch nguồn cũ hoặc mặc định là ngày nghỉ.' };
   } else if (tool === "validate_context") result = { valid: true };
   else result = { unavailable: true, reason: "Tool is outside Authorization V1; no guessed data" };
   const record = await receipts().updateOne({ _id: requestId, status: "ACTIVE", expiresAt: { $gt: new Date() } },
-    { $addToSet: { documents: { $each: documents }, projects: { $each: projects } } });
+    { $addToSet: { documents: { $each: documents }, projects: { $each: projects }, schedules: { $each: schedules } } });
   if (!record.matchedCount) throw new WorkflowError(403, "CHAT_REQUEST_UNAVAILABLE", "Request closed during read");
   return { result, proposalOnly: true };
 }
@@ -132,6 +144,10 @@ export async function authorizedChat(user: AuthenticatedUser, message: string, c
     for (const receipt of row.projects) {
       const project = await visibleProject(current, receipt.projectId);
       if ((project.version ?? 1) !== receipt.version) throw new WorkflowError(409, "CHAT_RESOURCE_CHANGED", "Project changed during response");
+    }
+    for (const receipt of row.schedules ?? []) {
+      const data = await personalSchedule(current, receipt.from, receipt.to);
+      if (digest(data.assignments.map(({ weekVersion, ...a }) => a)) !== receipt.digest) throw new WorkflowError(409, 'CHAT_RESOURCE_CHANGED', 'Lịch đã công bố vừa thay đổi. Vui lòng hỏi lại.');
     }
     // Provider output cannot invent citations, attachment access, or executable actions.
     return { ...result, citations, attachments: [], proposedAction: null };

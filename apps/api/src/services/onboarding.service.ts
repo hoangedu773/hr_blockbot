@@ -165,7 +165,9 @@ async function resumeOnboardingOwned(user: AuthenticatedUser, id: string, option
       profileHistory: [{ actorId: row.approvedBy, type: "ONBOARDING_PROVISIONED", at: new Date(), reason: row.approvalReason }],
     } }, { upsert: true, runValidators: true });
     options.failpoint?.("after-employee");
-    const selfCaps = ["authorization.inspect_self", "profile.read_self", "profile.update_self_basic", "profile.request_self", "projects.read_assigned", "assignment.respond", "assignment.handover", "assignment.discuss", "projects.execute", "reports.submit", "assignment.audit_read", "chatbot.data_read"];
+    const scheduling = await mongoose.connection.collection<any>('authorization_controls').findOne({ _id: 'scheduling-v1', enabled: true, approvalRef: 'OWNER_SCHEDULING_20261103' });
+    const selfCaps = ["authorization.inspect_self", "profile.read_self", "profile.update_self_basic", "profile.request_self", "projects.read_assigned", "assignment.respond", "assignment.handover", "assignment.discuss", "projects.execute", "reports.submit", "assignment.audit_read", "chatbot.data_read",
+      ...(scheduling ? ['schedules.read_self', 'schedule_changes.request', 'schedule_changes.respond'] : [])];
     const makeGrant = (scope: any, capabilities: string[]) => AuthorizationGrantSchema.parse({ id: randomUUID(), profile: "staff", scope, capabilities,
       approvalRef: mappingRef, grantedBy: String(row.approvedBy), grantedAt: row.approvedAt.toISOString(), validFrom: row.approvedAt.toISOString(), validUntil: null });
     await UserModel.updateOne({ _id: row.userId, provisioningRequestId: row._id }, { $setOnInsert: {

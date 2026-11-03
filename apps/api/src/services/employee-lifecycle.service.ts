@@ -7,6 +7,7 @@ import { EmployeeLifecycleRequestModel as RequestModel } from "../models/Employe
 import { EmployeeModel } from "../models/Employee.js";
 import { UserModel } from "../models/User.js";
 import { ProjectModel } from "../models/Project.js";
+import { assertNoFuturePublishedSchedules } from "./scheduling.service.js";
 import { hashPassword } from "./auth.service.js";
 import { resolvePrincipal, securityVersion, securityVersionFilter } from "./principal.service.js";
 import { allowedStoreIds, requireCapability, resourceScope } from "./authorization-scope.service.js";
@@ -124,6 +125,7 @@ async function finish(row: any, options: OnboardingOptions) {
   // Also catch old partial APPLYING rows that predate writer coordination.
   if (!completed && row.kind !== "REACTIVATE" && await ProjectModel.exists({ status: { $ne: "COMPLETED" }, $or: [{ assigneeId: referenceMatch(String(row.employeeId)) }, { assignmentRequests: { $elemMatch: { status: "HANDOVER_PENDING", replacementId: String(row.employeeId) } } }] })) throw new WorkflowError(409, "LIFECYCLE_RECONCILIATION_REQUIRED", "Còn nghĩa vụ CRM trong trạng thái đang áp dụng; cần đối chiếu, không tự chuyển việc hoặc hoàn tác quyết định.");
   if (!completed) {
+    if (row.kind !== "REACTIVATE") await assertNoFuturePublishedSchedules(String(row.employeeId));
     const fenced = await EmployeeModel.updateOne({ _id: row.employeeId, ...revisionFilter(row.snapshot), storeId: objectId(row.snapshot.storeId), status: row.snapshot.status,
       $or: [{ lifecyclePendingRequestId: { $exists: false } }, { lifecyclePendingRequestId: null }, { lifecyclePendingRequestId: id }] }, { $set: { lifecyclePendingRequestId: id } });
     if (!fenced.matchedCount) throw new WorkflowError(409, "LIFECYCLE_FENCE_CONFLICT", "Hồ sơ đang trong workflow khác.");
@@ -140,7 +142,11 @@ async function finish(row: any, options: OnboardingOptions) {
     if (authorization && authorization.profile !== "system_admin" && row.kind !== "EXIT") {
       const location = String(row.targetStoreId ?? row.sourceStoreId);
       const make = (scope: any, capabilities: any[]) => AuthorizationGrantSchema.parse({ id: randomUUID(), profile: authorization.profile, capabilities, scope, validFrom: now, validUntil: null, grantedAt: now, grantedBy: reviewer.userId, approvalRef: `hr-lifecycle:${id}`, revokedAt: null });
-      if (row.kind === "REACTIVATE") authorization.grants.push(make({ kind: "self" }, ["authorization.inspect_self", "profile.read_self", "profile.update_self_basic", "profile.request_self", "projects.read_assigned", "assignment.respond", "assignment.handover", "assignment.discuss", "projects.execute", "reports.submit", "assignment.audit_read", "chatbot.data_read"]));
+      if (row.kind === "REACTIVATE") {
+        const scheduling = await mongoose.connection.collection<any>('authorization_controls').findOne({ _id: 'scheduling-v1', enabled: true, approvalRef: 'OWNER_SCHEDULING_20261103' });
+        authorization.grants.push(make({ kind: "self" }, ["authorization.inspect_self", "profile.read_self", "profile.update_self_basic", "profile.request_self", "projects.read_assigned", "assignment.respond", "assignment.handover", "assignment.discuss", "projects.execute", "reports.submit", "assignment.audit_read", "chatbot.data_read",
+          ...(scheduling ? ['schedules.read_self', 'schedule_changes.request', 'schedule_changes.respond'] : [])]));
+      }
       authorization.grants.push(make({ kind: "organization", storeIds: [location] }, ["directory.read_store"]));
       AuthorizationStateSchema.parse(authorization);
     }

@@ -10,6 +10,7 @@ import json
 import os
 import re
 import secrets
+from datetime import datetime, timedelta, timezone, date
 from urllib.parse import urlsplit
 
 import anyio
@@ -176,6 +177,28 @@ async def _authorized_chat(request: AuthorizedChatRequest, x_ai_service_key: str
                 calls.append(("get_department_kpi", {"period": period} if period else {}))
         if re.search(r"(hạn|deadline|sắp hết|quá hạn|nhắc|tiến độ|nộp báo cáo)", request.message, re.IGNORECASE):
             calls.append(("get_upcoming_deadlines", {}))
+        if re.search(r"(lịch làm|lịch ca|lịch tuần|phân ca|ca làm|làm ca|ca trực|ca nào|đổi ca)", request.message, re.IGNORECASE):
+            local_day = datetime.now(timezone(timedelta(hours=7))).date()
+            start = local_day
+            end = start + timedelta(days=6)
+            explicit = re.findall(r"20[0-9]{2}-[0-9]{2}-[0-9]{2}", request.message)
+            try:
+                if explicit:
+                    start = date.fromisoformat(explicit[0])
+                    end = date.fromisoformat(explicit[1]) if len(explicit) > 1 else start
+                elif re.search(r"tuần sau", request.message, re.IGNORECASE):
+                    start = local_day - timedelta(days=local_day.weekday()) + timedelta(days=7)
+                    end = start + timedelta(days=6)
+                elif re.search(r"tuần này", request.message, re.IGNORECASE):
+                    start = local_day - timedelta(days=local_day.weekday())
+                    end = start + timedelta(days=6)
+                elif re.search(r"(ngày mai|mai (?:tôi|em|mình|làm)|tomorrow)", request.message, re.IGNORECASE):
+                    start = end = local_day + timedelta(days=1)
+                elif re.search(r"(hôm nay|today)", request.message, re.IGNORECASE):
+                    start = end = local_day
+            except ValueError:
+                raise HTTPException(400, "Ngày lịch không hợp lệ") from None
+            calls.append(("get_my_schedule", {"from": start.isoformat(), "to": end.isoformat()}))
         for tool, args in calls:
             try:
                 response = await client.post(url, headers={"x-ai-service-key": key, "Authorization": "Bearer " + request.delegationToken},
@@ -207,15 +230,15 @@ async def _authorized_chat(request: AuthorizedChatRequest, x_ai_service_key: str
             decision_hint = json.dumps(analysis.get("decisionAnalysis", {}), ensure_ascii=False) if mode == "LIVE" else "{}"
             if mode == "LIVE":
                 system_prompt = (
-                    "Hôm nay là " + __import__("datetime").datetime.now(__import__("datetime").timezone.utc).strftime("%Y-%m-%d")
-                    + ". Chỉ trả lời từ dữ liệu được API cho phép dưới đây. Nếu thiếu dữ liệu, nói rõ chưa có; không suy đoán nhân sự khác. Không thực thi thao tác, không tạo link/citation hoặc giả đã ghi dữ liệu."
+                    "Hôm nay là " + datetime.now(timezone(timedelta(hours=7))).strftime("%Y-%m-%d")
+                    + ". Chỉ trả lời từ dữ liệu được API cho phép dưới đây. Nếu thiếu dữ liệu, nói rõ chưa có; không suy đoán nhân sự khác. Không thực thi thao tác, không tạo link/citation hoặc giả đã ghi dữ liệu. Khi trả lời lịch làm, ghi rõ ngày và giờ Việt Nam từ dữ liệu; chỉ dùng ca đã công bố, không suy giờ từ mã ca."
                     + " Jev chỉ là tín hiệu phân loại đã được xác thực; không phải quyền truy cập và không tự phê duyệt thao tác. Nếu tín hiệu Jev cho biết cần quản lý duyệt, chỉ giải thích rằng thao tác cần quy trình xác nhận, không tự thực hiện."
                     + "\n" + json.dumps(contexts, ensure_ascii=False) + "\nJev decision metadata: " + decision_hint
                 )
             else:
                 system_prompt = (
-                    "Hôm nay là " + __import__("datetime").datetime.now(__import__("datetime").timezone.utc).strftime("%Y-%m-%d")
-                    + ". Chỉ trả lời từ dữ liệu được API cho phép dưới đây. Nếu thiếu dữ liệu, nói rõ chưa có; không suy đoán nhân sự khác. Không thực thi thao tác, không tạo link/citation hoặc giả đã ghi dữ liệu."
+                    "Hôm nay là " + datetime.now(timezone(timedelta(hours=7))).strftime("%Y-%m-%d")
+                    + ". Chỉ trả lời từ dữ liệu được API cho phép dưới đây. Nếu thiếu dữ liệu, nói rõ chưa có; không suy đoán nhân sự khác. Không thực thi thao tác, không tạo link/citation hoặc giả đã ghi dữ liệu. Khi trả lời lịch làm, ghi rõ ngày và giờ Việt Nam từ dữ liệu; chỉ dùng ca đã công bố, không suy giờ từ mã ca."
                     + "\n" + json.dumps(contexts, ensure_ascii=False)
                 )
             result = chain.complete([

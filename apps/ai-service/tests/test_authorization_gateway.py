@@ -20,6 +20,7 @@ def boundary(monkeypatch):
         "list_projects": [{"projectId": "a" * 24, "title": "Allowed own task"}],
         "query_policy": [{"title": "Allowed ACL document", "text": "Approved store context"}],
         "validate_context": {"valid": True},
+        "get_my_schedule": {"from": "2026-11-04", "to": "2026-11-04", "publishedOnly": True, "items": [], "message": "Chưa có ca đã công bố"},
     }
     statuses = {}
 
@@ -72,6 +73,17 @@ def test_provider_only_receives_gateway_context_and_cannot_execute_model_tools(b
     assert response.json()["proposedAction"] is None
     assert response.json()["attachments"] == response.json()["citations"] == []
     assert "conversationId" not in response.json(), "The shared API contract accepts an absent string, not null"
+
+
+def test_schedule_context_is_a_date_bounded_self_tool_without_client_identity_or_writes(boundary):
+    client, calls, prompts, _ = boundary
+    response = send(client, payload(message="Lịch làm của tôi ngày 2026-11-04 thế nào?"))
+    assert response.status_code == 200
+    assert calls[-1]["tool"] == "get_my_schedule"
+    assert calls[-1]["args"] == {"from": "2026-11-04", "to": "2026-11-04"}
+    assert '"publishedOnly": true' in prompts[0].content
+    assert "employeeId" not in calls[-1]["args"] and "storeId" not in calls[-1]["args"]
+    assert response.json()["proposedAction"] is None
 
 
 @pytest.mark.parametrize("status", ["ok", "unavailable", "external_text_disabled"])

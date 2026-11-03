@@ -16,6 +16,8 @@ const pending = (profiles: AuthorizationProfile[] = managers) => rule(profiles, 
 const technical = () => rule(["system_admin"], "system", "APPROVED", "Owner requested separate technical administration");
 const denied = () => rule([], "organization", "DENIED", "Out of scope or explicitly disabled");
 const operational = (profiles: AuthorizationProfile[] = managers, delegable = false) => rule(profiles, "organization", "APPROVED", "Project-owner software authorization V1 approval (not company policy)", delegable);
+const schedulingSelf = () => rule(workers, 'self', 'APPROVED', 'Owner selected configurable scheduling V1 on 2026-11-03; own employee only');
+const schedulingOperational = (profiles: AuthorizationProfile[] = managers) => rule(profiles, 'organization', 'APPROVED', 'Owner selected configurable scheduling V1 on 2026-11-03; separate grants and canonical store/reporting scope required');
 
 // Eligibility is not authority. Pending policy cannot be enabled by a grant/body/title.
 export const AUTHORIZATION_POLICY: Readonly<Record<AuthorizationCapability, Rule>> = Object.freeze({
@@ -30,6 +32,9 @@ export const AUTHORIZATION_POLICY: Readonly<Record<AuthorizationCapability, Rule
   "employees.transfer_confirm": operational(managers),
   "onboarding.propose": operational(["sm"]), "onboarding.draft": operational(["hr"]), "onboarding.review": operational(["hr"]),
   "onboarding.reporting_propose": operational(["sm"]), "onboarding.reporting_review": operational(),
+  "schedules.read_self": schedulingSelf(), "schedule_changes.request": schedulingSelf(), "schedule_changes.respond": schedulingSelf(),
+  "schedules.read_store": schedulingOperational(["hr", ...managers, "aom", "ptch"]),
+  "schedules.manage": schedulingOperational(), "schedules.publish": schedulingOperational(), "shifts.manage": schedulingOperational(), "schedule_changes.review": schedulingOperational(),
   "employees.transfer": operational(["hr"]), "departments.read": pending(["system_admin", "hr", ...managers]),
   "departments.configure": pending(["system_admin"]), "stores.read": operational(workers.filter((profile) => profile !== "staff")), "stores.configure": pending(["system_admin"]),
   "dashboard.read": operational(["hr", ...managers, "aom", "ptch"]), "projects.read_assigned": assigned(), "projects.read_managed": operational(),

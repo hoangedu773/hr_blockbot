@@ -4,6 +4,7 @@ import { F4CandidateSchema } from "./f4.js";
 export * from "./authorization.js";
 export * from "./f4.js";
 export * from "./kpi.js";
+export * from "./scheduling.js";
 
 // ============================================================================
 // 1. Core Auth & RBAC Schemas

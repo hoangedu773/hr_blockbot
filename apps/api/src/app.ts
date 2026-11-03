@@ -4,6 +4,7 @@ import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 
 import healthRouter from "./routes/health.js";
+import schedulingRouter from "./routes/scheduling.js";
 import authRouter from "./routes/auth.js";
 import employeesRouter from "./routes/employees.js";
 import projectsRouter from "./routes/projects.js";
@@ -85,6 +86,7 @@ export function createApp(options: { onboarding?: OnboardingOptions; recovery?: 
 
   // Mount Canonical Endpoints under /api prefix
   app.use("/api", healthRouter);
+  app.use("/api", schedulingRouter);
   app.use("/api", authRouter);
   app.use("/api", legacyImportRouter);
   app.use("/api", onboardingRouter);

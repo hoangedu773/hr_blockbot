@@ -18,6 +18,7 @@ import { EmployeeLifecycleView } from './EmployeeLifecycleView';
 import { AuthorizationStatus } from './AuthorizationStatus';
 import { InitialReportingView } from './InitialReportingView';
 import { KpiView } from './KpiView';
+import { SchedulingView } from './SchedulingView';
 
 export type ActiveCrmView = 'stores' | 'employees' | 'profile' | 'schedules' | 'projects' | 'kpi' | 'settings' | 'accounts' | 'onboarding' | 'delegations' | 'directory' | 'lifecycle' | 'authorization' | 'initialReporting';
 export interface CrmDashboardViewProps {
@@ -74,7 +75,7 @@ const CRM_HTML = `
           <button type="button" data-section="stores" aria-current="page" class="crm-nav-item">Chi nhánh / Cửa hàng <span class="crm-nav-count" id="crm-nav-store-count">—</span></button>
           <button type="button" data-section="employees" class="crm-nav-item">Nhân sự</button>
           <button type="button" data-section="profile" class="crm-nav-item">Hồ sơ của tôi</button>
-          <button type="button" data-section="schedules" class="crm-nav-item">Hồ sơ nhân sự</button>
+          <button type="button" data-section="schedules" class="crm-nav-item">Lịch làm &amp; phân ca</button>
           <button type="button" data-section="projects" class="crm-nav-item">Công việc & nghiệm thu</button>
           <button type="button" data-section="kpi" class="crm-nav-item">KPI &amp; đánh giá</button>
           <button type="button" data-section="onboarding" class="crm-nav-item">Tiếp nhận nhân viên</button>
@@ -162,7 +163,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
 }) => {
   const { can, summary: authorization } = useAuthorization();
   const allowedViews: Record<ActiveCrmView, boolean> = { stores: can('stores.read'), employees: can('employees.read_operational'), profile: can('profile.read_self'),
-    schedules: can('employees.review'), projects: can('projects.read_assigned') || can('projects.read_managed') || can('projects.create') || can('reports.review'),
+    schedules: can('schedules.read_self') || can('schedules.read_store'), projects: can('projects.read_assigned') || can('projects.read_managed') || can('projects.create') || can('reports.review'),
     kpi: can('kpi.read_self') || can('kpi.read_department') || can('kpi.manage'),
     settings: can('provider_settings.manage'), accounts: can('accounts.manage'), onboarding: can('onboarding.propose') || can('onboarding.draft') || can('onboarding.review'),
     delegations: can('authorization.inspect_self') || can('delegations.request') || can('delegations.review') || !!authorization?.delegations.length, directory: can('directory.read_store'),
@@ -468,7 +469,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
           ) : activeView === 'profile' && allowedViews.profile ? (
             <EmployeeProfileView onLogout={onLogout} onNotify={safeNotify} />
           ) : activeView === 'schedules' && allowedViews.schedules ? (
-            <EmployeeListView />
+            <SchedulingView />
           ) : activeView === 'projects' && allowedViews.projects ? (
             <ProjectListView onNotify={safeNotify} />
           ) : activeView === 'kpi' && allowedViews.kpi ? (

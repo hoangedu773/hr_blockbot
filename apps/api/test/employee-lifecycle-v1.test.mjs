@@ -61,6 +61,7 @@ test('exit application can resume after user update without usable partial state
   assert.equal(employee.profileHistory.filter((event) => event.requestId === request.body.id).length, 1); assert.ok(user.authorization.grants.every((grant) => grant.revokedAt));
 });
 test('reactivation requires independent HR and employee password setup; old grants/password/tokens do not revive', async () => {
+  await mongoose.connection.collection('authorization_controls').insertOne({ _id: 'scheduling-v1', enabled: true, approvalRef: 'OWNER_SCHEDULING_20261103' });
   const request = await call('hr', '/employee-lifecycle', await proposal('staff', 'REACTIVATE')); assert.equal(request.status, 201);
   const approved = await call('hr2', `/employee-lifecycle/${request.body.id}/review`, review(request.body)); assert.equal(approved.status, 200, JSON.stringify(approved.body)); assert.equal(approved.body.status, 'PENDING_ACTIVATION');
   assert.equal((await EmployeeModel.findById(fixture.actors.staff.employee._id)).status, 'inactive');
@@ -70,6 +71,8 @@ test('reactivation requires independent HR and employee password setup; old gran
   assert.equal((await call(null, '/auth/login', { username: fixture.actors.staff.user.username, password: fixture.password })).status, 401);
   const login = await call(null, '/auth/login', { username: fixture.actors.staff.user.username, password: 'NewReactivateOnly@2026' }); assert.equal(login.status, 200); fixture.actors.staff.token = login.body.accessToken;
   assert.equal(login.body.user.authorization.capabilities.includes('projects.assign'), false);
+  assert.ok(login.body.user.authorization.capabilities.includes('schedules.read_self'));
+  assert.equal(login.body.user.authorization.capabilities.includes('schedules.manage'), false);
   assert.equal((await EmployeeModel.findById(fixture.actors.staff.employee._id)).status, 'active');
 });
 test('transfer needs source+destination managers and independent HR, preserves raw data/history and does not auto-reassign tasks', async () => {

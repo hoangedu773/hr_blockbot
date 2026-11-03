@@ -19,6 +19,8 @@ export const AuthorizationCapabilitySchema = z.enum([
   "employees.lifecycle_request", "employees.lifecycle_review", "employees.transfer_confirm",
   "delegations.request", "delegations.review", "grants.configure", "grants.revoke",
   "onboarding.reporting_propose", "onboarding.reporting_review",
+  "schedules.read_self", "schedules.read_store", "schedules.manage", "schedules.publish", "shifts.manage",
+  "schedule_changes.request", "schedule_changes.respond", "schedule_changes.review",
 ]);
 export type AuthorizationCapability = z.infer<typeof AuthorizationCapabilitySchema>;
 export const AuthorizationPolicyStatusSchema = z.enum(["APPROVED", "PENDING", "DENIED"]);
