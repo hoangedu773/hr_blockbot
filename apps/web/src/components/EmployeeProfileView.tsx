@@ -1,341 +1,109 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import type { EmployeeDetail, EmployeeLevel, ProfileTargetFields, ProfileChangeRequest } from '@hr-blockbot/contracts';
-import {
-  ApiError,
-  createProfileChangeRequest,
-  fetchMyProfile,
-  fetchEmployeeChangeRequests,
-  updateEmployeeFields,
-} from '../services/api';
+import type { EmployeeDetail, ProfileChangeRequest } from '@hr-blockbot/contracts';
+import { ApiError, createProfileChangeRequest, fetchMyProfile, fetchEmployeeChangeRequests, updateEmployeeFields } from '../services/api';
 import type { NotifyFn } from './Toast';
-import { AuthorizationStatus } from './AuthorizationStatus';
 import { useAuthorization } from '../context/useAuthorization';
 import { SmAppointments, isSmPositionCandidate } from './SmAppointments';
+import { employeeLocationLabel, employeeJobLabel, profileDate } from '../services/employee-display';
+import '../styles/employee-profile.css';
 
-interface EmployeeProfileViewProps {
-  onLogout: () => void;
-  onNotify: NotifyFn;
-}
+interface EmployeeProfileViewProps { onLogout: () => void; onNotify: NotifyFn }
+const labels: Record<string, string> = { level: 'Cấp bậc', hiredAt: 'Ngày vào làm', jobTitle: 'Chức danh' };
+const dateOnlyRequest = (r: ProfileChangeRequest) => !!r.targetFields.hiredAt && Object.keys(r.targetFields).every(k => k === 'hiredAt');
 
-const LEVELS: EmployeeLevel[] = ['Intern', 'Junior', 'Middle', 'Senior', 'Lead'];
-
-export const EmployeeProfileView: React.FC<EmployeeProfileViewProps> = ({ onLogout, onNotify }) => {
+export const EmployeeProfileView: React.FC<EmployeeProfileViewProps> = ({ onNotify }) => {
   const { can } = useAuthorization();
-  const canEditRegular = can('profile.update_self_basic');
-  const canRequestChange = can('profile.request_self');
-  const [profile, setProfile] = useState<EmployeeDetail | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [loadError, setLoadError] = useState<string>('');
-
-  const [isEditingRegular, setIsEditingRegular] = useState<boolean>(false);
-  const [phone, setPhone] = useState<string>('');
-  const [skills, setSkills] = useState<string>('');
-  const [regularError, setRegularError] = useState<string>('');
-  const [regularBusy, setRegularBusy] = useState<boolean>(false);
-
-  const [isRequestingChange, setIsRequestingChange] = useState<boolean>(false);
-  const [targetLevel, setTargetLevel] = useState<string>('');
-  const [targetHiredAt, setTargetHiredAt] = useState<string>('');
-  const [targetJobTitle, setTargetJobTitle] = useState<string>('');
-  const [changeError, setChangeError] = useState<string>('');
-  const [changeBusy, setChangeBusy] = useState<boolean>(false);
-  const [lastRequestId, setLastRequestId] = useState<string>('');
-  const [requests, setRequests] = useState<ProfileChangeRequest[]>([]);
-  const [historyError, setHistoryError] = useState('');
-
+  const canEditRegular = can('profile.update_self_basic'), canRequestChange = can('profile.request_self');
+  const [profile, setProfile] = useState<EmployeeDetail | null>(null), [isLoading, setIsLoading] = useState(true), [loadError, setLoadError] = useState('');
+  const [isEditingRegular, setIsEditingRegular] = useState(false), [phone, setPhone] = useState(''), [skills, setSkills] = useState('');
+  const [regularError, setRegularError] = useState(''), [regularBusy, setRegularBusy] = useState(false);
+  const [isRequestingChange, setIsRequestingChange] = useState(false), [targetHiredAt, setTargetHiredAt] = useState('');
+  const [changeError, setChangeError] = useState(''), [changeBusy, setChangeBusy] = useState(false), [lastRequestId, setLastRequestId] = useState('');
+  const [requests, setRequests] = useState<ProfileChangeRequest[]>([]), [historyError, setHistoryError] = useState('');
   const load = useCallback(async () => {
-    setIsLoading(true);
-    setLoadError('');
+    setIsLoading(true); setLoadError('');
     try {
-      const result = await fetchMyProfile();
-      setProfile(result);
-      setPhone(result.phone ?? '');
-      setSkills(result.skills.join(', '));
+      const result = await fetchMyProfile(); setProfile(result); setPhone(result.phone ?? ''); setSkills(result.skills.join(', '));
       try { setRequests(await fetchEmployeeChangeRequests(result.employeeId)); setHistoryError(''); }
-      catch (failure) { setHistoryError(failure instanceof Error ? failure.message : 'Không tải được lịch sử.'); }
-    } catch (err: unknown) {
-      const message = err instanceof ApiError ? `${err.code}: ${err.message}` : err instanceof Error ? err.message : 'Lỗi tải hồ sơ';
-      setLoadError(message);
-    } finally {
-      setIsLoading(false);
-    }
+      catch (e) { setHistoryError(e instanceof Error ? e.message : 'Không tải được lịch sử yêu cầu.'); }
+    } catch (e) { setLoadError(e instanceof ApiError || e instanceof Error ? e.message : 'Không tải được hồ sơ.'); }
+    finally { setIsLoading(false); }
   }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
-    if (!canEditRegular) setIsEditingRegular(false);
-    if (!canRequestChange) setIsRequestingChange(false);
-  }, [canEditRegular, canRequestChange]);
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (!canEditRegular) setIsEditingRegular(false); if (!canRequestChange) setIsRequestingChange(false); }, [canEditRegular, canRequestChange]);
 
   const saveRegularFields = async () => {
-    if (!canEditRegular) return;
-    if (!profile) return;
-    setRegularBusy(true);
-    setRegularError('');
+    if (!canEditRegular || !profile || regularBusy) return;
+    setRegularBusy(true); setRegularError('');
     try {
-      const skillList = skills
-        .split(',')
-        .map((item) => item.trim())
-        .filter((item) => item.length > 0);
-      const updated = await updateEmployeeFields(profile.employeeId, {
-        phone: phone.trim(),
-        skills: skillList,
-        expectedVersion: profile.profileVersion,
-      });
+      const updated = await updateEmployeeFields(profile.employeeId, { phone: phone.trim(), skills: skills.split(',').map(s => s.trim()).filter(Boolean), expectedVersion: profile.profileVersion });
       if ('profileVersion' in updated) setProfile(updated);
-      onNotify('Đã cập nhật thông tin thường.', 'success', 'Lưu hồ sơ');
-      setIsEditingRegular(false);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Không lưu được thông tin';
-      setRegularError(message);
-      onNotify(message, 'error', 'Lỗi lưu hồ sơ');
-    } finally {
-      setRegularBusy(false);
-    }
+      onNotify('Đã cập nhật điện thoại và kỹ năng.', 'success', 'Lưu hồ sơ'); setIsEditingRegular(false);
+    } catch (e) { const message = e instanceof Error ? e.message : 'Không lưu được thông tin.'; setRegularError(message); onNotify(message, 'error', 'Lỗi lưu hồ sơ'); }
+    finally { setRegularBusy(false); }
   };
-
   const submitChangeRequest = async () => {
-    if (!canRequestChange) return;
-    if (!profile) return;
-    const targetFields: ProfileTargetFields = {};
-    if (targetLevel) targetFields.level = targetLevel as EmployeeLevel;
-    if (targetHiredAt) targetFields.hiredAt = new Date(targetHiredAt).toISOString();
-    if (targetJobTitle.trim()) targetFields.jobTitle = targetJobTitle.trim();
-
-    if (!targetFields.level && !targetFields.hiredAt && !targetFields.jobTitle) {
-      setChangeError('Chọn ít nhất một trường cần thay đổi (level / hiredAt / jobTitle).');
-      return;
-    }
-
-    setChangeBusy(true);
-    setChangeError('');
+    if (!canRequestChange || !profile || changeBusy) return;
+    if (!targetHiredAt) { setChangeError('Chọn ngày vào làm cần điều chỉnh.'); return; }
+    const value = new Date(targetHiredAt + 'T00:00:00Z');
+    if (!Number.isFinite(value.getTime())) { setChangeError('Ngày vào làm không hợp lệ.'); return; }
+    if (targetHiredAt === profile.hiredAt?.slice(0, 10)) { setChangeError('Ngày đề nghị đang trùng với ngày vào làm hiện tại.'); return; }
+    setChangeBusy(true); setChangeError('');
     try {
-      const created = await createProfileChangeRequest(profile.employeeId, {
-        targetFields,
-        ...(lastRequestId ? { previousRequestId: lastRequestId } : {}),
-      });
-      setLastRequestId('');
-      setRequests((old) => [...old, created]);
-      // Submission increments the profile revision without changing sensitive fields.
-      try { setProfile(await fetchMyProfile()); }
-      catch { setHistoryError('Yêu cầu đã lưu. Hãy làm mới hồ sơ để lấy phiên bản mới trước lần chỉnh sửa tiếp theo.'); }
-      onNotify('Đã gửi yêu cầu đổi thông tin nhạy cảm — chờ Admin duyệt.', 'success', 'Gửi yêu cầu');
-      setIsRequestingChange(false);
-      setTargetLevel('');
-      setTargetHiredAt('');
-      setTargetJobTitle('');
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Không gửi được yêu cầu';
-      setChangeError(message);
-      onNotify(message, 'error', 'Lỗi gửi yêu cầu');
-    } finally {
-      setChangeBusy(false);
-    }
+      const created = await createProfileChangeRequest(profile.employeeId, { targetFields: { hiredAt: value.toISOString() }, ...(lastRequestId ? { previousRequestId: lastRequestId } : {}) });
+      setLastRequestId(''); setRequests(old => [...old, created]);
+      try { setProfile(await fetchMyProfile()); } catch { setHistoryError('Yêu cầu đã gửi. Làm mới hồ sơ để xem thông tin mới nhất.'); }
+      onNotify('Đã gửi yêu cầu chỉnh sửa ngày vào làm, chờ HR xét duyệt.', 'success', 'Gửi yêu cầu');
+      setIsRequestingChange(false); setTargetHiredAt('');
+    } catch (e) { const message = e instanceof Error ? e.message : 'Không gửi được yêu cầu.'; setChangeError(message); onNotify(message, 'error', 'Lỗi gửi yêu cầu'); }
+    finally { setChangeBusy(false); }
   };
-
-  if (isLoading) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        <div className="skeleton" style={{ height: '72px' }} />
-        <div className="skeleton" style={{ height: '120px' }} />
-        <div className="skeleton" style={{ height: '120px' }} />
-      </div>
-    );
-  }
-
-  if (loadError) {
-    return (
-      <div className="banner banner--error" role="alert">
-        <span>Không tải được hồ sơ: {loadError}</span>
-        <button type="button" className="btn btn--sm" onClick={() => void load()}>
-          Thử lại
-        </button>
-      </div>
-    );
-  }
-
-  if (!profile) {
-    return (
-      <div className="empty">
-        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>Chưa có hồ sơ</div>
-        <p>Tài khoản Employee chưa được liên kết với bản ghi nhân sự.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '980px' }}>
-      <AuthorizationStatus />
-      {isSmPositionCandidate(profile.jobTitle) && <SmAppointments key={profile.employeeId} employeeId={profile.employeeId} />}
-      <div
-        style={{
-          background: 'rgba(14, 20, 32, 0.85)',
-          border: '1px solid var(--border)',
-          borderRadius: '12px',
-          padding: '18px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '12px',
-        }}
-      >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#f8fafc' }}>{profile.fullName}</h2>
-            <span className="chip chip--info">OWN SCOPE</span>
-          </div>
-          <p style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
-            Mã NV {profile.employeeCode} · {profile.department} · {profile.level}
-          </p>
-        </div>
-        <button type="button" className="btn btn--ghost" onClick={onLogout}>
-          Đăng xuất
-        </button>
-        <button type="button" className="btn" disabled={regularBusy || changeBusy} onClick={() => void load()}>Làm mới hồ sơ</button>
-      </div>
-      <section className="card card--pad crm-work-detail" aria-label="Lịch sử thay đổi hồ sơ">
-        <h3>Lịch sử yêu cầu & quyết định</h3>
-        <p>Quyết định được lưu bền; mở lại hồ sơ để xem kết quả và lý do. Chưa có thông báo đẩy thời gian thực.</p>
-        {historyError && <p role="alert">{historyError}</p>}
-        {!requests.length && !historyError && <p>Chưa có yêu cầu thay đổi hồ sơ.</p>}
-        {[...requests].reverse().map((request) => <article className="crm-report-card" key={request.id}>
-          <strong>{request.status === 'PENDING' ? 'Chờ HR có thẩm quyền xử lý' : request.status === 'APPROVED' ? 'Đã duyệt thay đổi' : 'Đã từ chối thay đổi'}</strong>
-          <p>{new Date(request.requestedAt).toLocaleString('vi-VN')} · {Object.entries(request.targetFields).map(([key, value]) => `${key}: ${value}`).join(' · ')}</p>
-          {request.reviewedAt && <p>Quyết định lúc {new Date(request.reviewedAt).toLocaleString('vi-VN')} · Người duyệt: {request.reviewedBy}</p>}
-          {request.rejectionReason && <p>Lý do: {request.rejectionReason}</p>}
-          {canRequestChange && request.status === 'REJECTED' && !requests.some((item) => item.status === 'PENDING') && <button type="button" className="btn" disabled={changeBusy} onClick={() => { setLastRequestId(request.id); setTargetLevel(request.targetFields.level ?? ''); setTargetHiredAt(request.targetFields.hiredAt?.slice(0, 10) ?? ''); setTargetJobTitle(request.targetFields.jobTitle ?? ''); setIsRequestingChange(true); setChangeError(''); }}>Sửa và gửi lại yêu cầu</button>}
-        </article>)}
+  if (isLoading) return <div className="employee-profile" aria-label="Đang tải hồ sơ"><div className="skeleton" style={{ height: 110 }} /><div className="skeleton" style={{ height: 240 }} /></div>;
+  if (loadError) return <div className="banner banner--error" role="alert">Không tải được hồ sơ: {loadError}<button className="btn" onClick={() => void load()}>Thử lại</button></div>;
+  if (!profile) return <div className="empty"><h3>Chưa có hồ sơ</h3><p>Liên hệ HR để liên kết tài khoản với hồ sơ nhân viên.</p></div>;
+  const pending = requests.some(r => r.status === 'PENDING');
+  return <section className="employee-profile" aria-label="Hồ sơ của tôi">
+    <header className="card card--pad employee-profile-header">
+      <div><h2>{profile.fullName}</h2><p className="employee-profile-code">Mã nhân viên: {profile.employeeCode || 'Chưa cập nhật'}</p>
+        <p className="employee-profile-job">{employeeJobLabel(profile.jobTitle)}</p><p className="employee-profile-location">{employeeLocationLabel(profile)}</p></div>
+      <button className="btn" disabled={regularBusy || changeBusy} onClick={() => void load()}>Làm mới hồ sơ</button>
+    </header>
+    <div className="employee-profile-columns">
+      <section className="card card--pad employee-profile-card" aria-label="Thông tin cơ bản">
+        <div className="employee-profile-card-heading"><h3>Thông tin cơ bản</h3>{canEditRegular && !isEditingRegular && <button className="btn btn--sm" onClick={() => setIsEditingRegular(true)}>Sửa</button>}</div>
+        {!isEditingRegular || !canEditRegular ? <dl className="employee-profile-fields">
+          <dt>Điện thoại</dt><dd>{profile.phone?.trim() || 'Chưa cập nhật'}</dd><dt>Ngày vào làm</dt><dd>{profileDate(profile.hiredAt)}</dd>
+          <dt>Kỹ năng</dt><dd className="employee-profile-skills">{profile.skills.length ? profile.skills.map(skill => <span key={skill} className="chip">{skill}</span>) : 'Chưa cập nhật'}</dd>
+        </dl> : <form className="employee-profile-form" onSubmit={e => { e.preventDefault(); void saveRegularFields(); }}>
+          <label className="field" htmlFor="own-phone">Điện thoại<input id="own-phone" type="tel" className="input" disabled={regularBusy} value={phone} onChange={e => setPhone(e.target.value)} /></label>
+          <label className="field" htmlFor="own-skills">Kỹ năng<input id="own-skills" className="input" disabled={regularBusy} value={skills} onChange={e => setSkills(e.target.value)} /><small>Phân cách các kỹ năng bằng dấu phẩy.</small></label>
+          {regularError && <p className="banner banner--error" role="alert">{regularError}</p>}
+          <div className="employee-profile-actions"><button type="button" className="btn" disabled={regularBusy} onClick={() => { setPhone(profile.phone ?? ''); setSkills(profile.skills.join(', ')); setRegularError(''); setIsEditingRegular(false); }}>Huỷ</button><button className="btn btn--primary" disabled={regularBusy}>{regularBusy ? 'Đang lưu…' : 'Lưu'}</button></div>
+        </form>}
       </section>
-
-      <div className="banner" style={{ background: 'rgba(16, 185, 129, 0.06)', borderColor: 'rgba(16, 185, 129, 0.25)', color: '#a7f3d0' }}>
-        <span>
-          <strong>Allowlist:</strong> tài khoản cá nhân chỉ thấy trường được phép. CCCD, tài khoản ngân hàng, lương và lý do
-          nghỉ không nằm trong DTO của API.
-        </span>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
-        <div className="card card--pad" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-primary)', textTransform: 'uppercase' }}>Thông tin cơ bản</h3>
-            {canEditRegular && !isEditingRegular && (
-              <button type="button" className="btn btn--sm" onClick={() => setIsEditingRegular(true)}>
-                Sửa
-              </button>
-            )}
-          </div>
-
-          {!isEditingRegular || !canEditRegular ? (
-            <dl style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '8px 14px', fontSize: '12px' }}>
-              <dt style={{ color: 'var(--text-muted)' }}>Điện thoại</dt>
-              <dd style={{ fontFamily: 'var(--mono)' }}>{profile.phone ?? '—'}</dd>
-              <dt style={{ color: 'var(--text-muted)' }}>Ngày vào làm</dt>
-              <dd style={{ fontFamily: 'var(--mono)' }}>{profile.hiredAt ?? '—'}</dd>
-              <dt style={{ color: 'var(--text-muted)' }}>Kỹ năng</dt>
-              <dd style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                {profile.skills.length > 0 ? (
-                  profile.skills.map((skill) => (
-                    <span key={skill} className="chip chip--warn">
-                      {skill}
-                    </span>
-                  ))
-                ) : (
-                  <span style={{ color: 'var(--text-faint)' }}>Chưa cập nhật</span>
-                )}
-              </dd>
-            </dl>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div className="field">
-                <label className="field__label" htmlFor="own-phone">
-                  Điện thoại
-                </label>
-                <input id="own-phone" className="input" value={phone} onChange={(event) => setPhone(event.target.value)} />
-              </div>
-              <div className="field">
-                <label className="field__label" htmlFor="own-skills">
-                  Kỹ năng (phân cách bằng dấu phẩy)
-                </label>
-                <input id="own-skills" className="input" value={skills} onChange={(event) => setSkills(event.target.value)} />
-              </div>
-              {regularError && <div className="banner banner--error" role="alert">{regularError}</div>}
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                <button type="button" className="btn btn--ghost btn--sm" onClick={() => setIsEditingRegular(false)} disabled={regularBusy}>
-                  Huỷ
-                </button>
-                <button type="button" className="btn btn--primary btn--sm" onClick={() => void saveRegularFields()} disabled={regularBusy} aria-busy={regularBusy}>
-                  {regularBusy ? <span className="spinner" /> : null}
-                  Lưu
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="card card--pad" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <h3 style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-primary)', textTransform: 'uppercase' }}>
-            Yêu cầu thay đổi thông tin cần xét duyệt
-          </h3>
-          <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-            Ngày vào làm cần HR độc lập có grant phù hợp duyệt. Đổi cấp bậc/chức danh giữ PENDING đến khi có chính sách riêng; Admin kỹ thuật không duyệt nghiệp vụ này.
-          </p>
-
-          {!canRequestChange ? (
-            <p role="status">Tài khoản hiện chỉ được xem hồ sơ; chưa được cấp quyền gửi yêu cầu thay đổi.</p>
-          ) : !isRequestingChange ? (
-            <button type="button" className="btn btn--primary" onClick={() => setIsRequestingChange(true)} style={{ alignSelf: 'flex-start' }}>
-              Tạo yêu cầu
-            </button>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div className="field">
-                <label className="field__label" htmlFor="target-level">
-                  Level mong muốn
-                </label>
-                <select id="target-level" className="select" value={targetLevel} onChange={(event) => setTargetLevel(event.target.value)}>
-                  <option value="">Không đổi</option>
-                  {LEVELS.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="field">
-                <label className="field__label" htmlFor="target-hired-at">
-                  Ngày vào làm mong muốn
-                </label>
-                <input id="target-hired-at" className="input" type="date" value={targetHiredAt} onChange={(event) => setTargetHiredAt(event.target.value)} />
-              </div>
-              <div className="field">
-                <label className="field__label" htmlFor="target-job-title">
-                  Chức danh mong muốn
-                </label>
-                <input id="target-job-title" className="input" value={targetJobTitle} onChange={(event) => setTargetJobTitle(event.target.value)} />
-              </div>
-              {changeError && <div className="banner banner--error" role="alert">{changeError}</div>}
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                <button type="button" className="btn btn--ghost btn--sm" onClick={() => setIsRequestingChange(false)} disabled={changeBusy}>
-                  Huỷ
-                </button>
-                <button type="button" className="btn btn--primary btn--sm" onClick={() => void submitChangeRequest()} disabled={changeBusy} aria-busy={changeBusy}>
-                  {changeBusy ? <span className="spinner" /> : null}
-                  Gửi yêu cầu
-                </button>
-              </div>
-            </div>
-          )}
-          {lastRequestId && (
-            <div style={{ fontSize: '11px', color: 'var(--text-faint)', fontFamily: 'var(--mono)' }}>
-              Yêu cầu gần nhất: {lastRequestId}
-            </div>
-          )}
-        </div>
-      </div>
+      <section className="card card--pad employee-profile-card" aria-label="Chỉnh sửa ngày vào làm">
+        <h3>Chỉnh sửa ngày vào làm</h3><p>Gửi ngày đúng để HR kiểm tra và cập nhật hồ sơ.</p>
+        {!canRequestChange ? <p role="status">Tài khoản hiện chỉ được xem hồ sơ; chưa được cấp quyền gửi yêu cầu thay đổi.</p>
+          : pending && !isRequestingChange ? <p role="status">Bạn có yêu cầu đang chờ HR xử lý. Xem trạng thái bên dưới.</p>
+          : !isRequestingChange ? <button className="btn" onClick={() => { setLastRequestId(''); setTargetHiredAt(''); setChangeError(''); setIsRequestingChange(true); }}>Tạo yêu cầu</button>
+          : <form className="employee-profile-form" onSubmit={e => { e.preventDefault(); void submitChangeRequest(); }}>
+            <label className="field" htmlFor="target-hired-at">Ngày vào làm đề nghị<input id="target-hired-at" className="input" type="date" required disabled={changeBusy} value={targetHiredAt} onChange={e => setTargetHiredAt(e.target.value)} /></label>
+            {changeError && <p className="banner banner--error" role="alert">{changeError}</p>}
+            <div className="employee-profile-actions"><button type="button" className="btn" disabled={changeBusy} onClick={() => { setIsRequestingChange(false); setLastRequestId(''); }}>Huỷ</button><button className="btn btn--primary" disabled={changeBusy}>{changeBusy ? 'Đang gửi…' : 'Gửi yêu cầu'}</button></div>
+          </form>}
+      </section>
     </div>
-  );
+    <details className="card card--pad employee-profile-secondary" open={requests.length > 0}>
+      <summary>Yêu cầu chỉnh sửa hồ sơ{requests.length ? ` (${requests.length})` : ''}</summary>
+      {historyError && <p role="alert">{historyError}</p>}{!requests.length && !historyError && <p>Chưa có yêu cầu thay đổi hồ sơ.</p>}
+      {[...requests].reverse().map(request => <article className="crm-report-card" key={request.id}>
+        <strong>{request.status === 'PENDING' ? 'Chờ HR xử lý' : request.status === 'APPROVED' ? 'Đã duyệt' : 'Đã từ chối'}</strong>
+        <p>Gửi ngày {new Date(request.requestedAt).toLocaleString('vi-VN')}</p>
+        <p>{Object.entries(request.targetFields).map(([field, value]) => `${labels[field] || 'Thông tin'}: ${field === 'hiredAt' ? profileDate(String(value)) : value}`).join(' · ')}</p>
+        {request.reviewedAt && <p>Xử lý ngày {new Date(request.reviewedAt).toLocaleString('vi-VN')}</p>}{request.rejectionReason && <p>Lý do: {request.rejectionReason}</p>}
+        {canRequestChange && request.status === 'REJECTED' && !pending && dateOnlyRequest(request) && <button className="btn" disabled={changeBusy} onClick={() => { setLastRequestId(request.id); setTargetHiredAt(request.targetFields.hiredAt?.slice(0, 10) || ''); setChangeError(''); setIsRequestingChange(true); }}>Sửa và gửi lại yêu cầu</button>}
+      </article>)}
+    </details>
+    {isSmPositionCandidate(profile.jobTitle) && <details className="card card--pad employee-profile-secondary"><summary>Phân công cửa hàng</summary><SmAppointments key={profile.employeeId} employeeId={profile.employeeId} /></details>}
+  </section>;
 };

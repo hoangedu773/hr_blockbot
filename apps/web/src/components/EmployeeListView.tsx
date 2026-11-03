@@ -9,6 +9,7 @@ import { PersonnelAdmin } from './PersonnelAdmin';
 import { useAuthorization } from '../context/useAuthorization';
 import { EmployeeHrHistory } from './EmployeeHrHistory';
 import { SmAppointments, isSmPositionCandidate } from './SmAppointments';
+import { employeeLocationLabel } from '../services/employee-display';
 
 export const EmployeeListView: React.FC = () => {
   const { can, stores } = useAuthorization();
@@ -85,13 +86,13 @@ export const EmployeeListView: React.FC = () => {
     {!loading && !error && !!employees.length && <>
       <p className="crm-work-count">{paging?.totalItems ?? employees.length} nhân sự phù hợp</p>
       <div className="crm-work-table-wrap"><table className="table crm-work-table"><caption className="sr-only">Nhân sự trong phạm vi được cấp</caption><thead><tr><th>Họ tên</th><th>Chức danh</th><th>Điểm bán / phòng ban</th><th>Kỹ năng</th><th>Trạng thái</th></tr></thead>
-        <tbody>{employees.map((employee) => <tr key={employee.employeeId}><td><button type="button" className="crm-work-title" onClick={() => void details(employee)}>{employee.fullName}</button><p>{employee.employeeCode}</p></td><td>{employee.jobTitle || 'Chưa cập nhật'}</td><td>{employee.storeName || employee.department}</td><td>{employee.skills.join(', ') || 'Chưa cập nhật'}</td><td>{employee.status === 'active' ? 'Hoạt động' : employee.status === 'inactive' ? 'Tạm dừng' : 'Chưa xác minh'}</td></tr>)}</tbody></table></div>
+        <tbody>{employees.map((employee) => <tr key={employee.employeeId}><td><button type="button" className="crm-work-title" onClick={() => void details(employee)}>{employee.fullName}</button><p>{employee.employeeCode}</p></td><td>{employee.jobTitle || 'Chưa cập nhật'}</td><td>{employeeLocationLabel(employee)}</td><td>{employee.skills.join(', ') || 'Chưa cập nhật'}</td><td>{employee.status === 'active' ? 'Hoạt động' : employee.status === 'inactive' ? 'Tạm dừng' : 'Chưa xác minh'}</td></tr>)}</tbody></table></div>
       <nav aria-label="Phân trang nhân sự" className="crm-work-pagination"><button type="button" className="btn" disabled={!paging?.hasPrev} onClick={() => setPage((old) => old - 1)}>Trang trước</button><span>Trang {paging?.page ?? page} / {paging?.totalPages ?? 1}</span><button type="button" className="btn" disabled={!paging?.hasNext} onClick={() => setPage((old) => old + 1)}>Trang sau</button></nav>
     </>}
     {!loading && !error && can('employees.review') && <ProfileApprovalQueue />}
     {selected && <CrmDialog title="Chi tiết nhân sự" onClose={() => { detailRequest.current++; setSelected(null); }}>
       {!detailLoading && !detailError && can('employees.update_other') && <button type="button" className="btn" onClick={() => { setEditingEmployee(selected.employeeId); setSelected(null); }}>Chỉnh sửa thông tin thường</button>}
-      {detailLoading ? <p role="status">Đang tải hồ sơ…</p> : detailError ? <div role="alert" className="banner banner--error">{detailError}<button className="btn" type="button" onClick={() => void details(selected)}>Thử lại</button></div> : <dl className="crm-work-detail"><dt>Họ tên</dt><dd>{selected.fullName}</dd><dt>Chức danh</dt><dd>{selected.jobTitle || 'Chưa cập nhật'}</dd><dt>Phòng ban / điểm bán</dt><dd>{selected.department}</dd><dt>Kỹ năng</dt><dd>{selected.skills.join(', ') || 'Chưa cập nhật'}</dd><dt>Trạng thái</dt><dd>{selected.status === 'active' ? 'Hoạt động' : selected.status === 'inactive' ? 'Tạm dừng' : 'Chưa xác minh'}</dd></dl>}
+      {detailLoading ? <p role="status">Đang tải hồ sơ…</p> : detailError ? <div role="alert" className="banner banner--error">{detailError}<button className="btn" type="button" onClick={() => void details(selected)}>Thử lại</button></div> : <dl className="crm-work-detail"><dt>Họ tên</dt><dd>{selected.fullName}</dd><dt>Chức danh</dt><dd>{selected.jobTitle || 'Chưa cập nhật'}</dd><dt>Phòng ban / điểm bán</dt><dd>{employeeLocationLabel(selected)}</dd><dt>Kỹ năng</dt><dd>{selected.skills.join(', ') || 'Chưa cập nhật'}</dd><dt>Trạng thái</dt><dd>{selected.status === 'active' ? 'Hoạt động' : selected.status === 'inactive' ? 'Tạm dừng' : 'Chưa xác minh'}</dd></dl>}
       {!detailLoading && !detailError && can('employees.read_hr') && 'profileVersion' in selected && <><dl><dt>Mã nhân viên</dt><dd>{selected.employeeCode}</dd><dt>Điện thoại</dt><dd>{selected.phone || 'Chưa có'}</dd><dt>Ngày vào làm</dt><dd>{selected.hiredAt ? new Date(selected.hiredAt).toLocaleDateString('vi-VN') : 'Chưa có'}</dd></dl><EmployeeHrHistory employeeId={selected.employeeId} /></>}
       {!detailLoading && !detailError && isSmPositionCandidate(selected.jobTitle) && <SmAppointments key={selected.employeeId} employeeId={selected.employeeId} />}
     </CrmDialog>}

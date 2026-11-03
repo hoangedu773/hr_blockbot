@@ -58,7 +58,7 @@ try {
   await form.getByText('Chưa có hồ sơ phân công được ghi nhận.', { exact: false }).waitFor();
   await form.locator('summary', { hasText: 'Đề nghị ghi nhận phân công SM' }).click();
   await form.getByLabel('Loại phân công', { exact: true }).selectOption('SUPERVISORY');
-  await form.getByLabel('Outlet được phân công', { exact: true }).selectOption(String(fixture.stores[0]._id));
+  await form.getByLabel('Cửa hàng được phân công', { exact: true }).selectOption(String(fixture.stores[0]._id));
   await form.getByLabel('Hiệu lực từ', { exact: true }).fill(new Date(Date.now() - 3600000).toISOString().slice(0, 16));
   await form.getByLabel('Hiệu lực đến', { exact: true }).fill(new Date(Date.now() + 86400000).toISOString().slice(0, 16));
   await form.getByLabel('Mã / tham chiếu quyết định', { exact: true }).fill('SYNTHETIC-SUPERVISORY-DECISION');
@@ -74,6 +74,7 @@ try {
   await review.getByRole('button', { name: 'Thu hồi phân công', exact: true }).waitFor();
   row = await SmAppointmentModel.findById(row._id).lean(); assert.equal(row.status, 'APPROVED'); assert.equal(row.history.length, 2);
   const employee = await login('sm'); await employee.locator('.crm-sidebar [data-section="profile"]').click();
+  await employee.locator('.employee-profile-secondary > summary', { hasText: 'Phân công cửa hàng' }).click();
   const self = employee.getByRole('region', { name: 'Hồ sơ phân công SM', exact: true });
   await self.getByRole('heading', { name: 'SM giám sát', exact: true }).waitFor();
   assert.equal(await self.locator('form').count(), 0); assert.match(await self.innerText(), /Đang hiệu lực/);
