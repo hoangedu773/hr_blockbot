@@ -5,6 +5,7 @@ const conversation = new Schema({
   clientRequestId: { type: String, required: true }, title: { type: String, default: 'Hội thoại mới', maxlength: 100 },
   lastMessageAt: { type: Date, default: null }, pendingTurnId: { type: String, default: null },
   leaseToken: { type: String, default: null }, leaseUntil: { type: Date, default: null },
+  deletedAt: { type: Date, default: null },
 }, { collection: 'chat_conversations', strict: 'throw', timestamps: true });
 conversation.index({ userId: 1, clientRequestId: 1 }, { unique: true });
 conversation.index({ userId: 1, lastMessageAt: -1, _id: -1 });

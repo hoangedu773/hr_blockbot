@@ -80,8 +80,25 @@ try {
   await page.setViewportSize({ width: 390, height: 844 }); await page.getByRole('button', { name: 'Mở danh sách hội thoại' }).click();
   await page.getByRole('navigation', { name: 'Lịch sử hội thoại' }).getByRole('button', { name: first, exact: true }).click(); await answer(page);
   await page.screenshot({ path: path.join(out, 'mobile-history.png') });
+  await page.getByRole('button', { name: 'Mở danh sách hội thoại' }).click();
+  const removeFirst = () => page.getByRole('button', { name: 'Xóa hội thoại ' + first, exact: true }).click();
+  await removeFirst(); const dialog = page.getByRole('dialog', { name: 'Xóa hội thoại?', exact: true }); await dialog.waitFor();
+  const box = await dialog.boundingBox(); assert.ok(box.x >= 15 && box.x + box.width <= 375); assert.ok(box.y > 100 && box.y + box.height < 828);
+  await page.screenshot({ path: path.join(out, 'mobile-delete-confirmation.png') });
+  await page.keyboard.press('Escape'); assert.equal(await page.getByTestId('chat-page').isVisible(), true);
+  assert.equal(await dialog.count(), 0); assert.equal(await Turn.countDocuments({ userId: f.actors.staff.user._id }), 3);
+  await removeFirst(); await dialog.getByRole('button', { name: 'Hủy', exact: true }).click(); assert.equal(await dialog.count(), 0);
+  await removeFirst(); await dialog.getByRole('button', { name: 'Xóa hội thoại', exact: true }).click();
+  await page.getByRole('heading', { name: 'Chào mừng đến HR BlockBot' }).waitFor();
+  assert.equal(await Turn.countDocuments({ userId: f.actors.staff.user._id }), 2);
+  await page.reload({ waitUntil: 'networkidle' }); await page.locator('.crm-sidebar').waitFor(); await page.locator('.crm-sidebar .crm-copilot').click(); await answer(page);
+  await page.getByRole('button', { name: 'Mở danh sách hội thoại' }).click();
+  assert.equal(await page.getByRole('button', { name: 'Xóa hội thoại ' + first, exact: true }).count(), 0);
+  await page.getByRole('button', { name: 'Xóa hội thoại Synthetic second conversation', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Xóa hội thoại', exact: true }).click(); await dialog.waitFor({ state: 'detached' }); await answer(page);
+  assert.equal(await Turn.countDocuments({ userId: f.actors.staff.user._id }), 1); assert.equal(providerCalls, 3);
   assert.equal(await page.evaluate(() => Object.values(localStorage).some(v => v.includes('Synthetic browser') || v.includes('Synthetic saved browser answer'))), false);
   assert.deepEqual(errors, []);
-  console.log('PASS real Web/API/MongoDB history: return from HRM, reload with refreshed login, multiple conversations, same-browser account isolation, logout/login restore, interrupted navigation during provider reply, mobile history; no content in localStorage');
+  console.log('PASS real Web/API/MongoDB history: return from HRM, reload, two-account isolation, logout/login, navigation during generation, mobile history, delete cancellation/Escape, delete active/inactive conversations, no reappearance after reload; no content in localStorage');
 } catch(e) { await context?.pages()[0]?.screenshot({ path: path.join(out, 'failure.png'), fullPage: true }).catch(() => {}); throw e; }
 finally { pendingRelease?.(); await context?.close(); await browser?.close(); for (const s of [api, web, provider]) if (s) { s.closeAllConnections(); await new Promise(r => s.close(r)); } await disconnectDB(); await mongo.stop(); }

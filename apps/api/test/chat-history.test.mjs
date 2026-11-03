@@ -27,9 +27,9 @@ before(async () => {
   server = createServer(createApp()); await new Promise(r => server.listen(0, '127.0.0.1', r)); base = 'http://127.0.0.1:' + server.address().port + '/api';
 });
 after(async () => { for (const s of [server, upstream]) { s.closeAllConnections(); await new Promise(r => s.close(r)); } await disconnectDB(); });
-async function call(actor, path, body) {
-  const r = await fetch(base + path, { method: body ? 'POST' : 'GET', headers: { Connection: 'close', ...(actor ? { Authorization: 'Bearer ' + f.actors[actor].token } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
-  return { status: r.status, body: await r.json() };
+async function call(actor, path, body, method = body ? 'POST' : 'GET') {
+  const r = await fetch(base + path, { method, headers: { Connection: 'close', ...(actor ? { Authorization: 'Bearer ' + f.actors[actor].token } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
+  return { status: r.status, body: r.status === 204 ? null : await r.json() };
 }
 const send = (extra = {}) => ({ message: 'Synthetic history question', clientMessageId: randomUUID(), ...extra });
 
@@ -92,4 +92,39 @@ test('concurrent duplicate sends call AI once; expired request is fenced so late
   assert.equal((await call('staff', '/chat', body)).body.turn.status, 'INTERRUPTED'); assert.equal(calls, count);
   const next = await call('staff', '/chat', send({ conversationId: id })); assert.equal(next.body.turn.status, 'COMPLETED');
   const rows = await Turn.find({ conversationId: id }).lean(); assert.equal(rows.length, 2); assert.equal(rows[0].proposedAction, undefined);
+});
+
+test('owner-only deletion purges the transcript, survives retries and cannot be reversed by replaying the original send', async () => {
+  const body = send(), r = await call('staff', '/chat', body), id = r.body.conversationId;
+  const survivor = await call('staff', '/chat', send()), kept = survivor.body.conversationId;
+  assert.equal((await call(null, `/chat/conversations/${id}`, undefined, 'DELETE')).status, 401);
+  for (const actor of ['hr', 'om', 'aom', 'sam', 'am', 'sm', 'ptch', 'staffB']) {
+    assert.equal((await call(actor, `/chat/conversations/${id}`, undefined, 'DELETE')).status, 404, actor);
+  }
+  assert.equal((await call('system_admin', `/chat/conversations/${id}`, undefined, 'DELETE')).status, 403);
+  assert.equal((await call('staff', `/chat/conversations/${id}`, undefined, 'DELETE')).status, 204);
+  assert.equal((await call('staff', `/chat/conversations/${id}`, undefined, 'DELETE')).status, 204);
+  assert.equal((await call('staff', `/chat/conversations/${id}/messages`)).status, 404);
+  assert.equal((await call('staff', '/chat/conversations')).body.items.some(c => c.id === id), false);
+  assert.equal(await Turn.countDocuments({ conversationId: id }), 0);
+  const tombstone = await Conversation.findById(id).lean(); assert.ok(tombstone.deletedAt); assert.equal(tombstone.title, 'Đã xóa hội thoại');
+  const count = calls;
+  assert.equal((await call('staff', '/chat', body)).status, 404);
+  assert.equal((await call('staff', '/chat', send({ conversationId: id }))).status, 404);
+  assert.equal(calls, count);
+  assert.equal((await call('staff', `/chat/conversations/${kept}/messages`)).body.items[0].reply, 'SYNTHETIC_SAVED_REPLY');
+});
+
+test('deleting during generation fences the late answer and never resurrects content or the sidebar entry', async () => {
+  let enter, finish; const entered = new Promise(r => { enter = r; }), wait = new Promise(r => { finish = r; }); barrier = { enter, wait };
+  try {
+    const created = await call('staff', '/chat/conversations', { clientRequestId: randomUUID() }), id = created.body.id;
+    const body = send({ conversationId: id, message: 'hold synthetic deleted conversation' }), pending = call('staff', '/chat', body);
+    await entered;
+    assert.equal((await call('staff', `/chat/conversations/${id}`, undefined, 'DELETE')).status, 204);
+    finish(); const late = await pending; assert.equal(late.status, 404);
+    assert.equal(await Turn.countDocuments({ conversationId: id }), 0);
+    assert.equal((await call('staff', '/chat/conversations')).body.items.some(c => c.id === id), false);
+    assert.equal((await call('staff', '/chat', body)).status, 404);
+  } finally { finish(); barrier = null; }
 });

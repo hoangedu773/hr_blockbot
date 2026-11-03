@@ -218,6 +218,8 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   const [listCursor, setListCursor] = useState<string | null>(null), [messageCursor, setMessageCursor] = useState<string | null>(null);
   const [selectedConversation, setSelectedConversation] = useState<string | undefined>();
   const [historyError, setHistoryError] = useState(''), [historyLoading, setHistoryLoading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<ChatConversationSummary | null>(null), [deleting, setDeleting] = useState(false);
+  const deleteDialog = useRef<HTMLDialogElement>(null);
   const historySequence = useRef(0), listSequence = useRef(0), turns = useRef(new Map<string, ChatHistoryTurn>());
   const owner = useRef(user?.id); owner.current = user?.id;
 
@@ -236,12 +238,14 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
+      if (deleteTarget) return;
       if (sidebarOpen) setSidebarOpen(false);
       else onSwitchTab('crm');
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onSwitchTab, sidebarOpen]);
+  }, [onSwitchTab, sidebarOpen, deleteTarget]);
+  useEffect(() => { if (!deleteTarget) return; const dialog = deleteDialog.current; dialog?.showModal(); return () => dialog?.close(); }, [deleteTarget]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'auto' }); }, [messages, isTyping]);
 
@@ -276,7 +280,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
       if (!response.ok) throw new Error();
       const data = ChatConversationListSchema.parse(await response.json());
       if (seq !== listSequence.current || owner.current !== userId) return [];
-      setConversations(old => [...data.items, ...old.filter(item => !data.items.some(row => row.id === item.id))].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id)));
+      setConversations(old => (before ? [...data.items, ...old.filter(item => !data.items.some(row => row.id === item.id))] : data.items).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id)));
       setListCursor(data.nextCursor); return data.items;
     } catch { if (seq === listSequence.current && owner.current === userId) setHistoryError('Chưa tải được lịch sử. Các tin nhắn gửi thành công vẫn được lưu trên hệ thống.'); return []; }
   };
@@ -285,6 +289,9 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     if (!silent) setHistoryLoading(true);
     try {
       const response = await apiFetch(`${API_BASE}/chat/conversations/${encodeURIComponent(id)}/messages?limit=15${before ? '&before=' + encodeURIComponent(before) : ''}`);
+      if (response.status === 404 && seq === historySequence.current && conversationId.current === id && owner.current === userId) {
+        newChat(false); setConversations(old => old.filter(item => item.id !== id)); setHistoryError('Hội thoại đã được xóa hoặc không còn truy cập được.'); return;
+      }
       if (!response.ok) throw new Error();
       const data = ChatHistoryPageSchema.parse(await response.json());
       if (seq !== historySequence.current || conversationId.current !== id || owner.current !== userId) return;
@@ -297,8 +304,26 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     cancelPending(); historySequence.current++; turns.current.clear(); setMessages([]); setIsTyping(false); setServiceUnavailable(false);
     conversationId.current = id; setSelectedConversation(id); setSidebarOpen(false); setMessageCursor(null); setHistoryError(''); void loadMessages(id);
   };
+  const removeConversation = async () => {
+    if (!deleteTarget || deleting) return;
+    const target = deleteTarget, userId = user?.id;
+    setDeleting(true); listSequence.current++;
+    if (conversationId.current === target.id) { cancelPending(); historySequence.current++; }
+    try {
+      const response = await apiFetch(`${API_BASE}/chat/conversations/${encodeURIComponent(target.id)}`, { method: 'DELETE' });
+      if (response.status !== 204 && response.status !== 404) throw new Error();
+      if (owner.current !== userId) return;
+      listSequence.current++;
+      if (conversationId.current === target.id) newChat(false);
+      setConversations(old => old.filter(item => item.id !== target.id)); setDeleteTarget(null); setHistoryError('');
+      void loadConversations();
+    } catch {
+      if (owner.current === userId) { setDeleteTarget(null); setHistoryError('Chưa xóa được hội thoại. Vui lòng thử lại.');
+        if (conversationId.current === target.id) { setIsTyping(false); void loadMessages(target.id, undefined, true); } }
+    } finally { if (owner.current === userId) setDeleting(false); }
+  };
   useEffect(() => {
-    newChat(false); setConversations([]); setListCursor(null);
+    newChat(false); setConversations([]); setListCursor(null); setDeleteTarget(null); setDeleting(false);
     const seq = historySequence.current;
     void loadConversations().then(items => { if (seq === historySequence.current && items[0]) openConversation(items[0].id); });
     return () => { historySequence.current++; listSequence.current++; cancelPending(); };
@@ -386,9 +411,14 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
         <button className="chat-new" type="button" onClick={() => newChat()}>Hội thoại mới</button>
         <nav className="guta-chat-history" aria-label="Lịch sử hội thoại"><p className="guta-chat-sidebar-label">Hội thoại gần đây</p>
           {!conversations.length && <p className="guta-chat-note">Chưa có hội thoại đã lưu.</p>}
-          {conversations.map(item => <button type="button" key={item.id} aria-current={selectedConversation === item.id ? 'page' : undefined} onClick={() => openConversation(item.id)} title={item.title}>{item.title}</button>)}
+          {conversations.map(item => <div className="guta-chat-history-row" key={item.id}>
+            <button type="button" aria-current={selectedConversation === item.id ? 'page' : undefined} onClick={() => openConversation(item.id)} title={item.title}>{item.title}</button>
+            <button className="guta-chat-history-delete" type="button" aria-label={`Xóa hội thoại ${item.title}`} title="Xóa hội thoại" disabled={deleting} onClick={() => setDeleteTarget(item)}>
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6m4-6v6" /></svg>
+            </button>
+          </div>)}
           {listCursor && <button type="button" onClick={() => void loadConversations(listCursor)}>Hội thoại cũ hơn</button>}
-          <button type="button" disabled={isTyping || historyLoading} onClick={() => { void loadConversations(); if (conversationId.current) void loadMessages(conversationId.current); }}>Tải lại lịch sử</button>
+          <button type="button" title="Lấy hội thoại mới nhất từ server, kể cả thay đổi trên thiết bị khác" disabled={isTyping || historyLoading} onClick={() => { void loadConversations(); if (conversationId.current) void loadMessages(conversationId.current); }}>Tải lại lịch sử</button>
         </nav>
         {/* One nav, not two. The role quick replies already render in the centre
             column where the user is looking; repeating them here made the
@@ -406,6 +436,14 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
           <button type="button" aria-label="Đăng Xuất Phiên" onClick={onLogout}>Đăng xuất</button>
         </footer>
       </aside>
+      {deleteTarget && <dialog ref={deleteDialog} className="guta-chat-delete-dialog" aria-labelledby="chat-delete-title" aria-describedby="chat-delete-description" onCancel={event => { if (deleting) event.preventDefault(); else setDeleteTarget(null); }}>
+        <h2 id="chat-delete-title">Xóa hội thoại?</h2>
+        <p id="chat-delete-description">Hội thoại “{deleteTarget.title}” và các tin nhắn bên trong sẽ bị xóa khỏi lịch sử của bạn. Bạn không thể hoàn tác trên ứng dụng.</p>
+        <div className="guta-chat-delete-actions">
+          <button type="button" autoFocus disabled={deleting} onClick={() => setDeleteTarget(null)}>Hủy</button>
+          <button type="button" disabled={deleting} onClick={() => void removeConversation()}>{deleting ? 'Đang xóa…' : 'Xóa hội thoại'}</button>
+        </div>
+      </dialog>}
       <main className="guta-chat-main" aria-label="Chat">
         <header className="guta-chat-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

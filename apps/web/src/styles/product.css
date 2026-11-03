@@ -2431,6 +2431,16 @@ html:not(.dark) .guta-chat {
 .guta-chat-sidebar .guta-chat-history { min-height: 100px; max-height: 42vh; overflow-y: auto; }
 .guta-chat-sidebar .guta-chat-history button { display: block; width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; }
 .guta-chat-sidebar .guta-chat-history button[aria-current="page"] { background: var(--chat-border); font-weight: 600; }
+.guta-chat-history-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.guta-chat-history-row > button:first-child { flex: 1; }
+.guta-chat-sidebar .guta-chat-history .guta-chat-history-delete { display: grid; place-items: center; flex: 0 0 36px; width: 36px; height: 36px; padding: 0; border-radius: 8px; }
+.guta-chat-delete-dialog { position: fixed; inset: 0; margin: auto; width: min(420px, calc(100vw - 32px)); height: fit-content; max-height: calc(100dvh - 32px); overflow-y: auto; box-sizing: border-box; border: 1px solid var(--chat-border); border-radius: 20px; padding: 24px; background: var(--chat-bg); color: var(--chat-text); }
+.guta-chat-delete-dialog::backdrop { background: rgb(0 0 0 / 65%); }
+.guta-chat-delete-dialog h2 { margin: 0 0 12px; font-size: 20px; }
+.guta-chat-delete-dialog p { margin: 0; line-height: 1.6; overflow-wrap: anywhere; }
+.guta-chat-delete-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+.guta-chat-delete-actions button { padding: 10px 16px; border-radius: 10px; border: 1px solid var(--chat-border); color: var(--chat-text); background: transparent; cursor: pointer; }
+.guta-chat-delete-actions button:last-child { background: #b42318; border-color: #b42318; color: white; }
 
 .guta-chat-sidebar footer {
   margin-top: auto;

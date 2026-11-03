@@ -48,7 +48,7 @@ export function historyAuthorityHash(user: AuthenticatedUser) {
     delegations: user.effectiveDelegations ?? [] });
 }
 async function owned(user: AuthenticatedUser, id: string) {
-  UUID.parse(id); const row: any = await Conversation.findOne({ _id: id, userId: objectId(user.userId) }).lean();
+  UUID.parse(id); const row: any = await Conversation.findOne({ _id: id, userId: objectId(user.userId), deletedAt: null }).lean();
   if (!row) missing(); return row;
 }
 function cursor(row: any, dateField: string) { return Buffer.from(JSON.stringify({ at: new Date(row[dateField]).toISOString(), id: row._id })).toString('base64url'); }
@@ -67,15 +67,27 @@ export async function createConversation(user: AuthenticatedUser, input: unknown
   const key = { userId: objectId(user.userId), clientRequestId };
   let row: any = await Conversation.findOne(key).lean();
   if (!row) {
-    if (await Conversation.countDocuments({ userId: key.userId }) >= 1000) throw new WorkflowError(409, 'CHAT_HISTORY_LIMIT', 'Đạt giới hạn hội thoại; không tự xóa lịch sử.');
+    if (await Conversation.countDocuments({ userId: key.userId, deletedAt: null }) >= 1000) throw new WorkflowError(409, 'CHAT_HISTORY_LIMIT', 'Đạt giới hạn hội thoại; không tự xóa lịch sử.');
     try { row = (await Conversation.create({ _id: randomUUID(), ...key })).toObject(); }
     catch (e: any) { if (e.code !== 11000) throw e; row = await Conversation.findOne(key).lean(); }
   }
+  if (row?.deletedAt) missing();
   return summary(row);
+}
+export async function deleteConversation(user: AuthenticatedUser, id: string) {
+  user = await current(user); UUID.parse(id);
+  const key = { _id: id, userId: objectId(user.userId) };
+  const row = await Conversation.findOne(key).lean();
+  if (!row) missing();
+  // Retain only an owner-bound tombstone so delayed sends/retries cannot
+  // recreate a deleted conversation. Purge its title and actual transcript.
+  await Conversation.updateOne({ ...key, deletedAt: null }, { $set: { deletedAt: new Date(), title: 'Đã xóa hội thoại', lastMessageAt: null,
+    pendingTurnId: null, leaseToken: null, leaseUntil: null } });
+  await Turn.deleteMany({ userId: key.userId, conversationId: id });
 }
 export async function listConversations(user: AuthenticatedUser, input: unknown) {
   user = await current(user); const { limit, before } = paging.parse(input);
-  const rows: any[] = await Conversation.find({ userId: objectId(user.userId), lastMessageAt: { $ne: null }, ...pageFilter(before, 'lastMessageAt') })
+  const rows: any[] = await Conversation.find({ userId: objectId(user.userId), deletedAt: null, lastMessageAt: { $ne: null }, ...pageFilter(before, 'lastMessageAt') })
     .sort({ lastMessageAt: -1, _id: -1 }).limit(limit + 1).lean();
   const items = rows.slice(0, limit); return { items: items.map(summary), nextCursor: rows.length > limit ? cursor(items.at(-1), 'lastMessageAt') : null };
 }
@@ -107,6 +119,10 @@ async function turnDto(user: AuthenticatedUser, row: any) {
     reply: visible ? row.reply : null, citations: visible ? row.citations : [],
     replyHidden: row.status === 'COMPLETED' && !visible, attachments: [], proposedAction: null };
 }
+async function ownedTurnDto(user: AuthenticatedUser, row: any) {
+  if (!row) missing();
+  const dto = await turnDto(user, row); await owned(user, row.conversationId); return dto;
+}
 export async function conversationMessages(user: AuthenticatedUser, id: string, input: unknown) {
   user = await current(user); const row = await owned(user, id); await reconcile(row); const { limit, before } = paging.parse(input);
   const rows: any[] = await Turn.find({ userId: row.userId, conversationId: id, ...pageFilter(before, 'createdAt') }).sort({ createdAt: -1, _id: -1 }).limit(limit + 1).lean();
@@ -115,6 +131,7 @@ export async function conversationMessages(user: AuthenticatedUser, id: string, 
   // Final current-state fence before releasing any historical assistant text.
   const fresh = await current(user);
   if (historyAuthorityHash(fresh) !== historyAuthorityHash(user)) throw new WorkflowError(409, 'CHAT_AUTHORIZATION_CHANGED', 'Quyền đã đổi; tải lại lịch sử.');
+  await owned(fresh, id);
   return { conversation: summary(row), items: output.reverse(), nextCursor: rows.length > limit ? cursor(items.at(-1), 'createdAt') : null };
 }
 export async function chatWithHistory(user: AuthenticatedUser, message: string, conversationId: string | undefined, clientMessageId: string) {
@@ -129,30 +146,37 @@ export async function chatWithHistory(user: AuthenticatedUser, message: string, 
     catch (e: any) { if (e.code !== 11000) throw e; turn = await Turn.findOne(key).lean(); }
   }
   if (turn.userMessage !== message) throw new WorkflowError(409, 'CHAT_MESSAGE_CONFLICT', 'Mã tin nhắn đã được dùng cho nội dung khác.');
-  if (turn.status !== 'QUEUED') return { conversationId, turn: await turnDto(user, turn) };
+  if (turn.status !== 'QUEUED') return { conversationId, turn: await ownedTurnDto(user, turn) };
   const leaseToken = randomUUID();
-  const claim: any = await Conversation.findOneAndUpdate({ _id: conversationId, userId: key.userId, pendingTurnId: null },
+  const claim: any = await Conversation.findOneAndUpdate({ _id: conversationId, userId: key.userId, deletedAt: null, pendingTurnId: null },
     { $set: { pendingTurnId: key._id, leaseToken, leaseUntil: new Date(Date.now() + 45000), lastMessageAt: new Date() } }, { new: true }).lean();
   if (!claim) {
+    const existing: any = await Conversation.findOne({ _id: conversationId, userId: key.userId }).lean();
+    if (!existing || existing.deletedAt) { await Turn.deleteOne(key); missing(); }
     const active: any = await owned(user, conversationId!);
     if (active.pendingTurnId !== key._id) await Turn.updateOne({ ...key, status: 'QUEUED' }, { $set: { status: 'FAILED' } });
-    return { conversationId, turn: await turnDto(user, await Turn.findOne(key).lean()) };
+    return { conversationId, turn: await ownedTurnDto(user, await Turn.findOne(key).lean()) };
   }
   const started = await Turn.updateOne({ ...key, status: 'QUEUED' }, { $set: { status: 'PENDING', leaseToken } });
-  if (!started.modifiedCount) { await release(claim); return { conversationId, turn: await turnDto(user, await Turn.findOne(key).lean()) }; }
+  if (!started.modifiedCount) { await release(claim); return { conversationId, turn: await ownedTurnDto(user, await Turn.findOne(key).lean()) }; }
   await Conversation.updateOne({ _id: conversationId, userId: key.userId, title: 'Hội thoại mới' }, { $set: { title: message.replace(/\s+/g, ' ').slice(0, 80) } });
   try {
+    await owned(user, conversationId);
     await authorizedChat(user, message, conversationId, async (response, evidence) => {
       const fresh = await current(user);
       if (historyAuthorityHash(fresh) !== historyAuthorityHash(user)) throw new WorkflowError(409, 'CHAT_AUTHORIZATION_CHANGED', 'Quyền đã đổi trong lúc trả lời.');
+      await owned(fresh, conversationId!);
       if (response.reply.length > 64000 || evidence.documents.length + evidence.projects.length + evidence.schedules.length > 500) throw new WorkflowError(503, 'CHAT_HISTORY_LIMIT', 'Phản hồi vượt giới hạn lưu trữ.');
       const saved = await Turn.updateOne({ ...key, status: 'PENDING', leaseToken }, { $set: { status: 'COMPLETED', reply: response.reply, citations: response.citations,
         evidence: { ...evidence, authorityHash: historyAuthorityHash(fresh) } } });
       if (!saved.modifiedCount) throw new WorkflowError(409, 'CHAT_HISTORY_FENCED', 'Lượt trả lời đã kết thúc hoặc gián đoạn.');
+      const live = await Conversation.exists({ _id: conversationId, userId: key.userId, deletedAt: null });
+      if (!live) { await Turn.deleteOne(key); missing(); }
     });
   } catch {
     await Turn.updateOne({ ...key, status: 'PENDING', leaseToken }, { $set: { status: 'FAILED' } });
   } finally { await release(claim); }
   const fresh = await current(user);
-  return { conversationId, turn: await turnDto(fresh, await Turn.findOne(key).lean()) };
+  await owned(fresh, conversationId);
+  return { conversationId, turn: await ownedTurnDto(fresh, await Turn.findOne(key).lean()) };
 }
