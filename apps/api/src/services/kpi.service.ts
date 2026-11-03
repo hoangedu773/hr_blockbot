@@ -319,7 +319,7 @@ export async function kpiDashboard(user: AuthenticatedUser, period: string) {
   if (!clauses.length) throw new WorkflowError(403, "RBAC_DENIED", "Chưa có phạm vi KPI.");
   const scope = { $or: clauses };
   const periods = previousPeriods(period, 6);
-  const rows: any[] = await EvaluationModel.find({ ...scope, period: { $in: periods } }).select("period status finalScore machineScore analysis").limit(10000).lean();
+  const rows: any[] = await EvaluationModel.find({ ...scope, period: { $in: periods }, frameworkVersion: { $not: { $gte: 2 } } }).select("period status finalScore machineScore analysis").limit(10000).lean();
   const current = rows.filter((row) => row.period === period);
   const published = current.filter((row) => row.status === "PUBLISHED");
   const average = (values: number[]) => values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length * 100) / 100 : null;
