@@ -971,6 +971,9 @@ export type ChatFinishReason = z.infer<typeof ChatFinishReasonSchema>;
 // SHADOW metadata is observational only, never an authorization/approval result.
 const DecisionIntentSchema = z.enum(["policy_query", "shift_operation", "cash_audit", "general_chat"]);
 export const DecisionAnalysisSchema = z.union([
+  z.object({ mode: z.literal("SHADOW"), status: z.enum(["not_configured", "skipped_data_policy", "unavailable"]),
+    execution: z.literal("none"), source: z.null(),
+  }).strict(),
   z.object({ mode: z.literal("SHADOW"), status: z.literal("ok"), execution: z.literal("mock"), source: z.literal("jev_systemone"),
     intent: DecisionIntentSchema, needsManagerApprovalProbability: z.number().finite().min(0).max(1),
     incidentUrgency: z.number().finite().min(0).max(1), intentConfidence: z.number().finite().min(0).max(1),

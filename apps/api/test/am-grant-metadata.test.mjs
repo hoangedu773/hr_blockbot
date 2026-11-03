@@ -1,0 +1,40 @@
+import './require-isolated-db.mjs';
+import {before,after,test} from 'node:test';
+import assert from 'node:assert/strict';
+import {connectDB,disconnectDB} from '../dist/db.js';
+import {UserModel} from '../dist/models/User.js';
+import {AuthorizationStateSchema} from '@hr-blockbot/contracts';
+import {resolvePrincipal} from '../dist/services/principal.service.js';
+import {authorizationV1Fixture} from './helpers/authorization-v1-fixture.mjs';
+import {buildAmMetadataRepair,repairAmMetadata} from '../scripts/repair-am-grant-metadata.mjs';
+let fixture,actor,beforeRow;
+before(async()=>{
+  await connectDB(); fixture=await authorizationV1Fixture();
+  actor=await resolvePrincipal({sub:String(fixture.actors.system_admin.user._id),role:'Admin',securityVersion:0});
+  const row=await UserModel.findById(fixture.actors.am.user._id).lean();
+  const grant={...row.authorization.grants[1],id:'region-synthetic-original',grantedBy:'system',approvalRef:'OWNER_ORG_CLEANUP_20261103:AM_REGION:SYNTHETIC'};
+  row.authorization.grants.push(grant);
+  await UserModel.collection.updateOne({_id:row._id},{$set:{authorization:row.authorization}});
+  beforeRow=await UserModel.findById(row._id).lean();
+});
+after(async()=>{await disconnectDB();});
+test('repair rejects authority errors and unrelated malformed grants',()=>{
+  const bad=structuredClone(beforeRow); bad.authorization.grants.at(-1).capabilities.push('invented.capability');
+  assert.throws(()=>buildAmMetadataRepair(bad,actor.userId),/Non-metadata/);
+  const unknown=structuredClone(beforeRow); unknown.authorization.grants.at(-1).approvalRef='UNREVIEWED';
+  assert.throws(()=>buildAmMetadataRepair(unknown,actor.userId),/provenance/);
+});
+test('metadata repair keeps authority, uses CAS/audit and invalidates old token version; replay is zero writes',async()=>{
+  const plan=buildAmMetadataRepair(beforeRow,actor.userId),original=beforeRow.authorization.grants.at(-1),next=plan.authorization.grants.at(-1);
+  for(const key of Object.keys(original).filter(x=>!['id','grantedBy'].includes(x))) assert.deepEqual(next[key],original[key]);
+  assert.ok(AuthorizationStateSchema.safeParse(plan.authorization).success);
+  await assert.rejects(repairAmMetadata(actor,String(beforeRow._id),99),/version conflict/);
+  const result=await repairAmMetadata(actor,String(beforeRow._id),0);
+  assert.equal(result.changed,true);assert.equal(result.securityVersion,1);
+  assert.equal(result.after.securityAudit.at(-1).actorId,actor.userId);
+  assert.equal(result.after.securityAudit.at(-1).after.securityVersion,1);
+  assert.match(result.after.securityAudit.at(-1).hash,/^[a-f0-9]{64}$/);
+  await assert.rejects(resolvePrincipal({sub:String(beforeRow._id),role:'Employee',securityVersion:0}));
+  assert.equal((await resolvePrincipal({sub:String(beforeRow._id),role:'Employee',securityVersion:1})).authorization.profile,'am');
+  assert.deepEqual(await repairAmMetadata(actor,String(beforeRow._id),1),{changed:false});
+});

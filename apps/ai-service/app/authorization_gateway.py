@@ -189,7 +189,7 @@ async def _authorized_chat(request: AuthorizedChatRequest, x_ai_service_key: str
     if not contexts or not request.providerConfig:
         return {"reply": "Chưa có dữ liệu được phép hoặc provider phù hợp để trả lời. Chưa có thay đổi dữ liệu nào được thực hiện.",
             "citations": [], "attachments": [], "proposedAction": None, "abstain": True, "degraded": True,
-            "decisionSource": "jev_systemone" if analysis.get("decisionAnalysis", {}).get("status") == "ok" else "authorization-v1",
+            "decisionSource": "jev_systemone" if mode == "LIVE" and analysis.get("decisionAnalysis", {}).get("status") == "ok" else "authorization-v1",
             **analysis}
 
     def complete() -> str:
@@ -199,6 +199,7 @@ async def _authorized_chat(request: AuthorizedChatRequest, x_ai_service_key: str
                 raise LLMUnavailable([])
             # Neither service credentials nor delegation tokens are ever in messages.
             # SHADOW remains observational and must not alter the answer prompt.
+            decision_hint = json.dumps(analysis.get("decisionAnalysis", {}), ensure_ascii=False) if mode == "LIVE" else "{}"
             if mode == "LIVE":
                 system_prompt = (
                     "Hôm nay là " + __import__("datetime").datetime.now(__import__("datetime").timezone.utc).strftime("%Y-%m-%d")

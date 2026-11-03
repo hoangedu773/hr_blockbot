@@ -21,3 +21,13 @@ test('unavailable/skipped analysis cannot smuggle a decision, permission or prov
     assert.equal(DecisionAnalysisSchema.safeParse({ ...row, source: 'jev_systemone' }).success, false);
   }
 });
+test('live metadata distinguishes real execution, unavailability and synthetic shadow', () => {
+  const live = { ...analysis, mode: 'LIVE', execution: 'live' };
+  assert.ok(DecisionAnalysisSchema.safeParse(live).success);
+  assert.equal(DecisionAnalysisSchema.safeParse({...live,execution:'mock'}).success,false);
+  for(const status of ['unavailable','not_configured','external_text_disabled']) {
+    const row={mode:'LIVE',status,execution:'none',source:null};
+    assert.ok(DecisionAnalysisSchema.safeParse(row).success);
+    assert.equal(DecisionAnalysisSchema.safeParse({...row,intent:'general_chat'}).success,false);
+  }
+});

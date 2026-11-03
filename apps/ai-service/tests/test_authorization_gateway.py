@@ -74,6 +74,40 @@ def test_provider_only_receives_gateway_context_and_cannot_execute_model_tools(b
     assert "conversationId" not in response.json(), "The shared API contract accepts an absent string, not null"
 
 
+@pytest.mark.parametrize("status", ["ok", "unavailable", "external_text_disabled"])
+def test_live_gateway_generates_reply_with_typed_advisory_metadata(boundary, monkeypatch, status):
+    client, calls, prompts, _ = boundary
+    monkeypatch.setenv("JEV_V1_MODE", "LIVE")
+    decision = {"mode": "LIVE", "status": status, "execution": "live" if status == "ok" else "none",
+                "source": "jev_systemone" if status == "ok" else None}
+    if status == "ok":
+        decision.update(intent="general_chat", needsManagerApprovalProbability=0.1,
+                        incidentUrgency=0, intentConfidence=0.9, intentProbabilities={"general_chat": 0.9}, latencyMs=1)
+    monkeypatch.setattr(gateway, "analyze_live", lambda *args: decision)
+    response = send(client)
+    assert response.status_code == 200
+    assert response.json()["reply"] == "Allowed answer"
+    assert response.json()["decisionAnalysis"] == decision
+    assert response.json()["decisionSource"] == ("jev_systemone" if status == "ok" else "authorization-v1")
+    assert response.json()["degraded"] is (status != "ok")
+    assert response.json()["proposedAction"] is None
+    assert calls[0]["tool"] == "validate_context"
+    assert "Jev decision metadata" in prompts[0].content
+    assert "isolated-v1-service-key" not in prompts[0].content
+    assert "x" * 64 not in prompts[0].content
+
+
+def test_live_gateway_denied_preflight_never_calls_jev_or_provider(boundary, monkeypatch):
+    client, _, prompts, statuses = boundary
+    monkeypatch.setenv("JEV_V1_MODE", "LIVE")
+    statuses["validate_context"] = 401
+    def forbidden(*args):
+        raise AssertionError("Jev must not run before verified context")
+    monkeypatch.setattr(gateway, "analyze_live", forbidden)
+    assert send(client).status_code == 401
+    assert not prompts
+
+
 @pytest.mark.parametrize("status", [401, 409, 500])
 def test_revoked_or_unverifiable_context_stops_before_provider(boundary, status):
     client, _, prompts, statuses = boundary
