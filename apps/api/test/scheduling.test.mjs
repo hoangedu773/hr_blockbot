@@ -106,31 +106,31 @@ test('publishing is atomic, self view excludes teammates, notification failure r
   assert.equal(changed.status, 200); a1 = changed.body;
   assert.equal((await getWeek()).published[0].intervals[0].startMinute, 480);
 });
-test('two-way swap requires recipient choice, requester confirmation and independent manager review', async () => {
+test('two-way swap fixes both shifts before recipient consent and updates without manager approval', async () => {
   const source = week.published.find((a) => a.employeeId === id('staff')), target = week.published.find((a) => a.employeeId === id('ptch'));
-  const body = { expectedVersion: week.version, clientRequestId: randomUUID(), assignmentId: source.id, receiverEmployeeId: id('ptch'), kind: 'SWAP', reason: 'Owned swap request' };
+  const body = { expectedVersion: week.version, clientRequestId: randomUUID(), assignmentId: source.id, targetAssignmentId: target.id, receiverEmployeeId: id('ptch'), kind: 'SWAP', reason: 'Owned swap request' };
   const request = await call('staff', `/scheduling/weeks/${week.id}/changes`, body); assert.equal(request.status, 200); swap = request.body.request; week = await getWeek();
   const before = JSON.stringify(week.published);
   assert.equal((await action('sm', swap, 'APPROVE')).status, 403);
   assert.equal((await action('staffB', swap, 'ACCEPT', { targetAssignmentId: target.id })).status, 403);
-  assert.equal((await action('ptch', swap, 'ACCEPT', { targetAssignmentId: target.id })).status, 200); week = await getWeek();
-  assert.equal(week.requests[0].status, 'PENDING_REQUESTER'); assert.equal(JSON.stringify(week.published), before);
+  assert.equal((await action('ptch', swap, 'ACCEPT', { targetAssignmentId: target.id })).status, 400, 'accept cannot substitute the offered terms');
+  assert.equal(JSON.stringify((await getWeek()).published), before);
+  assert.equal((await action('ptch', swap, 'ACCEPT')).status, 200); week = await getWeek();
+  assert.equal(week.requests[0].completionMode, 'CONSENT');
   assert.equal((await action('sm', swap, 'APPROVE')).status, 403);
-  assert.equal((await action('staff', swap, 'CONFIRM')).status, 200); week = await getWeek();
-  assert.equal((await action('sm', swap, 'APPROVE')).status, 200); week = await getWeek();
   assert.equal(week.published.find((a) => a.id === source.id).employeeId, id('ptch')); assert.equal(week.published.find((a) => a.id === target.id).employeeId, id('staff'));
   assert.equal(week.published.find((a) => a.id === source.id).intervals[0].startMinute, 480, 'consented published hours do not silently change to updated catalog');
   assert.equal(week.requests[0].status, 'APPROVED'); assert.equal((await call('staff', `/scheduling/weeks/${week.id}/changes`, body)).body.request.id, swap.id);
 });
-test('a participating manager cannot self-approve; revoked receiver authority is rechecked before any reassignment', async () => {
+test('a participating manager cannot self-approve; revoked receiver authority blocks direct consent before reassignment', async () => {
   const source = week.published.find((a) => a.employeeId === id('staff'));
   const created = await call('staff', `/scheduling/weeks/${week.id}/changes`, { expectedVersion: week.version, clientRequestId: randomUUID(), assignmentId: source.id, receiverEmployeeId: id('sm'), kind: 'COVER', reason: 'Owned manager cover request' });
-  cover = created.body.request; week = await getWeek(); assert.equal((await action('sm', cover, 'ACCEPT')).status, 200); week = await getWeek();
+  cover = created.body.request; week = await getWeek();
   assert.equal((await action('sm', cover, 'APPROVE')).status, 403);
   await UserModel.updateOne({ _id: fixture.actors.sm.user._id }, { $pull: { 'authorization.grants.0.capabilities': 'schedule_changes.respond' } });
-  const before = JSON.stringify(week.published); assert.equal((await action('am', cover, 'APPROVE')).status, 403); assert.equal(JSON.stringify((await getWeek()).published), before);
+  const before = JSON.stringify(week.published); assert.equal((await action('sm', cover, 'ACCEPT')).status, 403); assert.equal(JSON.stringify((await getWeek()).published), before);
   await UserModel.updateOne({ _id: fixture.actors.sm.user._id }, { $push: { 'authorization.grants.0.capabilities': 'schedule_changes.respond' } });
-  assert.equal((await action('am', cover, 'APPROVE')).status, 200); week = await getWeek();
+  assert.equal((await action('sm', cover, 'ACCEPT')).status, 200); week = await getWeek();
 });
 test('night shifts conflict across adjacent weeks and stores; touching boundaries are permitted', async () => {
   const b = String(fixture.stores[1]._id);

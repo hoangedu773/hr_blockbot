@@ -8,9 +8,11 @@ const router = Router();
 router.get("/notifications", authenticateToken, endpoint(async (req, res) => {
   const limit = req.query.limit === undefined ? undefined : Number(req.query.limit);
   if (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 100)) throw new WorkflowError(400, "VALIDATION_FAILED", "Giới hạn thông báo không hợp lệ.");
+  if (req.query.entityKind !== undefined && req.query.entityKind !== 'schedule') throw new WorkflowError(400, 'VALIDATION_FAILED', 'Loại thông báo không hợp lệ.');
   res.json(await listNotifications(req.user!.userId, {
     unreadOnly: req.query.unread === "true", limit,
     before: typeof req.query.before === "string" ? req.query.before : undefined,
+    entityKind: req.query.entityKind === 'schedule' ? 'schedule' : undefined,
   }));
 }));
 router.post("/notifications/:id/read", authenticateToken, endpoint(async (req, res) => {

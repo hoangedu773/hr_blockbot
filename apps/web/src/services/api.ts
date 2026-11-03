@@ -670,8 +670,8 @@ export async function publishKpi(id: string, expectedVersion: number, finalScore
 export async function overrideKpi(id: string, expectedVersion: number, finalScore: number, reason: string): Promise<KpiEvaluation> {
   return requestJson<KpiEvaluation>(`/kpi/${encodeURIComponent(id)}/override`, postJson({ expectedVersion, finalScore, reason }));
 }
-export async function fetchNotifications(limit = 30): Promise<{ items: NotificationItem[]; unread: number }> {
-  return requestJson(`/notifications?limit=${limit}`);
+export async function fetchNotifications(limit = 30, entityKind?: 'schedule', before?: string): Promise<{ items: NotificationItem[]; unread: number }> {
+  return requestJson(`/notifications?limit=${limit}${entityKind ? '&entityKind=' + entityKind : ''}${before ? '&before=' + encodeURIComponent(before) : ''}`);
 }
 export async function markNotificationRead(id: string): Promise<void> {
   await requestJson(`/notifications/${encodeURIComponent(id)}/read`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });

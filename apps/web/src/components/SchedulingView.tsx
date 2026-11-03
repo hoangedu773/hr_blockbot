@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { PersonalSchedule, ScheduleAssignment, ScheduleChange, OperationalScheduleWeek as ScheduleWeek, SchedulingAccess, ShiftDefinition, ShiftDefinitionInput } from '@hr-blockbot/contracts';
+import type { NotificationItem, PersonalSchedule, ScheduleAssignment, ScheduleChange, OperationalScheduleWeek as ScheduleWeek, SchedulingAccess, ShiftDefinition, ShiftDefinitionInput } from '@hr-blockbot/contracts';
 import { ShiftDefinitionInputSchema } from '@hr-blockbot/contracts';
 import { requestJson } from '../services/api';
+import { fetchNotifications, markNotificationRead } from '../services/api';
 import { CrmDialog } from './ui/CrmDialog';
 import '../styles/scheduling.css';
 
@@ -14,10 +15,10 @@ const minute = (s: string) => Number(s.split(':')[0]) * 60 + Number(s.split(':')
 const hours = (a: { intervals: { startMinute: number; endMinute: number }[] }) => a.intervals.map((p) =>
   `${clock(p.startMinute)}${p.startMinute >= 1440 ? ` (+${Math.floor(p.startMinute / 1440)} ngày)` : ''}–${clock(p.endMinute)}${p.endMinute >= 1440 ? ` (+${Math.floor(p.endMinute / 1440)} ngày)` : ''}`).join(' · ');
 const future = (a: ScheduleAssignment) => a.intervals.every((p) => Date.parse(a.date + 'T00:00:00+07:00') + p.startMinute * 60000 > Date.now());
-const STATUS: Record<ScheduleChange['status'], string> = { PENDING_RECEIVER: 'Chờ người nhận', PENDING_REQUESTER: 'Chờ người đề nghị xác nhận', READY_FOR_REVIEW: 'Chờ quản lý duyệt', APPROVED: 'Đã duyệt', REJECTED: 'Đã từ chối', CANCELLED: 'Đã hủy' };
-const pending = (r: ScheduleChange) => ['PENDING_RECEIVER', 'PENDING_REQUESTER', 'READY_FOR_REVIEW'].includes(r.status);
+const STATUS: Record<ScheduleChange['status'], string> = { PENDING_MANAGER: 'Chờ quản lý điều phối', PENDING_RECEIVER: 'Chờ người nhận', PENDING_REQUESTER: 'Chờ người đề nghị xác nhận', READY_FOR_REVIEW: 'Chờ quản lý duyệt', APPROVED: 'Đã cập nhật lịch', REJECTED: 'Đã từ chối', CANCELLED: 'Đã hủy' };
+const pending = (r: ScheduleChange) => ['PENDING_MANAGER', 'PENDING_RECEIVER', 'PENDING_REQUESTER', 'READY_FOR_REVIEW'].includes(r.status);
 const sourceLabel = (a: Pick<ScheduleAssignment, 'source'>) => a.source?.kind === 'DEMO_RANDOM' ? 'Lịch mẫu ngẫu nhiên' : a.source?.kind === 'LEGACY_MATCHED' ? 'Đối chiếu lịch cũ' : '';
-type Roster = { employeeId: string; fullName: string; employeeCode: string; jobTitle: string | null };
+type Roster = { employeeId: string; fullName: string; employeeCode: string; jobTitle: string | null; assignments?: Pick<ScheduleAssignment, 'id' | 'date' | 'shiftCode' | 'intervals'>[] };
 type Draft = { id: string; employeeId: string; date: string; shiftId: string }[];
 const draftOf = (w: ScheduleWeek | null): Draft => w?.draft.map(({ id, employeeId, date, shiftId }) => ({ id, employeeId, date, shiftId })) ?? [];
 type ChangeModal = { mode: 'create'; a: PersonalSchedule['assignments'][number] } | { mode: 'action'; r: ScheduleChange; weekId: string; version: number; action: string };
@@ -31,6 +32,14 @@ export function SchedulingView() {
   const [shiftForm, setShiftForm] = useState<(ShiftDefinitionInput & { version: number }) | null>(null);
   const [change, setChange] = useState<ChangeModal | null>(null), [partners, setPartners] = useState<Roster[]>([]), [receiverId, setReceiverId] = useState(''), [kind, setKind] = useState<'COVER' | 'SWAP'>('COVER'), [targetId, setTargetId] = useState(''), [requestKey, setRequestKey] = useState('');
   const [targets, setTargets] = useState<PersonalSchedule['assignments']>([]);
+  const [arrangement, setArrangement] = useState<'DIRECT' | 'MANAGER'>('DIRECT');
+  const [notices, setNotices] = useState<NotificationItem[]>([]), [noticeError, setNoticeError] = useState(''), [unreadNotices, setUnreadNotices] = useState(0);
+  useEffect(() => {
+    let current = true;
+    const refresh = () => { if (document.visibilityState === 'hidden') return; void fetchNotifications(50, 'schedule').then(data => { if (current) { setNotices(old => [...data.items, ...old.filter(n => !data.items.some(item => item.id === n.id))]); setUnreadNotices(data.unread); setNoticeError(''); } }).catch(() => { if (current) setNoticeError('Chưa tải được thông báo lịch. Hệ thống sẽ thử lại.'); }); };
+    refresh(); const timer = window.setInterval(refresh, 30000); window.addEventListener('focus', refresh);
+    return () => { current = false; window.clearInterval(timer); window.removeEventListener('focus', refresh); };
+  }, []);
   const sequence = useRef(0);
   const selectedStore = access?.stores.find((s) => s.id === storeId);
   const dirty = JSON.stringify(draft) !== JSON.stringify(draftOf(week));
@@ -63,14 +72,14 @@ export function SchedulingView() {
   };
   const reload = () => { if (!dirty || window.confirm('Bỏ các thay đổi chưa lưu và tải lại lịch mới nhất?')) void load(); };
   const openAction = async (r: ScheduleChange, weekId: string, version: number, action: string) => {
-    setChange({ mode: 'action', r, weekId, version, action }); setReason(''); setTargetId(''); setTargets([]); setError('');
-    if (action === 'ACCEPT' && r.kind === 'SWAP') try {
+    setChange({ mode: 'action', r, weekId, version, action }); setReason(''); setReceiverId(''); setTargetId(''); setTargets([]); setError('');
+    if (action === 'ACCEPT' && r.kind === 'SWAP' && r.policyVersion !== 2) try {
       const from = monday(r.source.date), result = await requestJson<PersonalSchedule>(`/scheduling/me?from=${from}&to=${dayPlus(from, 6)}`);
       setTargets(result.assignments.filter((a) => a.weekId === weekId && future(a)));
     } catch (e) { setError(e instanceof Error ? e.message : 'Không tải được ca để đổi lại.'); }
   };
   const openRequest = async (a: PersonalSchedule['assignments'][number]) => {
-    setError(''); setReceiverId(''); setKind('COVER'); setReason(''); setRequestKey(crypto.randomUUID()); setChange({ mode: 'create', a }); setPartners([]);
+    setError(''); setReceiverId(''); setKind('COVER'); setArrangement('DIRECT'); setTargetId(''); setReason(''); setRequestKey(crypto.randomUUID()); setChange({ mode: 'create', a }); setPartners([]);
     try { setPartners((await requestJson<{ items: Roster[] }>(`/scheduling/weeks/${a.weekId}/partners`)).items); }
     catch (e) { setError(e instanceof Error ? e.message : 'Không tải được người nhận.'); }
   };
@@ -81,13 +90,15 @@ export function SchedulingView() {
       <p>{r.source.employeeName} · {r.source.date} · {r.source.shiftCode} · {hours(r.source)}{sourceLabel(r.source) && ` · ${sourceLabel(r.source)}`}</p>
       {r.target && <p>Ca đổi lại: {r.target.employeeName} · {r.target.date} · {r.target.shiftCode} · {hours(r.target)}</p>}
       <p>Lý do: {r.reason}</p>{r.decisionReason && <p>Phản hồi: {r.decisionReason}</p>}
+      {r.policyVersion === 2 && <p>{r.arrangement === 'DIRECT' ? 'Hai bên xác nhận hợp lệ sẽ cập nhật lịch và báo SM; không cần duyệt.' : 'Quản lý điều phối; người được chọn phải đồng ý nhận ca.'}{r.urgent && ' Yêu cầu khẩn dưới 24 giờ.'}{r.receiverName && ` Người nhận: ${r.receiverName}.`}</p>}
       <div className="crm-work-actions">
         {receiver && r.status === 'PENDING_RECEIVER' && <button className="btn btn--primary" disabled={busy || dirty} onClick={() => openAction(r, weekId, version, 'ACCEPT')}>Đồng ý nhận / đổi ca</button>}
         {receiver && pending(r) && <button className="btn" disabled={busy || dirty} onClick={() => openAction(r, weekId, version, 'DECLINE')}>Từ chối</button>}
         {requester && r.status === 'PENDING_REQUESTER' && <button className="btn btn--primary" disabled={busy || dirty} onClick={() => openAction(r, weekId, version, 'CONFIRM')}>Xác nhận ca đổi lại</button>}
         {requester && pending(r) && <button className="btn" disabled={busy || dirty} onClick={() => openAction(r, weekId, version, 'CANCEL')}>Hủy yêu cầu</button>}
+        {manager && !requester && !receiver && r.status === 'PENDING_MANAGER' && <button className="btn btn--primary" disabled={busy || dirty} onClick={() => openAction(r, weekId, version, r.kind === 'SWAP' ? 'APPROVE' : 'SELECT')}>{r.kind === 'SWAP' ? 'Cho phép gửi đề nghị khẩn' : 'Chọn người thay ca'}</button>}
         {manager && !requester && !receiver && r.status === 'READY_FOR_REVIEW' && <button className="btn btn--primary" disabled={busy || dirty || !!week?.hasUnpublishedChanges} onClick={() => openAction(r, weekId, version, 'APPROVE')}>Duyệt đổi ca</button>}
-        {manager && !requester && !receiver && pending(r) && <button className="btn" disabled={busy || dirty} onClick={() => openAction(r, weekId, version, 'REJECT')}>Không duyệt</button>}
+        {manager && !requester && !receiver && pending(r) && (r.policyVersion !== 2 || r.arrangement === 'MANAGER') && <button className="btn" disabled={busy || dirty} onClick={() => openAction(r, weekId, version, 'REJECT')}>Không duyệt</button>}
       </div>
     </article>;
   };
@@ -104,6 +115,7 @@ export function SchedulingView() {
       {tab !== 'shifts' && <><button className="btn" disabled={dirty || busy} onClick={() => setWeekStart(dayPlus(weekStart, -7))}>Tuần trước</button><label className="field">Tuần bắt đầu<input className="input" type="date" value={weekStart} disabled={dirty || busy} onChange={(e) => { if (e.target.value) setWeekStart(monday(e.target.value)); }} /></label><button className="btn" disabled={dirty || busy} onClick={() => setWeekStart(dayPlus(weekStart, 7))}>Tuần sau</button></>}
     </div>
     {message && <p role="status">{message}</p>}{error && <p role="alert" className="banner banner--error">{error}</p>}
+    <details className="schedule-request"><summary>Thông báo lịch làm · {unreadNotices} chưa đọc</summary><p>Thông báo được lưu trong hệ thống; tự tải lại mỗi 30 giây khi đang mở trang.</p>{noticeError && <p role="status">{noticeError}</p>}{!notices.length && <p>Chưa có thông báo lịch trong danh sách gần đây.</p>}{notices.map(n => <article key={n.id}><h3>{n.title}</h3><p>{n.body}</p><p>{new Date(n.createdAt).toLocaleString('vi-VN')}</p>{!n.readAt && <button className="btn" onClick={() => void markNotificationRead(n.id).then(() => { setNotices(old => old.map(item => item.id === n.id ? { ...item, readAt: new Date().toISOString() } : item)); setUnreadNotices(old => Math.max(0, old - 1)); }).catch(() => setNoticeError('Chưa đánh dấu được thông báo.'))}>Đánh dấu đã đọc</button>}</article>)}{notices.length >= 50 && <button className="btn" onClick={() => void fetchNotifications(50, 'schedule', notices[notices.length - 1]?.createdAt).then(data => setNotices(old => [...old, ...data.items.filter(n => !old.some(item => item.id === n.id))])).catch(() => setNoticeError('Chưa tải được thông báo cũ.'))}>Xem thông báo cũ hơn</button>}</details>
     {loading ? <p role="status">Đang tải lịch…</p> : tab === 'shifts' ? <>
       <div className="crm-work-heading"><div><h3>Danh mục ca của cửa hàng</h3><p>Cấu hình giờ thực tế. Ca gãy dùng nhiều khoảng giờ; ca qua đêm chọn ngày hôm sau.</p></div>{selectedStore?.canConfigure && <button className="btn btn--primary" onClick={() => { setShiftForm({ code: '', name: '', active: true, intervals: [{ startMinute: 0, endMinute: 0 }], version: 0 }); setError(''); }}>Thêm mã ca</button>}</div>
       {!shifts.length && <div className="empty"><h3>Chưa có mã ca được cấu hình</h3><p>Nhập mã ca và giờ chuẩn trước khi xếp lịch.</p></div>}
@@ -155,21 +167,23 @@ export function SchedulingView() {
 
     {change && <CrmDialog title={change.mode === 'create' ? 'Đề nghị đổi ca' : 'Xác nhận xử lý đổi ca'} busy={busy} onClose={() => setChange(null)}><form className="crm-work-form" onSubmit={(e) => {
       e.preventDefault();
-      if (change.mode === 'create') void run(() => requestJson(`/scheduling/weeks/${change.a.weekId}/changes`, post({ expectedVersion: change.a.weekVersion, clientRequestId: requestKey, assignmentId: change.a.id, receiverEmployeeId: receiverId, kind, reason })), 'Đã gửi yêu cầu. Lịch chỉ thay đổi sau khi các bên xác nhận và quản lý duyệt.');
-      else void run(() => requestJson(`/scheduling/weeks/${change.weekId}/changes/${change.r.id}`, post({ expectedVersion: change.version, action: change.action, reason, ...(targetId ? { targetAssignmentId: targetId } : {}) })), 'Đã lưu phản hồi. Xem trạng thái và lịch đã công bố để đối chiếu.');
+      if (change.mode === 'create') void run(() => requestJson(`/scheduling/weeks/${change.a.weekId}/changes`, post({ expectedVersion: change.a.weekVersion, clientRequestId: requestKey, assignmentId: change.a.id, receiverEmployeeId: arrangement === 'DIRECT' ? receiverId : null, arrangement, kind: arrangement === 'MANAGER' ? 'COVER' : kind, reason, ...(arrangement === 'DIRECT' && kind === 'SWAP' ? { targetAssignmentId: targetId } : {}) })), 'Đã gửi yêu cầu. Xem trạng thái để biết đang chờ đồng nghiệp hay quản lý điều phối.');
+      else void run(() => requestJson(`/scheduling/weeks/${change.weekId}/changes/${change.r.id}`, post({ expectedVersion: change.version, action: change.action, reason, ...(targetId ? { targetAssignmentId: targetId } : {}), ...(change.action === 'SELECT' ? { receiverEmployeeId: receiverId } : {}) })), 'Đã lưu phản hồi. Xem trạng thái và lịch đã công bố để đối chiếu.');
     }}>
       {change.mode === 'create' ? <>
         <p>Ca của bạn: {change.a.date} · {change.a.shiftCode} · {hours(change.a)}</p>
-        <label className="field">Hình thức<select className="input" aria-label="Hình thức" value={kind} onChange={(e) => setKind(e.target.value as 'COVER' | 'SWAP')}><option value="COVER">Nhờ đồng nghiệp nhận ca thay</option><option value="SWAP">Đổi ca hai chiều trong cùng tuần</option></select></label>
-        <label className="field">Đồng nghiệp<select className="input" aria-label="Đồng nghiệp" required value={receiverId} onChange={(e) => setReceiverId(e.target.value)}><option value="">Chọn đồng nghiệp</option>{partners.map((p) => <option key={p.employeeId} value={p.employeeId}>{p.fullName} · {p.employeeCode}</option>)}</select></label>
-        {kind === 'SWAP' && <p>Đồng nghiệp chọn một ca của họ để đổi lại. Bạn sẽ xem và xác nhận ca đó trước khi quản lý duyệt.</p>}
+        <label className="field">Cách xử lý<select className="input" aria-label="Cách xử lý" value={arrangement} onChange={e => { setArrangement(e.target.value as 'DIRECT' | 'MANAGER'); setError(''); }}><option value="DIRECT">Đã có người nhận / đổi ca</option><option value="MANAGER">Chưa có người — nhờ quản lý tìm</option></select></label>
+        {arrangement === 'DIRECT' ? <><label className="field">Hình thức<select className="input" aria-label="Hình thức" value={kind} onChange={(e) => { setKind(e.target.value as 'COVER' | 'SWAP'); setTargetId(''); }}><option value="COVER">Nhờ đồng nghiệp nhận ca thay</option><option value="SWAP">Đổi ca hai chiều trong cùng tuần</option></select></label>
+        <label className="field">Đồng nghiệp<select className="input" aria-label="Đồng nghiệp" required value={receiverId} onChange={(e) => { setReceiverId(e.target.value); setTargetId(''); }}><option value="">Chọn đồng nghiệp</option>{partners.map((p) => <option key={p.employeeId} value={p.employeeId}>{p.fullName} · {p.employeeCode}</option>)}</select></label>
+        {kind === 'SWAP' && <label className="field">Ca muốn nhận lại<select aria-label="Ca muốn nhận lại" className="input" required value={targetId} onChange={e => setTargetId(e.target.value)}><option value="">Chọn ca cụ thể của đồng nghiệp</option>{(partners.find(p => p.employeeId === receiverId)?.assignments ?? []).map(a => <option value={a.id} key={a.id}>{a.date} · {a.shiftCode} · {hours(a)}</option>)}</select></label>}<p>Hai bên đồng ý và lịch không chồng giờ thì cập nhật, thông báo SM. Nếu còn dưới 24 giờ, quản lý phải xử lý khẩn trước.</p></> : <p>Gửi trước ít nhất 24 giờ, kèm lý do. Quản lý chọn người thay hoặc từ chối; người được chọn cần đồng ý. Dưới 24 giờ được đánh dấu khẩn.</p>}
       </> : <>
         <p>{STATUS[change.r.status]} · {change.r.source.employeeName} · {change.r.source.date} · {change.r.source.shiftCode} · {hours(change.r.source)}</p>
         {change.r.target && <p>Ca đổi lại: {change.r.target.date} · {change.r.target.shiftCode} · {hours(change.r.target)}</p>}
-        {change.action === 'ACCEPT' && change.r.kind === 'SWAP' && <label className="field">Ca của bạn để đổi lại<select className="input" aria-label="Ca của bạn để đổi lại" required value={targetId} onChange={(e) => setTargetId(e.target.value)}><option value="">Chọn ca đã công bố trong cùng tuần</option>{targets.map((a) => <option key={a.id} value={a.id}>{a.date} · {a.shiftCode} · {hours(a)}</option>)}</select></label>}
+        {change.action === 'ACCEPT' && change.r.kind === 'SWAP' && change.r.policyVersion !== 2 && <label className="field">Ca của bạn để đổi lại<select className="input" aria-label="Ca của bạn để đổi lại" required value={targetId} onChange={(e) => setTargetId(e.target.value)}><option value="">Chọn ca đã công bố trong cùng tuần</option>{targets.map((a) => <option key={a.id} value={a.id}>{a.date} · {a.shiftCode} · {hours(a)}</option>)}</select></label>}
+        {change.action === 'SELECT' && <label className="field">Người nhận ca thay<select className="input" aria-label="Người nhận ca thay" required value={receiverId} onChange={e => setReceiverId(e.target.value)}><option value="">Chọn nhân viên trong phạm vi quản lý</option>{roster.filter(p => p.employeeId !== change.r.requesterEmployeeId && p.employeeId !== access.employeeId).map(p => <option key={p.employeeId} value={p.employeeId}>{p.fullName} · {p.employeeCode}</option>)}</select></label>}
         {change.action === 'APPROVE' && <p>Xác nhận cập nhật lịch đã công bố theo sự đồng ý của các bên. Hệ thống sẽ kiểm tra lại trùng giờ và điều kiện nhân viên.</p>}
       </>}
-      <label className="field">Lý do / phản hồi<textarea className="textarea" required minLength={5} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
+      <label className="field">Lý do / phản hồi<textarea aria-label="Lý do / phản hồi" className="textarea" required minLength={5} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
       {error && <p role="alert">{error}</p>}<button className="btn btn--primary" disabled={busy || reason.trim().length < 5}>{busy ? 'Đang lưu…' : change.mode === 'create' ? 'Gửi đề nghị đổi ca' : 'Xác nhận phản hồi'}</button>
     </form></CrmDialog>}
   </section>;

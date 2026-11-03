@@ -15,7 +15,7 @@ import { withCrmWriter } from './crm-writer.service.js';
 import { digest } from './project-audit.service.js';
 import { notifyUser } from './notification.service.js';
 
-const pending = (r: ScheduleChange) => ['PENDING_RECEIVER', 'PENDING_REQUESTER', 'READY_FOR_REVIEW'].includes(r.status);
+const pending = (r: ScheduleChange) => ['PENDING_MANAGER', 'PENDING_RECEIVER', 'PENDING_REQUESTER', 'READY_FOR_REVIEW'].includes(r.status);
 const fail = (code: string, message: string, status = 409): never => { throw new WorkflowError(status, code, message); };
 const idFor = (text: string) => objectId(createHash('sha256').update(text).digest('hex').slice(0, 24));
 const parse = <T>(schema: { safeParse: (value: unknown) => any }, input: unknown): T => {
@@ -33,6 +33,8 @@ export function assignmentTimes(a: Pick<ScheduleAssignment, 'date' | 'intervals'
   return a.intervals.map((p) => ({ start: start + p.startMinute * 60000, end: start + p.endMinute * 60000 }));
 }
 const future = (a: ScheduleAssignment) => assignmentTimes(a).every((p) => p.start > Date.now());
+export const isUrgentScheduleChange = (source: ScheduleAssignment, target: ScheduleAssignment | null, now = Date.now()) =>
+  Math.min(...assignmentTimes(source).map(t => t.start), ...(target ? assignmentTimes(target).map(t => t.start) : [])) - now < 86400000;
 const state = (row: any) => ({ storeId: String(row.storeId), weekStart: row.weekStart ?? null, version: row.version,
   ...(row.weekStart ? { draft: row.draft, published: row.published, requests: row.requests, publishedAt: row.publishedAt }
     : { code: row.code, name: row.name, intervals: row.intervals, active: row.active }) });
@@ -191,19 +193,20 @@ export async function saveDraft(user: AuthenticatedUser, weekId: string, input: 
     return weekDto(await record(Week, row, { draft: assignments }, actor, 'DRAFT_SAVED', body.reason));
   });
 }
-async function noticeUsers(employeeIds: string[], message: string) {
-  const people: any[] = await EmployeeModel.find({ _id: { $in: employeeIds.map(objectId) } }).select('userId').lean();
-  const rows: any[] = await UserModel.find({ _id: { $in: people.map((p) => p.userId).filter(Boolean) }, employeeId: { $in: employeeIds.map(objectId) }, status: 'active' }).select('_id employeeId').lean();
+async function noticeUsers(employeeIds: (string | null)[], message: string) {
+  employeeIds = employeeIds.filter((id): id is string => !!id);
+  const people: any[] = await EmployeeModel.find({ _id: { $in: employeeIds.map(id => objectId(id!)) } }).select('userId').lean();
+  const rows: any[] = await UserModel.find({ _id: { $in: people.map((p) => p.userId).filter(Boolean) }, employeeId: { $in: employeeIds.map(id => objectId(id!)) }, status: 'active' }).select('_id employeeId').lean();
   return rows.filter((u) => people.some((p) => String(p._id) === String(u.employeeId) && String(p.userId) === String(u._id)))
     .map((u) => ({ id: randomUUID(), userId: String(u._id), employeeId: String(u.employeeId), message }));
 }
-async function reviewNotices(actor: AuthenticatedUser, row: any, conflicts: string[]) {
+async function reviewNotices(actor: AuthenticatedUser, row: any, conflicts: (string | null)[]) {
   const store = actor.canonical?.verifiedStores.find((s) => s.id === String(row.storeId));
   const candidates: any[] = await UserModel.find({ status: 'active', 'authorization.grants': { $elemMatch: {
     capabilities: 'schedule_changes.review', $or: [{ 'scope.storeIds': String(row.storeId) }, ...(store?.regionId ? [{ 'scope.regionIds': store.regionId }] : [])],
   } } }).select('_id role securityVersion employeeId').limit(101).lean();
   const notices: any[] = [];
-  if (candidates.length > 100) return notices;
+  if (candidates.length > 100) fail('SCHEDULE_READ_LIMIT', 'Chưa xác định hết người nhận thông báo quản lý.');
   for (const u of candidates) {
     if (conflicts.includes(String(u._id))) continue;
     try { const current = await resolvePrincipal({ sub: String(u._id), role: u.role, securityVersion: securityVersion(u) });
@@ -217,6 +220,14 @@ async function deliver(row: any) {
   for (const n of row.history.flatMap((e: any) => e.notices ?? [])) {
     if (row.deliveredNoticeIds.includes(n.id)) continue;
     try {
+      if (n.audience === 'SM_STATUS') {
+        const u: any = await UserModel.findById(n.userId).lean();
+        if (!u) continue;
+        const current = await resolvePrincipal({ sub: String(u._id), role: u.role, securityVersion: securityVersion(u) });
+        const managed = managedEmployeeIds(current, String(row.storeId), 'schedules.manage');
+        if (current.authorization?.profile !== 'sm' || !storeAllowed(current, String(row.storeId), 'schedules.read_store')
+          || !n.subjectEmployeeIds?.some((id: string) => id === current.employeeId || managed.includes(id))) continue;
+      }
       await notifyUser({ userId: n.userId, employeeId: n.employeeId, type: 'system', title: 'Lịch làm & phân ca', body: n.message,
         dedupeKey: 'schedule:' + String(row._id) + ':' + n.id, entityKind: 'schedule', entityId: String(row._id) });
       await Week.updateOne({ _id: row._id }, { $addToSet: { deliveredNoticeIds: n.id } });
@@ -278,7 +289,8 @@ export async function schedulePartners(user: AuthenticatedUser, weekId: string) 
   if (people.length > 1000) fail('SCHEDULE_READ_LIMIT', 'Danh sách quá lớn.');
   const users: any[] = await UserModel.find({ _id: { $in: people.map((p) => p.userId).filter(Boolean) }, status: 'active', 'authorization.grants.capabilities': 'schedule_changes.respond' }).select('_id employeeId').lean();
   return { items: people.filter((p) => String(p._id) !== user.employeeId && users.some((u) => String(u.employeeId) === String(p._id) && String(u._id) === String(p.userId)))
-    .map((p) => ({ employeeId: String(p._id), fullName: p.fullName || p.full_name || '', employeeCode: p.employeeCode || p.employee_code || '' })) };
+    .map((p) => ({ employeeId: String(p._id), fullName: p.fullName || p.full_name || '', employeeCode: p.employeeCode || p.employee_code || '',
+      assignments: row.published.filter((a: ScheduleAssignment) => a.employeeId === String(p._id) && future(a)).map((a: ScheduleAssignment) => ({ id: a.id, date: a.date, shiftCode: a.shiftCode, intervals: a.intervals })) })) };
 }
 
 async function participant(employeeId: string, storeId: string, cap: 'schedule_changes.request' | 'schedule_changes.respond') {
@@ -287,12 +299,106 @@ async function participant(employeeId: string, storeId: string, cap: 'schedule_c
     fail('SCHEDULE_PERSON_UNAVAILABLE', 'Người tham gia không còn làm việc tại cửa hàng.');
   const account: any = person.userId ? await UserModel.findById(person.userId).lean() : null;
   if (!account || String(account.employeeId) !== employeeId) fail('SCHEDULE_PERSON_UNAVAILABLE', 'Người tham gia chưa có tài khoản hợp lệ.');
-  const current = await resolvePrincipal({ sub: String(account._id), role: account.role, securityVersion: securityVersion(account) });
+  let current: AuthenticatedUser;
+  try { current = await resolvePrincipal({ sub: String(account._id), role: account.role, securityVersion: securityVersion(account) }); }
+  catch (error: any) { if (error?.status === 401) fail('SCHEDULE_PERSON_UNAVAILABLE', 'Tài khoản người tham gia không còn hợp lệ.'); throw error; }
   requireCapability(current, cap, { employeeId });
   return { person, userId: String(account._id) };
 }
 function occupied(row: any, assignmentId: string, exclude?: string) {
   return row.requests.some((r: ScheduleChange) => r.id !== exclude && pending(r) && (r.source.id === assignmentId || r.target?.id === assignmentId));
+}
+function assertChangeSnapshot(row: any, r: ScheduleChange) {
+  if (!future(r.source) || !row.published.some((a: ScheduleAssignment) => digest(a) === digest(r.source))
+    || r.kind === 'SWAP' && (!r.target || !future(r.target) || !row.published.some((a: ScheduleAssignment) => digest(a) === digest(r.target))))
+    fail('SCHEDULE_REQUEST_STALE', 'Ca đã đổi hoặc đã bắt đầu; cần gửi đề nghị mới.');
+}
+async function consentAssignments(row: any, r: ScheduleChange) {
+  assertChangeSnapshot(row, r);
+  if (!r.receiverEmployeeId || !r.receiverUserId) fail('INVALID_RECEIVER', 'Chưa có người nhận ca.', 400);
+  const requester = await participant(r.requesterEmployeeId, String(row.storeId), 'schedule_changes.request');
+  const receiver = await participant(r.receiverEmployeeId!, String(row.storeId), 'schedule_changes.respond');
+  if (requester.userId !== r.requesterUserId || receiver.userId !== r.receiverUserId) fail('SCHEDULE_PARTICIPANT_CHANGED', 'Liên kết tài khoản đã thay đổi.');
+  if (r.target && digest(assignmentTimes(r.target)) === digest(assignmentTimes(r.source))) fail('SWAP_SAME_TIME', 'Hai ca cùng khoảng giờ không tạo thành đổi ca hai chiều.');
+  const replace = (a: ScheduleAssignment, p: any) => ({ ...a, employeeId: String(p._id), employeeName: p.fullName || p.full_name || '', employeeCode: p.employeeCode || p.employee_code || '' });
+  const assignments = row.published.map((a: ScheduleAssignment) => a.id === r.source.id ? replace(a, receiver.person)
+    : r.target && a.id === r.target.id ? replace(a, requester.person) : a);
+  // No employee gains a general publish grant: only these fixed consented IDs/persons can change.
+  await checkOverlaps(row, assignments);
+  return assignments;
+}
+function independentReviewer(actor: AuthenticatedUser, row: any, r: ScheduleChange) {
+  requireCapability(actor, 'schedule_changes.review', { ...resourceScope(actor, { storeId: row.storeId, storeMappingRef: 'verified', employeeId: r.requesterEmployeeId }),
+    requiresIndependentApproval: true, requesterUserId: r.requesterUserId, subjectEmployeeId: r.requesterEmployeeId,
+    conflictUserIds: [r.requesterUserId, ...(r.receiverUserId ? [r.receiverUserId] : [])] });
+  if ([r.requesterEmployeeId, r.receiverEmployeeId].includes(actor.employeeId ?? '')) fail('SELF_APPROVAL', 'Người tham gia không tự điều phối/duyệt ca của mình.', 403);
+  authorizeStore(actor, String(row.storeId), 'schedules.manage');
+}
+async function storeSmNotices(row: any, r: ScheduleChange) {
+  const users: any[] = await UserModel.find({ status: 'active', 'authorization.profile': 'sm' }).select('_id employeeId role securityVersion').limit(1001).lean();
+  if (users.length > 1000) fail('SCHEDULE_READ_LIMIT', 'Chưa kiểm tra hết SM nhận thông báo.');
+  const notices: any[] = [];
+  for (const u of users) try {
+    const current = await resolvePrincipal({ sub: String(u._id), role: u.role, securityVersion: securityVersion(u) });
+    const managed = managedEmployeeIds(current, String(row.storeId), 'schedules.manage');
+    if (!storeAllowed(current, String(row.storeId), 'schedules.read_store') || ![r.requesterEmployeeId, r.receiverEmployeeId].some(id => id === current.employeeId || id && managed.includes(id))) continue;
+    notices.push({ id: randomUUID(), userId: current.userId, employeeId: current.employeeId, audience: 'SM_STATUS', subjectEmployeeIds: [r.requesterEmployeeId, r.receiverEmployeeId].filter(Boolean),
+      message: `Đã ${r.kind === 'SWAP' ? 'đổi ca' : 'nhận ca thay'}: ${r.source.employeeName} → ${r.receiverName || 'người nhận'} · ${r.source.date} · ${r.source.shiftCode}; ${r.target ? `ca đổi lại ${r.target.date} · ${r.target.shiftCode}; ` : ''}lý do: ${r.reason}. Xem lịch cửa hàng và lịch sử để đối chiếu.` });
+  } catch (error: any) { if (![401, 403].includes(error?.status)) throw error; }
+  return notices;
+}
+async function actConsentChange(actor: AuthenticatedUser, row: any, r: ScheduleChange, body: any) {
+  const requester = actor.userId === r.requesterUserId && actor.employeeId === r.requesterEmployeeId;
+  const receiver = actor.userId === r.receiverUserId && actor.employeeId === r.receiverEmployeeId;
+  if (['SELECT', 'APPROVE', 'REJECT'].includes(body.action)) {
+    independentReviewer(actor, row, r); await eligiblePerson(actor, String(row.storeId), r.requesterEmployeeId);
+    if (r.arrangement !== 'MANAGER') fail('INVALID_SCHEDULE_ACTION', 'Đổi ca trực tiếp không có bước duyệt/từ chối của quản lý.', 403);
+  }
+  else {
+    if (!requester && !receiver) fail('RBAC_DENIED', 'Bạn không tham gia yêu cầu này.', 403);
+    requireCapability(actor, receiver ? 'schedule_changes.respond' : 'schedule_changes.request', { employeeId: actor.employeeId });
+  }
+  checkVersion(row, body.expectedVersion);
+  if (!pending(r)) fail('SCHEDULE_REQUEST_CLOSED', 'Yêu cầu đã kết thúc.');
+  const next: ScheduleChange = { ...r, decisionReason: body.reason };
+  let published = row.published, draft = row.draft;
+  if (body.action === 'CANCEL' && requester) next.status = 'CANCELLED';
+  else if (body.action === 'REJECT') next.status = 'REJECTED';
+  else if (body.action === 'DECLINE' && receiver && r.status === 'PENDING_RECEIVER') {
+    if (r.arrangement === 'MANAGER' && r.kind === 'COVER') { next.status = 'PENDING_MANAGER'; next.receiverEmployeeId = null; next.receiverUserId = null; next.receiverName = null; next.managerDecision = null; }
+    else next.status = 'REJECTED';
+  } else if (['SELECT', 'APPROVE'].includes(body.action) && r.arrangement === 'MANAGER' && r.status === 'PENDING_MANAGER') {
+    if (r.kind === 'SWAP' && (body.action !== 'APPROVE' || body.receiverEmployeeId)) fail('INVALID_SCHEDULE_ACTION', 'Ca đổi hai chiều đã được người đề nghị chọn; không thay một phía.', 400);
+    const id = body.receiverEmployeeId || r.receiverEmployeeId;
+    if (!id || id === r.requesterEmployeeId || id === actor.employeeId) fail('INVALID_RECEIVER', 'Chọn người khác người đề nghị và người điều phối.', 400);
+    const person = await participant(id, String(row.storeId), 'schedule_changes.respond');
+    await eligiblePerson(actor, String(row.storeId), id);
+    next.receiverEmployeeId = id; next.receiverUserId = person.userId;
+    next.receiverName = person.person.fullName || person.person.full_name || '';
+    next.managerDecision = { userId: actor.userId, employeeId: actor.employeeId!, securityVersion: actor.securityVersion ?? 0, at: new Date().toISOString(), reason: body.reason };
+    if ((r.selectionHistory?.length ?? 0) >= 20) fail('SCHEDULE_STORAGE_LIMIT', 'Đạt giới hạn điều phối; giữ lịch sử, không ghi đè.');
+    next.selectionHistory = [...(r.selectionHistory ?? []), { receiverEmployeeId: id, managerUserId: actor.userId, at: new Date().toISOString(), reason: body.reason }];
+    await consentAssignments(row, next); next.status = 'PENDING_RECEIVER';
+  } else if (body.action === 'ACCEPT' && receiver && r.status === 'PENDING_RECEIVER') {
+    if (body.targetAssignmentId || body.receiverEmployeeId) fail('SCHEDULE_TERMS_CHANGED', 'Không đổi nội dung ca khi xác nhận; gửi đề nghị mới.', 400);
+    if (r.arrangement === 'MANAGER') {
+      if (!r.managerDecision) fail('SCHEDULE_MANAGER_REQUIRED', 'Chưa có quản lý điều phối.');
+      const u: any = await UserModel.findById(r.managerDecision!.userId).lean();
+      if (!u) fail('SCHEDULE_MANAGER_UNAVAILABLE', 'Người điều phối không còn hợp lệ.');
+      if (securityVersion(u) !== r.managerDecision!.securityVersion) fail('SCHEDULE_MANAGER_UNAVAILABLE', 'Quyền người điều phối đã thay đổi; cần quản lý xem lại.');
+      let current: AuthenticatedUser;
+      try { current = await resolvePrincipal({ sub: String(u._id), role: u.role, securityVersion: r.managerDecision!.securityVersion }); }
+      catch (error: any) { if (error?.status === 401) fail('SCHEDULE_MANAGER_UNAVAILABLE', 'Người điều phối không còn hoạt động.'); throw error; }
+      independentReviewer(current, row, r); await eligiblePerson(current, String(row.storeId), r.requesterEmployeeId); await eligiblePerson(current, String(row.storeId), r.receiverEmployeeId!);
+    }
+    if (digest(row.draft) !== digest(row.published)) fail('SCHEDULE_DRAFT_PENDING', 'Quản lý đang có bản nháp chưa công bố; cần đối chiếu trước khi đổi ca.');
+    published = await consentAssignments(row, r); draft = published; next.status = 'APPROVED'; next.completionMode = r.arrangement === 'DIRECT' ? 'CONSENT' : 'MANAGER';
+  } else fail('INVALID_SCHEDULE_ACTION', 'Thao tác không phù hợp trạng thái hoặc người xử lý.', 403);
+  const notices = await noticeUsers([r.requesterEmployeeId, r.receiverEmployeeId, next.receiverEmployeeId], 'Yêu cầu đổi ca có cập nhật. Mở Lịch của tôi để xem trạng thái và lịch mới nhất.');
+  if (next.status === 'PENDING_MANAGER') notices.push(...await reviewNotices(actor, row, [r.requesterUserId, next.receiverUserId]));
+  if (next.status === 'APPROVED') notices.push(...await storeSmNotices(row, next));
+  return record(Week, row, { requests: row.requests.map((item: ScheduleChange) => item.id === r.id ? next : item), published, draft }, actor,
+    next.status === 'APPROVED' ? 'CHANGE_' + next.completionMode + '_APPLIED' : 'CHANGE_' + body.action, body.reason, notices);
 }
 export async function createScheduleChange(user: AuthenticatedUser, weekId: string, input: unknown) {
   const body = parse<any>(ScheduleChangeCreateSchema, input);
@@ -301,7 +407,10 @@ export async function createScheduleChange(user: AuthenticatedUser, weekId: stri
     const row = await weekRow(weekId), id = String(idFor('schedule-change-v1:' + String(row._id) + ':' + actor.userId + ':' + body.clientRequestId));
     const existing = row.requests.find((r: ScheduleChange) => r.id === id);
     if (existing) {
-      if (existing.requesterUserId !== actor.userId || existing.kind !== body.kind || existing.source.id !== body.assignmentId || existing.receiverEmployeeId !== body.receiverEmployeeId || existing.reason !== body.reason)
+      if (existing.requesterUserId !== actor.userId || existing.kind !== body.kind || existing.source.id !== body.assignmentId || existing.reason !== body.reason
+        || (existing.policyVersion === 2
+          ? (existing as any).originalReceiverEmployeeId !== (body.receiverEmployeeId ?? null) || (existing as any).originalArrangement !== body.arrangement || (existing.target?.id ?? null) !== (body.targetAssignmentId ?? null)
+          : existing.receiverEmployeeId !== body.receiverEmployeeId))
         fail('SCHEDULE_REQUEST_CONFLICT', 'Yêu cầu đã được gửi với nội dung khác.');
       return row;
     }
@@ -312,11 +421,21 @@ export async function createScheduleChange(user: AuthenticatedUser, weekId: stri
     if (occupied(row, source.id)) fail('SCHEDULE_CHANGE_PENDING', 'Ca này đã có yêu cầu đang chờ.');
     if (row.requests.length >= 200) fail('SCHEDULE_STORAGE_LIMIT', 'Tuần lịch đạt giới hạn yêu cầu đổi ca.');
     const requester = await participant(actor.employeeId!, String(row.storeId), 'schedule_changes.request');
-    const receiver = await participant(body.receiverEmployeeId, String(row.storeId), 'schedule_changes.respond');
-    const r: ScheduleChange = { id, kind: body.kind, status: 'PENDING_RECEIVER', requesterEmployeeId: actor.employeeId!, receiverEmployeeId: body.receiverEmployeeId,
-      requesterUserId: requester.userId, receiverUserId: receiver.userId, source, target: null, reason: body.reason, decisionReason: null };
+    if (body.receiverEmployeeId) requireCapability(actor, 'directory.read_store', resourceScope(actor, { storeId: row.storeId, storeMappingRef: 'verified' }));
+    const receiver = body.receiverEmployeeId ? await participant(body.receiverEmployeeId, String(row.storeId), 'schedule_changes.respond') : null;
+    const target = body.kind === 'SWAP' ? row.published.find((a: ScheduleAssignment) => a.id === body.targetAssignmentId && a.employeeId === body.receiverEmployeeId) : null;
+    if (body.kind === 'SWAP' && (!target || !future(target) || occupied(row, target.id))) fail('SWAP_TARGET_UNAVAILABLE', 'Chọn ca sắp tới của người nhận, cùng tuần và chưa có yêu cầu khác.');
+    const urgent = isUrgentScheduleChange(source, target);
+    const arrangement = urgent ? 'MANAGER' : body.arrangement;
+    const r: ScheduleChange = { id, policyVersion: 2, arrangement, urgent, kind: body.kind, status: arrangement === 'MANAGER' ? 'PENDING_MANAGER' : 'PENDING_RECEIVER', requesterEmployeeId: actor.employeeId!, receiverEmployeeId: body.receiverEmployeeId ?? null,
+      requesterUserId: requester.userId, receiverUserId: receiver?.userId ?? null, source, target, reason: body.reason, decisionReason: null,
+      managerDecision: null, selectionHistory: [], receiverName: receiver ? receiver.person.fullName || receiver.person.full_name || '' : null };
+    Object.assign(r, { originalReceiverEmployeeId: body.receiverEmployeeId ?? null, originalArrangement: body.arrangement });
+    if (receiver) await consentAssignments(row, r);
+    const notices = arrangement === 'MANAGER' ? await reviewNotices(actor, row, [requester.userId, receiver?.userId ?? null])
+      : await noticeUsers([body.receiverEmployeeId], 'Bạn có đề nghị nhận/đổi ca. Kiểm tra ca cụ thể trước khi đồng ý; lịch cập nhật sau xác nhận hợp lệ.');
     return record(Week, row, { requests: [...row.requests, r] }, actor, 'CHANGE_REQUESTED', body.reason,
-      [{ id: randomUUID(), userId: receiver.userId, employeeId: body.receiverEmployeeId, message: 'Bạn có đề nghị nhận ca thay hoặc đổi ca. Mở Lịch của tôi để xem và phản hồi.' }]);
+      notices);
   });
   await deliver(row);
   const id = String(idFor('schedule-change-v1:' + String(row._id) + ':' + user.userId + ':' + body.clientRequestId));
@@ -328,11 +447,12 @@ export async function actScheduleChange(user: AuthenticatedUser, weekId: string,
   const saved = await writer(user, async (actor) => {
     const row = await weekRow(weekId), r: ScheduleChange = row.requests.find((r: ScheduleChange) => r.id === changeId);
     if (!r) fail('RESOURCE_NOT_FOUND', 'Không tìm thấy yêu cầu đổi ca.', 404);
+    if (r.policyVersion === 2) return actConsentChange(actor, row, r, body);
     const isRequester = r.requesterUserId === actor.userId && r.requesterEmployeeId === actor.employeeId;
     const isReceiver = r.receiverUserId === actor.userId && r.receiverEmployeeId === actor.employeeId;
     if (['APPROVE', 'REJECT'].includes(body.action)) {
       requireCapability(actor, 'schedule_changes.review', { ...resourceScope(actor, { storeId: row.storeId, storeMappingRef: 'verified', employeeId: r.requesterEmployeeId }),
-        requiresIndependentApproval: true, requesterUserId: r.requesterUserId, subjectEmployeeId: r.requesterEmployeeId, conflictUserIds: [r.requesterUserId, r.receiverUserId] });
+        requiresIndependentApproval: true, requesterUserId: r.requesterUserId, subjectEmployeeId: r.requesterEmployeeId, conflictUserIds: [r.requesterUserId, ...(r.receiverUserId ? [r.receiverUserId] : [])] });
       if (actor.employeeId === r.requesterEmployeeId || actor.employeeId === r.receiverEmployeeId) fail('SELF_APPROVAL', 'Người tham gia không tự duyệt đổi ca.', 403);
     } else {
       requireCapability(actor, isReceiver ? 'schedule_changes.respond' : 'schedule_changes.request', { employeeId: actor.employeeId });
@@ -344,7 +464,7 @@ export async function actScheduleChange(user: AuthenticatedUser, weekId: string,
     if (body.action === 'CANCEL' && isRequester) next.status = 'CANCELLED';
     else if (body.action === 'DECLINE' && isReceiver || body.action === 'REJECT') next.status = 'REJECTED';
     else if (body.action === 'ACCEPT' && isReceiver && r.status === 'PENDING_RECEIVER') {
-      await participant(r.receiverEmployeeId, String(row.storeId), 'schedule_changes.respond');
+      await participant(r.receiverEmployeeId!, String(row.storeId), 'schedule_changes.respond');
       if (r.kind === 'SWAP') {
         const target = row.published.find((a: ScheduleAssignment) => a.id === body.targetAssignmentId && a.employeeId === actor.employeeId);
         if (!target || !future(target) || occupied(row, target.id, r.id)) fail('SWAP_TARGET_UNAVAILABLE', 'Chọn ca sắp tới của bạn chưa có yêu cầu khác trong cùng tuần.');
@@ -358,7 +478,7 @@ export async function actScheduleChange(user: AuthenticatedUser, weekId: string,
         || r.kind === 'SWAP' && (!r.target || !future(r.target) || !row.published.some((a: ScheduleAssignment) => digest(a) === digest(r.target))))
         fail('SCHEDULE_REQUEST_STALE', 'Ca đã thay đổi hoặc bắt đầu. Cần tạo đề nghị mới.');
       const requester = await participant(r.requesterEmployeeId, String(row.storeId), 'schedule_changes.request');
-      const receiver = await participant(r.receiverEmployeeId, String(row.storeId), 'schedule_changes.respond');
+      const receiver = await participant(r.receiverEmployeeId!, String(row.storeId), 'schedule_changes.respond');
       if (requester.userId !== r.requesterUserId || receiver.userId !== r.receiverUserId) fail('SCHEDULE_PARTICIPANT_CHANGED', 'Tài khoản người tham gia đã thay đổi.');
       const replacePerson = (a: ScheduleAssignment, person: any) => ({ ...a, employeeId: String(person._id), employeeName: person.fullName || person.full_name || '', employeeCode: person.employeeCode || person.employee_code || '' });
       published = row.published.map((a: ScheduleAssignment) => a.id === r.source.id ? replacePerson(a, receiver.person)

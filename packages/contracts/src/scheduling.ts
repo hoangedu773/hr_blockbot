@@ -30,18 +30,31 @@ export type ScheduleAssignment = z.infer<typeof ScheduleDraftInputSchema>['assig
 };
 export const ScheduleChangeCreateSchema = z.object({
   expectedVersion: z.number().int().positive(), clientRequestId: z.string().uuid().transform((value) => value.toLowerCase()),
-  assignmentId: z.string().uuid().transform((value) => value.toLowerCase()), receiverEmployeeId: Id,
+  assignmentId: z.string().uuid().transform((value) => value.toLowerCase()), receiverEmployeeId: Id.nullable().optional(),
+  arrangement: z.enum(['DIRECT', 'MANAGER']).default('DIRECT'),
+  targetAssignmentId: z.string().uuid().transform((value) => value.toLowerCase()).optional(),
   kind: z.enum(['COVER', 'SWAP']), reason: z.string().trim().min(5).max(500),
-}).strict();
+}).strict().superRefine((v, ctx) => {
+  if (v.arrangement === 'DIRECT' && !v.receiverEmployeeId) ctx.addIssue({ code: 'custom', message: 'Choose receiver' });
+  if (v.arrangement === 'MANAGER' && (v.kind !== 'COVER' || v.receiverEmployeeId || v.targetAssignmentId)) ctx.addIssue({ code: 'custom', message: 'Manager finds a replacement' });
+  if (v.arrangement === 'DIRECT' && v.kind === 'SWAP' && !v.targetAssignmentId) ctx.addIssue({ code: 'custom', message: 'Both shifts must be selected before consent' });
+  if (v.kind === 'COVER' && v.targetAssignmentId) ctx.addIssue({ code: 'custom', message: 'Cover has no return shift' });
+});
 export const ScheduleChangeActionSchema = z.object({
   expectedVersion: z.number().int().positive(),
-  action: z.enum(['ACCEPT', 'DECLINE', 'CONFIRM', 'CANCEL', 'APPROVE', 'REJECT']),
+  action: z.enum(['ACCEPT', 'DECLINE', 'CONFIRM', 'CANCEL', 'APPROVE', 'REJECT', 'SELECT']),
+  receiverEmployeeId: Id.optional(),
   targetAssignmentId: z.string().uuid().transform((value) => value.toLowerCase()).optional(), reason: z.string().trim().min(5).max(500),
 }).strict();
 export type ScheduleChange = {
-  id: string; kind: 'COVER' | 'SWAP'; status: 'PENDING_RECEIVER' | 'PENDING_REQUESTER' | 'READY_FOR_REVIEW' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
-  requesterEmployeeId: string; receiverEmployeeId: string; requesterUserId: string; receiverUserId: string;
+  id: string; kind: 'COVER' | 'SWAP'; status: 'PENDING_MANAGER' | 'PENDING_RECEIVER' | 'PENDING_REQUESTER' | 'READY_FOR_REVIEW' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  requesterEmployeeId: string; receiverEmployeeId: string | null; requesterUserId: string; receiverUserId: string | null;
   source: ScheduleAssignment; target: ScheduleAssignment | null; reason: string; decisionReason: string | null;
+  policyVersion?: 2; arrangement?: 'DIRECT' | 'MANAGER'; urgent?: boolean;
+  completionMode?: 'CONSENT' | 'MANAGER';
+  managerDecision?: { userId: string; employeeId: string; securityVersion: number; at: string; reason: string } | null;
+  selectionHistory?: { receiverEmployeeId: string; managerUserId: string; at: string; reason: string }[];
+  receiverName?: string | null;
 };
 export type OperationalScheduleWeek = {
   id: string; storeId: string; weekStart: string; version: number; publishedAt: string | null;

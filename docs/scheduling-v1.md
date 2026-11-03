@@ -1,5 +1,28 @@
 # Configurable scheduling V1 — owner decision 2026-11-03
 
+## Shift-change policy update V2
+
+This is the project's approved simulation policy, not a claim about GUTA company
+rules. Existing accounts/grants/profiles and all HRM workflows stay unchanged.
+An employee receives only a fixed, participant-bound consent operation, never a
+general `schedules.publish` permission. Assignment snapshots and actual hours
+remain unchanged when swapping their owners.
+
+The scheduling screen now exposes a persisted schedule-only notification inbox,
+with read marking, older notifications and a 30-second visible-page refresh.
+Notification failure does not undo an applied shift: outbox events remain pending
+for authorized retry. SM delivery revalidates current scope before retry, with
+deduplication. No email, Telegram or SMS delivery is added.
+
+Deployment must update the API first, then Web, to avoid sending new request
+shapes to the old service. Once V2 requests exist, do not blindly downgrade the
+API to pre-V2: prefer a compatible forward fix or plan maintenance/handling of
+pending V2 requests first. Preserve all request/audit history and published data.
+
+Verification: `test/schedule-consent-v2.test.mjs`, scheduling regression and
+`apps/web/test/scheduling.integration.mjs` use owned synthetic local databases;
+cloud smoke evidence distinguishes actual live UI/reads from local write tests.
+
 The owner selected a Shift Catalog screen to enter actual store hours. No company
 hours, minimum staffing, payroll, leave entitlement or legal compliance rule is
 inferred from legacy codes or configured by this release.
@@ -14,13 +37,25 @@ inferred from legacy codes or configured by this release.
   reason, then publish. A full-store grant is required for the full weekly board.
 - Employees see only their own published assignments and change requests in
   which they participate. Same-store directory data is used for receiver choice.
-- Cover: requester selects their own future shift, receiver agrees, independent
-  manager approves. Swap: receiver chooses an own shift in the same store/week,
-  requester confirms the offered shift, then an independent manager approves.
-  Neither a participant nor their replacement account may self-review.
-- Approval atomically updates both sides and matching draft under the common
-  CRM writer and version CAS. No reassignment occurs at request/consent time.
-  A manager must resolve an outstanding draft before approving a change.
+- Owner-approved change policy V2 (03/11/2026): direct cover selects a colleague;
+  direct swap selects BOTH published shifts in the same store/week before sending.
+  The receiver's consent atomically applies the fixed terms with no manager approval,
+  after current participant/status/mapping/grant and interval-conflict checks.
+  SMs with current scoped authority receive a persisted notification identifying the
+  participants, original shifts and reason. Identical time slots are not a two-way swap.
+- If no receiver is available, request manager-assisted COVER with a reason at least
+  24 hours before shift start. Requests within 24 hours (including known-receiver
+  requests) are marked urgent and routed to the manager first, never silently waived.
+  The exact 24-hour boundary is not urgent; split/overnight starts use Vietnam time.
+  An independent scoped manager selects a receiver or rejects with a reason. The
+  selected person still must consent; a decline returns COVER to manager selection.
+  The manager's version/current authority is checked again before applying consent.
+- Existing requests without policyVersion=2 retain their old receiver choice /
+  requester confirmation / independent final approval. History is not rewritten or
+  migrated into the no-approval path. Cached old clients must reload for V2 creation.
+- Completion atomically updates both sides and matching draft under the common
+  CRM writer and version CAS. Requesting or selecting a replacement never changes
+  the published calendar. An outstanding draft must be resolved before completion.
 - Republishing cancels pending consent requests with an explicit retained reason.
   Started shifts cannot be changed or removed through this scheduling workflow.
 - Draft/save/publish/approval check actual interval overlaps, including adjacent

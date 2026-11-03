@@ -13,8 +13,10 @@ test('weekly edits and change consent require bounded typed identities, versions
   const slot = { id, employeeId, shiftId: employeeId, date: '2026-11-09' };
   assert.equal(ScheduleDraftInputSchema.safeParse({ expectedVersion: 1, reason: 'Configured week', assignments: [slot] }).success, true);
   assert.equal(ScheduleDraftInputSchema.safeParse({ expectedVersion: 1, reason: 'Configured week', assignments: [slot, slot] }).success, false);
-  const r = { expectedVersion: 1, clientRequestId: id, assignmentId: id, receiverEmployeeId: employeeId, kind: 'SWAP', reason: 'Verified test' };
+  const r = { expectedVersion: 1, clientRequestId: id, assignmentId: id, targetAssignmentId: id, receiverEmployeeId: employeeId, kind: 'SWAP', reason: 'Verified test' };
   assert.equal(ScheduleChangeCreateSchema.safeParse(r).success, true);
   assert.equal(ScheduleChangeCreateSchema.safeParse({ ...r, approvedBy: employeeId }).success, false);
+  assert.equal(ScheduleChangeCreateSchema.safeParse({ ...r, targetAssignmentId: undefined }).success, false);
+  assert.equal(ScheduleChangeCreateSchema.safeParse({ ...r, arrangement: 'MANAGER', kind: 'COVER', receiverEmployeeId: null, targetAssignmentId: undefined }).success, true);
   assert.equal(ScheduleChangeActionSchema.safeParse({ expectedVersion: 1, action: 'APPROVE', reason: ' ' }).success, false);
 });

@@ -52,13 +52,14 @@ export function notificationDto(row: any): NotificationItem {
   });
 }
 
-export async function listNotifications(userId: string, options: { unreadOnly?: boolean; limit?: number; before?: string } = {}) {
+export async function listNotifications(userId: string, options: { unreadOnly?: boolean; limit?: number; before?: string; entityKind?: 'schedule' } = {}) {
   const limit = Math.min(Math.max(options.limit ?? 30, 1), 100);
   const filter: Record<string, any> = { userId: new mongoose.Types.ObjectId(userId) };
+  if (options.entityKind) filter.entityKind = options.entityKind;
   if (options.unreadOnly) filter.readAt = null;
   if (options.before && !Number.isNaN(Date.parse(options.before))) filter.createdAt = { $lt: new Date(options.before) };
   const rows = await NotificationModel.find(filter).sort({ createdAt: -1, _id: -1 }).limit(limit).lean();
-  const unread = await NotificationModel.countDocuments({ userId: new mongoose.Types.ObjectId(userId), readAt: null });
+  const unread = await NotificationModel.countDocuments({ userId: new mongoose.Types.ObjectId(userId), readAt: null, ...(options.entityKind ? { entityKind: options.entityKind } : {}) });
   return { items: rows.map(notificationDto), unread };
 }
 
