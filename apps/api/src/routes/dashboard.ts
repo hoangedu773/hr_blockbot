@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { DashboardOverviewSchema } from "@hr-blockbot/contracts";
+import { DashboardOverviewSchema, SalesReportQuerySchema } from "@hr-blockbot/contracts";
+import { salesReport } from '../services/sales-report.service.js';
 import { z } from 'zod';
 import { scopedRevenueMetric } from '../services/pos-reporting.service.js';
 import { WorkflowError } from '../services/project-workflow.service.js';
@@ -28,5 +29,11 @@ router.get('/dashboard/revenue', authenticateToken, endpoint(async (req, res) =>
   const query = z.object({ storeId: z.string().regex(/^[a-f0-9]{24}$/i).transform(s => s.toLowerCase()) }).strict().safeParse(req.query);
   if (!query.success) throw new WorkflowError(400, 'VALIDATION_FAILED', 'Chọn cửa hàng hợp lệ.');
   res.json(await scopedRevenueMetric(req.user!, undefined, query.data.storeId));
+}));
+router.get('/dashboard/sales', authenticateToken, endpoint(async (req, res) => {
+  const query = SalesReportQuerySchema.safeParse(req.query);
+  if (!query.success) throw new WorkflowError(400, 'VALIDATION_FAILED', 'Bộ lọc báo cáo không hợp lệ.');
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(await salesReport(req.user!, query.data));
 }));
 export default router;
