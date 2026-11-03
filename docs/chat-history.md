@@ -9,7 +9,7 @@ The web chat saves new questions and validated answers on the API's configured M
 - Compound indexes support owner-scoped cursor pagination and idempotent client request IDs. A retry with the same ID does not invoke the provider again. No automatic deletion or retention policy is introduced.
 - New web clients send `clientMessageId` to `POST /api/chat` and receive a persisted turn. Clients omitting this field retain the existing response contract. Existing Socket chat behavior is unchanged.
 - Endpoints: `GET /api/chat/conversations`, `GET /api/chat/conversations/:id/messages`, and optional idempotent `POST /api/chat/conversations`.
-- API and web should deploy in that order. Ensure the configured database permits creation of these two collections and their indexes. Existing HRM documents need no migration.
+- API and web should deploy in that order. The first authorized persisted send explicitly creates only these two collections and their indexes, including when global `autoCreate`/`autoIndex` are disabled. Missing permissions fail closed with 503; existing indexes are not dropped or synchronized. Existing HRM documents need no migration.
 - Rolling back the web first restores the old client without deleting history; then the API may be rolled back. Preserve the new collections for a later compatible release.
 
 ## Access and recovery

@@ -15,6 +15,29 @@ import { digest } from './project-audit.service.js';
 const UUID = z.string().uuid();
 const paging = z.object({ limit: z.coerce.number().int().min(1).max(30).default(15), before: z.string().max(300).optional() });
 const missing = (): never => { throw new WorkflowError(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy hội thoại của bạn.'); };
+const initialized = new WeakMap<object, Promise<void>>();
+async function ensureHistoryStorage() {
+  const db = mongoose.connection.db;
+  if (!db) throw new WorkflowError(503, 'CHAT_HISTORY_UNAVAILABLE', 'Chưa thể lưu hội thoại.');
+  let ready = initialized.get(db);
+  if (!ready) {
+    // Model.init() can be a no-op in deployments that disable automatic schema
+    // writes. Explicitly provision only these two new collections; never enable
+    // global autoCreate/autoIndex or synchronize/drop existing indexes.
+    ready = (async () => {
+      for (const model of [Conversation, Turn]) {
+        await model.createCollection();
+        await model.createIndexes();
+      }
+      const indexes = await Conversation.collection.indexes();
+      const turnIndexes = await Turn.collection.indexes();
+      if (!indexes.some((i: any) => i.unique && i.key.userId && i.key.clientRequestId)
+        || !turnIndexes.some((i: any) => i.unique && i.key.conversationId && i.key.clientMessageId)) throw new Error('Required history indexes unavailable');
+    })().catch(() => { initialized.delete(db); throw new WorkflowError(503, 'CHAT_HISTORY_UNAVAILABLE', 'Chưa thể lưu hội thoại.'); });
+    initialized.set(db, ready);
+  }
+  await ready;
+}
 async function current(user: AuthenticatedUser) {
   const fresh = await resolvePrincipal({ sub: user.userId, role: user.role, securityVersion: user.securityVersion });
   requireCapability(fresh, 'chatbot.data_read', { userId: fresh.userId, employeeId: fresh.employeeId }); return fresh;
@@ -38,7 +61,7 @@ function pageFilter(before: string | undefined, field: string) {
 const summary = (row: any) => ({ id: row._id, title: row.title, updatedAt: (row.lastMessageAt ?? row.createdAt).toISOString() });
 export async function createConversation(user: AuthenticatedUser, input: unknown) {
   user = await current(user); const { clientRequestId } = z.object({ clientRequestId: UUID }).strict().parse(input);
-  await Conversation.init();
+  await ensureHistoryStorage();
   const index = await Conversation.collection.indexes();
   if (!index.some((i: any) => i.unique && i.key.userId && i.key.clientRequestId)) throw new WorkflowError(503, 'CHAT_HISTORY_INDEX_REQUIRED', 'Chưa thể lưu hội thoại.');
   const key = { userId: objectId(user.userId), clientRequestId };
@@ -98,7 +121,7 @@ export async function chatWithHistory(user: AuthenticatedUser, message: string, 
   user = await current(user); UUID.parse(clientMessageId);
   if (!conversationId) conversationId = (await createConversation(user, { clientRequestId: clientMessageId })).id;
   if (!conversationId) throw new WorkflowError(503, 'CHAT_HISTORY_UNAVAILABLE', 'Chưa mở được hội thoại.');
-  const conversation = await owned(user, conversationId); await reconcile(conversation); await Turn.init();
+  const conversation = await owned(user, conversationId); await reconcile(conversation); await ensureHistoryStorage();
   const key = { _id: conversationId + ':' + clientMessageId, userId: objectId(user.userId), conversationId };
   let turn: any = await Turn.findOne(key).lean();
   if (!turn) {
