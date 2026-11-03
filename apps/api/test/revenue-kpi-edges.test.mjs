@@ -5,6 +5,7 @@ import { connectDB, disconnectDB } from '../dist/db.js';
 import { RevenueKpiPolicySchema } from '@hr-blockbot/contracts';
 import * as S from '../dist/services/revenue-kpi.service.js';
 import { UserModel } from '../dist/models/User.js';
+import { StoreModel } from '../dist/models/Store.js';
 import { RevenueKpiAssignmentModel as Assignment } from '../dist/models/RevenueKpiAssignment.js';
 import { revenueFixture, command } from './helpers/revenue-kpi-fixture.mjs';
 let f, hr, sm, a, p;
@@ -42,4 +43,28 @@ test('snapshot persists when current AM store scope changes; zero/missing store 
   june = await S.computeRevenueKpiPeriod(hr, june.period, command(june.version)); const r = (await S.revenueKpiAssignmentResult(sm, missing.id)).result;
   assert.equal(r.status, 'PENDING_DATA'); assert.equal(r.actualRevenueVnd, null); assert.equal(r.achievementPercent, null); assert.equal(r.achieved, null);
   await assert.rejects(S.closeRevenueKpiPeriod(hr, june.period, command(june.version)), e => e.code === 'REVENUE_KPI_PERIOD_NOT_READY');
+});
+
+test('store closing mid-period keeps its KPI visible, cancellable and the period unblocked', async () => {
+  // Give HR both fixture stores so it stays an active principal after one closes.
+  const hrUser = await UserModel.findById(f.actors.hr.user._id).lean();
+  await UserModel.updateOne({ _id: hrUser._id }, { $addToSet: { 'authorization.grants.1.scope.storeIds': String(f.stores[1]._id) } });
+  try {
+    let q = await S.createRevenueKpiPeriod(hr, command(0, { period: '2026-10', policy: RevenueKpiPolicySchema.parse({ allowDemoData: true }) }));
+    q = await S.openRevenueKpiPeriod(hr, q.period, command(q.version));
+    const draft = (await S.revenueKpiDashboard(hr, q.period)).assignments.find(a => a.unitType === 'STORE' && a.storeId === String(f.stores[0]._id));
+    assert.ok(draft);
+    const published = await S.mutateRevenueKpiAssignment(hr, draft.id, 'publish', command(draft.version));
+    // The store closes: it leaves every principal's canonical catalog.
+    await StoreModel.updateOne({ _id: f.stores[0]._id }, { $set: { status: 'INACTIVE' } });
+    const hrAfter = await f.principal('hr');
+    const visible = (await S.revenueKpiDashboard(hrAfter, q.period)).assignments.find(a => a.id === draft.id);
+    assert.ok(visible, 'KPI của cửa hàng đã đóng phải còn đọc được');
+    await S.computeRevenueKpiPeriod(hrAfter, q.period, command(q.version));
+    const cancelled = await S.mutateRevenueKpiAssignment(hrAfter, draft.id, 'hr-decision', command(published.version, { action: 'CANCEL', reason: 'Cửa hàng đã đóng cửa trong kỳ.' }));
+    assert.equal(cancelled.status, 'CANCELLED');
+  } finally {
+    await StoreModel.updateOne({ _id: f.stores[0]._id }, { $set: { status: 'ACTIVE' } });
+    await UserModel.updateOne({ _id: hrUser._id }, { $set: { authorization: hrUser.authorization } });
+  }
 });

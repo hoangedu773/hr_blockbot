@@ -74,3 +74,20 @@ test('incomplete three-month history never invokes AI or changes the target', as
   try { const proposal = await proposeRevenueTarget(hr, draft.id, command(draft.version)); assert.equal(proposal.aiProposal.insufficientData, true); assert.equal(proposal.aiProposal.suggestedGrowthPercent, null); assert.equal(proposal.targetVnd, draft.targetVnd); assert.equal(calls, 0); }
   finally { globalThis.fetch = original; }
 });
+
+test('AREA target stays the sum of STORE targets; an in-place area-only change is refused', async () => {
+  let q = await S.createRevenueKpiPeriod(hr, command(0, { period: '2026-08', policy: RevenueKpiPolicySchema.parse({ allowDemoData: true }) }));
+  q = await S.openRevenueKpiPeriod(hr, q.period, command(q.version));
+  const first = await S.revenueKpiDashboard(hr, q.period);
+  const area = first.assignments.find(a => a.unitType === 'AREA');
+  assert.ok(area);
+  assert.equal(area.targetVnd, first.assignments.filter(a => a.unitType === 'STORE').reduce((n, s) => n + s.targetVnd, 0));
+  await S.mutateRevenueKpiAssignment(hr, area.id, 'publish', command(area.version));
+  let current = (await S.revenueKpiDashboard(hr, q.period)).assignments.find(a => a.id === area.id);
+  await assert.rejects(
+    S.mutateRevenueKpiAssignment(hr, current.id, 'hr-decision', command(current.version, { action: 'ADJUST', newTargetVnd: current.targetVnd + 50000, reason: 'Thử điều chỉnh riêng mục tiêu khu vực.' })),
+    e => e.code === 'REVENUE_KPI_TARGET_INVALID');
+  current = (await S.revenueKpiDashboard(hr, q.period)).assignments.find(a => a.id === area.id);
+  const same = await S.mutateRevenueKpiAssignment(hr, current.id, 'hr-decision', command(current.version, { action: 'ADJUST', newTargetVnd: current.targetVnd, reason: 'Xác nhận lại đúng tổng mục tiêu cửa hàng.' }));
+  assert.equal(same.status, 'PENDING_ACCEPTANCE');
+});

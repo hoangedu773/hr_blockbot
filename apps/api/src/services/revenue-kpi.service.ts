@@ -10,7 +10,7 @@ import { UserModel } from '../models/User.js';
 import { SmAppointmentModel } from '../models/SmAppointment.js';
 import { withCrmWriter } from './crm-writer.service.js';
 import { resolvePrincipal } from './principal.service.js';
-import { requireCapability, allowedStoreIds, hasCapability, resourceScope } from './authorization-scope.service.js';
+import { requireCapability, allowedStoreIds, hasCapability, resourceScope, effectiveGrantsFor } from './authorization-scope.service.js';
 import { WorkflowError } from './project-workflow.service.js';
 import { digest } from './project-audit.service.js';
 import { ensureRevenueKpiStorage } from './revenue-kpi-storage.service.js';
@@ -37,8 +37,31 @@ function capStores(u: AuthenticatedUser, cap: C.AuthorizationCapability) {
   requireCapability(u, cap);
   return allowedStoreIds(u, cap).filter(id => { try { requireCapability(u, cap, resourceScope(u, { storeId: id, storeMappingRef: 'revenue-kpi' })); return true; } catch { return false; } });
 }
-function forStores(u: AuthenticatedUser, cap: C.AuthorizationCapability, stores: { storeId: string }[]) {
-  const ids = capStores(u, cap); if (!stores.length || stores.some(s => !ids.includes(s.storeId))) fail('REVENUE_KPI_STORE_NOT_IN_SCOPE', 'Cửa hàng không còn thuộc phạm vi được cấp.', 403);
+// A closed/inactive or approval-withdrawn store drops out of the canonical catalog
+// and `allowedStoreIds`. Without a fallback a running KPI that snapshots that store
+// becomes invisible and the period can never be closed (403 forever). The static
+// grant scope is still the authority for that store id, so read, reason review,
+// confirm, compute/close and the HR cancel escape hatch keep working. Publishing and
+// target changes still require a current canonical store.
+function staticScopeCovers(u: AuthenticatedUser, cap: C.AuthorizationCapability, stores: { storeId: string }[]) {
+  if (!stores.length || u.authorization?.profile === 'staff') return false;
+  const granted = new Set<string>();
+  for (const grant of effectiveGrantsFor(u, cap)) for (const id of grant.scope.storeIds) granted.add(String(id).toLowerCase());
+  return stores.every(s => granted.has(String(s.storeId).toLowerCase()));
+}
+function forStores(u: AuthenticatedUser, cap: C.AuthorizationCapability, stores: { storeId: string }[], allowDeparted = false) {
+  if (!stores.length) fail('REVENUE_KPI_STORE_NOT_IN_SCOPE', 'Cửa hàng không còn thuộc phạm vi được cấp.', 403);
+  let ids: string[] | null = null;
+  try { ids = capStores(u, cap); } catch (e) { if (!allowDeparted || !staticScopeCovers(u, cap, stores)) throw e; }
+  if ((ids && stores.every(s => ids!.includes(s.storeId))) || (allowDeparted && staticScopeCovers(u, cap, stores))) return;
+  fail('REVENUE_KPI_STORE_NOT_IN_SCOPE', 'Cửa hàng không còn thuộc phạm vi được cấp.', 403);
+}
+// Period-level authority for compute/close must survive a canonical catalog that no
+// longer contains the covered stores (all closed mid-period). The static grant still
+// proves the HR profile and capability; per-assignment scope is re-checked with the
+// departed-store fallback in forStores.
+function requirePeriodAuthority(u: AuthenticatedUser, cap: C.AuthorizationCapability) {
+  try { capStores(u, cap); } catch (e) { if (!effectiveGrantsFor(u, cap).length) throw e; }
 }
 function independent(u: AuthenticatedUser, a: C.RevenueKpiAssignment) { if (a.assigneeEmployeeId === u.employeeId) fail('REVENUE_KPI_SELF_APPROVAL', 'Cần HR độc lập xử lý KPI này.', 403); }
 function own(u: AuthenticatedUser, a: C.RevenueKpiAssignment, cap: C.AuthorizationCapability) {
@@ -47,8 +70,8 @@ function own(u: AuthenticatedUser, a: C.RevenueKpiAssignment, cap: C.Authorizati
 }
 function canRead(u: AuthenticatedUser, a: C.RevenueKpiAssignment) {
   if (a.assigneeEmployeeId === u.employeeId && hasCapability(u, 'revenue_kpi.read_self')) return true;
-  if (!hasCapability(u, 'revenue_kpi.read_scope')) return false;
-  try { forStores(u, 'revenue_kpi.read_scope', a.stores); return true; } catch { return false; }
+  if (!hasCapability(u, 'revenue_kpi.read_scope') && !staticScopeCovers(u, 'revenue_kpi.read_scope', a.stores)) return false;
+  try { forStores(u, 'revenue_kpi.read_scope', a.stores, true); return true; } catch { return false; }
 }
 async function periodGet(period: string) { C.RevenueKpiMonthSchema.parse(period); const r = await Period.findOne({ period }).lean(); if (!r) fail('REVENUE_KPI_NOT_FOUND', 'Chưa có kỳ KPI này.', 404); return pDto(r); }
 async function assignmentGet(id: string) { if (!/^[a-f0-9]{24}$/.test(id)) fail('REVENUE_KPI_NOT_FOUND', 'Không tìm thấy KPI.', 404); const r = await Assignment.findById(id).lean(); if (!r) fail('REVENUE_KPI_NOT_FOUND', 'Không tìm thấy KPI.', 404); return aDto(r); }
@@ -211,6 +234,21 @@ function retarget(a: C.RevenueKpiAssignment, input: any) {
   if (stores.some(s => s.targetVnd <= 0)) fail('REVENUE_KPI_TARGET_INVALID', 'Mục tiêu từng cửa hàng phải lớn hơn 0.');
   return { targetVnd: total, stores, targetMode: input.newGrowthPercent === undefined ? 'ABSOLUTE_VND' as const : 'GROWTH_PERCENT' as const, growthPercent: input.newGrowthPercent ?? null };
 }
+// AM's area KPI is the sum of the SM store KPIs. An area snapshot may never drift
+// from the underlying STORE assignments: adjust store targets first and recreate
+// the area KPI, instead of silently redistributing only the area copy.
+async function assertAreaTargetDerived(a: C.RevenueKpiAssignment, input: any) {
+  if (a.unitType !== 'AREA') return;
+  const rows: any[] = await Assignment.find({ period: a.period, unitType: 'STORE', storeId: { $in: a.stores.map(s => String(s.storeId)) }, status: { $ne: 'CANCELLED' } }).lean();
+  const byStore = new Map(rows.map(r => [String(r.storeId), Number(r.targetVnd)]));
+  if (!a.stores.every(s => Number.isSafeInteger(byStore.get(String(s.storeId))) && (byStore.get(String(s.storeId)) as number) > 0))
+    fail('REVENUE_KPI_TARGET_INVALID', 'Thiếu mục tiêu cửa hàng hợp lệ; hãy lưu lại mục tiêu từng cửa hàng trước.');
+  if (a.stores.some(s => byStore.get(String(s.storeId)) !== s.targetVnd))
+    fail('REVENUE_KPI_TARGET_INVALID', 'Mục tiêu khu vực đang lệch mục tiêu cửa hàng; hãy huỷ và tạo lại KPI khu vực sau khi điều chỉnh cửa hàng.');
+  const sum = a.stores.reduce((n, s) => n + s.targetVnd, 0);
+  if (input.newTargetVnd !== undefined && input.newTargetVnd !== sum)
+    fail('REVENUE_KPI_TARGET_INVALID', 'Mục tiêu khu vực là tổng mục tiêu cửa hàng; hãy điều chỉnh từng cửa hàng trước.');
+}
 export async function mutateRevenueKpiAssignment(user: AuthenticatedUser, id: string, action: string, raw: unknown) {
   const schemas: Record<string, any> = { publish: C.RevenueKpiPublishSchema, accept: C.RevenueKpiAcceptSchema, refuse: C.RevenueKpiRefuseSchema, 'hr-decision': C.RevenueKpiHrDecisionSchema,
     'adjustment-request': C.RevenueKpiAdjustmentRequestSchema, 'adjustment-verify': C.RevenueKpiAdjustmentVerifySchema, 'adjustment-decision': C.RevenueKpiAdjustmentDecisionSchema, responsibility: C.RevenueKpiResponsibilityChangeSchema };
@@ -218,7 +256,7 @@ export async function mutateRevenueKpiAssignment(user: AuthenticatedUser, id: st
   return write(user, async u => {
     const a = await assignmentGet(id), p = await periodGet(a.period);
     if (['accept', 'refuse', 'adjustment-request'].includes(action)) own(u, a, action === 'adjustment-request' ? 'revenue_kpi.request_adjustment' : 'revenue_kpi.respond');
-    else { forStores(u, action === 'adjustment-verify' ? 'revenue_kpi.verify_adjustment' : action === 'publish' || action === 'responsibility' ? 'revenue_kpi.assign' : 'revenue_kpi.approve', a.stores); independent(u, a); }
+    else { forStores(u, action === 'adjustment-verify' ? 'revenue_kpi.verify_adjustment' : action === 'publish' || action === 'responsibility' ? 'revenue_kpi.assign' : 'revenue_kpi.approve', a.stores, action === 'hr-decision' && input.action === 'CANCEL'); independent(u, a); }
     if (replay(a, u, action, input)) return a; unlocked(p); version(a, input); const now = new Date(), iso = now.toISOString(); let patch: any = {};
     const state = (...states: string[]) => { if (!states.includes(a.status)) fail('REVENUE_KPI_INVALID_STATE', 'Trạng thái KPI không cho phép thao tác này.'); };
     const reset = { acceptance: null, deadlineAt: addWorkingDays(now, p.policy.acceptanceWindowWorkingDays).toISOString(), overdue: false };
@@ -230,13 +268,14 @@ export async function mutateRevenueKpiAssignment(user: AuthenticatedUser, id: st
     if (action === 'hr-decision') {
       if (input.action === 'CANCEL') { state('DRAFT', 'PENDING_ACCEPTANCE', 'ACTIVE', 'HR_REVIEW', 'REFUSED', 'ADJUSTMENT_REQUESTED'); patch = { status: 'CANCELLED' }; }
       else { state('HR_REVIEW', 'REFUSED', 'PENDING_ACCEPTANCE'); if (input.action === 'KEEP') { if (!input.force && (!a.deadlineAt || a.deadlineAt >= iso)) fail('REVENUE_KPI_INVALID_STATE', 'Chưa hết hạn xác nhận; HR cần ghi nhận giữ nguyên có chủ đích.'); patch = { status: 'ACTIVE', overdue: false }; }
-        else patch = { ...retarget(a, input), status: 'PENDING_ACCEPTANCE', ...reset }; }
+        else { await assertAreaTargetDerived(a, input); patch = { ...retarget(a, input), status: 'PENDING_ACCEPTANCE', ...reset }; } }
       patch.hrDecision = { action: input.action, reason: input.reason, at: iso, by: u.userId };
     }
     if (action === 'adjustment-request') { state('ACTIVE'); patch = { status: 'ADJUSTMENT_REQUESTED', adjustment: { requestedBy: u.userId, reason: input.reason, evidenceRef: input.evidenceRef, at: iso, status: 'PENDING', amNote: null, verifiedBy: null, verifiedAt: null, hrDecision: null } }; }
     if (action === 'adjustment-verify') { state('ADJUSTMENT_REQUESTED'); if (a.unitType !== 'STORE' || a.adjustment?.status !== 'PENDING' || a.adjustment.requestedBy === u.userId) fail('REVENUE_KPI_SELF_APPROVAL', 'Cần AM độc lập xác minh yêu cầu cửa hàng.'); patch = { adjustment: { ...a.adjustment, status: 'VERIFIED', amNote: input.reason, verifiedBy: u.userId, verifiedAt: iso } }; }
     if (action === 'adjustment-decision') { state('ADJUSTMENT_REQUESTED'); if (!a.adjustment || a.adjustment.requestedBy === u.userId) fail('REVENUE_KPI_SELF_APPROVAL', 'Cần HR độc lập quyết định.');
       if (input.action === 'APPROVE' && a.unitType === 'STORE' && a.adjustment!.status !== 'VERIFIED') fail('REVENUE_KPI_INVALID_STATE', 'Chờ AM xác minh trước khi duyệt điều chỉnh.');
+      if (input.action === 'APPROVE') await assertAreaTargetDerived(a, input);
       patch = input.action === 'APPROVE' ? { ...retarget(a, input), status: 'PENDING_ACCEPTANCE', ...reset } : { status: 'ACTIVE' };
       patch.adjustment = { ...a.adjustment, status: input.action === 'APPROVE' ? 'APPROVED' : 'REJECTED', hrDecision: { action: input.action, reason: input.reason, at: iso, by: u.userId } };
     }
@@ -250,9 +289,9 @@ export async function mutateRevenueKpiAssignment(user: AuthenticatedUser, id: st
 }
 
 export async function computeRevenueKpiPeriod(user: AuthenticatedUser, period: string, raw: unknown) { const input = C.RevenueKpiComputeSchema.parse(raw); return write(user, async u => {
-  const p = await periodGet(period); capStores(u, 'revenue_kpi.close'); if (replay(p, u, 'COMPUTE_PERIOD', input)) return p; unlocked(p); version(p, input);
+  const p = await periodGet(period); requirePeriodAuthority(u, 'revenue_kpi.close'); if (replay(p, u, 'COMPUTE_PERIOD', input)) return p; unlocked(p); version(p, input);
   const assignments = (await Assignment.find({ period, status: 'ACTIVE' }).lean()).map(aDto);
-  for (const a of assignments) { forStores(u, 'revenue_kpi.close', a.stores); independent(u, a); }
+  for (const a of assignments) { forStores(u, 'revenue_kpi.close', a.stores, true); independent(u, a); }
   for (const a of assignments) {
     const prev = await latest(a.id); if (prev && (replay(prev, u, 'COMPUTE_RESULT', { ...input, expectedVersion: prev.version - 1 }) || prev.status === 'CONFIRMED')) continue;
     const calc = await calculateRevenueKpi(a, p.policy);
@@ -267,7 +306,7 @@ export async function mutateRevenueKpiResult(user: AuthenticatedUser, id: string
   return write(user, async u => {
     const requested = rDto(await Result.findById(id).lean()); if (!requested) fail('REVENUE_KPI_NOT_FOUND', 'Không tìm thấy kết quả.', 404);
     const a = await assignmentGet(requested.assignmentId), p = await periodGet(a.period), prev = (await latest(a.id))!;
-    if (action === 'miss-reason') own(u, a, 'revenue_kpi.respond'); else { forStores(u, action === 'confirm' || action === 'correct' ? 'revenue_kpi.close' : 'revenue_kpi.approve', a.stores); independent(u, a); }
+    if (action === 'miss-reason') own(u, a, 'revenue_kpi.respond'); else { forStores(u, action === 'confirm' || action === 'correct' ? 'revenue_kpi.close' : 'revenue_kpi.approve', a.stores, true); independent(u, a); }
     if (replay(prev, u, action, input)) return prev;
     if (prev.id !== requested.id) fail('REVENUE_KPI_VERSION_CONFLICT', 'Kết quả đã có phiên bản mới.'); version(prev, input);
     if (action !== 'correct') { unlocked(p); if (prev.assignmentVersion !== a.version || a.status !== 'ACTIVE') fail('REVENUE_KPI_INVALID_STATE', 'Mục tiêu đã thay đổi; cần tính lại kết quả.'); }
@@ -289,10 +328,10 @@ export async function mutateRevenueKpiResult(user: AuthenticatedUser, id: string
   });
 }
 export async function closeRevenueKpiPeriod(user: AuthenticatedUser, period: string, raw: unknown) { const input = C.RevenueKpiCommandSchema.parse(raw); return write(user, async u => {
-  const p = await periodGet(period); capStores(u, 'revenue_kpi.close'); if (replay(p, u, 'CLOSE_PERIOD', input)) return p; unlocked(p); version(p, input);
+  const p = await periodGet(period); requirePeriodAuthority(u, 'revenue_kpi.close'); if (replay(p, u, 'CLOSE_PERIOD', input)) return p; unlocked(p); version(p, input);
   if (new Date() < periodRangeVN(period).end) fail('REVENUE_KPI_PERIOD_NOT_READY', 'Chưa hết tháng để chốt kỳ.');
   const rows = (await Assignment.find({ period, status: { $ne: 'CANCELLED' } }).lean()).map(aDto); if (!rows.length) fail('REVENUE_KPI_PERIOD_NOT_READY', 'Kỳ chưa có KPI để chốt.');
-  for (const a of rows) { forStores(u, 'revenue_kpi.close', a.stores); independent(u, a); const r = await latest(a.id);
+  for (const a of rows) { forStores(u, 'revenue_kpi.close', a.stores, true); independent(u, a); const r = await latest(a.id);
     if (!['ACTIVE', 'CLOSED'].includes(a.status) || !r || r.status !== 'CONFIRMED' || a.status !== 'CLOSED' && r.assignmentVersion !== a.version) fail('REVENUE_KPI_PERIOD_NOT_READY', 'Còn KPI chưa xác nhận hoặc thiếu dữ liệu.'); }
   for (const a of rows.filter(a => a.status !== 'CLOSED')) await update(Assignment, C.RevenueKpiAssignmentSchema, a, { status: 'CLOSED' }, u, 'CLOSE_ASSIGNMENT', { ...input, expectedVersion: a.version });
   return update(Period, C.RevenueKpiPeriodSchema, p, { status: 'CLOSED', closedBy: u.userId, closedAt: new Date().toISOString() }, u, 'CLOSE_PERIOD', input);
