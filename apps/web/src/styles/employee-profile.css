@@ -1,0 +1,18 @@
+.employee-profile { display: flex; flex-direction: column; gap: 20px; max-width: 1100px; min-width: 0; width: 100%; }
+.employee-profile-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.employee-profile-header h2 { font-size: 22px; font-weight: 700; margin: 0 0 8px; overflow-wrap: anywhere; }
+.employee-profile-header p { margin: 6px 0 0; }.employee-profile-code { font-size: 12px; color: var(--text-muted); }
+.employee-profile-job { font-size: 14px; font-weight: 600; }.employee-profile-location { font-size: 13px; color: var(--text-muted); overflow-wrap: anywhere; }
+.employee-profile-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.employee-profile-card { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; min-width: 0; }
+.employee-profile-card h3 { font-size: 15px; font-weight: 600; margin: 0; }
+.employee-profile-card > p { font-size: 13px; color: var(--text-muted); line-height: 1.7; margin: 0; }
+.employee-profile-card-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; width: 100%; }
+.employee-profile-fields { display: grid; grid-template-columns: minmax(90px, auto) 1fr; gap: 18px; font-size: 13px; line-height: 1.6; margin: 0; width: 100%; }
+.employee-profile-fields dt { color: var(--text-muted); }.employee-profile-fields dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.employee-profile-skills { display: flex; flex-wrap: wrap; gap: 6px; }
+.employee-profile-form { display: flex; flex-direction: column; gap: 16px; width: 100%; }.employee-profile-form small { color: var(--text-muted); }
+.employee-profile-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.employee-profile-secondary { font-size: 13px; line-height: 1.7; }.employee-profile-secondary > summary { cursor: pointer; font-weight: 600; }
+.employee-profile-secondary > .crm-report-card { margin-top: 16px; }.employee-profile-secondary > p { margin-top: 14px; }
+@media (max-width: 720px) { .employee-profile-columns { grid-template-columns: 1fr; }.employee-profile-header h2 { font-size: 20px; }.employee-profile-fields { column-gap: 12px; } }
