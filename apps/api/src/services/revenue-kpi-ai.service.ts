@@ -9,6 +9,14 @@ import { WorkflowError } from './project-workflow.service.js';
 import { digest } from './project-audit.service.js';
 const answerSchema = z.object({ suggestedGrowthPercent: z.number().finite().min(-20).max(30), rationale: z.string().trim().min(1).max(2000), confidence: z.enum(['low', 'medium', 'high']), model: z.string().max(120).optional(), degraded: z.boolean().optional() }).strict();
 const clamp = (n: number, min = -20, max = 30) => Math.min(max, Math.max(min, n));
+export function revenueEnvironmentProviders(env: Record<string, string | undefined>, pool: string[]) {
+  const key = env.AI_LLM_API_KEY?.trim() || env.OPENAI_API_KEY?.trim();
+  if (key && !key.startsWith('AQ.') && !key.startsWith('AIzaSy')) {
+    if (!env.AI_LLM_BASE_URL?.trim()) return [];
+    return [{ ...DEFAULT_GEMINI_PROVIDER, id: 'revenue-compatible', apiKey: key, type: 'openai_compatible', baseUrl: env.AI_LLM_BASE_URL.trim(), model: env.AI_LLM_MODEL?.trim() || DEFAULT_GEMINI_PROVIDER.model, timeoutMs: 15000, maxTokens: 600 }];
+  }
+  return pool.map((apiKey, i) => ({ id: 'revenue-slot-' + i, name: 'Revenue proposal', apiKey, type: 'gemini', baseUrl: env.AI_LLM_BASE_URL?.trim() || 'https://generativelanguage.googleapis.com/v1beta', model: env.AI_LLM_MODEL?.trim() || 'gemini-3-flash-preview', priority: i + 1, timeoutMs: 15000, maxTokens: 600 }));
+}
 export function revenueProposalBaseline(months: { period: string; revenueVnd: number; orderCount: number }[]) {
   const rates = months.slice(1).map((m, i) => (m.revenueVnd - months[i].revenueVnd) / months[i].revenueVnd * 100);
   const mean = rates.reduce((n, r) => n + r, 0) / rates.length;
@@ -40,8 +48,9 @@ export async function proposeRevenueTarget(user: AuthenticatedUser, id: string, 
   else {
     const range = revenueProposalBaseline(months); let providers: any[] = [];
     try { providers = await getActiveProviderConfig(); } catch { /* environment fallback below */ }
-    if (!providers.length) providers = getRotatedKeyPool().map((apiKey, i) => ({ ...DEFAULT_GEMINI_PROVIDER, id: 'revenue-slot-' + i, apiKey, priority: i + 1, timeoutMs: 15000, maxTokens: 600 }));
-    const r = await fetchRevenueProposal({ unitType: 'STORE', months, ...range }, { providerConfig: providers.length ? { configVersion: 'revenue-target-v1', providers } : null });
+    if (!providers.length) providers = revenueEnvironmentProviders(process.env, getRotatedKeyPool());
+    const transportProviders = providers.map(({ name: _displayName, ...provider }) => provider);
+    const r = await fetchRevenueProposal({ unitType: 'STORE', months, ...range }, { providerConfig: providers.length ? { configVersion: 'revenue-target-v1', providers: transportProviders } : null });
     proposal = { ...r, rangeMinPercent: range.allowedMinPercent, rangeMaxPercent: range.allowedMaxPercent, insufficientData: false, dataMonths: 3, generatedAt: new Date().toISOString() };
   }
   return storeRevenueKpiProposal(user, id, input, RevenueKpiAiProposalSchema.parse(proposal));
