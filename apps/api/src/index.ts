@@ -19,8 +19,8 @@ const PORT = process.env.PORT || 3001;
 async function bootstrap() {
   try {
     await connectDB();
-startReminderScheduler();
-startRevenueKpiReminderScheduler();
+    startReminderScheduler();
+    startRevenueKpiReminderScheduler();
     httpServer.listen(PORT, () => {
       console.log(`[HR BlockBot API] Server running at http://localhost:${PORT}`);
       console.log(`[HR BlockBot API] Health check: http://localhost:${PORT}/api/health`);

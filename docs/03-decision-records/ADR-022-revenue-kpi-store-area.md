@@ -38,6 +38,12 @@ append-only/idempotent, uses the technical security lock and preserves users byt
 for byte. No new Atlas role/user or original DB write is needed. Four module
 collections are provisioned explicitly; global autoCreate/autoIndex stay OFF.
 
+Notifications also share storage with Main. Persist revenue notifications with
+the compatible `type=system` plus a `revenueType` subtype. Only the new API
+projects the revenue enum; Main continues to parse/display a generic system
+notification without knowing new enum values. Titles/messages contain no revenue,
+target, names or private reasons. Entity type is an existing free-text field.
+
 ## AI and data extension
 
 AI receives three completed-month aggregate revenues/counts, baseline and bounds;

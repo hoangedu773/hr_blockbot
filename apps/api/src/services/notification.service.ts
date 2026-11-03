@@ -24,7 +24,11 @@ export async function notifyUser(input: NotifyInput): Promise<{ created: boolean
       $setOnInsert: {
         userId: new mongoose.Types.ObjectId(input.userId),
         employeeId: input.employeeId && mongoose.Types.ObjectId.isValid(input.employeeId) ? new mongoose.Types.ObjectId(input.employeeId) : null,
-        type: input.type, title: input.title.slice(0, 200), body: input.body.slice(0, 1000),
+        // Main API shares this collection but has an older notification enum.
+        // Persist a compatible system type; the new service projects the subtype.
+        type: input.type.startsWith('revenue_kpi_') ? 'system' : input.type,
+        revenueType: input.type.startsWith('revenue_kpi_') ? input.type : null,
+        title: input.title.slice(0, 200), body: input.body.slice(0, 1000),
         channel: "in_app", dedupeKey: input.dedupeKey,
         entityKind: input.entityKind ?? null, entityId: input.entityId ?? null,
         readAt: null, createdAt: now,
@@ -45,7 +49,7 @@ export async function notifyUser(input: NotifyInput): Promise<{ created: boolean
 
 export function notificationDto(row: any): NotificationItem {
   return NotificationItemSchema.parse({
-    id: String(row._id), type: row.type, title: row.title, body: row.body,
+    id: String(row._id), type: row.revenueType ?? row.type, title: row.title, body: row.body,
     channel: "in_app", entityKind: row.entityKind ?? null, entityId: row.entityId ?? null,
     readAt: row.readAt ? new Date(row.readAt).toISOString() : null,
     createdAt: new Date(row.createdAt).toISOString(),

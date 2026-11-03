@@ -60,6 +60,7 @@ test('overdue reminder is explicit SYSTEM event and never auto accepts; replay n
   let d = await S.revenueKpiDashboard(hr, '2026-06'), assigned = d.assignments.find(a => a.unitType === 'STORE');
   assigned = await S.mutateRevenueKpiAssignment(hr, assigned.id, 'publish', command(assigned.version));
   const before = await NotificationModel.countDocuments({ entityKind: 'revenue_kpi' }); await flushRevenueKpiNotices(); assert.equal(await NotificationModel.countDocuments({ entityKind: 'revenue_kpi' }), before);
+  const legacyReadable = await NotificationModel.findOne({ entityKind: 'revenue_kpi' }).lean(); assert.equal(legacyReadable.type, 'system'); assert.ok(legacyReadable.revenueType.startsWith('revenue_kpi_'));
   await runRevenueKpiReminders(new Date(Date.parse(assigned.deadlineAt) + 1));
   assigned = (await S.revenueKpiAssignmentResult(sm, assigned.id)).assignment;
   assert.equal(assigned.status, 'PENDING_ACCEPTANCE'); assert.equal(assigned.overdue, true); assert.equal(assigned.history.at(-1).actorKind, 'SYSTEM');

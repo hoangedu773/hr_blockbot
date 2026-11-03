@@ -4,6 +4,7 @@ export interface INotification extends Document {
   userId: mongoose.Types.ObjectId;
   employeeId: mongoose.Types.ObjectId | null;
   type: string;
+  revenueType?: string | null;
   title: string;
   body: string;
   channel: "in_app";
@@ -27,6 +28,7 @@ const NotificationSchema = new Schema<INotification>(
       ],
       required: true,
     },
+    revenueType: { type: String, default: null },
     title: { type: String, required: true, maxlength: 200 },
     body: { type: String, required: true, maxlength: 1000 },
     channel: { type: String, enum: ["in_app"], default: "in_app", required: true },
