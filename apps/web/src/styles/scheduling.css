@@ -13,6 +13,7 @@
 .schedule-add:disabled { opacity: .3; cursor: default; }
 .schedule-week-status { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; padding: 12px 0; }
 .schedule-week-status strong { color: var(--accent-solid); }
+.schedule-source-notice { border-left: 3px solid var(--accent-solid); padding: 10px 14px; background: var(--surface-card); font-size: 12px; line-height: 1.7; }
 .schedule-request { border: 1px solid var(--border-subtle); border-radius: 12px; padding: 16px; margin: 10px 0; font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; }
 .schedule-request-heading { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
 .schedule-shift-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }

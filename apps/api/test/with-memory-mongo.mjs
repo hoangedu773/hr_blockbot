@@ -49,7 +49,9 @@ function databaseFor(baseUri, file) {
 
 let failed = false;
 for (const file of TEST_FILES) {
-  const server = await memoryServer.MongoMemoryServer.create();
+  const server = /published-schedule-demo\.test\.mjs$/.test(file)
+    ? await memoryServer.MongoMemoryReplSet.create({ replSet: { count: 1 } })
+    : await memoryServer.MongoMemoryServer.create();
   const baseUri = server.getUri("test_hr");
 
   console.log(`\n[test-mongo] running ${file}`);

@@ -117,6 +117,8 @@ export async function executeGatewayTool(token: string, body: unknown) {
     const localTime = (day: string, minutes: number) => datePlus(day, Math.floor(minutes / 1440)) + ' ' + String(Math.floor(minutes % 1440 / 60)).padStart(2, '0') + ':' + String(minutes % 60).padStart(2, '0');
     result = { from, to, timezone: 'Asia/Ho_Chi_Minh', publishedOnly: true,
       items: items.slice(0, 30).map((a) => ({ date: a.date, shiftCode: a.shiftCode, shiftName: a.shiftName, storeName: a.storeName,
+          sourceKind: a.source?.kind ?? 'MANAGER_PUBLISHED',
+          sourceNote: a.source?.kind === 'DEMO_RANDOM' ? 'Lịch mẫu ngẫu nhiên theo yêu cầu chủ dự án; không phải bằng chứng đi làm thực tế.' : a.source?.kind === 'LEGACY_MATCHED' ? 'Đối chiếu mã ca từ lịch cũ, giờ lấy từ danh mục đã cấu hình.' : null,
         intervals: a.intervals.map((p) => ({ startsAtLocal: localTime(a.date, p.startMinute), endsAtLocal: localTime(a.date, p.endMinute) })) })), truncated: items.length > 30,
       message: items.length ? null : 'Chưa có ca đã công bố trong khoảng ngày này. Không suy từ lịch nguồn cũ hoặc mặc định là ngày nghỉ.' };
   } else if (tool === "validate_context") result = { valid: true };

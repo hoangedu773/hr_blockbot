@@ -1,0 +1,73 @@
+// Real UI/API/Mongo transaction test, synthetic actors only, no external providers.
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import http from 'node:http';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+import { chromium } from './helpers/browser-deps.mjs';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const requireApi = createRequire(root + '/apps/api/package.json');
+const { MongoMemoryReplSet } = requireApi('mongodb-memory-server');
+const mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
+process.env.NODE_ENV = 'test'; process.env.TEST_MONGODB_URI = mongo.getUri('test_published_demo_browser');
+process.env.JWT_SECRET = 'owned-demo-browser-test-secret-minimum32'; delete process.env.ATLAS_URI; delete process.env.MONGODB_DB_NAME;
+await import('../../api/test/require-isolated-db.mjs');
+const mongoose = requireApi('mongoose'); mongoose.set('transactionAsyncLocalStorage', true);
+const { connectDB, disconnectDB } = await import('../../api/dist/db.js');
+const { createApp } = await import('../../api/dist/app.js');
+const { authorizationV1Fixture } = await import('../../api/test/helpers/authorization-v1-fixture.mjs');
+const { UserModel } = await import('../../api/dist/models/User.js');
+const { resolvePrincipal } = await import('../../api/dist/services/principal.service.js');
+const { schedulingGrantPlan } = await import('../../api/scripts/enable-scheduling-grants.mjs');
+const { planPublishedDemo, applyPublishedDemo, readInputs } = await import('../../api/scripts/seed-published-schedule-demo.mjs');
+const contexts = [], errors = [], output = path.join(root, 'test-results/published-demo'); fs.mkdirSync(output, { recursive: true });
+let browser, api, web, fixture, apiOrigin, origin;
+try {
+  await connectDB(); fixture = await authorizationV1Fixture();
+  for (const name of ['sm', 'staff']) {
+    const user = await UserModel.findById(fixture.actors[name].user._id).lean(), plan = schedulingGrantPlan(user, String(fixture.actors.system_admin.user._id));
+    await UserModel.updateOne({ _id: user._id }, { $set: { authorization: plan.authorization } });
+  }
+  const actor = await resolvePrincipal({ sub: String(fixture.actors.system_admin.user._id), role: 'Admin', securityVersion: 0 });
+  const input = await readInputs(); await applyPublishedDemo(actor, input, planPublishedDemo(input));
+  const dist = path.join(root, 'apps/web/dist');
+  web = http.createServer((req, res) => {
+    const name = new URL(req.url, 'http://127.0.0.1').pathname, file = path.resolve(dist, '.' + (name === '/' ? '/index.html' : name));
+    if (!file.startsWith(dist + path.sep) || !fs.existsSync(file)) return res.writeHead(404).end();
+    res.setHeader('Content-Type', { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' }[path.extname(file)] || 'application/octet-stream'); fs.createReadStream(file).pipe(res);
+  });
+  await new Promise(r => web.listen(0, '127.0.0.1', r)); origin = 'http://127.0.0.1:' + web.address().port; process.env.FRONTEND_URL = origin;
+  api = http.createServer(createApp()); await new Promise(r => api.listen(0, '127.0.0.1', r)); apiOrigin = 'http://127.0.0.1:' + api.address().port;
+  browser = await chromium.launch({ headless: true });
+  for (const name of ['sm', 'staff']) {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1050 } }); contexts.push(context);
+    await context.route('**/*', async route => { const url = new URL(route.request().url());
+      if (url.pathname.startsWith('/api/')) return route.fulfill({ response: await route.fetch({ url: apiOrigin + url.pathname + url.search }) });
+      if (url.origin === origin) return route.continue(); return route.fulfill({ status: 200, body: '' });
+    });
+    const page = await context.newPage(); page.on('pageerror', e => errors.push(e.message)); page.setDefaultTimeout(15000);
+    await page.goto(origin, { waitUntil: 'networkidle' }); await page.getByRole('button', { name: 'Get Started', exact: true }).click();
+    await page.locator('#login-username').fill('v1-' + name); await page.locator('#login-password').fill(fixture.password);
+    await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click(); await page.locator('.crm-sidebar').waitFor();
+    await page.locator('.crm-sidebar [data-section="schedules"]').click();
+    await page.getByLabel('Tuần bắt đầu', { exact: true }).fill('2026-11-16');
+    if (name === 'sm') {
+      await page.locator('.schedule-grid .schedule-cell').first().waitFor();
+      assert.match(await page.locator('.schedule-source-notice').innerText(), /Lịch mẫu/);
+      assert.ok(await page.locator('.schedule-grid').getByText('Lịch mẫu ngẫu nhiên', { exact: true }).count() > 0);
+      await page.screenshot({ path: path.join(output, 'manager.png') });
+    } else {
+      await page.locator('.schedule-personal .schedule-request').first().waitFor();
+      assert.ok(await page.locator('.schedule-personal').getByText('Lịch mẫu ngẫu nhiên', { exact: true }).count() > 0);
+      assert.doesNotMatch(await page.locator('.schedule-personal').innerText(), /V1-staffB|V1-sm/);
+      await page.setViewportSize({ width: 390, height: 844 }); await page.screenshot({ path: path.join(output, 'personal-mobile.png') });
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+    }
+  }
+  assert.deepEqual(errors, []); console.log('PASS published demo: transaction -> manager grid/source label -> personal source label -> mobile; no external provider');
+} finally {
+  for (const c of contexts) await c.close().catch(() => {}); await browser?.close();
+  for (const s of [api, web]) if (s) { s.closeAllConnections(); await new Promise(r => s.close(r)); }
+  await disconnectDB(); await mongo.stop();
+}

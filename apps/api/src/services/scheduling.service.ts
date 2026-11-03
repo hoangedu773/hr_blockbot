@@ -42,6 +42,8 @@ function entry(row: any, changes: any, actorId: string, action: string, reason: 
     stateHash: digest(state({ ...row, ...changes })), version: changes.version, notices };
   return { ...payload, hash: digest(payload) };
 }
+// Used by the authenticated, pinned test-database operator; never an HTTP write bypass.
+export { entry as scheduleAuditEntry };
 export function verifySchedule(row: any) {
   let previous = '0'.repeat(64);
   for (const e of row.history ?? []) { const { hash, ...payload } = e; if (payload.previousHash !== previous || digest(payload) !== hash) fail('SCHEDULE_AUDIT_INVALID', 'Lịch sử lịch làm không khớp; cần đối chiếu.'); previous = hash; }

@@ -26,6 +26,7 @@ export type ScheduleDraftInput = z.infer<typeof ScheduleDraftInputSchema>;
 export type ScheduleAssignment = z.infer<typeof ScheduleDraftInputSchema>['assignments'][number] & {
   employeeName: string; employeeCode: string; shiftCode: string; shiftName: string;
   shiftVersion: number; intervals: z.infer<typeof ShiftIntervalSchema>[];
+  source?: { kind: 'DEMO_RANDOM' | 'LEGACY_MATCHED'; batchId: string; sourceId?: string };
 };
 export const ScheduleChangeCreateSchema = z.object({
   expectedVersion: z.number().int().positive(), clientRequestId: z.string().uuid().transform((value) => value.toLowerCase()),

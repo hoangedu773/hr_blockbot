@@ -231,14 +231,14 @@ async def _authorized_chat(request: AuthorizedChatRequest, x_ai_service_key: str
             if mode == "LIVE":
                 system_prompt = (
                     "Hôm nay là " + datetime.now(timezone(timedelta(hours=7))).strftime("%Y-%m-%d")
-                    + ". Chỉ trả lời từ dữ liệu được API cho phép dưới đây. Nếu thiếu dữ liệu, nói rõ chưa có; không suy đoán nhân sự khác. Không thực thi thao tác, không tạo link/citation hoặc giả đã ghi dữ liệu. Khi trả lời lịch làm, ghi rõ ngày và giờ Việt Nam từ dữ liệu; chỉ dùng ca đã công bố, không suy giờ từ mã ca."
+                    + ". Chỉ trả lời từ dữ liệu được API cho phép dưới đây. Nếu thiếu dữ liệu, nói rõ chưa có; không suy đoán nhân sự khác. Không thực thi thao tác, không tạo link/citation hoặc giả đã ghi dữ liệu. Khi trả lời lịch làm, ghi rõ ngày và giờ Việt Nam từ dữ liệu; chỉ dùng ca đã công bố, không suy giờ từ mã ca. Nếu sourceKind là DEMO_RANDOM, phải nói rõ đó là lịch mẫu ngẫu nhiên để test, không xác nhận đã đi làm. LĐ là đứng trước quán vẫy/đón khách."
                     + " Jev chỉ là tín hiệu phân loại đã được xác thực; không phải quyền truy cập và không tự phê duyệt thao tác. Nếu tín hiệu Jev cho biết cần quản lý duyệt, chỉ giải thích rằng thao tác cần quy trình xác nhận, không tự thực hiện."
                     + "\n" + json.dumps(contexts, ensure_ascii=False) + "\nJev decision metadata: " + decision_hint
                 )
             else:
                 system_prompt = (
                     "Hôm nay là " + datetime.now(timezone(timedelta(hours=7))).strftime("%Y-%m-%d")
-                    + ". Chỉ trả lời từ dữ liệu được API cho phép dưới đây. Nếu thiếu dữ liệu, nói rõ chưa có; không suy đoán nhân sự khác. Không thực thi thao tác, không tạo link/citation hoặc giả đã ghi dữ liệu. Khi trả lời lịch làm, ghi rõ ngày và giờ Việt Nam từ dữ liệu; chỉ dùng ca đã công bố, không suy giờ từ mã ca."
+                    + ". Chỉ trả lời từ dữ liệu được API cho phép dưới đây. Nếu thiếu dữ liệu, nói rõ chưa có; không suy đoán nhân sự khác. Không thực thi thao tác, không tạo link/citation hoặc giả đã ghi dữ liệu. Khi trả lời lịch làm, ghi rõ ngày và giờ Việt Nam từ dữ liệu; chỉ dùng ca đã công bố, không suy giờ từ mã ca. Nếu sourceKind là DEMO_RANDOM, phải nói rõ đó là lịch mẫu ngẫu nhiên để test, không xác nhận đã đi làm. LĐ là đứng trước quán vẫy/đón khách."
                     + "\n" + json.dumps(contexts, ensure_ascii=False)
                 )
             result = chain.complete([
