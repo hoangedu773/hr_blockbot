@@ -1,0 +1,20 @@
+{
+  "phobert-base": {
+    "model": "vinai/phobert-base",
+    "revision": "01daacda68afe13d83023d16ec647239e344a1e6",
+    "files": {
+      "config.json": "71df79a67a65b1ee472938d0dff77297c0d77e20fef1af41e0013b1d384efb0d",
+      "pytorch_model.bin": "a0b0f0912c710147fbaac015b0a4011216a0061a56c03b840b639e40d3bb49cc",
+      "bpe.codes": "9dfe53fb8abbddd3387da99641c36e00bee757a3679aad9cf0a7cdc4b30f6ef8",
+      "vocab.txt": "dffd7543c401fb6567253ae7c3313004532c33d062525250049c616544bad777"
+    }
+  },
+  "vncorenlp": {
+    "revision": "62bbc58fe5d113c898eae112656be97dcf50b3a0",
+    "files": {
+      "VnCoreNLP-1.2.jar": "9e2811cdbc2ddfc71d04be5dc36e185c88dcd1ad4d5d69e4ff2e1369dccf7793",
+      "models/wordsegmenter/vi-vocab": "0a47c5b55bbce163029d37730a67b9479740388695c29c106c112b815613eaa5",
+      "models/wordsegmenter/wordsegmenter.rdr": "9e62f96bd93e37a24f364238e8d8ae986fa5dad6dbc9f4eae622ab3651b7fa06"
+    }
+  }
+}
