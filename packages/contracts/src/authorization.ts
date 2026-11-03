@@ -14,7 +14,7 @@ export const AuthorizationCapabilitySchema = z.enum([
   "assignment.review", "assignment.handover", "assignment.discuss", "assignment.escalation_review",
   "projects.execute", "reports.submit", "reports.review", "assignment.audit_read",
   "delegations.manage", "policies.read", "attachments.read", "chatbot.data_read", "chatbot.execute",
-  "legacy.operations", "kpi.write", "payroll.write", "promotion.approve", "raw_source.read",
+  "legacy.operations", "kpi.read_self", "kpi.read_department", "kpi.manage", "kpi.publish", "kpi.override", "kpi.write", "payroll.write", "promotion.approve", "raw_source.read",
   "directory.read_store", "employees.read_hr", "onboarding.propose", "onboarding.draft", "onboarding.review",
   "employees.lifecycle_request", "employees.lifecycle_review", "employees.transfer_confirm",
   "delegations.request", "delegations.review", "grants.configure", "grants.revoke",

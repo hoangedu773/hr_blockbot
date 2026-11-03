@@ -37,4 +37,14 @@ Official F4 quality acceptance remains blocked by approved rubric, independent h
 
 Follow-up approval permits an explicitly declared experimental `F4_SEMANTIC_WEIGHT` solely for real-model integration testing before benchmark labels are available. This does not select an optimal coefficient, enable PHOBERT by default, or waive resource/real-weight requirements. Do not use test integration output as quality evidence. Technical integration still requires explicit opt-in, a separate Python runtime, pinned real assets and the declared integration-only coefficient; official benchmark still requires independent labels.
 
+## 03/11/2026 local verification
+
+The pinned assets were downloaded and attested under `D:\\HRBlockbot-private\\f4-assets` by `scripts/setup-f4-assets.mjs`. With JDK 24 exposed only to the worker process (`JAVA_HOME=C:\\Program Files\\Java\\jdk-24`), the real encoder loaded offline and ranked this synthetic request successfully:
+
+- `Kiểm kê kho` candidate: cosine `0.8282711255`.
+- Unrelated `Bán hàng` candidate: cosine `0.6604577725`.
+- `python -m pytest tests/test_f4.py -q` with `RUN_F4_REAL=1`: **7 passed in 19.60s**.
+
+This is a technical smoke result, not a production-quality claim. The worker remains loopback-only and F4 stays `OFF` on Render. Do not place `F4_SERVICE_KEY`, model paths, or real employee text in Git or public service configuration.
+
 Human annotation preparation: see [f4-pilot-review-guide.md](f4-pilot-review-guide.md). `eval/prepare_f4_review.py` exports two unlabelled, blinded JSON packets without touching the 20x10 source pilot. Official evaluation remains blocked until actual rubric approval and two independent human judgments exist.

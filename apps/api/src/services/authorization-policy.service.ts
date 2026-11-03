@@ -39,6 +39,9 @@ export const AUTHORIZATION_POLICY: Readonly<Record<AuthorizationCapability, Rule
   "delegations.manage": denied(), "delegations.request": operational(managers), "delegations.review": operational(managers),
   "policies.read": operational(everyone), "attachments.read": operational(everyone),
   "chatbot.data_read": self(), "chatbot.execute": denied(), "legacy.operations": denied(),
+  "kpi.read_self": self(), "kpi.read_department": operational(["hr", ...managers, "aom"]),
+  "kpi.manage": operational(["hr", ...managers, "aom"]), "kpi.publish": operational(["hr", ...managers, "aom"]),
+  "kpi.override": operational(["hr", ...managers, "aom"]),
   "kpi.write": denied(), "payroll.write": denied(), "promotion.approve": denied(), "raw_source.read": denied(),
 });
 

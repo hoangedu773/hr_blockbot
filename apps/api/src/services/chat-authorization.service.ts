@@ -5,18 +5,20 @@ import { z } from "zod";
 import type { AuthenticatedUser } from "../middlewares/auth.middleware.js";
 import { getJwtSecret } from "./auth.service.js";
 import { resolvePrincipal } from "./principal.service.js";
-import { requireCapability, employeeScopeQuery } from "./authorization-scope.service.js";
+import { requireCapability, employeeScopeQuery, allowedStoreIds } from "./authorization-scope.service.js";
 import { projectReadScope, visibleProject, WorkflowError, assertProjectWrite, assertExecutionAllowed, objectId } from "./project-workflow.service.js";
 import { EmployeeModel } from "../models/Employee.js";
 import { ProjectModel } from "../models/Project.js";
 import { approvedDocuments, documentAllowed, documentReceipt } from "./document-authorization.service.js";
 import { chatWithAiService } from "./ai-client.service.js";
 import { digest } from "./project-audit.service.js";
+import { EvaluationModel } from "../models/Evaluation.js";
+import { currentPeriod, periodRange } from "./kpi.service.js";
 
 const receipts = () => mongoose.connection.collection<any>("chat_authorization_requests");
 const contextHash = (user: AuthenticatedUser) => digest({ authorization: user.authorization, canonical: user.canonical, delegations: user.effectiveDelegations ?? [], employeeId: user.employeeId });
-export const GatewayToolRequestSchema = z.object({ requestId: z.string().uuid(), tool: z.enum(["get_my_profile", "list_projects", "get_project_status", "query_policy", "directory", "submit_report", "get_my_kpi", "get_department_kpi", "validate_context"]),
-  args: z.object({ projectId: z.string().regex(/^[a-f0-9]{24}$/i).optional(), query: z.string().max(2000).optional() }).strict().default({}) }).strict();
+export const GatewayToolRequestSchema = z.object({ requestId: z.string().uuid(), tool: z.enum(["get_my_profile", "list_projects", "get_project_status", "query_policy", "directory", "submit_report", "get_my_kpi", "get_department_kpi", "get_upcoming_deadlines", "validate_context"]),
+  args: z.object({ projectId: z.string().regex(/^[a-f0-9]{24}$/i).optional(), query: z.string().max(2000).optional(), period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional() }).strict().default({}) }).strict();
 export function serviceKeyValid(provided: string): boolean {
   const expected = process.env.AI_SERVICE_API_KEY;
   if (!expected || !provided) return false;
@@ -70,8 +72,43 @@ export async function executeGatewayTool(token: string, body: unknown) {
     const rows = await approvedDocuments(user, args.query ?? "");
     documents = rows.map(({ document }) => documentReceipt(document));
     result = rows.map(({ document, text }) => ({ documentId: String(document._id), title: document.title, version: document.version ?? "", text: text.slice(0, 5000) }));
+  } else if (tool === "get_my_kpi") {
+    if (!user.employeeId) throw new WorkflowError(403, "RBAC_DENIED", "Tài khoản chưa gắn hồ sơ nhân viên");
+    requireCapability(user, "kpi.read_self", { employeeId: user.employeeId });
+    const period = args.period ?? currentPeriod();
+    const row: any = await EvaluationModel.findOne({ employeeId: new mongoose.Types.ObjectId(user.employeeId), period }).lean();
+    result = !row ? { period, available: false, message: "Chưa có kỳ đánh giá KPI cho tháng này." }
+      : row.status === "PUBLISHED"
+        ? { period, available: true, status: row.status, finalScore: row.finalScore, machineScore: row.machineScore,
+            explanation: row.analysis?.explanation ?? null, themes: row.analysis?.themes ?? [], riskSignals: row.analysis?.riskSignals ?? [],
+            overrideReason: row.overrideReason ?? null, publishedAt: row.publishedAt }
+        : { period, available: false, status: row.status, message: "Kỳ đánh giá chưa được công bố; chỉ xem chi tiết sau khi quản lý chốt." };
+  } else if (tool === "get_department_kpi") {
+    requireCapability(user, "kpi.read_department");
+    const period = args.period ?? currentPeriod();
+    periodRange(period);
+    const stores = allowedStoreIds(user, "kpi.read_department");
+    const clauses: Record<string, any>[] = [];
+    if (stores.length) clauses.push({ storeId: { $in: stores.map((id) => new mongoose.Types.ObjectId(id)) } });
+    if (user.departmentId && mongoose.Types.ObjectId.isValid(user.departmentId)) clauses.push({ departmentId: new mongoose.Types.ObjectId(user.departmentId) });
+    if (!clauses.length) throw new WorkflowError(403, "RBAC_DENIED", "Chưa có phạm vi KPI phòng ban");
+    const rows: any[] = await EvaluationModel.find({ period, $or: clauses }).select("status finalScore machineScore").limit(5000).lean();
+    const published = rows.filter((row) => row.status === "PUBLISHED" && typeof row.finalScore === "number");
+    const average = (values: number[]) => values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length * 100) / 100 : null;
+    result = { period, published: published.length, pendingReview: rows.length - published.length,
+      averageFinalScore: average(published.map((row) => row.finalScore)),
+      averageMachineScore: average(published.map((row) => row.machineScore).filter((value) => typeof value === "number")),
+      note: "Chỉ số tổng hợp; không trả điểm hay nhận xét của từng nhân viên." };
+  } else if (tool === "get_upcoming_deadlines") {
+    const now = new Date(), soon = new Date(now.getTime() + 7 * 86400000);
+    const rows: any[] = await ProjectModel.find({ $and: [projectReadScope(user), { status: { $in: ["ASSIGNED", "IN_PROGRESS", "PENDING_REVIEW"] } }, { dueDate: { $ne: null, $lte: soon } }] })
+      .select("title status dueDate progress version").sort({ dueDate: 1 }).limit(20).lean();
+    projects = rows.map((row) => ({ projectId: String(row._id), version: row.version ?? 1 }));
+    result = rows.map((row) => ({ projectId: String(row._id), title: row.title, status: row.status,
+      dueDate: new Date(row.dueDate).toISOString(), daysLeft: Math.ceil((new Date(row.dueDate).getTime() - now.getTime()) / 86400000),
+      progress: row.progress }));
   } else if (tool === "validate_context") result = { valid: true };
-  else result = { unavailable: true, reason: "KPI is outside Authorization V1; no guessed data" };
+  else result = { unavailable: true, reason: "Tool is outside Authorization V1; no guessed data" };
   const record = await receipts().updateOne({ _id: requestId, status: "ACTIVE", expiresAt: { $gt: new Date() } },
     { $addToSet: { documents: { $each: documents }, projects: { $each: projects } } });
   if (!record.matchedCount) throw new WorkflowError(403, "CHAT_REQUEST_UNAVAILABLE", "Request closed during read");

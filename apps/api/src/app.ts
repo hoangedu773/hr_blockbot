@@ -14,6 +14,8 @@ import chatRouter from "./routes/chat.js";
 import attachmentsRouter from "./routes/attachments.js";
 import storesRouter from "./routes/stores.js";
 import dashboardRouter from "./routes/dashboard.js";
+import kpiRouter from "./routes/kpi.js";
+import notificationsRouter from "./routes/notifications.js";
 import assignmentRouter from "./routes/assignment.js";
 import personnelAdminRouter from "./routes/personnel-admin.js";
 import onboardingRouter from "./routes/onboarding.js";
@@ -99,6 +101,8 @@ export function createApp(options: { onboarding?: OnboardingOptions; recovery?: 
   app.use("/api", attachmentsRouter);
   app.use("/api", storesRouter);
   app.use("/api", dashboardRouter);
+  app.use("/api", kpiRouter);
+  app.use("/api", notificationsRouter);
   app.use("/api", assignmentRouter);
   app.use("/api", personnelAdminRouter);
 

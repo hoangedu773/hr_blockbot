@@ -12,6 +12,9 @@ import type {
   Conversation,
   CreateProfileChangeRequest,
   DashboardOverview,
+  KpiEvaluation,
+  KpiDashboard,
+  NotificationItem,
   EmployeeDetail,
   EmployeeLevel,
   EmployeeSummary,
@@ -633,3 +636,40 @@ export async function fetchDashboardOverview(): Promise<DashboardOverview> {
 }
 
 export type { StoreCreate, StoreKind, StoreListResponse, StoreStatus, StoreSummary, StoreUpdate };
+
+export async function fetchMyKpi(period: string): Promise<{ items: KpiEvaluation[] }> {
+  return requestJson<{ items: KpiEvaluation[] }>(`/kpi/me?period=${encodeURIComponent(period)}`);
+}
+export async function fetchDepartmentKpi(period: string): Promise<{ period: string; items: KpiEvaluation[] }> {
+  return requestJson<{ period: string; items: KpiEvaluation[] }>(`/kpi/department?period=${encodeURIComponent(period)}`);
+}
+export async function fetchKpiDashboard(period: string): Promise<KpiDashboard> {
+  return requestJson<KpiDashboard>(`/kpi/dashboard?period=${encodeURIComponent(period)}`);
+}
+export async function openKpiPeriod(period: string): Promise<{ period: string; employees: number; created: number; existing: number }> {
+  return requestJson('/kpi/periods/open', postJson({ period }));
+}
+export async function saveKpiSelfReview(id: string, text: string, expectedVersion: number): Promise<KpiEvaluation> {
+  return requestJson<KpiEvaluation>(`/kpi/${encodeURIComponent(id)}/self-review`, postJson({ text, expectedVersion }));
+}
+export async function saveKpiManagerReview(id: string, text: string, managerScore: number, expectedVersion: number): Promise<KpiEvaluation> {
+  return requestJson<KpiEvaluation>(`/kpi/${encodeURIComponent(id)}/manager-review`, postJson({ text, managerScore, expectedVersion }));
+}
+export async function analyzeKpi(id: string, expectedVersion: number): Promise<KpiEvaluation> {
+  return requestJson<KpiEvaluation>(`/kpi/${encodeURIComponent(id)}/analyze`, postJson({ expectedVersion }));
+}
+export async function publishKpi(id: string, expectedVersion: number, finalScore?: number, overrideReason?: string): Promise<KpiEvaluation> {
+  return requestJson<KpiEvaluation>(`/kpi/${encodeURIComponent(id)}/publish`, postJson({ expectedVersion, ...(finalScore === undefined ? {} : { finalScore }), ...(overrideReason ? { overrideReason } : {}) }));
+}
+export async function overrideKpi(id: string, expectedVersion: number, finalScore: number, reason: string): Promise<KpiEvaluation> {
+  return requestJson<KpiEvaluation>(`/kpi/${encodeURIComponent(id)}/override`, postJson({ expectedVersion, finalScore, reason }));
+}
+export async function fetchNotifications(limit = 30): Promise<{ items: NotificationItem[]; unread: number }> {
+  return requestJson(`/notifications?limit=${limit}`);
+}
+export async function markNotificationRead(id: string): Promise<void> {
+  await requestJson(`/notifications/${encodeURIComponent(id)}/read`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+}
+export async function markAllNotificationsRead(): Promise<{ updated: number }> {
+  return requestJson('/notifications/read-all', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+}

@@ -3,6 +3,7 @@ import { AuthorizationSummarySchema } from "./authorization.js";
 import { F4CandidateSchema } from "./f4.js";
 export * from "./authorization.js";
 export * from "./f4.js";
+export * from "./kpi.js";
 
 // ============================================================================
 // 1. Core Auth & RBAC Schemas
@@ -1020,10 +1021,12 @@ export const NotificationNewPayloadSchema = z.object({
   type: z.enum([
     "deadline_3d",
     "deadline_1d",
+    "deadline_overdue",
     "report_submitted",
     "report_approved",
     "report_rejected",
     "kpi_published",
+    "kpi_review_digest",
     "system",
   ]),
   title: z.string().min(1),

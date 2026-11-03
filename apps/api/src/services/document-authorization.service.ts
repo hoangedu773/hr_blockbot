@@ -66,6 +66,63 @@ export function documentReceipt(document: any) {
   return { documentId: String(document._id), digest: digest({ acl: document.acl, title: document.title, version: document.version,
     content: document.content, chunks: document.chunks, attachments: document.attachments }) };
 }
+const STOPWORDS = new Set(("la cua va cho voi thi ma nhu de den tu trong mot cac nhung hay khi nao vi sao the nao toi ban minh chung em anh chi o cai gi co khong duoc lam ra vao ra se da dang can phai nen roi cung rat qua moi nay do day hom thang nam").split(" "));
+const SYNONYMS: Array<[RegExp, string[]]> = [
+  [/nghỉ\s*phép|phép\s*năm|annual\s*leave/i, ["phép", "nghỉ", "leave"]],
+  [/lương|thu\s*nhập|salary|payroll/i, ["lương", "thu nhập", "salary", "bảng lương"]],
+  [/chấm\s*công|điểm\s*danh|giờ\s*công/i, ["chấm công", "điểm danh", "giờ công"]],
+  [/kỷ\s*luật|nội\s*quy|vi\s*phạm/i, ["kỷ luật", "nội quy", "vi phạm"]],
+  [/đồng\s*phục|trang\s*phục/i, ["đồng phục", "trang phục"]],
+  [/tăng\s*ca|làm\s*thêm|overtime/i, ["tăng ca", "làm thêm", "overtime"]],
+  [/nghỉ\s*việc|thôi\s*việc|resign/i, ["nghỉ việc", "thôi việc", "resign"]],
+  [/đào\s*tạo|huấn\s*luyện|training/i, ["đào tạo", "huấn luyện", "training"]],
+];
+function normalizeText(value: unknown): string {
+  return String(value ?? "").normalize("NFC").toLocaleLowerCase("vi")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
+}
+function termsOf(text: string): string[] {
+  return [...new Set(normalizeText(text).split(" ").filter((term) => term.length > 1 && !STOPWORDS.has(term)))].slice(0, 40);
+}
+function expand(query: string): string[] {
+  const base = termsOf(query);
+  const extra: string[] = [];
+  for (const [pattern, words] of SYNONYMS) if (pattern.test(query)) extra.push(...words.flatMap((word) => termsOf(word)));
+  return [...new Set([...base, ...extra])].slice(0, 60);
+}
+function countTerm(tokens: string[], term: string): number {
+  return tokens.reduce((count, token) => count + (token === term ? 1 : 0), 0);
+}
+function scoreText(queryTerms: string[], phrase: string, title: string, text: string): number {
+  const titleTokens = termsOf(title), bodyTokens = termsOf(text);
+  if (!queryTerms.length) return 0;
+  let score = 0, matched = 0;
+  for (const term of queryTerms) {
+    const inTitle = countTerm(titleTokens, term), inBody = countTerm(bodyTokens, term);
+    if (inTitle || inBody) matched += 1;
+    score += inTitle * 3 + (inBody ? 1 + Math.log(inBody) : 0);
+  }
+  const coverage = matched / queryTerms.length;
+  score += coverage * 2;
+  const normalizedPhrase = normalizeText(phrase);
+  if (normalizedPhrase.length > 3 && normalizeText(text).includes(normalizedPhrase)) score += 5;
+  return score;
+}
+function bestChunks(queryTerms: string[], content: unknown, chunks: unknown): string {
+  const pool: string[] = [];
+  if (typeof content === "string" && content.trim()) pool.push(content.trim());
+  if (Array.isArray(chunks)) for (const chunk of chunks) {
+    const text = typeof chunk === "string" ? chunk : typeof chunk?.text === "string" ? chunk.text : "";
+    if (text.trim()) pool.push(text.trim());
+  }
+  if (!pool.length) return "";
+  if (pool.length === 1) return pool[0].slice(0, 6000);
+  const ranked = pool.map((text) => ({ text, score: scoreText(queryTerms, "", "", text) }))
+    .sort((a, b) => b.score - a.score).filter((row) => row.score > 0).slice(0, 2);
+  const selected = (ranked.length ? ranked : pool.slice(0, 1).map((text) => ({ text, score: 0 })));
+  return selected.map((row) => row.text).join(String.fromCharCode(10, 10)).slice(0, 6000);
+}
+
 export async function approvedDocuments(user: AuthenticatedUser, query = "") {
   if (!hasCapability(user, "policies.read")) return [];
   const metadata = await mongoose.connection.collection("policies").find({ "acl.reviewStatus": "APPROVED", "acl.allowedProfiles": user.authorization!.profile,
@@ -77,13 +134,17 @@ export async function approvedDocuments(user: AuthenticatedUser, query = "") {
   const candidates = await mongoose.connection.collection("policies").find({ _id: { $in: ids } },
     { projection: { title: 1, version: 1, content: 1, chunks: 1, acl: 1, attachments: 1 } }).toArray();
   // Filter BEFORE text scoring/projection/context/provider. Missing ACL never means public.
-  const terms = query.toLocaleLowerCase("vi").split(/\s+/).filter((term) => term.length > 2).slice(0, 30);
+  const queryTerms = expand(query);
   const allowed = candidates.filter((document) => documentAllowed(user, document));
-  return allowed.map((document) => {
-    const text = [typeof document.content === "string" ? document.content : "", ...(Array.isArray(document.chunks) ? document.chunks.map((chunk: any) => typeof chunk.text === "string" ? chunk.text : "") : [])].join("\n");
-    const score = terms.filter((term) => (String(document.title) + " " + text).toLocaleLowerCase("vi").includes(term)).length;
-    return { document, text, score };
-  }).filter((row) => !terms.length || row.score > 0).sort((a, b) => b.score - a.score).slice(0, 5);
+  const scored = allowed.map((document) => {
+    const text = bestChunks(queryTerms, document.content, document.chunks);
+    return { document, text, score: scoreText(queryTerms, query, String(document.title ?? ""), text) };
+  });
+  if (!queryTerms.length) return scored.slice(0, 5);
+  const positive = scored.filter((row) => row.score > 0).sort((a, b) => b.score - a.score);
+  if (!positive.length) return [];
+  const floor = Math.max(1, positive[0].score * 0.3);
+  return positive.filter((row) => row.score >= floor).slice(0, 5);
 }
 export async function authorizeAttachment(user: AuthenticatedUser, category: string, filename: string): Promise<void> {
   const candidates = await mongoose.connection.collection("policies").find({ "attachments": { $elemMatch: { category, filename } }, "acl.reviewStatus": "APPROVED" },

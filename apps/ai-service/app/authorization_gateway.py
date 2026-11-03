@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 from urllib.parse import urlsplit
 
@@ -18,10 +19,17 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 from app.deadline import remaining_seconds, use_deadline
 from app.jev_shadow import analyze, eligible, shadow_mode, unavailable
+from app.kpi_analysis import ReviewItem, analyze as analyze_reviews
 from app.llm.base import ChatMessage, CompletionOptions, LLMUnavailable
 from app.llm.chain import provider_cache
 
 app = FastAPI(title="HR BlockBot authorized transport", docs_url=None, redoc_url=None)
+
+
+class KpiAnalyzeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reviews: list[ReviewItem] = Field(min_length=1, max_length=2)
+    providerConfig: dict | None = None
 
 
 class AuthorizedChatRequest(BaseModel):
@@ -83,6 +91,16 @@ def retired_legacy_path() -> None:
     raise HTTPException(403, "Scoped authorization gateway required; legacy direct reads are not mounted in V1")
 
 
+@app.post("/api/v1/kpi/analyze-review")
+async def kpi_analyze_review(request: KpiAnalyzeRequest, x_ai_service_key: str | None = Header(default=None)) -> dict:
+    _service_key(x_ai_service_key)
+    try:
+        with anyio.fail_after(20):
+            return await anyio.to_thread.run_sync(lambda: analyze_reviews(request.reviews, request.providerConfig), abandon_on_cancel=True)
+    except TimeoutError:
+        raise HTTPException(503, "Review analysis deadline exceeded") from None
+
+
 @app.post("/api/v1/authorized-chat")
 async def authorized_chat(request: AuthorizedChatRequest, x_ai_service_key: str | None = Header(default=None)) -> dict:
     # One deadline includes preflight, analysis, all scoped reads and generation.
@@ -124,10 +142,20 @@ async def _authorized_chat(request: AuthorizedChatRequest, x_ai_service_key: str
                 except (httpx.HTTPError, ValueError, AttributeError):
                     raise HTTPException(503, "Scoped preflight unavailable") from None
                 analysis = {"decisionAnalysis": await analyze(config, request.message)}
-        for tool in ("get_my_profile", "list_projects", "query_policy", "validate_context"):
+        calls = [(tool, {"query": request.message} if tool == "query_policy" else {})
+                 for tool in ("get_my_profile", "list_projects", "query_policy", "validate_context")]
+        period_match = re.search(r"(20[0-9]{2})[-/](0?[1-9]|1[0-2])", request.message)
+        period = period_match.group(1) + "-" + str(int(period_match.group(2))).zfill(2) if period_match else None
+        if re.search(r"(kpi|điểm|đánh giá|hiệu suất|xếp hạng)", request.message, re.IGNORECASE):
+            calls.append(("get_my_kpi", {"period": period} if period else {}))
+            if re.search(r"(phòng ban|cửa hàng|đội|nhóm|toàn bộ|tổng hợp)", request.message, re.IGNORECASE):
+                calls.append(("get_department_kpi", {"period": period} if period else {}))
+        if re.search(r"(hạn|deadline|sắp hết|quá hạn|nhắc|tiến độ|nộp báo cáo)", request.message, re.IGNORECASE):
+            calls.append(("get_upcoming_deadlines", {}))
+        for tool, args in calls:
             try:
                 response = await client.post(url, headers={"x-ai-service-key": key, "Authorization": "Bearer " + request.delegationToken},
-                    json={"requestId": request.requestId, "tool": tool, "args": {"query": request.message} if tool == "query_policy" else {}}, timeout=remaining_seconds(5))
+                    json={"requestId": request.requestId, "tool": tool, "args": args}, timeout=remaining_seconds(5))
             except httpx.HTTPError:
                 raise HTTPException(503, "Scoped gateway unavailable") from None
             if response.status_code == 401:
@@ -150,7 +178,7 @@ async def _authorized_chat(request: AuthorizedChatRequest, x_ai_service_key: str
                 raise LLMUnavailable([])
             # Neither service credentials nor delegation tokens are ever in messages.
             result = chain.complete([
-                ChatMessage("system", "Chỉ trả lời từ dữ liệu được API cho phép dưới đây. Nếu thiếu dữ liệu, nói rõ chưa có; không suy đoán nhân sự khác. Không thực thi thao tác, không tạo link/citation hoặc giả đã ghi dữ liệu.\n" + json.dumps(contexts, ensure_ascii=False)),
+                ChatMessage("system", "Hôm nay là " + __import__("datetime").datetime.now(__import__("datetime").timezone.utc).strftime("%Y-%m-%d") + ". Chỉ trả lời từ dữ liệu được API cho phép dưới đây. Nếu thiếu dữ liệu, nói rõ chưa có; không suy đoán nhân sự khác. Không thực thi thao tác, không tạo link/citation hoặc giả đã ghi dữ liệu.\n" + json.dumps(contexts, ensure_ascii=False)),
                 ChatMessage("user", request.message),
             ], CompletionOptions(temperature=0.0, max_tokens=1024))
             return result.text.strip()[:8000]
