@@ -1,3 +1,5 @@
+import performanceKpiRouter from './routes/performance-kpi.js';
+import tasksRouter from './routes/tasks.js';
 import express, { Express, NextFunction, Request, Response } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -91,6 +93,8 @@ export function createApp(options: { onboarding?: OnboardingOptions; recovery?: 
   app.use("/api", smAppointmentsRouter);
   app.use("/api", schedulingRouter);
   app.use('/api', revenueKpiRouter);
+app.use('/api', performanceKpiRouter);
+app.use('/api', tasksRouter);
   app.use("/api", authRouter);
   app.use("/api", legacyImportRouter);
   app.use("/api", onboardingRouter);

@@ -21,6 +21,11 @@ const schedulingOperational = (profiles: AuthorizationProfile[] = managers) => r
 
 // Eligibility is not authority. Pending policy cannot be enabled by a grant/body/title.
 export const AUTHORIZATION_POLICY: Readonly<Record<AuthorizationCapability, Rule>> = Object.freeze({
+  "performance_kpi.read_self": self(), "task.read_self": self(), "task.respond": assigned(),
+  "performance_kpi.read_scope": operational(['hr','am','sm']), "task.read_scope": operational(['hr','am','sm']),
+  "performance_kpi.evaluate": operational(['am','sm']), "performance_kpi.finalize": operational(['am','sm']), "performance_kpi.reconsider": operational(['am','sm']),
+  "performance_kpi.appeal_review": operational(['hr','am']), "performance_kpi.policy_manage": operational(['hr']), "performance_kpi.correct": operational(['hr']),
+  "task.manage": operational(['am','sm']), "task.assign": operational(['am','sm']), "task.evaluate": operational(['am','sm']), "task.handover": operational(['am','sm']),
   "revenue_kpi.read_self": rule(['hr', 'am', 'sm'], 'self', 'APPROVED', 'Owner revenue KPI plan 2026-11-04; own assignment only'),
   "revenue_kpi.respond": rule(['am', 'sm'], 'self', 'APPROVED', 'Owner revenue KPI plan; assigned participant only'),
   "revenue_kpi.request_adjustment": rule(['am', 'sm'], 'self', 'APPROVED', 'Owner revenue KPI plan; assigned participant only'),

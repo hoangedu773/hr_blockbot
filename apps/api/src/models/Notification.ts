@@ -4,6 +4,7 @@ export interface INotification extends Document {
   userId: mongoose.Types.ObjectId;
   employeeId: mongoose.Types.ObjectId | null;
   type: string;
+  performanceType?: string | null;
   revenueType?: string | null;
   title: string;
   body: string;
@@ -28,6 +29,7 @@ const NotificationSchema = new Schema<INotification>(
       ],
       required: true,
     },
+    performanceType: { type: String, default: null },
     revenueType: { type: String, default: null },
     title: { type: String, required: true, maxlength: 200 },
     body: { type: String, required: true, maxlength: 1000 },

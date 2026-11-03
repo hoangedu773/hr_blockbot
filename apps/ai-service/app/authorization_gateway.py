@@ -26,6 +26,8 @@ from app.kpi_analysis import ProposeTargetRequest, propose_target
 from app.llm.base import ChatMessage, CompletionOptions, LLMUnavailable
 from app.llm.chain import provider_cache
 
+from app.performance_kpi import SuggestTaskStructureRequest, SummarizeEvaluationRequest, ExplainKpiRequest, suggest_structure, summarize_evaluation, explain_kpi
+
 app = FastAPI(title="HR BlockBot authorized transport", docs_url=None, redoc_url=None)
 
 
@@ -227,6 +229,12 @@ async def _authorized_chat(request: AuthorizedChatRequest, x_ai_service_key: str
                 raise HTTPException(503, "Scoped gateway read could not be verified")
             if tool != "validate_context":
                 contexts[tool] = response.json().get("result")
+    performance = contexts.get("get_my_kpi")
+    if isinstance(performance, dict) and performance.get("kind") == "performance_kpi":
+        # Grounded API explanation, same API/audit as Web. No model rescores it.
+        return {"reply": str(performance.get("summary", ""))[:16000] + "\n" + "\n".join(performance.get("advice", [])),
+                "citations": [], "attachments": [], "proposedAction": None, "abstain": False,
+                "degraded": False, "decisionSource": "stored-performance-evidence-v2", **analysis}
     if not contexts or not request.providerConfig:
         return {"reply": "Chưa có dữ liệu được phép hoặc provider phù hợp để trả lời. Chưa có thay đổi dữ liệu nào được thực hiện.",
             "citations": [], "attachments": [], "proposedAction": None, "abstain": True, "degraded": True,
@@ -272,3 +280,27 @@ async def _authorized_chat(request: AuthorizedChatRequest, x_ai_service_key: str
         "degraded": False if mode in ("OFF", "SHADOW") else not live_ok,
         "decisionSource": analysis["decisionAnalysis"]["source"] if live_ok else "authorization-v1", **analysis,
         **({"conversationId": request.conversationId} if request.conversationId else {})}
+
+
+async def _performance_advice(request, function, key):
+    _service_key(key)
+    try:
+        with anyio.fail_after(20):
+            return await anyio.to_thread.run_sync(lambda: function(request), abandon_on_cancel=True)
+    except TimeoutError:
+        raise HTTPException(503, "Performance advice deadline exceeded") from None
+
+
+@app.post("/api/v1/kpi/suggest-task-structure")
+async def performance_structure(request: SuggestTaskStructureRequest, x_ai_service_key: str | None = Header(default=None)):
+    return await _performance_advice(request, suggest_structure, x_ai_service_key)
+
+
+@app.post("/api/v1/kpi/summarize-evaluation")
+async def performance_summary(request: SummarizeEvaluationRequest, x_ai_service_key: str | None = Header(default=None)):
+    return await _performance_advice(request, summarize_evaluation, x_ai_service_key)
+
+
+@app.post("/api/v1/kpi/explain")
+async def performance_explain(request: ExplainKpiRequest, x_ai_service_key: str | None = Header(default=None)):
+    return await _performance_advice(request, explain_kpi, x_ai_service_key)

@@ -1,3 +1,5 @@
+import { PerformanceKpiView } from './PerformanceKpiView';
+import { performanceConfig } from '../services/performance-kpi-api';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { DashboardOverview, StoreSummary } from '@hr-blockbot/contracts';
@@ -24,7 +26,7 @@ import { SalesReportView } from './SalesReportView';
 import { RevenueKpiView } from './RevenueKpiView';
 import { getRevenueKpiConfig } from '../services/revenue-kpi-api';
 
-export type ActiveCrmView = 'stores' | 'sales' | 'revenueKpi' | 'employees' | 'profile' | 'schedules' | 'projects' | 'kpi' | 'settings' | 'accounts' | 'onboarding' | 'delegations' | 'directory' | 'lifecycle' | 'initialReporting';
+export type ActiveCrmView = 'stores' | 'sales' | 'revenueKpi' | 'performanceKpi' | 'employees' | 'profile' | 'schedules' | 'projects' | 'kpi' | 'settings' | 'accounts' | 'onboarding' | 'delegations' | 'directory' | 'lifecycle' | 'initialReporting';
 export interface CrmDashboardViewProps {
   userName: string;
   userRole: string;
@@ -83,6 +85,7 @@ const CRM_HTML = `
           <button type="button" data-section="schedules" class="crm-nav-item">Lịch làm &amp; phân ca</button>
           <button type="button" data-section="projects" class="crm-nav-item">Công việc & nghiệm thu</button>
           <button type="button" data-section="kpi" class="crm-nav-item">KPI &amp; đánh giá</button>
+          <button type="button" data-section="performanceKpi" class="crm-nav-item">KPI hiệu suất</button>
           <button type="button" data-section="revenueKpi" class="crm-nav-item">KPI doanh thu</button>
           <button type="button" data-section="onboarding" class="crm-nav-item">Tiếp nhận nhân viên</button>
           <button type="button" data-section="initialReporting" class="crm-nav-item">Quản lý ban đầu</button>
@@ -167,9 +170,12 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
   onNotify,
 }) => {
   const { can, summary: authorization } = useAuthorization();
+  const [performanceEnabled, setPerformanceEnabled] = useState(false);
+  useEffect(() => { let live = true; void performanceConfig().then(c => { if(live) setPerformanceEnabled(c.enabled); }).catch(() => { if(live) setPerformanceEnabled(false); }); return () => { live=false; }; }, [JSON.stringify(authorization)]);
   const [revenueEnabled, setRevenueEnabled] = useState(false);
   useEffect(() => { let alive = true; setRevenueEnabled(false); if (['hr', 'am', 'sm'].includes(authorization?.profile ?? '')) void getRevenueKpiConfig().then(c => { if (alive) setRevenueEnabled(c.enabled); }).catch(() => {}); return () => { alive = false; }; }, [authorization?.profile, authorization?.securityVersion]);
   const allowedViews: Record<ActiveCrmView, boolean> = { stores: can('stores.read'), sales: can('dashboard.read'), employees: can('employees.read_operational'), profile: can('profile.read_self'),
+    performanceKpi: performanceEnabled && (can('performance_kpi.read_self') || can('performance_kpi.read_scope')),
     revenueKpi: revenueEnabled && ['hr', 'am', 'sm'].includes(authorization?.profile ?? '') && (can('revenue_kpi.read_scope') || can('revenue_kpi.read_self')),
     schedules: can('schedules.read_self') || can('schedules.read_store'), projects: can('projects.read_assigned') || can('projects.read_managed') || can('projects.create') || can('reports.review'),
     kpi: can('kpi.read_self') || can('kpi.read_department') || can('kpi.manage'),
@@ -472,7 +478,9 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
         )}
       {customViewPortalEl &&
         createPortal(
-          activeView === 'revenueKpi' && allowedViews.revenueKpi ? (
+          activeView === 'performanceKpi' && allowedViews.performanceKpi ? (
+            <PerformanceKpiView />
+          ) : activeView === 'revenueKpi' && allowedViews.revenueKpi ? (
             <RevenueKpiView />
           ) : activeView === 'sales' && allowedViews.sales ? (
             <SalesReportView />

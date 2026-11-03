@@ -1,3 +1,5 @@
+import { explainPerformanceKpi } from './performance-kpi-explain.service.js';
+import { getPerformanceEvaluation } from './performance-kpi-evaluation.service.js';
 import mongoose from "mongoose";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { SignJWT, jwtVerify } from "jose";
@@ -31,7 +33,7 @@ export async function beginAuthorizedChat(user: AuthenticatedUser) {
   requireCapability(user, "chatbot.data_read", { userId: user.userId, employeeId: user.employeeId });
   const requestId = randomUUID(), version = user.securityVersion ?? 0;
   await receipts().createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-  await receipts().insertOne({ _id: requestId, userId: user.userId, securityVersion: version, contextHash: contextHash(user), status: "ACTIVE", expiresAt: new Date(Date.now() + 90000), documents: [], projects: [], schedules: [] });
+  await receipts().insertOne({ _id: requestId, userId: user.userId, securityVersion: version, contextHash: contextHash(user), status: "ACTIVE", expiresAt: new Date(Date.now() + 90000), documents: [], projects: [], schedules: [], performanceEvaluations: [] });
   const delegationToken = await new SignJWT({ av: version, requestId, purpose: "authorized-tools" }).setSubject(user.userId)
     .setProtectedHeader({ alg: "HS256" }).setAudience("hr-blockbot-scoped-tools").setIssuedAt().setExpirationTime("90s").sign(getJwtSecret());
   return { requestId, delegationToken };
@@ -49,7 +51,7 @@ export async function executeGatewayTool(token: string, body: unknown) {
   const request = await receipts().findOne({ _id: requestId, userId: user.userId, securityVersion: payload.av, status: "ACTIVE", expiresAt: { $gt: new Date() } });
   if (!request) throw new WorkflowError(403, "CHAT_REQUEST_UNAVAILABLE", "Request expired or closed");
   if (request.contextHash !== contextHash(user)) throw new WorkflowError(409, "CHAT_AUTHORIZATION_CHANGED", "Authority changed during context preparation");
-  let result: unknown, documents: any[] = [], projects: any[] = [], schedules: any[] = [];
+  let result: unknown, documents: any[] = [], projects: any[] = [], schedules: any[] = [], performanceEvaluations: any[] = [];
   if (tool === "get_my_profile") {
     requireCapability(user, "profile.read_self", { employeeId: user.employeeId });
     const employee: any = await EmployeeModel.findById(user.employeeId).select("fullName full_name job_title skills").lean();
@@ -76,15 +78,21 @@ export async function executeGatewayTool(token: string, body: unknown) {
     result = rows.map(({ document, text }) => ({ documentId: String(document._id), title: document.title, version: document.version ?? "", text: text.slice(0, 5000) }));
   } else if (tool === "get_my_kpi") {
     if (!user.employeeId) throw new WorkflowError(403, "RBAC_DENIED", "Tài khoản chưa gắn hồ sơ nhân viên");
-    requireCapability(user, "kpi.read_self", { employeeId: user.employeeId });
     const period = args.period ?? currentPeriod();
     const row: any = await EvaluationModel.findOne({ employeeId: new mongoose.Types.ObjectId(user.employeeId), period }).lean();
+    if (row?.frameworkVersion >= 2 && process.env.PERFORMANCE_KPI_ENABLED === 'true') {
+      const explained = await explainPerformanceKpi(user, String(row._id));
+      performanceEvaluations.push({ id: explained.evaluation.id, version: explained.evaluation.version });
+      result = { kind: 'performance_kpi', period, summary: explained.summary, advice: explained.advice, available: true };
+    } else {
+    requireCapability(user, "kpi.read_self", { employeeId: user.employeeId });
     result = !row ? { period, available: false, message: "Chưa có kỳ đánh giá KPI cho tháng này." }
       : row.status === "PUBLISHED"
         ? { period, available: true, status: row.status, finalScore: row.finalScore, machineScore: row.machineScore,
             explanation: row.analysis?.explanation ?? null, themes: row.analysis?.themes ?? [], riskSignals: row.analysis?.riskSignals ?? [],
             overrideReason: row.overrideReason ?? null, publishedAt: row.publishedAt }
         : { period, available: false, status: row.status, message: "Kỳ đánh giá chưa được công bố; chỉ xem chi tiết sau khi quản lý chốt." };
+    }
   } else if (tool === "get_department_kpi") {
     requireCapability(user, "kpi.read_department");
     const period = args.period ?? currentPeriod();
@@ -94,7 +102,7 @@ export async function executeGatewayTool(token: string, body: unknown) {
     if (stores.length) clauses.push({ storeId: { $in: stores.map((id) => new mongoose.Types.ObjectId(id)) } });
     if (user.departmentId && mongoose.Types.ObjectId.isValid(user.departmentId)) clauses.push({ departmentId: new mongoose.Types.ObjectId(user.departmentId) });
     if (!clauses.length) throw new WorkflowError(403, "RBAC_DENIED", "Chưa có phạm vi KPI phòng ban");
-    const rows: any[] = await EvaluationModel.find({ period, $or: clauses }).select("status finalScore machineScore").limit(5000).lean();
+    const rows: any[] = await EvaluationModel.find({ period, $or: clauses, frameworkVersion: { $not: { $gte: 2 } } }).select("status finalScore machineScore").limit(5000).lean();
     const published = rows.filter((row) => row.status === "PUBLISHED" && typeof row.finalScore === "number");
     const average = (values: number[]) => values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length * 100) / 100 : null;
     result = { period, published: published.length, pendingReview: rows.length - published.length,
@@ -124,7 +132,7 @@ export async function executeGatewayTool(token: string, body: unknown) {
   } else if (tool === "validate_context") result = { valid: true };
   else result = { unavailable: true, reason: "Tool is outside Authorization V1; no guessed data" };
   const record = await receipts().updateOne({ _id: requestId, status: "ACTIVE", expiresAt: { $gt: new Date() } },
-    { $addToSet: { documents: { $each: documents }, projects: { $each: projects }, schedules: { $each: schedules } } });
+    { $addToSet: { documents: { $each: documents }, projects: { $each: projects }, schedules: { $each: schedules }, performanceEvaluations: { $each: performanceEvaluations } } });
   if (!record.matchedCount) throw new WorkflowError(403, "CHAT_REQUEST_UNAVAILABLE", "Request closed during read");
   return { result, proposalOnly: true };
 }
@@ -151,6 +159,10 @@ export async function authorizedChat(user: AuthenticatedUser, message: string, c
     for (const receipt of row.schedules ?? []) {
       const data = await personalSchedule(current, receipt.from, receipt.to);
       if (digest(data.assignments.map(({ weekVersion, ...a }) => a)) !== receipt.digest) throw new WorkflowError(409, 'CHAT_RESOURCE_CHANGED', 'Lịch đã công bố vừa thay đổi. Vui lòng hỏi lại.');
+    }
+    for (const receipt of row.performanceEvaluations ?? []) {
+      const evaluation = await getPerformanceEvaluation(current, receipt.id);
+      if (evaluation.version !== receipt.version) throw new WorkflowError(409, 'CHAT_RESOURCE_CHANGED', 'KPI đã thay đổi trong khi trả lời. Vui lòng hỏi lại.');
     }
     // Provider output cannot invent citations, attachment access, or executable actions.
     const response = { ...result, citations, attachments: [], proposedAction: null };

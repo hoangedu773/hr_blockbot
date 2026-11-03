@@ -173,3 +173,4 @@ def propose_target(request: ProposeTargetRequest, provider_config: dict[str, Any
         return {**answer, "model": (result.model or "configured-llm")[:120], "degraded": False}
     except (LLMUnavailable, ValidationError, ValueError, KeyError, TypeError):
         return fallback
+# Performance request/response types live separately to keep the legacy F5 analyzer stable.

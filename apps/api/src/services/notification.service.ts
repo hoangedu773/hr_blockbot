@@ -26,7 +26,8 @@ export async function notifyUser(input: NotifyInput): Promise<{ created: boolean
         employeeId: input.employeeId && mongoose.Types.ObjectId.isValid(input.employeeId) ? new mongoose.Types.ObjectId(input.employeeId) : null,
         // Main API shares this collection but has an older notification enum.
         // Persist a compatible system type; the new service projects the subtype.
-        type: input.type.startsWith('revenue_kpi_') ? 'system' : input.type,
+        type: /^(revenue_kpi_|performance_kpi_|task_)/.test(input.type) ? 'system' : input.type,
+        performanceType: /^(performance_kpi_|task_)/.test(input.type) ? input.type : null,
         revenueType: input.type.startsWith('revenue_kpi_') ? input.type : null,
         title: input.title.slice(0, 200), body: input.body.slice(0, 1000),
         channel: "in_app", dedupeKey: input.dedupeKey,
@@ -49,14 +50,14 @@ export async function notifyUser(input: NotifyInput): Promise<{ created: boolean
 
 export function notificationDto(row: any): NotificationItem {
   return NotificationItemSchema.parse({
-    id: String(row._id), type: row.revenueType ?? row.type, title: row.title, body: row.body,
+    id: String(row._id), type: row.performanceType ?? row.revenueType ?? row.type, title: row.title, body: row.body,
     channel: "in_app", entityKind: row.entityKind ?? null, entityId: row.entityId ?? null,
     readAt: row.readAt ? new Date(row.readAt).toISOString() : null,
     createdAt: new Date(row.createdAt).toISOString(),
   });
 }
 
-export async function listNotifications(userId: string, options: { unreadOnly?: boolean; limit?: number; before?: string; entityKind?: 'schedule' | 'revenue_kpi' } = {}) {
+export async function listNotifications(userId: string, options: { unreadOnly?: boolean; limit?: number; before?: string; entityKind?: 'schedule' | 'revenue_kpi' | 'performance_kpi' | 'task' } = {}) {
   const limit = Math.min(Math.max(options.limit ?? 30, 1), 100);
   const filter: Record<string, any> = { userId: new mongoose.Types.ObjectId(userId) };
   if (options.entityKind) filter.entityKind = options.entityKind;

@@ -167,7 +167,7 @@ export async function openPeriod(user: AuthenticatedUser, period: string) {
 export async function listMine(user: AuthenticatedUser, period?: string) {
   if (!user.employeeId) throw new WorkflowError(403, "RBAC_DENIED", "Tài khoản chưa gắn hồ sơ nhân viên.");
   requireCapability(user, "kpi.read_self", { employeeId: user.employeeId });
-  const filter: Record<string, any> = { employeeId: new mongoose.Types.ObjectId(user.employeeId) };
+  const filter: Record<string, any> = { frameworkVersion: { $not: { $gte: 2 } }, employeeId: new mongoose.Types.ObjectId(user.employeeId) };
   if (period) { periodRange(period); filter.period = period; }
   const rows = await EvaluationModel.find(filter).sort({ period: -1 }).limit(period ? 1 : 12).lean();
   return rows.map(evaluationDto);
@@ -186,13 +186,13 @@ export async function listDepartment(user: AuthenticatedUser, period: string) {
   if (stores.length) clauses.push({ storeId: { $in: stores.map((id) => new mongoose.Types.ObjectId(id)) } });
   if (user.departmentId && mongoose.Types.ObjectId.isValid(user.departmentId)) clauses.push({ departmentId: new mongoose.Types.ObjectId(user.departmentId) });
   if (!clauses.length) throw new WorkflowError(403, "RBAC_DENIED", "Chưa có phạm vi KPI phòng ban.");
-  const rows = await EvaluationModel.find({ period, $or: clauses }).sort({ employeeName: 1, _id: 1 }).limit(2000).lean();
+  const rows = await EvaluationModel.find({ period, $or: clauses, frameworkVersion: { $not: { $gte: 2 } } }).sort({ employeeName: 1, _id: 1 }).limit(2000).lean();
   return rows.map(evaluationDto);
 }
 
 export async function saveSelfReview(user: AuthenticatedUser, id: string, input: { text: string; expectedVersion: number }) {
   if (!mongoose.Types.ObjectId.isValid(id)) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy bản đánh giá.");
-  const evaluation: any = await EvaluationModel.findById(id);
+  const evaluation: any = await EvaluationModel.findOne({ _id: id, frameworkVersion: { $not: { $gte: 2 } } });
   if (!evaluation) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy bản đánh giá.");
   if (String(evaluation.employeeId) !== String(user.employeeId)) throw new WorkflowError(403, "RBAC_DENIED", "Chỉ được tự nhận xét KPI của mình.");
   requireCapability(user, "kpi.read_self", { employeeId: user.employeeId });
@@ -208,7 +208,7 @@ export async function saveSelfReview(user: AuthenticatedUser, id: string, input:
 
 export async function saveManagerReview(user: AuthenticatedUser, id: string, input: { text: string; managerScore: number; expectedVersion: number }) {
   if (!mongoose.Types.ObjectId.isValid(id)) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy bản đánh giá.");
-  const evaluation: any = await EvaluationModel.findById(id).lean();
+  const evaluation: any = await EvaluationModel.findOne({ _id: id, frameworkVersion: { $not: { $gte: 2 } } }).lean();
   if (!evaluation) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy bản đánh giá.");
   assertCanManage(user, evaluation, "kpi.manage");
   if (evaluation.status !== "OPEN") throw new WorkflowError(409, "KPI_LOCKED", "Kỳ đã phân tích; không sửa nhận xét.");
@@ -223,7 +223,7 @@ export async function saveManagerReview(user: AuthenticatedUser, id: string, inp
 
 export async function analyzeEvaluation(user: AuthenticatedUser, id: string, expectedVersion: number) {
   if (!mongoose.Types.ObjectId.isValid(id)) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy bản đánh giá.");
-  const evaluation: any = await EvaluationModel.findById(id).lean();
+  const evaluation: any = await EvaluationModel.findOne({ _id: id, frameworkVersion: { $not: { $gte: 2 } } }).lean();
   if (!evaluation) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy bản đánh giá.");
   assertCanManage(user, evaluation, "kpi.manage");
   if (evaluation.status !== "OPEN" || evaluation.machineScore !== null) throw new WorkflowError(409, "KPI_LOCKED", "Kỳ đã có điểm máy; không phân tích lại.");
@@ -252,7 +252,7 @@ export async function analyzeEvaluation(user: AuthenticatedUser, id: string, exp
 
 export async function publishEvaluation(user: AuthenticatedUser, id: string, input: { expectedVersion: number; finalScore?: number; overrideReason?: string }) {
   if (!mongoose.Types.ObjectId.isValid(id)) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy bản đánh giá.");
-  const evaluation: any = await EvaluationModel.findById(id).lean();
+  const evaluation: any = await EvaluationModel.findOne({ _id: id, frameworkVersion: { $not: { $gte: 2 } } }).lean();
   if (!evaluation) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy bản đánh giá.");
   assertCanManage(user, evaluation, "kpi.publish");
   if (evaluation.status !== "ANALYZED" || evaluation.machineScore === null) throw new WorkflowError(409, "KPI_NOT_READY", "Chỉ công bố kỳ đã có điểm máy.");
@@ -291,7 +291,7 @@ export async function publishEvaluation(user: AuthenticatedUser, id: string, inp
 
 export async function overrideEvaluation(user: AuthenticatedUser, id: string, input: { expectedVersion: number; finalScore: number; reason: string }) {
   if (!mongoose.Types.ObjectId.isValid(id)) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy bản đánh giá.");
-  const evaluation: any = await EvaluationModel.findById(id).lean();
+  const evaluation: any = await EvaluationModel.findOne({ _id: id, frameworkVersion: { $not: { $gte: 2 } } }).lean();
   if (!evaluation) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy bản đánh giá.");
   assertCanManage(user, evaluation, "kpi.override");
   if (evaluation.status !== "PUBLISHED") throw new WorkflowError(409, "KPI_NOT_READY", "Chỉ hiệu chỉnh kỳ đã công bố.");

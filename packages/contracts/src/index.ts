@@ -1046,7 +1046,8 @@ export type ChatErrorPayload = z.infer<typeof ChatErrorPayloadSchema>;
 export const NotificationNewPayloadSchema = z.object({
   notificationId: z.string().min(1),
   type: z.enum([
-    'revenue_kpi_assigned', 'revenue_kpi_accepted', 'revenue_kpi_refused', 'revenue_kpi_adjusted', 'revenue_kpi_result_ready', 'revenue_kpi_reason_required', 'revenue_kpi_closed',
+    "performance_kpi_opened","performance_kpi_score_ready","performance_kpi_reconsideration_requested","performance_kpi_reconsideration_responded","performance_kpi_appeal_requested","performance_kpi_appeal_decided","performance_kpi_finalized","performance_kpi_corrected","task_assigned","task_accepted","task_refused","task_due_soon","task_overdue","task_submitted","task_evaluated","task_handover",
+  'revenue_kpi_assigned', 'revenue_kpi_accepted', 'revenue_kpi_refused', 'revenue_kpi_adjusted', 'revenue_kpi_result_ready', 'revenue_kpi_reason_required', 'revenue_kpi_closed',
     "deadline_3d",
     "deadline_1d",
     "deadline_overdue",
@@ -1180,3 +1181,5 @@ export type DashboardOverview = z.infer<typeof DashboardOverviewSchema>;
 export * from './sm-appointments.js';
 export * from './sales-report.js';
 export * from './revenue-kpi.js';
+export * from './tasks.js';
+export * from './performance-kpi.js';

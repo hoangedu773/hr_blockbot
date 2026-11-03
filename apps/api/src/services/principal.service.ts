@@ -1,3 +1,4 @@
+import { withPerformanceModuleGrants } from './performance-kpi-grants.service.js';
 import { AuthorizationStateSchema } from "@hr-blockbot/contracts";
 import { UserModel } from "../models/User.js";
 import { EmployeeModel } from "../models/Employee.js";
@@ -78,7 +79,7 @@ export async function resolvePrincipal(claims: TokenClaims, options: { delegatio
     level: employee?.level ?? null, skills: Array.isArray(employee?.skills) ? employee.skills : [],
     mustChangePassword: user.mustChangePassword === true, isGlobalAdmin: user.isGlobalAdmin === true,
     securityVersion: version, accountActive: true, employeeActive: !!employee,
-    authorization: parsed.success ? await withRevenueModuleGrants(String(user._id), parsed.data) : null,
+    authorization: parsed.success ? await withPerformanceModuleGrants(String(user._id), await withRevenueModuleGrants(String(user._id), parsed.data)) : null,
     canonical: parsed.success && !user.mustChangePassword ? await resolveCanonicalContext(employee) : { verifiedStores: [], managedByStore: {}, ownStoreId: null },
   };
   if (options.delegations !== false && parsed.success && !user.mustChangePassword && employee) {

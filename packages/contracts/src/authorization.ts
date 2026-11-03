@@ -6,6 +6,7 @@ export const AuthorizationProfileSchema = z.enum([
 ]);
 export type AuthorizationProfile = z.infer<typeof AuthorizationProfileSchema>;
 export const AuthorizationCapabilitySchema = z.enum([
+"performance_kpi.read_self","performance_kpi.read_scope","performance_kpi.evaluate","performance_kpi.finalize","performance_kpi.reconsider","performance_kpi.appeal_review","performance_kpi.policy_manage","performance_kpi.correct","task.read_self","task.read_scope","task.manage","task.assign","task.respond","task.evaluate","task.handover",
   "authorization.inspect_self", "accounts.manage", "grants.manage", "provider_settings.manage", "security_audit.read",
   "profile.read_self", "profile.update_self_basic", "profile.request_self",
   "employees.read_operational", "employees.read_sensitive", "employees.create", "employees.update_other", "employees.review",

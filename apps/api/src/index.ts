@@ -1,3 +1,4 @@
+import { startPerformanceReminderScheduler } from './services/performance-kpi-notification.service.js';
 // Must run before any business module is evaluated so process.env is populated
 // when modules read configuration lazily.
 import "dotenv/config";
@@ -21,6 +22,7 @@ async function bootstrap() {
     await connectDB();
     startReminderScheduler();
     startRevenueKpiReminderScheduler();
+    startPerformanceReminderScheduler();
     httpServer.listen(PORT, () => {
       console.log(`[HR BlockBot API] Server running at http://localhost:${PORT}`);
       console.log(`[HR BlockBot API] Health check: http://localhost:${PORT}/api/health`);

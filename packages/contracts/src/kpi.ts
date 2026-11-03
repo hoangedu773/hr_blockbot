@@ -125,6 +125,7 @@ export const KpiDashboardSchema = z.object({
 export type KpiDashboard = z.infer<typeof KpiDashboardSchema>;
 
 export const NotificationTypeSchema = z.enum([
+  "performance_kpi_opened","performance_kpi_score_ready","performance_kpi_reconsideration_requested","performance_kpi_reconsideration_responded","performance_kpi_appeal_requested","performance_kpi_appeal_decided","performance_kpi_finalized","performance_kpi_corrected","task_assigned","task_accepted","task_refused","task_due_soon","task_overdue","task_submitted","task_evaluated","task_handover",
   'revenue_kpi_assigned', 'revenue_kpi_accepted', 'revenue_kpi_refused', 'revenue_kpi_adjusted', 'revenue_kpi_result_ready', 'revenue_kpi_reason_required', 'revenue_kpi_closed',
   "deadline_3d", "deadline_1d", "deadline_overdue", "report_submitted",
   "report_approved", "report_rejected", "kpi_published", "kpi_review_digest", "system",

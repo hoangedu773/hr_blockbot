@@ -23,6 +23,14 @@ export interface IEvaluation extends Document {
   publishedAt: Date | null;
   version: number;
   history: Array<Record<string, unknown>>;
+  frameworkVersion?: number | null;
+  performanceSnapshot?: Record<string, unknown> | null;
+  frameworkId?: string | null;
+  evaluationStatus?: string | null;
+  criteriaScores?: any;
+  taskBreakdown?: any;
+  taskGroupScore?: number | null;
+  finalScoreVersion?: number | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -65,6 +73,14 @@ const EvaluationSchema = new Schema<IEvaluation>(
     publishedAt: { type: Date, default: null },
     version: { type: Number, default: 0, min: 0 },
     history: { type: [HistorySchema], default: [] },
+    frameworkVersion: { type: Number, default: null },
+    performanceSnapshot: { type: Schema.Types.Mixed, default: null },
+    frameworkId: { type: String, default: null },
+    evaluationStatus: { type: String, default: null },
+    criteriaScores: { type: Schema.Types.Mixed, default: null },
+    taskBreakdown: { type: Schema.Types.Mixed, default: null },
+    taskGroupScore: { type: Number, default: null },
+    finalScoreVersion: { type: Number, default: null },
   },
   { collection: "evaluations", timestamps: true }
 );
