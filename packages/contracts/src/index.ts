@@ -1178,3 +1178,4 @@ export const DashboardOverviewSchema = z.object({
 export type DashboardOverview = z.infer<typeof DashboardOverviewSchema>;
 export * from './sm-appointments.js';
 export * from './sales-report.js';
+export * from './revenue-kpi.js';
