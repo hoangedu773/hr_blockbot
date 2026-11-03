@@ -977,10 +977,17 @@ export const DecisionAnalysisSchema = z.discriminatedUnion("status", [
     intentProbabilities: z.record(DecisionIntentSchema, z.number().finite().min(0).max(1)),
     latencyMs: z.number().int().min(0).max(15000),
   }).strict(),
-  z.object({ mode: z.literal("SHADOW"), status: z.enum(["not_configured", "skipped_data_policy", "unavailable"]),
+  z.object({ mode: z.literal("LIVE"), status: z.literal("ok"), execution: z.literal("live"), source: z.literal("jev_systemone"),
+    intent: DecisionIntentSchema, needsManagerApprovalProbability: z.number().finite().min(0).max(1),
+    incidentUrgency: z.number().finite().min(0).max(1), intentConfidence: z.number().finite().min(0).max(1),
+    intentProbabilities: z.record(DecisionIntentSchema, z.number().finite().min(0).max(1)),
+    latencyMs: z.number().int().min(0).max(15000),
+  }).strict(),
+  z.object({ mode: z.literal("LIVE"), status: z.enum(["not_configured", "external_text_disabled", "unavailable"]),
     execution: z.literal("none"), source: z.null(),
   }).strict(),
 ]);
+
 export type DecisionAnalysis = z.infer<typeof DecisionAnalysisSchema>;
 
 export const ChatDonePayloadSchema = z.object({

@@ -25,6 +25,28 @@ of the other member's AI work. They are **not** the V1 application entrypoint an
 must not be mounted as a fallback to bypass authorization. The old agent flag does
 not authorize the V1 transport to execute writes.
 
+### JevAI V1 live adapter
+
+The V1 gateway includes an explicit, fail-closed Jev System One adapter. It runs
+only after the API's `validate_context` preflight succeeds and receives only the
+user's message; it never receives Mongo credentials, delegation tokens, user
+context, or tool results. Jev output is typed intent/urgency/approval metadata,
+not authorization and not an automatic action approval.
+
+Live execution requires all three operator settings:
+
+```bash
+JEV_V1_MODE=LIVE
+JEV_LIVE_ALLOW_EXTERNAL_TEXT=true
+JEV_API_KEY=<operator-managed-secret>
+```
+
+With any setting missing, the adapter returns a non-authoritative status. `OFF`
+remains the default and `SHADOW` remains synthetic-only. The existing
+`JEV_USEJEVAI_KEYS` queued adapter remains available in the legacy/offline agent
+lane; it is not silently substituted into V1 because its transport has different
+semantics and budget behavior.
+
 ## Cài đặt & Chạy:
 
 ```bash

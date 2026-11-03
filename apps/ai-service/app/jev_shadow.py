@@ -22,7 +22,7 @@ _workers = threading.BoundedSemaphore(4)
 
 def shadow_mode() -> str:
     mode = (os.getenv("JEV_V1_MODE") or "OFF").strip().upper()
-    if mode not in ("OFF", "SHADOW"):
+    if mode not in ("OFF", "SHADOW", "LIVE"):
         raise ValueError("Unsupported V1 analysis mode")
     return mode
 

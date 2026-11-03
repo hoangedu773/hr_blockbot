@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 from app.deadline import remaining_seconds, use_deadline
 from app.jev_shadow import analyze, eligible, shadow_mode, unavailable
+from app.jev_live import analyze_live, live_mode_enabled
 from app.kpi_analysis import ReviewItem, analyze as analyze_reviews
 from app.llm.base import ChatMessage, CompletionOptions, LLMUnavailable
 from app.llm.chain import provider_cache
@@ -116,7 +117,10 @@ async def _authorized_chat(request: AuthorizedChatRequest, x_ai_service_key: str
     key = _service_key(x_ai_service_key)
     url = _gateway_url()
     try:
-        mode = shadow_mode()
+        raw_mode = (os.getenv("JEV_V1_MODE") or "OFF").strip().upper()
+        mode = "LIVE" if live_mode_enabled() else shadow_mode()
+        if raw_mode not in ("OFF", "SHADOW", "LIVE"):
+            raise ValueError("Unsupported V1 analysis mode")
     except ValueError:
         raise HTTPException(503, "Unsupported V1 analysis mode") from None
     analysis = {}
@@ -142,6 +146,21 @@ async def _authorized_chat(request: AuthorizedChatRequest, x_ai_service_key: str
                 except (httpx.HTTPError, ValueError, AttributeError):
                     raise HTTPException(503, "Scoped preflight unavailable") from None
                 analysis = {"decisionAnalysis": await analyze(config, request.message)}
+        elif mode == "LIVE":
+            # The same scoped preflight gates live Jev. The model sees only the
+            # user's message after API authorization; it never receives context,
+            # credentials, delegation tokens, or tool access.
+            try:
+                preflight = await client.post(url, headers={"x-ai-service-key": key, "Authorization": "Bearer " + request.delegationToken},
+                    json={"requestId": request.requestId, "tool": "validate_context", "args": {}}, timeout=remaining_seconds(5))
+                if preflight.status_code == 401:
+                    raise HTTPException(401, "End-user delegation is no longer valid")
+                if preflight.status_code != 200 or preflight.json().get("result", {}).get("valid") is not True:
+                    raise HTTPException(503, "Scoped preflight could not be verified")
+            except (httpx.HTTPError, ValueError, AttributeError):
+                raise HTTPException(503, "Scoped preflight unavailable") from None
+            analysis = {"decisionAnalysis": await anyio.to_thread.run_sync(
+                lambda: analyze_live(request.message, request.deadlineAtMs), abandon_on_cancel=True)}
         calls = [(tool, {"query": request.message} if tool == "query_policy" else {})
                  for tool in ("get_my_profile", "list_projects", "query_policy", "validate_context")]
         period_match = re.search(r"(20[0-9]{2})[-/](0?[1-9]|1[0-2])", request.message)
@@ -169,7 +188,9 @@ async def _authorized_chat(request: AuthorizedChatRequest, x_ai_service_key: str
                 contexts[tool] = response.json().get("result")
     if not contexts or not request.providerConfig:
         return {"reply": "Chưa có dữ liệu được phép hoặc provider phù hợp để trả lời. Chưa có thay đổi dữ liệu nào được thực hiện.",
-            "citations": [], "attachments": [], "proposedAction": None, "abstain": True, "degraded": True, "decisionSource": "authorization-v1", **analysis}
+            "citations": [], "attachments": [], "proposedAction": None, "abstain": True, "degraded": True,
+            "decisionSource": "jev_systemone" if analysis.get("decisionAnalysis", {}).get("status") == "ok" else "authorization-v1",
+            **analysis}
 
     def complete() -> str:
         with use_deadline(request.deadlineAtMs):
@@ -177,8 +198,22 @@ async def _authorized_chat(request: AuthorizedChatRequest, x_ai_service_key: str
             if not chain:
                 raise LLMUnavailable([])
             # Neither service credentials nor delegation tokens are ever in messages.
+            # SHADOW remains observational and must not alter the answer prompt.
+            if mode == "LIVE":
+                system_prompt = (
+                    "Hôm nay là " + __import__("datetime").datetime.now(__import__("datetime").timezone.utc).strftime("%Y-%m-%d")
+                    + ". Chỉ trả lời từ dữ liệu được API cho phép dưới đây. Nếu thiếu dữ liệu, nói rõ chưa có; không suy đoán nhân sự khác. Không thực thi thao tác, không tạo link/citation hoặc giả đã ghi dữ liệu."
+                    + " Jev chỉ là tín hiệu phân loại đã được xác thực; không phải quyền truy cập và không tự phê duyệt thao tác. Nếu tín hiệu Jev cho biết cần quản lý duyệt, chỉ giải thích rằng thao tác cần quy trình xác nhận, không tự thực hiện."
+                    + "\n" + json.dumps(contexts, ensure_ascii=False) + "\nJev decision metadata: " + decision_hint
+                )
+            else:
+                system_prompt = (
+                    "Hôm nay là " + __import__("datetime").datetime.now(__import__("datetime").timezone.utc).strftime("%Y-%m-%d")
+                    + ". Chỉ trả lời từ dữ liệu được API cho phép dưới đây. Nếu thiếu dữ liệu, nói rõ chưa có; không suy đoán nhân sự khác. Không thực thi thao tác, không tạo link/citation hoặc giả đã ghi dữ liệu."
+                    + "\n" + json.dumps(contexts, ensure_ascii=False)
+                )
             result = chain.complete([
-                ChatMessage("system", "Hôm nay là " + __import__("datetime").datetime.now(__import__("datetime").timezone.utc).strftime("%Y-%m-%d") + ". Chỉ trả lời từ dữ liệu được API cho phép dưới đây. Nếu thiếu dữ liệu, nói rõ chưa có; không suy đoán nhân sự khác. Không thực thi thao tác, không tạo link/citation hoặc giả đã ghi dữ liệu.\n" + json.dumps(contexts, ensure_ascii=False)),
+                ChatMessage("system", system_prompt),
                 ChatMessage("user", request.message),
             ], CompletionOptions(temperature=0.0, max_tokens=1024))
             return result.text.strip()[:8000]
@@ -189,6 +224,9 @@ async def _authorized_chat(request: AuthorizedChatRequest, x_ai_service_key: str
     if not text:
         raise HTTPException(503, "Provider returned no usable answer")
     # API revalidates the principal and all context receipts before returning output.
+    decision_status = analysis.get("decisionAnalysis", {}).get("status")
+    live_ok = mode == "LIVE" and decision_status == "ok"
     return {"reply": text, "citations": [], "attachments": [], "proposedAction": None, "abstain": False,
-        "degraded": False, "decisionSource": "authorization-v1", **analysis,
+        "degraded": False if mode in ("OFF", "SHADOW") else not live_ok,
+        "decisionSource": "jev_systemone" if live_ok else "authorization-v1", **analysis,
         **({"conversationId": request.conversationId} if request.conversationId else {})}
