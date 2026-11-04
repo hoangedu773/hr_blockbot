@@ -706,7 +706,7 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     assert.equal(await send.isDisabled(), true);
     await chat.getByText('Demo an toàn · Dịch vụ AI chưa khả dụng', { exact: true }).waitFor();
     await expectedOfflineConsole;
-    assert.equal(await chat.getByRole('button', { name: 'Xác Nhận (Confirm)' }).count(), 0);
+    assert.equal(await chat.getByRole('button', { name: 'Xác nhận kế hoạch' }).count(), 0);
     await page.unroute('**/api/chat', offlineChat);
     // Wait for Chromium's asynchronous error before consuming ONLY this
     // expected probe result. Unexpected errors remain visible to later gates.
@@ -748,25 +748,15 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       await chat.getByRole('button', { name: 'Hội thoại mới', exact: true }).click();
       await chat.getByRole('navigation', { name: 'Câu hỏi nhanh' }).getByRole('button', { name: 'Gợi ý điều động ca' }).click();
       await chat.getByText('Đề xuất điều động ca trực cho chi nhánh đang thiếu người.', { exact: true }).waitFor();
-      const confirm = chat.getByRole('button', { name: 'Xác Nhận (Confirm)' });
-      assert.deepEqual(await confirm.evaluate((el) => {
-        const style = getComputedStyle(el);
-        return [style.backgroundColor, style.color];
-      }), ['rgb(255, 255, 255)', 'rgb(0, 0, 0)']);
-      await confirm.click();
-      assert.equal(await chat.getByText('Đã xác nhận đề xuất. Chưa thực thi.', { exact: true }).isVisible(), true);
-      await chat.getByRole('button', { name: 'Hội thoại mới', exact: true }).click();
-      await chat.getByRole('navigation', { name: 'Câu hỏi nhanh' }).getByRole('button', { name: 'Gợi ý điều động ca' }).click();
-      await chat.getByRole('button', { name: 'Từ Chối', exact: true }).click();
-      assert.equal(await chat.getByText('Đã từ chối hành động. Không có dữ liệu nào bị thay đổi.', { exact: true }).isVisible(), true);
+      assert.equal(await chat.getByRole('button', { name: 'Xác nhận kế hoạch' }).count(), 0, 'Only server-bound actions can be confirmed');
       await chat.getByRole('button', { name: 'Hội thoại mới', exact: true }).click();
       await chat.getByRole('navigation', { name: 'Câu hỏi nhanh' }).getByRole('button', { name: 'Quy định kỷ luật' }).click();
-      await chat.getByRole('region', { name: 'Trích dẫn' }).waitFor();
+      await chat.locator('details[aria-label="Trích dẫn"]').waitFor();
       assert.match(await chat.getByRole('log').textContent(), /không phải chính sách có hiệu lực/);
       await chat.getByRole('button', { name: 'Hội thoại mới', exact: true }).click();
       await chat.getByRole('navigation', { name: 'Câu hỏi nhanh' }).getByRole('button', { name: 'Báo cáo két ca' }).click();
       await chat.getByText(/Không có số doanh thu đã xác thực/).waitFor();
-      assert.match(await chat.getByRole('region', { name: 'Trích dẫn' }).textContent(), /không phải báo cáo thực tế/);
+      assert.match(await chat.locator('details[aria-label="Trích dẫn"]').textContent(), /không phải báo cáo thực tế/);
     } finally {
       await page.unroute('**/api/chat', onlineChat);
     }
@@ -839,8 +829,8 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       assert.equal(requests[0].modelTier, undefined); // tier slider removed (2026-10-30)
       assert.equal(requests[0].userContext, undefined, 'Only server-resolved identity may reach the scoped gateway');
       assert.equal(await chat.locator('[data-sender="user"]').count(), 1);
-      assert.equal(await chat.getByRole('region', { name: 'Trích dẫn' }).isVisible(), true);
-      assert.equal(await chat.getByRole('button', { name: 'Xác Nhận (Confirm)' }).isVisible(), true);
+      assert.equal(await chat.locator('details[aria-label="Trích dẫn"]').isVisible(), true);
+      assert.equal(await chat.getByRole('button', { name: 'Xác nhận kế hoạch' }).count(), 0);
       assert.equal(await page.evaluate(() => window.__chatInjected), undefined);
       assert.equal(await chat.getByText(/Demo an toàn/).count(), 0);
       await input.fill('Câu hỏi tiếp theo');

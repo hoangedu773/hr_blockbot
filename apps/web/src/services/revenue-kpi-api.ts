@@ -4,7 +4,6 @@ const post = <T>(path: string, body: unknown) => requestJson<T>('/revenue-kpi' +
 export const getRevenueKpiConfig = () => requestJson<{ enabled: boolean }>('/revenue-kpi/config');
 export const listRevenueKpiPeriods = () => requestJson<{ items: RevenueKpiPeriod[] }>('/revenue-kpi/periods');
 export const createRevenueKpiPeriod = (body: unknown) => post<RevenueKpiPeriod>('/periods', body);
-export const openRevenueKpiPeriod = (p: string, body: unknown) => post<RevenueKpiPeriod>(`/periods/${p}/open`, body);
 export const computeRevenueKpiPeriod = (p: string, body: unknown) => post<RevenueKpiPeriod>(`/periods/${p}/compute`, body);
 export const closeRevenueKpiPeriod = (p: string, body: unknown) => post<RevenueKpiPeriod>(`/periods/${p}/close`, body);
 export const listRevenueKpiAssignments = (p: string) => requestJson<{ items: RevenueKpiAssignment[] }>(`/revenue-kpi/periods/${p}/assignments`);

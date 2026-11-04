@@ -20,6 +20,7 @@ def boundary(monkeypatch):
         "list_projects": [{"projectId": "a" * 24, "title": "Allowed own task"}],
         "query_policy": [{"title": "Allowed ACL document", "text": "Approved store context"}],
         "validate_context": {"valid": True},
+        "preview_revenue_period_open": {"requiresConfirmation": True, "executed": False},
         "get_my_schedule": {"from": "2026-11-04", "to": "2026-11-04", "publishedOnly": True, "items": [], "message": "Chưa có ca đã công bố"},
     }
     statuses = {}
@@ -209,3 +210,19 @@ def test_readiness_probes_authenticated_scoped_gateway_not_just_environment(monk
     assert not calls
     assert client.get("/health/ready").status_code == (200 if condition == "ready" else 503)
     assert len(calls) == 1
+
+
+@pytest.mark.parametrize("status", [200, 403, 404, 409])
+def test_revenue_open_preview_calls_only_the_scoped_tool(boundary, status, monkeypatch):
+    client, calls, prompts, statuses = boundary
+    monkeypatch.setenv("JEV_V1_MODE", "LIVE")
+    monkeypatch.setattr(gateway, "live_mode_enabled", lambda: True)
+    statuses["preview_revenue_period_open"] = status
+    body = payload(message="Mở kỳ KPI doanh thu 11/2026", revenueOpenPeriod="2026-11")
+    response = send(client, body)
+    assert response.status_code == 200
+    assert calls == [{"requestId": body["requestId"], "tool": "preview_revenue_period_open", "args": {"period": "2026-11"}}]
+    assert not prompts
+    assert response.json()["proposedAction"] is None
+    assert response.json()["abstain"] == (status != 200)
+    assert "Đã tạo" not in response.json()["reply"]

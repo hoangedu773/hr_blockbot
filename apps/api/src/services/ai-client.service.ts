@@ -193,7 +193,7 @@ export async function chatWithAiService(
   message: string,
   userContext: UserContextPayload = {},
   conversationId?: string,
-  authorization?: { requestId: string; delegationToken: string }
+  authorization?: { requestId: string; delegationToken: string; revenueOpenPeriod?: string }
 ): Promise<ChatResult> {
   const deadlineAtMs = Date.now() + 15000;
   const controller = new AbortController();
@@ -210,13 +210,13 @@ export async function chatWithAiService(
     return await Promise.race([deadline, (async (): Promise<ChatResult> => {
       let activeProviders: ActiveProviderConfig[];
       try {
-        activeProviders = await getActiveProviderConfig();
+        activeProviders = authorization.revenueOpenPeriod ? [] : await getActiveProviderConfig();
       } catch {
         console.warn("[AIClient] Provider settings unavailable; using environment configuration");
         activeProviders = [];
       }
       controller.signal.throwIfAborted();
-      if (activeProviders.length === 0) {
+      if (!authorization.revenueOpenPeriod && activeProviders.length === 0) {
         const envKey = process.env.AI_LLM_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim();
         const isMockTest = Boolean(envKey && !envKey.startsWith("AQ.") && !envKey.startsWith("AIzaSy"));
 
@@ -284,6 +284,7 @@ export async function chatWithAiService(
           deadlineAtMs,
           conversationId,
           requestId: authorization.requestId,
+          revenueOpenPeriod: authorization.revenueOpenPeriod,
           delegationToken: authorization.delegationToken,
           // Server-owned callback origin; never selected by browser/context input.
           authorizationOrigin: process.env.AUTHORIZATION_SELF_ORIGIN?.replace(/\/+$/, ""),

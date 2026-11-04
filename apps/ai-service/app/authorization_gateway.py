@@ -53,6 +53,7 @@ class AuthorizedChatRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     message: str = Field(min_length=1, max_length=2000)
     conversationId: str | None = Field(default=None, max_length=200)
+    revenueOpenPeriod: str | None = Field(default=None, pattern=r"^20\d{2}-(0[1-9]|1[0-2])$")
     requestId: str = Field(pattern=r"^[a-f0-9-]{36}$")
     delegationToken: str = Field(min_length=32, max_length=4096)
     providerConfig: dict | None = None
@@ -148,6 +149,24 @@ async def _authorized_chat(request: AuthorizedChatRequest, x_ai_service_key: str
     contexts: dict[str, object] = {}
     # No model-selected identity/filter/projection; all args are a closed schema.
     async with httpx.AsyncClient(timeout=5.0, follow_redirects=False, trust_env=False) as client:
+        if request.revenueOpenPeriod:
+            # The Node API binds this read tool to the requested month. Only the
+            # authenticated client can execute the server-owned proposal later.
+            try:
+                response = await client.post(url, headers={"x-ai-service-key": key, "Authorization": "Bearer " + request.delegationToken},
+                    json={"requestId": request.requestId, "tool": "preview_revenue_period_open", "args": {"period": request.revenueOpenPeriod}},
+                    timeout=remaining_seconds(12))
+            except httpx.HTTPError:
+                raise HTTPException(503, "Revenue preview unavailable") from None
+            replies = {
+                200: "Đã lập bản xem trước. Hãy kiểm tra kế hoạch rồi xác nhận.",
+                403: "Bạn chưa có quyền mở kỳ KPI doanh thu.",
+                404: "Chưa có kỳ này. Hãy tạo và cấu hình kỳ KPI doanh thu trên Web.",
+                409: "Kỳ này chưa thể mở hoặc tạo thêm bản nháp. Hãy kiểm tra trạng thái trên Web.",
+            }
+            if response.status_code not in replies:
+                raise HTTPException(503, "Revenue preview unavailable")
+            return {"reply": replies[response.status_code], "citations": [], "attachments": [], "proposedAction": None, "abstain": response.status_code != 200}
         if mode == "SHADOW":
             config = getattr(app.state, "jev_synthetic_mock", None)
             if config is None:

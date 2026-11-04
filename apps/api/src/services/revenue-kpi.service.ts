@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import * as C from '@hr-blockbot/contracts';
 import type { AuthenticatedUser } from '../middlewares/auth.middleware.js';
@@ -27,11 +28,12 @@ const pDto = (r: any): C.RevenueKpiPeriod => dto(C.RevenueKpiPeriodSchema, r);
 const aDto = (r: any): C.RevenueKpiAssignment => dto(C.RevenueKpiAssignmentSchema, r);
 const rDto = (r: any): C.RevenueKpiResult => dto(C.RevenueKpiResultSchema, r);
 const dbRow = (row: any) => { const { id, ...fields } = row; return { _id: id, ...fields }; };
-async function fresh(user: AuthenticatedUser) {
+async function fresh(user: AuthenticatedUser, provision = true) {
   if (!revenueKpiEnabled()) fail('REVENUE_KPI_DISABLED', 'KPI doanh thu chưa được bật.', 503);
   const u = await resolvePrincipal({ sub: user.userId, role: user.role, securityVersion: user.securityVersion });
   if (!['hr', 'am', 'sm'].includes(u.authorization?.profile ?? '')) fail('RBAC_DENIED', 'Bạn chưa có quyền KPI doanh thu.', 403);
-  await ensureRevenueKpiStorage(); return u;
+  if (provision) await ensureRevenueKpiStorage();
+  return u;
 }
 function capStores(u: AuthenticatedUser, cap: C.AuthorizationCapability) {
   requireCapability(u, cap);
@@ -159,10 +161,10 @@ export async function createRevenueKpiPeriod(user: AuthenticatedUser, raw: unkno
   return pDto(await Period.create(dbRow(row)));
 }); }
 
-async function buildDraft(u: AuthenticatedUser, p: C.RevenueKpiPeriod, input: z.infer<typeof C.RevenueKpiDraftAssignmentSchema>, options?: Awaited<ReturnType<typeof catalog>>) {
+async function buildDraft(u: AuthenticatedUser, p: C.RevenueKpiPeriod, input: z.infer<typeof C.RevenueKpiDraftAssignmentSchema>, options?: Awaited<ReturnType<typeof catalog>>, plannedStores?: ReadonlyMap<string, C.RevenueKpiAssignment>) {
   const cat = options ?? await catalog(u, p.period), candidate = cat.candidates.find(c => c.employeeId === input.assigneeEmployeeId && c.role === (input.unitType === 'STORE' ? 'SM' : 'AM'));
   if (!candidate) fail('REVENUE_KPI_STORE_WITHOUT_SM', 'Người phụ trách chưa đủ điều kiện nhận KPI.');
-  const ids = input.unitType === 'STORE' ? [input.storeId!] : candidate.storeIds;
+  const ids = input.unitType === 'STORE' ? [input.storeId!] : [...candidate.storeIds].sort();
   if (input.unitType === 'AREA' && input.storeIds && digest([...input.storeIds].sort()) !== digest([...ids].sort())) fail('REVENUE_KPI_TARGET_INVALID', 'KPI khu vực phải gồm toàn bộ cửa hàng trong phạm vi đã xác minh.');
   forStores(u, 'revenue_kpi.assign', ids.map((storeId: string) => ({ storeId })));
   if (input.unitType === 'STORE' && !candidate.storeIds.includes(ids[0])) fail('REVENUE_KPI_STORE_WITHOUT_SM', 'SM chưa thuộc cửa hàng này.');
@@ -172,9 +174,10 @@ async function buildDraft(u: AuthenticatedUser, p: C.RevenueKpiPeriod, input: z.
     if (!store.smEmployeeIds.length) fail('REVENUE_KPI_STORE_WITHOUT_SM', 'Cửa hàng chưa có SM; chưa thể giao KPI.');
     if (input.unitType === 'STORE' && !store.smEmployeeIds.includes(candidate.employeeId)) fail('REVENUE_KPI_STORE_WITHOUT_SM', 'HR cần chọn SM hợp lệ trong sổ hoặc danh sách nhân sự cửa hàng.');
     if (input.unitType === 'AREA') {
-      const parent: any = await Assignment.findOne({ period: p.period, unitType: 'STORE', storeId: id, status: { $ne: 'CANCELLED' } }).lean();
-      if (!parent) fail('REVENUE_KPI_TARGET_INVALID', 'Cần giao mục tiêu hợp lệ cho từng cửa hàng trước khi tạo KPI khu vực.');
-      stores.push(aDto(parent).stores[0]); continue;
+      const parent = plannedStores ? plannedStores.get(id) : aDto(await Assignment.findOne({ period: p.period, unitType: 'STORE', storeId: id, status: { $ne: 'CANCELLED' } }).lean());
+      if (!parent || parent.stores.length !== 1 || parent.stores[0].storeId !== id || parent.stores[0].targetVnd !== parent.targetVnd)
+        throw new WorkflowError(409, 'REVENUE_KPI_TARGET_INVALID', 'Cần giao mục tiêu hợp lệ cho từng cửa hàng trước khi tạo KPI khu vực.');
+      stores.push(parent.stores[0]); continue;
     }
     const base = await computeStoreRevenue(id, priorMonth(p.period), p.policy);
     const growth = input.targetMode === 'GROWTH_PERCENT' ? input.growthPercent ?? p.policy.defaultGrowthPercent : null;
@@ -184,6 +187,7 @@ async function buildDraft(u: AuthenticatedUser, p: C.RevenueKpiPeriod, input: z.
   }
   const previous = input.id ? await assignmentGet(input.id) : null, now = new Date().toISOString();
   const total = stores.reduce((n, s) => n + s.targetVnd, 0);
+  if (!Number.isSafeInteger(total)) fail('REVENUE_KPI_TARGET_INVALID', 'Tổng mục tiêu vượt giới hạn hợp lệ.');
   const from = input.responsibilityFrom ?? now; if (new Date(from) > new Date()) fail('REVENUE_KPI_TARGET_INVALID', 'Thời điểm phụ trách không được nằm trong tương lai.');
   return C.RevenueKpiAssignmentSchema.parse({ id: previous?.id ?? revenueId('revenue-assignment:' + p.period + ':' + input.unitType + ':' + (input.storeId ?? candidate.employeeId)), period: p.period,
     unitType: input.unitType, storeId: input.unitType === 'STORE' ? ids[0] : null, areaKey: input.unitType === 'AREA' ? 'am:' + candidate.employeeId : null,
@@ -203,26 +207,312 @@ export async function saveRevenueKpiAssignment(user: AuthenticatedUser, raw: unk
   const exists: any = await Assignment.findById(draft.id).lean(); if (exists) { const a = aDto(exists); if (replay(a, u, 'SAVE_DRAFT', input)) return a; fail('REVENUE_KPI_VERSION_CONFLICT', 'Đơn vị đã có KPI tháng này.'); }
   const created = { ...draft, history: [event(u, null, draft, 'SAVE_DRAFT', input)] }; return aDto(await Assignment.create(dbRow(C.RevenueKpiAssignmentSchema.parse(created))));
 }); }
-export async function openRevenueKpiPeriod(user: AuthenticatedUser, period: string, raw: unknown) { const input = C.RevenueKpiCommandSchema.parse(raw); return write(user, async u => {
-  capStores(u, 'revenue_kpi.assign'); const p = await periodGet(period); const resumed = replay(p, u, 'OPEN_PERIOD', input); if (!resumed) { version(p, input); if (p.status !== 'DRAFT') fail('REVENUE_KPI_INVALID_STATE', 'Chỉ mở kỳ nháp.'); }
-  if (resumed && p.status !== 'OPEN') return p;
-  // OPEN is committed before draft generation; retries can resume explicit draft saves.
-  const opened = resumed ? p : await update(Period, C.RevenueKpiPeriodSchema, p, { status: 'OPEN', openedBy: u.userId, openedAt: new Date().toISOString() }, u, 'OPEN_PERIOD', input);
-  const cat = await catalog(u, period);
-  for (const s of cat.stores.filter(s => s.smStatus === 'IDENTIFIED')) {
-    const draftInput: any = { expectedVersion: 0, clientRequestId: input.clientRequestId, period, unitType: 'STORE', storeId: s.id, assigneeEmployeeId: s.smEmployeeIds[0], targetMode: 'GROWTH_PERCENT', reason: 'Sinh nháp theo mức tăng mặc định của kỳ.' };
-    if (await Assignment.exists({ period, unitType: 'STORE', storeId: s.id })) continue;
-    try { const a = await buildDraft(u, opened, draftInput, cat); independent(u, a); a.history = [event(u, null, a, 'AUTO_DRAFT', draftInput)]; await Assignment.create(dbRow(a)); }
-    catch (e: any) { if (!(e instanceof WorkflowError && ['REVENUE_KPI_TARGET_INVALID', 'REVENUE_KPI_STORE_WITHOUT_SM', 'REVENUE_KPI_SELF_APPROVAL'].includes(e.code))) throw e; }
+type PlannedOpenItem = { item: C.RevenueKpiOpenItem; draft?: C.RevenueKpiAssignment };
+const knownOpenBlocks: Record<string, string> = {
+  REVENUE_KPI_STORE_WITHOUT_SM: 'Kiểm tra bổ nhiệm SM, hoặc chọn người phụ trách trong bản nháp thủ công.',
+  REVENUE_KPI_SM_AMBIGUOUS: 'Xác nhận một SM trong danh mục hoặc tạo bản nháp thủ công.',
+  REVENUE_KPI_TARGET_INVALID: 'Kiểm tra doanh thu kỳ gốc và mục tiêu từng cửa hàng. Có thể nhập mục tiêu VND trực tiếp.',
+  REVENUE_KPI_SELF_APPROVAL: 'Nhờ HR độc lập thực hiện.',
+  REVENUE_KPI_STORE_NOT_IN_SCOPE: 'Kiểm tra quyền trên các cửa hàng trong kỳ.',
+  REVENUE_KPI_ASSIGNMENT_CANCELLED: 'Kiểm tra KPI đã hủy của đơn vị trước khi tiếp tục.',
+};
+function assignmentIdentity(period: string, item: C.RevenueKpiOpenItem) {
+  return item.unitType === 'STORE'
+    ? { period, unitType: 'STORE', storeId: item.storeId }
+    : { period, unitType: 'AREA', areaKey: item.areaKey };
+}
+function draftBasis(a: C.RevenueKpiAssignment) {
+  return {
+    id: a.id, unitType: a.unitType, storeId: a.storeId, areaKey: a.areaKey,
+    assigneeEmployeeId: a.assigneeEmployeeId, assigneeName: a.assigneeName,
+    targetMode: a.targetMode, growthPercent: a.growthPercent, targetVnd: a.targetVnd, stores: a.stores,
+  };
+}
+function blockedItem(item: C.RevenueKpiOpenItem, error: unknown): PlannedOpenItem {
+  if (!(error instanceof WorkflowError) || !Object.hasOwn(knownOpenBlocks, error.code)) throw error;
+  return { item: { ...item, status: 'BLOCKED', code: error.code, message: error.message,
+    retryable: error.code !== 'REVENUE_KPI_ASSIGNMENT_CANCELLED', fixHint: knownOpenBlocks[error.code] } };
+}
+async function buildOpenPlan(u: AuthenticatedUser, p: C.RevenueKpiPeriod) {
+  capStores(u, 'revenue_kpi.assign');
+  if (p.status !== 'DRAFT' && p.status !== 'OPEN') fail('REVENUE_KPI_INVALID_STATE', 'Kỳ đã chốt hoặc lưu trữ.');
+  const cat = await catalog(u, p.period);
+  const rows: PlannedOpenItem[] = [];
+  const availableStores = new Map<string, C.RevenueKpiAssignment>();
+  const existingBasis: unknown[] = [];
+  const stores = [...cat.stores].sort((a, b) => a.id.localeCompare(b.id));
+  const units = [
+    ...stores.map(store => ({ store, candidate: cat.candidates.find(c => c.role === 'SM' && store.smStatus === 'IDENTIFIED' && c.employeeId === store.smEmployeeIds[0]) })),
+    ...cat.candidates.filter(c => c.role === 'AM').map(candidate => ({ store: undefined, candidate })),
+  ];
+  for (const { store, candidate } of units) {
+    const item: C.RevenueKpiOpenItem = {
+      unitType: store ? 'STORE' : 'AREA', storeId: store?.id ?? null,
+      areaKey: store ? null : 'am:' + candidate.employeeId,
+      storeIds: store ? [store.id] : [...candidate.storeIds].sort(),
+      label: store?.name ?? 'Khu vực của ' + candidate.name,
+      assigneeEmployeeId: candidate?.employeeId ?? null, assigneeName: candidate?.name ?? null,
+      assigneeRole: store ? 'SM' : 'AM', assignmentId: null, targetMode: null,
+      growthPercent: null, targetVnd: null, status: 'CREATE',
+      code: null, message: null, retryable: false, fixHint: null,
+    };
+    try {
+      const found = aDto(await Assignment.findOne(assignmentIdentity(p.period, item)).lean());
+      if (found) {
+        forStores(u, 'revenue_kpi.assign', found.stores);
+        existingBasis.push({ basis: draftBasis(found), status: found.status, version: found.version });
+        item.assignmentId = found.id;
+        if (found.status === 'CANCELLED') fail('REVENUE_KPI_ASSIGNMENT_CANCELLED', 'Đơn vị đã có KPI bị hủy trong kỳ.');
+        if (store) availableStores.set(store.id, found);
+        rows.push({ item: { ...item, status: 'SKIP_ALREADY_EXISTS', assigneeEmployeeId: found.assigneeEmployeeId,
+          assigneeName: found.assigneeName, targetMode: found.targetMode, growthPercent: found.growthPercent, targetVnd: found.targetVnd } });
+        continue;
+      }
+      if (!candidate) {
+        if (store?.smStatus === 'AMBIGUOUS') fail('REVENUE_KPI_SM_AMBIGUOUS', 'Cần xác nhận SM phụ trách cửa hàng.');
+        fail('REVENUE_KPI_STORE_WITHOUT_SM', 'Chưa có SM đủ điều kiện.');
+      }
+      const draftInput = C.RevenueKpiDraftAssignmentSchema.parse({
+        expectedVersion: 0, clientRequestId: randomUUID(), period: p.period,
+        unitType: item.unitType, ...(store ? { storeId: store.id } : {}),
+        assigneeEmployeeId: candidate.employeeId, targetMode: store ? 'GROWTH_PERCENT' : 'ABSOLUTE_VND',
+        reason: 'Lập bản nháp khi mở kỳ KPI doanh thu.',
+      });
+      const draft = await buildDraft(u, p, draftInput, cat, availableStores);
+      independent(u, draft);
+      if (store) availableStores.set(store.id, draft);
+      rows.push({ item: { ...item, assignmentId: draft.id, targetMode: draft.targetMode,
+        growthPercent: draft.growthPercent, targetVnd: draft.targetVnd }, draft });
+    } catch (error) {
+      rows.push(blockedItem(item, error));
+    }
   }
-  for (const c of cat.candidates.filter(c => c.role === 'AM')) {
-    if (await Assignment.exists({ period, unitType: 'AREA', areaKey: 'am:' + c.employeeId })) continue;
-    const draftInput: any = { expectedVersion: 0, clientRequestId: input.clientRequestId, period, unitType: 'AREA', assigneeEmployeeId: c.employeeId, targetMode: 'ABSOLUTE_VND', reason: 'Tổng mục tiêu các cửa hàng đã có bản nháp.' };
-    try { const a = await buildDraft(u, opened, draftInput, cat); independent(u, a); a.history = [event(u, null, a, 'AUTO_DRAFT', draftInput)]; await Assignment.create(dbRow(a)); }
-    catch (e: any) { if (!(e instanceof WorkflowError && ['REVENUE_KPI_TARGET_INVALID', 'REVENUE_KPI_STORE_WITHOUT_SM', 'REVENUE_KPI_SELF_APPROVAL'].includes(e.code))) throw e; }
+  const items = rows.map(row => row.item);
+  const create = rows.filter(row => row.draft).length;
+  const blocked = items.filter(item => item.status === 'BLOCKED').length;
+  const planDigest = digest({
+    id: p.id, version: p.version, status: p.status, policy: p.policy, items, existingBasis,
+    catalog: { stores: stores.map(s => ({ ...s, smEmployeeIds: [...s.smEmployeeIds].sort() })),
+      candidates: cat.candidates.map(c => ({ ...c, storeIds: [...c.storeIds].sort() })) },
+    drafts: rows.flatMap(row => row.draft ? [draftBasis(row.draft)] : []),
+  });
+  const preview = C.RevenueKpiOpenPreviewSchema.parse({
+    periodId: p.id, period: p.period, version: p.version, status: p.status,
+    planDigest, generatedAt: new Date().toISOString(),
+    summary: { create, skipped: items.length - create - blocked, blocked, total: items.length },
+    items, executed: false,
+  });
+  return { preview, rows };
+}
+
+export async function planRevenueKpiPeriodOpen(user: AuthenticatedUser, period: string) {
+  const u = await fresh(user, false);
+  capStores(u, 'revenue_kpi.assign');
+  return (await buildOpenPlan(u, await periodGet(period))).preview;
+}
+
+type OpenCommand = z.infer<typeof C.RevenueKpiCommandSchema>;
+type OpenPlan = Awaited<ReturnType<typeof buildOpenPlan>>;
+type Decision = z.infer<typeof C.RevenueKpiOpenDecisionSchema>;
+
+async function executeOpenPlan(u: AuthenticatedUser, p: C.RevenueKpiPeriod, plan: OpenPlan, input: OpenCommand) {
+  const period = p.status === 'DRAFT'
+    ? await update(Period, C.RevenueKpiPeriodSchema, p, { status: 'OPEN', openedBy: u.userId, openedAt: new Date().toISOString() }, u, 'OPEN_PERIOD', input)
+    : p;
+  type Outcome = C.RevenueKpiOpenResult['created'][number];
+  const created: Outcome[] = [], skipped: Outcome[] = [], blocked: Outcome[] = [], failed: Outcome[] = [];
+  const unavailableStores = new Set<string>();
+  for (const { item, draft } of plan.rows) {
+    if (item.status === 'BLOCKED') { blocked.push({ ...item, status: 'BLOCKED' }); continue; }
+    if (!draft) { skipped.push({ ...item, status: 'SKIPPED' }); continue; }
+    try {
+      if (item.unitType === 'AREA' && item.storeIds.some(id => unavailableStores.has(id)))
+        fail('REVENUE_KPI_TARGET_INVALID', 'Chưa lưu được mục tiêu cửa hàng trong kế hoạch này.');
+      await assertAreaTargetDerived(draft, {});
+      const row = { ...draft, history: [event(u, null, draft, 'AUTO_DRAFT', input)] };
+      await Assignment.create(dbRow(row));
+      created.push({ ...item, status: 'CREATED' });
+    } catch (error) {
+      if ((error as { code?: number }).code === 11000) {
+        const current = aDto(await Assignment.findOne(assignmentIdentity(p.period, item)).lean());
+        if (current?.status === 'DRAFT' && digest(draftBasis(current)) === digest(draftBasis(draft))) {
+          skipped.push({ ...item, assignmentId: current.id, status: 'SKIPPED' });
+          continue;
+        }
+        if (item.storeId) unavailableStores.add(item.storeId);
+        failed.push({ ...item, status: 'FAILED', code: 'REVENUE_KPI_ASSIGNMENT_CONFLICT',
+          message: 'Đơn vị đã có bản ghi khác với kế hoạch.', retryable: true, fixHint: 'Xem lại KPI hiện có và lập bản xem trước mới.' });
+        continue;
+      }
+      if (item.storeId) unavailableStores.add(item.storeId);
+      if (error instanceof WorkflowError && Object.hasOwn(knownOpenBlocks, error.code)) {
+        blocked.push({ ...blockedItem(item, error).item, status: 'BLOCKED' });
+        continue;
+      }
+      console.error('[RevenueKpi] open-period item failed', { period: p.period, assignmentId: draft.id, errorType: error instanceof Error ? error.name : 'unknown' });
+      failed.push({ ...item, status: 'FAILED', code: 'REVENUE_KPI_DRAFT_WRITE_FAILED',
+        message: 'Chưa lưu được bản nháp.', retryable: true, fixHint: 'Tải lại kế hoạch và thử lại.' });
+    }
   }
-  return opened;
-}); }
+  return C.RevenueKpiOpenResultSchema.parse({
+    period, executed: true, outcome: blocked.length || failed.length ? (created.length || skipped.length ? 'PARTIAL' : 'NONE') : 'FULL',
+    created, skipped, blocked, failed,
+    summary: { created: created.length, skipped: skipped.length, blocked: blocked.length, failed: failed.length, total: plan.rows.length },
+  });
+}
+
+// Compatibility for integrations that explicitly open a period with a versioned
+// command. Both first-party interfaces use the proposal flow below.
+export async function openRevenueKpiPeriod(user: AuthenticatedUser, period: string, raw: unknown) {
+  const input = C.RevenueKpiCommandSchema.parse(raw);
+  return write(user, async u => {
+    capStores(u, 'revenue_kpi.assign');
+    const p = await periodGet(period);
+    const resumed = replay(p, u, 'OPEN_PERIOD', input);
+    if (!resumed) { version(p, input); if (p.status !== 'DRAFT') fail('REVENUE_KPI_INVALID_STATE', 'Chỉ mở kỳ nháp.'); }
+    // A replay only proves the period transition happened, not that every draft
+    // was written. Rebuilding the plan skips existing rows and finishes the rest.
+    return (await executeOpenPlan(u, p, await buildOpenPlan(u, p), input)).period;
+  });
+}
+
+type OpenActionRow = {
+  _id: string;
+  ownerId: string;
+  securityVersion: number;
+  authorityHash: string;
+  preview: C.RevenueKpiOpenPreview;
+  status: C.RevenueKpiOpenAction['status'];
+  expiresAt: string;
+  createdAt: string;
+  updatedAt: string;
+  decisionHash?: string;
+  result?: C.RevenueKpiOpenResult;
+  leaseUntil?: string;
+  purgeAt?: Date;
+};
+const openActions = () => mongoose.connection.collection<OpenActionRow>('revenue_kpi_open_actions');
+function openAuthority(u: AuthenticatedUser) {
+  return digest({ authorization: u.authorization, employeeId: u.employeeId, delegations: u.effectiveDelegations ?? [],
+    stores: capStores(u, 'revenue_kpi.assign').sort() });
+}
+function actionDto(row: OpenActionRow) {
+  const status = row.status === 'PENDING' && row.expiresAt <= new Date().toISOString() ? 'EXPIRED' : row.status;
+  return C.RevenueKpiOpenActionSchema.parse({
+    actionId: row._id, type: 'revenue_kpi.open_period', status, expiresAt: row.expiresAt,
+    requiresConfirmation: status === 'PENDING', executed: !!row.result, preview: row.preview, result: row.result ?? null,
+  });
+}
+async function loadOpenAction(u: AuthenticatedUser, id: string) {
+  const row = await openActions().findOne({ _id: C.RevenueKpiOpenActionIdSchema.parse(id), ownerId: u.userId });
+  if (!row) fail('REVENUE_KPI_ACTION_NOT_FOUND', 'Không tìm thấy đề xuất KPI.', 404);
+  if (row!.securityVersion !== u.securityVersion || row!.authorityHash !== openAuthority(u))
+    fail('REVENUE_KPI_AUTHORITY_CHANGED', 'Quyền đã thay đổi. Hãy lập bản xem trước mới.', 403);
+  return row!;
+}
+export async function proposeRevenueKpiPeriodOpen(user: AuthenticatedUser, period: string, id: string = randomUUID()) {
+  C.RevenueKpiOpenActionIdSchema.parse(id);
+  const u = await fresh(user, false);
+  const authorityHash = openAuthority(u);
+  const preview = (await buildOpenPlan(u, await periodGet(period))).preview;
+  const now = new Date();
+  // This writes only proposal metadata. The planner never writes any collection.
+  try {
+    await openActions().updateOne({ _id: id }, { $setOnInsert: {
+      ownerId: u.userId, securityVersion: u.securityVersion ?? 0, authorityHash, preview,
+      status: 'PENDING', expiresAt: new Date(now.getTime() + 10 * 60000).toISOString(),
+      purgeAt: new Date(now.getTime() + 7 * 86400000),
+      createdAt: now.toISOString(), updatedAt: now.toISOString(),
+    } }, { upsert: true });
+  } catch (error) {
+    // Concurrent previews for the same chat request can race on upsert; the
+    // loser must read the winner's row instead of surfacing E11000.
+    if ((error as { code?: number }).code !== 11000) throw error;
+  }
+  const row = await loadOpenAction(u, id);
+  if (row.preview.period !== period) fail('REVENUE_KPI_VERSION_CONFLICT', 'Yêu cầu đã được dùng cho kỳ khác.');
+  return actionDto(row);
+}
+export async function getRevenueKpiOpenAction(user: AuthenticatedUser, id: string) {
+  return actionDto(await loadOpenAction(await fresh(user, false), id));
+}
+export class RevenueKpiPlanChangedError extends WorkflowError {
+  constructor(readonly preview: C.RevenueKpiOpenPreview) {
+    super(409, 'REVENUE_KPI_PLAN_CHANGED', 'Kế hoạch đã thay đổi. Kiểm tra bản xem trước mới trước khi xác nhận.');
+  }
+}
+export async function decideRevenueKpiOpenAction(user: AuthenticatedUser, id: string, raw: unknown) {
+  const input: Decision = C.RevenueKpiOpenDecisionSchema.parse(raw);
+  const run = async (u: AuthenticatedUser, p: C.RevenueKpiPeriod, plan: OpenPlan, decision: Extract<Decision, { approve: true }>) => {
+    try {
+      await ensureRevenueKpiStorage();
+      const result = await executeOpenPlan(u, p, plan, decision);
+      await openActions().updateOne({ _id: id, status: 'CONFIRMED' },
+        { $set: { status: 'EXECUTED', result, updatedAt: new Date().toISOString() }, $unset: { leaseUntil: '', purgeAt: '' } });
+      return actionDto({ ...(await loadOpenAction(u, id)), status: 'EXECUTED', result });
+    } catch (error) {
+      await openActions().updateOne({ _id: id, status: 'CONFIRMED' },
+        { $set: { status: 'FAILED', updatedAt: new Date().toISOString() }, $unset: { leaseUntil: '' } });
+      throw error;
+    }
+  };
+  return withCrmWriter(async () => {
+    const u = await fresh(user, false);
+    const row = await loadOpenAction(u, id);
+    const now = new Date(), nowIso = now.toISOString();
+    // Terminal outcomes are idempotent by action id: a reload or a retry with a
+    // fresh clientRequestId must replay the stored decision instead of 409.
+    if (row.status === 'EXECUTED' || row.status === 'CANCELLED') return actionDto(row);
+    if (row.status === 'PENDING' && row.expiresAt <= nowIso) {
+      await openActions().updateOne({ _id: id, status: 'PENDING' }, { $set: { status: 'EXPIRED', updatedAt: nowIso } });
+      fail('REVENUE_KPI_ACTION_EXPIRED', 'Đề xuất đã hết hạn. Hãy lập bản xem trước mới.');
+    }
+    if (row.status === 'PENDING' && !input.approve) {
+      const cancelled = await openActions().updateOne({ _id: id, status: 'PENDING' },
+        { $set: { status: 'CANCELLED', decisionHash: digest(input), updatedAt: nowIso }, $unset: { purgeAt: '' } });
+      if (!cancelled.modifiedCount) fail('REVENUE_KPI_ACTION_DECIDED', 'Đề xuất đã được xử lý.');
+      return actionDto({ ...row, status: 'CANCELLED' });
+    }
+    // Everything below executes a confirmed plan, so a decline can no longer
+    // reach it. Bind the union to the approve shape explicitly for TS.
+    if (!input.approve) fail('REVENUE_KPI_ACTION_DECIDED', 'Đề xuất đã được xử lý hoặc đã hết hạn.');
+    const approve = input as Extract<Decision, { approve: true }>;
+    if (row.status === 'PENDING') {
+      const p = await periodGet(row.preview.period);
+      if (p.status !== 'DRAFT' && p.status !== 'OPEN') fail('REVENUE_KPI_INVALID_STATE', 'Kỳ đã chốt hoặc lưu trữ.');
+      const plan = await buildOpenPlan(u, p);
+      if (approve.expectedVersion !== row.preview.version || approve.planDigest !== row.preview.planDigest ||
+        plan.preview.planDigest !== row.preview.planDigest) throw new RevenueKpiPlanChangedError(plan.preview);
+      if (row.expiresAt <= nowIso) fail('REVENUE_KPI_ACTION_EXPIRED', 'Đề xuất đã hết hạn. Hãy lập bản xem trước mới.');
+      const leaseUntil = new Date(now.getTime() + 60000).toISOString();
+      const claimed = await openActions().updateOne({ _id: id, status: 'PENDING', expiresAt: { $gt: nowIso } },
+        { $set: { status: 'CONFIRMED', decisionHash: digest(input), leaseUntil, updatedAt: nowIso }, $unset: { purgeAt: '' } });
+      if (!claimed.modifiedCount) fail('REVENUE_KPI_ACTION_DECIDED', 'Đề xuất đã được xử lý.');
+      return run(u, p, plan, approve);
+    }
+    if (row.status === 'CONFIRMED' || row.status === 'FAILED') {
+      // The worker crashed or was interrupted after claiming the action. Wait for
+      // the lease, then re-plan and finish only the missing rows; existing drafts
+      // are reported as skipped, never duplicated.
+      if (row.status === 'CONFIRMED' && row.leaseUntil && row.leaseUntil > nowIso)
+        fail('REVENUE_KPI_ACTION_DECIDED', 'Đề xuất đang được xử lý. Tải lại sau ít phút.');
+      const p = await periodGet(row.preview.period);
+      if (p.status !== 'DRAFT' && p.status !== 'OPEN') fail('REVENUE_KPI_INVALID_STATE', 'Kỳ đã chốt hoặc lưu trữ.');
+      const leaseUntil = new Date(now.getTime() + 60000).toISOString();
+      const claimed = await openActions().updateOne({ _id: id, status: row.status },
+        { $set: { status: 'CONFIRMED', leaseUntil, updatedAt: nowIso }, $unset: { purgeAt: '' } });
+      if (!claimed.modifiedCount) fail('REVENUE_KPI_ACTION_DECIDED', 'Đề xuất đã được xử lý.');
+      return run(u, p, await buildOpenPlan(u, p), approve);
+    }
+    throw new WorkflowError(409, 'REVENUE_KPI_ACTION_DECIDED', 'Đề xuất đã hết hiệu lực. Hãy lập bản xem trước mới.');
+  }).then(async action => {
+    for (const item of action.result?.created ?? []) {
+      try { await flushRevenueKpiNotices(item.assignmentId ?? undefined); }
+      catch { console.error('[RevenueKpi] notice delivery deferred'); }
+    }
+    return action;
+  });
+}
 
 function retarget(a: C.RevenueKpiAssignment, input: any) {
   if (input.newTargetVnd === undefined && input.newGrowthPercent === undefined) fail('REVENUE_KPI_TARGET_INVALID', 'HR cần nhập mục tiêu hoặc mức tăng mới.');

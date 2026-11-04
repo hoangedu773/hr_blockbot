@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import type { Citation } from '@hr-blockbot/contracts';
+import { RevenueKpiOpenActionSchema, type Citation, type RevenueKpiOpenAction } from '@hr-blockbot/contracts';
 import { useAuth } from '../context/AuthContext';
 import { createConversation } from '../services/api';
+import { RevenueKpiOpenCard } from './RevenueKpiOpenCard';
 import {
   ChatSocketClient,
   type ChatActionProposal,
@@ -24,6 +25,7 @@ interface ChatTurn {
   text: string;
   citations: Citation[];
   proposal: ChatActionProposal | null;
+  revenueAction: RevenueKpiOpenAction | null;
   proposalDecision: 'approved' | 'rejected' | null;
   streaming: boolean;
   done: boolean;
@@ -229,9 +231,12 @@ export const ChatPanel: React.FC = () => {
         });
       },
       onDone: (event) => {
+        const parsed = RevenueKpiOpenActionSchema.safeParse(event.proposedAction);
         patchAssistant(event.clientMessageId, (turn) => ({
           ...turn,
           citations: event.citations ? mergeCitations(turn.citations, event.citations) : turn.citations,
+          // Only a server-issued revenue action may render a confirmable card.
+          revenueAction: parsed.success ? parsed.data : turn.revenueAction,
           streaming: false,
           done: true,
         }));
@@ -331,6 +336,7 @@ export const ChatPanel: React.FC = () => {
         text: trimmed,
         citations: [],
         proposal: null,
+        revenueAction: null,
         proposalDecision: null,
         streaming: false,
         done: true,
@@ -341,6 +347,7 @@ export const ChatPanel: React.FC = () => {
         text: '',
         citations: [],
         proposal: null,
+        revenueAction: null,
         proposalDecision: null,
         streaming: false,
         done: false,
@@ -356,7 +363,9 @@ export const ChatPanel: React.FC = () => {
 
   const decideProposal = (turn: ChatTurn, approve: boolean) => {
     if (!turn.proposal) return;
-    socketRef.current?.confirmAction(turn.proposal.actionId, approve);
+    socketRef.current?.confirmAction(turn.proposal.actionId, approve, turn.revenueAction
+      ? { expectedVersion: turn.revenueAction.preview.version, planDigest: turn.revenueAction.preview.planDigest }
+      : undefined);
     setTurns((prev) =>
       prev.map((item) =>
         item.clientMessageId === turn.clientMessageId && item.role === 'assistant'
@@ -485,7 +494,11 @@ export const ChatPanel: React.FC = () => {
                 </div>
               )}
 
-              {turn.proposal && (
+              {turn.revenueAction && (
+                <RevenueKpiOpenCard key={turn.revenueAction.actionId} initial={turn.revenueAction} />
+              )}
+
+              {turn.proposal && !turn.revenueAction && (
                 <div className="proposal-card">
                   <div style={{ fontSize: '12px', fontWeight: 700, color: '#fcd34d' }}>
                     Đề xuất hành động: {turn.proposal.type}

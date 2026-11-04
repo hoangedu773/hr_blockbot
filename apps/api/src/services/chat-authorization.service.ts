@@ -1,3 +1,4 @@
+import { getRevenueKpiOpenAction, proposeRevenueKpiPeriodOpen } from './revenue-kpi.service.js';
 import { explainPerformanceKpi } from './performance-kpi-explain.service.js';
 import { getPerformanceEvaluation } from './performance-kpi-evaluation.service.js';
 import mongoose from "mongoose";
@@ -17,11 +18,11 @@ import { digest } from "./project-audit.service.js";
 import { EvaluationModel } from "../models/Evaluation.js";
 import { currentPeriod, periodRange } from "./kpi.service.js";
 import { personalSchedule, datePlus } from "./scheduling.service.js";
-import { ScheduleDateSchema } from "@hr-blockbot/contracts";
+import { RevenueKpiMonthSchema, ScheduleDateSchema } from "@hr-blockbot/contracts";
 
 const receipts = () => mongoose.connection.collection<any>("chat_authorization_requests");
 const contextHash = (user: AuthenticatedUser) => digest({ authorization: user.authorization, canonical: user.canonical, delegations: user.effectiveDelegations ?? [], employeeId: user.employeeId });
-export const GatewayToolRequestSchema = z.object({ requestId: z.string().uuid(), tool: z.enum(["get_my_profile", "list_projects", "get_project_status", "query_policy", "directory", "submit_report", "get_my_kpi", "get_department_kpi", "get_upcoming_deadlines", "get_my_schedule", "validate_context"]),
+export const GatewayToolRequestSchema = z.object({ requestId: z.string().uuid(), tool: z.enum(["get_my_profile", "list_projects", "get_project_status", "query_policy", "directory", "submit_report", "get_my_kpi", "get_department_kpi", "get_upcoming_deadlines", "get_my_schedule", "preview_revenue_period_open", "validate_context"]),
   args: z.object({ projectId: z.string().regex(/^[a-f0-9]{24}$/i).optional(), query: z.string().max(2000).optional(), period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(), from: ScheduleDateSchema.optional(), to: ScheduleDateSchema.optional() }).strict().default({}) }).strict();
 export function serviceKeyValid(provided: string): boolean {
   const expected = process.env.AI_SERVICE_API_KEY;
@@ -29,14 +30,14 @@ export function serviceKeyValid(provided: string): boolean {
   const a = Buffer.from(expected), b = Buffer.from(provided);
   return a.length === b.length && timingSafeEqual(a, b);
 }
-export async function beginAuthorizedChat(user: AuthenticatedUser) {
+export async function beginAuthorizedChat(user: AuthenticatedUser, revenueOpenPeriod?: string) {
   requireCapability(user, "chatbot.data_read", { userId: user.userId, employeeId: user.employeeId });
   const requestId = randomUUID(), version = user.securityVersion ?? 0;
   await receipts().createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-  await receipts().insertOne({ _id: requestId, userId: user.userId, securityVersion: version, contextHash: contextHash(user), status: "ACTIVE", expiresAt: new Date(Date.now() + 90000), documents: [], projects: [], schedules: [], performanceEvaluations: [] });
+  await receipts().insertOne({ _id: requestId, userId: user.userId, securityVersion: version, contextHash: contextHash(user), status: "ACTIVE", expiresAt: new Date(Date.now() + 90000), documents: [], projects: [], schedules: [], performanceEvaluations: [], revenueOpenPeriod });
   const delegationToken = await new SignJWT({ av: version, requestId, purpose: "authorized-tools" }).setSubject(user.userId)
     .setProtectedHeader({ alg: "HS256" }).setAudience("hr-blockbot-scoped-tools").setIssuedAt().setExpirationTime("90s").sign(getJwtSecret());
-  return { requestId, delegationToken };
+  return { requestId, delegationToken, revenueOpenPeriod };
 }
 export async function executeGatewayTool(token: string, body: unknown) {
   const parsed = GatewayToolRequestSchema.safeParse(body);
@@ -52,6 +53,14 @@ export async function executeGatewayTool(token: string, body: unknown) {
   if (!request) throw new WorkflowError(403, "CHAT_REQUEST_UNAVAILABLE", "Request expired or closed");
   if (request.contextHash !== contextHash(user)) throw new WorkflowError(409, "CHAT_AUTHORIZATION_CHANGED", "Authority changed during context preparation");
   let result: unknown, documents: any[] = [], projects: any[] = [], schedules: any[] = [], performanceEvaluations: any[] = [];
+  if (tool === "preview_revenue_period_open") {
+    const { period } = z.object({ period: RevenueKpiMonthSchema }).strict().parse(args);
+    if (period !== request.revenueOpenPeriod) throw new WorkflowError(403, 'CHAT_REQUEST_UNAVAILABLE', 'Kỳ KPI không khớp yêu cầu chat.');
+    const proposal = await proposeRevenueKpiPeriodOpen(user, period, requestId);
+    const bound = await receipts().updateOne({ _id: requestId, status: "ACTIVE", expiresAt: { $gt: new Date() } }, { $set: { revenueOpenActionId: proposal.actionId } });
+    if (!bound.matchedCount) throw new WorkflowError(403, 'CHAT_REQUEST_UNAVAILABLE', 'Yêu cầu chat đã hết hạn.');
+    return { result: { actionId: proposal.actionId, type: proposal.type, preview: proposal.preview, requiresConfirmation: true, executed: false }, proposalOnly: true };
+  }
   if (tool === "get_my_profile") {
     requireCapability(user, "profile.read_self", { employeeId: user.employeeId });
     const employee: any = await EmployeeModel.findById(user.employeeId).select("fullName full_name job_title skills").lean();
@@ -136,11 +145,22 @@ export async function executeGatewayTool(token: string, body: unknown) {
   if (!record.matchedCount) throw new WorkflowError(403, "CHAT_REQUEST_UNAVAILABLE", "Request closed during read");
   return { result, proposalOnly: true };
 }
+function revenueOpenIntent(message: string) {
+  const text = message.normalize('NFC').toLocaleLowerCase('vi');
+  if (!/kpi\s+doanh\s+thu/.test(text) || !/(?:mở\s+kỳ|xem\s+trước.*mở|tạo\s+bản\s+nháp)/.test(text)) return undefined;
+  const forward = text.match(/\b(20\d{2})[-/](1[0-2]|0?[1-9])(?!\d)/);
+  if (forward) return forward[1] + '-' + forward[2].padStart(2, '0');
+  const reverse = text.match(/\b(1[0-2]|0?[1-9])(?:[/. -]|\s+năm\s+)(20\d{2})\b/);
+  return reverse ? reverse[2] + '-' + reverse[1].padStart(2, '0') : null;
+}
 export async function authorizedChat(user: AuthenticatedUser, message: string, conversationId?: string,
-  onValidated?: (response: any, evidence: { documents: any[]; projects: any[]; schedules: any[]; performanceEvaluations: any[] }) => Promise<void>) {
-  const authorization = await beginAuthorizedChat(user);
+  onValidated?: (response: any, evidence: { documents: any[]; projects: any[]; schedules: any[]; performanceEvaluations: any[]; revenueOpenActionId?: string }) => Promise<void>) {
+  const period = revenueOpenIntent(message);
+  const authorization = await beginAuthorizedChat(user, period ?? undefined);
   try {
-    const result = await chatWithAiService(message, {}, conversationId, authorization);
+    const result: Awaited<ReturnType<typeof chatWithAiService>> = period === null
+      ? { reply: 'Bạn muốn xem trước kỳ nào? Hãy ghi rõ tháng, ví dụ 11/2026.', citations: [], attachments: [], proposedAction: null, abstain: false }
+      : await chatWithAiService(message, {}, conversationId, authorization);
     const current = await resolvePrincipal({ sub: user.userId, role: user.role, securityVersion: user.securityVersion });
     requireCapability(current, "chatbot.data_read", { userId: current.userId, employeeId: current.employeeId });
     const row = await receipts().findOne({ _id: authorization.requestId, status: "ACTIVE", expiresAt: { $gt: new Date() } });
@@ -165,8 +185,10 @@ export async function authorizedChat(user: AuthenticatedUser, message: string, c
       if (evaluation.version !== receipt.version) throw new WorkflowError(409, 'CHAT_RESOURCE_CHANGED', 'KPI đã thay đổi trong khi trả lời. Vui lòng hỏi lại.');
     }
     // Provider output cannot invent citations, attachment access, or executable actions.
-    const response = { ...result, citations, attachments: [], proposedAction: null };
-    if (onValidated) await onValidated(response, { documents: row.documents, projects: row.projects, schedules: row.schedules ?? [], performanceEvaluations: row.performanceEvaluations ?? [] });
+    const proposedAction = row.revenueOpenActionId ? await getRevenueKpiOpenAction(current, row.revenueOpenActionId) : null;
+    const reply = proposedAction ? 'Đây là bản xem trước mở kỳ KPI doanh thu. Kiểm tra từng mục rồi xác nhận nếu muốn thực hiện.' : period ? 'Chưa lập được bản xem trước KPI doanh thu. Hãy kiểm tra quyền và kỳ đã tạo trên Web.' : result.reply;
+    const response = { ...result, reply, citations, attachments: [], proposedAction };
+    if (onValidated) await onValidated(response, { documents: row.documents, projects: row.projects, schedules: row.schedules ?? [], performanceEvaluations: row.performanceEvaluations ?? [], ...(proposedAction ? { revenueOpenActionId: proposedAction.actionId } : {}) });
     return response;
   } finally { await receipts().updateOne({ _id: authorization.requestId }, { $set: { status: "CLOSED" } }); }
 }

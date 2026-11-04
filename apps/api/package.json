@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:revenue-kpi": "npm run build && node test/with-memory-mongo.mjs test/revenue-kpi-storage.test.mjs test/revenue-kpi-calc.test.mjs test/revenue-kpi-lifecycle.test.mjs test/revenue-kpi-auth.test.mjs test/revenue-kpi-grants.test.mjs test/revenue-kpi-edges.test.mjs && node --test test/revenue-kpi-ai.test.mjs",
+    "test:revenue-kpi": "npm run build && node test/with-memory-mongo.mjs test/revenue-kpi-storage.test.mjs test/revenue-kpi-calc.test.mjs test/revenue-kpi-lifecycle.test.mjs test/revenue-kpi-auth.test.mjs test/revenue-kpi-grants.test.mjs test/revenue-kpi-edges.test.mjs test/revenue-kpi-open.test.mjs test/revenue-kpi-open-chat.test.mjs && node --test test/revenue-kpi-ai.test.mjs",
     "test:sales-report": "npm run build && node test/with-memory-mongo.mjs test/sales-report.test.mjs test/pos-reporting.test.mjs test/dashboard-overview.test.mjs",
     "test:chat-history": "npm run build && node test/with-memory-mongo.mjs test/chat-history-bootstrap.test.mjs test/chat-history.test.mjs",
     "test:sm-appointments": "npm run build && node test/with-memory-mongo.mjs test/sm-appointments.test.mjs",

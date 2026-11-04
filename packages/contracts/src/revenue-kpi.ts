@@ -76,3 +76,55 @@ export type RevenueKpiAssignment = z.infer<typeof RevenueKpiAssignmentSchema>;
 export type RevenueKpiPeriod = z.infer<typeof RevenueKpiPeriodSchema>;
 export type RevenueKpiResult = z.infer<typeof RevenueKpiResultSchema>;
 export type RevenueKpiDashboard = z.infer<typeof RevenueKpiDashboardSchema>;
+
+const openDigest = z.string().regex(/^[a-f0-9]{64}$/);
+const openUnit = z.object({
+  unitType: RevenueKpiUnitTypeSchema,
+  storeId: id.nullable(),
+  areaKey: z.string().nullable(),
+  storeIds: z.array(id).min(1).max(500),
+  label: z.string(),
+  assigneeEmployeeId: id.nullable(),
+  assigneeName: z.string().nullable(),
+  assigneeRole: z.enum(['SM', 'AM']),
+  assignmentId: id.nullable(),
+  targetMode: RevenueKpiTargetModeSchema.nullable(),
+  growthPercent: percent.nullable(),
+  targetVnd: target.nullable(),
+  code: z.string().nullable(),
+  message: z.string().nullable(),
+  retryable: z.boolean(),
+  fixHint: z.string().nullable(),
+}).strict();
+export const RevenueKpiOpenItemSchema = openUnit.extend({
+  status: z.enum(['CREATE', 'SKIP_ALREADY_EXISTS', 'BLOCKED']),
+});
+export const RevenueKpiOpenPreviewSchema = z.object({
+  periodId: id, period: RevenueKpiMonthSchema, version: z.number().int().positive(),
+  status: z.enum(['DRAFT', 'OPEN']), planDigest: openDigest, generatedAt: time,
+  summary: z.object({ create: money, skipped: money, blocked: money, total: money }).strict(),
+  items: z.array(RevenueKpiOpenItemSchema), executed: z.literal(false),
+}).strict();
+export const RevenueKpiOpenConfirmSchema = RevenueKpiCommandSchema.extend({ planDigest: openDigest });
+const openOutcome = openUnit.extend({ status: z.enum(['CREATED', 'SKIPPED', 'BLOCKED', 'FAILED']) });
+export const RevenueKpiOpenResultSchema = z.object({
+  period: RevenueKpiPeriodSchema, executed: z.literal(true), outcome: z.enum(['FULL', 'PARTIAL', 'NONE']),
+  created: z.array(openOutcome), skipped: z.array(openOutcome),
+  blocked: z.array(openOutcome), failed: z.array(openOutcome),
+  summary: z.object({ created: money, skipped: money, blocked: money, failed: money, total: money }).strict(),
+}).strict();
+export const RevenueKpiOpenActionIdSchema = z.string().uuid();
+export const RevenueKpiOpenDecisionSchema = z.discriminatedUnion('approve', [
+  RevenueKpiOpenConfirmSchema.extend({ approve: z.literal(true) }),
+  z.object({ clientRequestId: z.string().uuid(), approve: z.literal(false) }).strict(),
+]);
+export const RevenueKpiOpenActionSchema = z.object({
+  actionId: RevenueKpiOpenActionIdSchema, type: z.literal('revenue_kpi.open_period'),
+  status: z.enum(['PENDING', 'CONFIRMED', 'CANCELLED', 'EXECUTED', 'EXPIRED', 'FAILED']),
+  expiresAt: time, requiresConfirmation: z.boolean(), executed: z.boolean(),
+  preview: RevenueKpiOpenPreviewSchema, result: RevenueKpiOpenResultSchema.nullable(),
+}).strict();
+export type RevenueKpiOpenItem = z.infer<typeof RevenueKpiOpenItemSchema>;
+export type RevenueKpiOpenPreview = z.infer<typeof RevenueKpiOpenPreviewSchema>;
+export type RevenueKpiOpenResult = z.infer<typeof RevenueKpiOpenResultSchema>;
+export type RevenueKpiOpenAction = z.infer<typeof RevenueKpiOpenActionSchema>;
