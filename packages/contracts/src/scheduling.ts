@@ -59,7 +59,7 @@ export type ScheduleChange = {
 export type OperationalScheduleWeek = {
   id: string; storeId: string; weekStart: string; version: number; publishedAt: string | null;
   draft: ScheduleAssignment[]; published: ScheduleAssignment[]; requests: ScheduleChange[];
-  hasUnpublishedChanges: boolean; pendingNotifications: number;
+  hasUnpublishedChanges: boolean; pendingNotifications: number; registrationAssignmentIds?: string[];
   history: { at: string; actorId: string; action: string; reason: string }[];
 };
 export type SchedulingAccess = {
@@ -76,24 +76,26 @@ export type PersonalSchedule = {
 
 const RegistrationSlotSchema = z.object({ date: ScheduleDateSchema, shiftId: Id, shiftVersion: z.number().int().positive() }).strict();
 const RegistrationId = z.string().uuid().transform((value) => value.toLowerCase());
-const RegistrationAction = z.enum(['APPROVE', 'PROPOSE', 'REJECT', 'ACCEPT', 'DECLINE', 'CANCEL']);
+const RegistrationAction = z.enum(['APPROVE', 'EDIT', 'REMOVE']);
 export const ScheduleRegistrationCreateSchema = z.object({
   weekStart: ScheduleDateSchema, clientRequestId: RegistrationId, slot: RegistrationSlotSchema,
 }).strict();
+export const ScheduleRegistrationAddSchema = ScheduleRegistrationCreateSchema.extend({ employeeId: Id });
 export const ScheduleRegistrationActionSchema = z.object({
   weekStart: ScheduleDateSchema, expectedVersion: z.number().int().positive(),
-  action: RegistrationAction, alternative: RegistrationSlotSchema.optional(),
+  action: RegistrationAction, slot: RegistrationSlotSchema.optional(),
   reason: z.string().trim().min(5).max(500).optional(),
-}).strict().refine((value) => (value.action === 'PROPOSE') === !!value.alternative &&
-  (!['PROPOSE', 'REJECT'].includes(value.action) || !!value.reason), 'Thiếu ca đề xuất hoặc lý do.');
+}).strict().refine((value) => (value.action === 'EDIT') === !!value.slot &&
+  (value.action === 'APPROVE' || !!value.reason), 'Thiếu ca hoặc lý do.');
 export type ScheduleRegistrationAction = z.infer<typeof RegistrationAction>;
+export type ScheduleRegistrationStatus = 'PENDING_MANAGER' | 'PENDING_EMPLOYEE' | 'APPROVED' | 'REJECTED' | 'DECLINED' | 'CANCELLED';
 export type ScheduleRegistration = {
-  id: string; version: number; createdAt: string;
-  status: 'PENDING_MANAGER' | 'PENDING_EMPLOYEE' | 'APPROVED' | 'REJECTED' | 'DECLINED' | 'CANCELLED';
-  requested: ScheduleAssignment; alternative: ScheduleAssignment | null;
+  id: string; version: number; status: ScheduleRegistrationStatus;
+  employeeName: string; slot: Pick<ScheduleAssignment, 'date' | 'shiftId' | 'shiftCode' | 'shiftName' | 'intervals'>;
   reviewReason: string | null; placement: 'DRAFT' | 'PUBLISHED' | null;
-  isOwn: boolean; expired: boolean;
+  isOwn: boolean; canManage: boolean; expired: boolean;
 };
 export type ScheduleRegistrations = {
-  storeId: string; storeName: string; shifts: ShiftDefinition[]; items: ScheduleRegistration[];
+  storeId: string; storeName: string; published: boolean; shifts: ShiftDefinition[]; items: ScheduleRegistration[];
+  roster: { employeeId: string; fullName: string; employeeCode: string }[];
 };

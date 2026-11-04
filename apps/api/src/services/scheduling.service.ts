@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   ScheduleDateSchema, ScheduleDraftInputSchema, ScheduleChangeCreateSchema, ScheduleChangeActionSchema, ShiftDefinitionInputSchema,
-  ScheduleRegistrationCreateSchema, ScheduleRegistrationActionSchema,
+  ScheduleRegistrationCreateSchema, ScheduleRegistrationAddSchema, ScheduleRegistrationActionSchema,
   type ScheduleRegistration, type ScheduleRegistrations,
   type AuthorizationCapability, type ScheduleAssignment, type ScheduleChange, type OperationalScheduleWeek as ScheduleWeek, type SchedulingAccess, type PersonalSchedule,
 } from '@hr-blockbot/contracts';
@@ -35,7 +35,7 @@ export function assignmentTimes(a: Pick<ScheduleAssignment, 'date' | 'intervals'
   const start = Date.parse(a.date + 'T00:00:00+07:00');
   return a.intervals.map((p) => ({ start: start + p.startMinute * 60000, end: start + p.endMinute * 60000 }));
 }
-const future = (a: ScheduleAssignment) => assignmentTimes(a).every((p) => p.start > Date.now());
+const future = (a: Pick<ScheduleAssignment, 'date' | 'intervals'>) => assignmentTimes(a).every((p) => p.start > Date.now());
 export const isUrgentScheduleChange = (source: ScheduleAssignment, target: ScheduleAssignment | null, now = Date.now()) =>
   Math.min(...assignmentTimes(source).map(t => t.start), ...(target ? assignmentTimes(target).map(t => t.start) : [])) - now < 86400000;
 const state = (row: any) => ({ storeId: String(row.storeId), weekStart: row.weekStart ?? null, version: row.version,
@@ -91,6 +91,7 @@ export function weekDto(row: any): ScheduleWeek {
   return { id: String(row._id), storeId: String(row.storeId), weekStart: row.weekStart, version: row.version,
     draft: row.draft, published: row.published, requests: row.requests, publishedAt: row.publishedAt,
     hasUnpublishedChanges: digest(row.draft) !== digest(row.published),
+    registrationAssignmentIds: linkedRegistrationIds(row),
     pendingNotifications: row.history.flatMap((e: any) => e.notices ?? []).filter((n: any) => !row.deliveredNoticeIds.includes(n.id)).length,
     history: row.history.map(({ at, actorId, action, reason }: any) => ({ at, actorId, action, reason })) };
 }
@@ -125,11 +126,12 @@ async function eligiblePerson(actor: AuthenticatedUser, storeId: string, employe
     fail('RBAC_DENIED', 'Nhân viên ngoài quan hệ quản lý được cấp.', 403);
   return person;
 }
-export async function scheduleRoster(user: AuthenticatedUser, storeId: string) {
+export async function scheduleRoster(user: AuthenticatedUser, storeId: string, homeOnly = false) {
   authorizeStore(user, storeId, 'schedules.manage');
   const ids = [...new Set([...(managedEmployeeIds(user, storeId, 'schedules.manage')), ...(user.employeeId ? [user.employeeId] : [])])];
   const rows: any[] = await EmployeeModel.find({ _id: { $in: ids.map(objectId) }, status: 'active', lifecyclePendingRequestId: null,
-    storeMappingRef: { $type: 'string', $ne: '' }, $or: [{ storeId: objectId(storeId) }, { storeIds: objectId(storeId), smCoverRef: { $type: 'string', $ne: '' } }] })
+    storeMappingRef: { $type: 'string', $ne: '' }, ...(homeOnly ? { storeId: objectId(storeId) } :
+      { $or: [{ storeId: objectId(storeId) }, { storeIds: objectId(storeId), smCoverRef: { $type: 'string', $ne: '' } }] }) })
     .select('fullName full_name employeeCode employee_code job_title').sort({ fullName: 1, _id: 1 }).limit(1001).lean();
   if (rows.length > 1000) fail('SCHEDULE_READ_LIMIT', 'Danh sách nhân viên quá lớn.');
   return { items: rows.map((p) => ({ employeeId: String(p._id), fullName: p.fullName || p.full_name || '', employeeCode: p.employeeCode || p.employee_code || '', jobTitle: p.job_title ?? null })) };
@@ -188,6 +190,11 @@ export async function saveDraft(user: AuthenticatedUser, weekId: string, input: 
   const body = parse<import('@hr-blockbot/contracts').ScheduleDraftInput>(ScheduleDraftInputSchema, input);
   return writer(user, async (actor) => {
     const row = await weekRow(weekId); authorizeStore(actor, String(row.storeId), 'schedules.manage'); checkVersion(row, body.expectedVersion);
+    if (row.publishedAt) {
+      const original = (row.published as ScheduleAssignment[]).map(({ id, employeeId, date, shiftId }) => ({ id, employeeId, date, shiftId }));
+      if (digest(original) !== digest(body.assignments) || digest(row.draft) === digest(row.published)) registrationWeekOpen(row);
+      return weekDto(await record(Week, row, { draft: row.published }, actor, 'LEGACY_DRAFT_DISCARDED', body.reason));
+    }
     const assignments: ScheduleAssignment[] = [];
     for (const a of body.assignments) {
       if (a.date < row.weekStart || a.date > datePlus(row.weekStart, 6)) fail('INVALID_SCHEDULE_DATE', 'Ca phải nằm trong tuần được chọn.', 400);
@@ -200,6 +207,12 @@ export async function saveDraft(user: AuthenticatedUser, weekId: string, input: 
       assignments.push({ ...a, employeeName: person.fullName || person.full_name || '', employeeCode: person.employeeCode || person.employee_code || '',
         shiftCode: shift.code, shiftName: shift.name, shiftVersion: shift.version, intervals: shift.intervals });
     }
+    for (const id of linkedRegistrationIds(row)) {
+      const before = row.draft.find((a: ScheduleAssignment) => a.id === id);
+      const after = assignments.find((a) => a.id === id);
+      if (!after || digest(before) !== digest(after))
+        fail('SCHEDULE_REGISTRATION_LINKED', 'Hãy chỉnh hoặc xóa ca này trong Bảng đăng ký ca.');
+    }
     await validatePublication(actor, row, assignments);
     return weekDto(await record(Week, row, { draft: assignments }, actor, 'DRAFT_SAVED', body.reason));
   });
@@ -211,7 +224,7 @@ async function noticeUsers(employeeIds: (string | null)[], message: string) {
   return rows.filter((u) => people.some((p) => String(p._id) === String(u.employeeId) && String(p.userId) === String(u._id)))
     .map((u) => ({ id: randomUUID(), userId: String(u._id), employeeId: String(u.employeeId), message }));
 }
-async function reviewNotices(actor: AuthenticatedUser, row: any, conflicts: (string | null)[], registrationEmployeeId?: string, registrationMessage = 'Có đăng ký ca chờ duyệt.') {
+async function reviewNotices(actor: AuthenticatedUser, row: any, conflicts: (string | null)[], registrationEmployeeId?: string) {
   const store = actor.canonical?.verifiedStores.find((s) => s.id === String(row.storeId));
   const candidates: any[] = await UserModel.find({ status: 'active', 'authorization.grants': { $elemMatch: {
     capabilities: registrationEmployeeId ? 'schedules.manage' : 'schedule_changes.review', $or: [{ 'scope.storeIds': String(row.storeId) }, ...(store?.regionId ? [{ 'scope.regionIds': store.regionId }] : [])],
@@ -224,7 +237,7 @@ async function reviewNotices(actor: AuthenticatedUser, row: any, conflicts: (str
       if (registrationEmployeeId) {
         if (canReceiveRegistrationNotice(current, String(row.storeId), registrationEmployeeId))
           notices.push({ id: randomUUID(), userId: current.userId, employeeId: current.employeeId,
-            message: registrationMessage, audience: 'REGISTRATION_REVIEW', subjectEmployeeId: registrationEmployeeId });
+            message: 'Có đăng ký ca chờ duyệt.', audience: 'REGISTRATION_REVIEW', subjectEmployeeId: registrationEmployeeId });
       } else if (storeAllowed(current, String(row.storeId), 'schedule_changes.review')) notices.push({ id: randomUUID(), userId: String(u._id), employeeId: String(u.employeeId), message: 'Có yêu cầu đổi ca chờ quản lý xem xét.' });
     } catch { /* Unavailable/revoked actors are not notification recipients. */ }
   }
@@ -266,12 +279,14 @@ export async function publishWeek(user: AuthenticatedUser, weekId: string, expec
     const row = await weekRow(weekId); authorizeStore(actor, String(row.storeId), 'schedules.publish');
     // Publishing requires assignment authority for every person, not only a publish flag.
     authorizeStore(actor, String(row.storeId), 'schedules.manage'); checkVersion(row, expectedVersion);
+    if (row.publishedAt) {
+      if (digest(row.draft) === digest(row.published)) return row;
+      registrationWeekOpen(row);
+    }
     await validatePublication(actor, row, row.draft);
-    if (row.publishedAt && digest(row.draft) === digest(row.published)) return row;
-    const requests = row.requests.map((r: ScheduleChange) => pending(r) ? { ...r, status: 'CANCELLED', decisionReason: 'Lịch được công bố lại; gửi yêu cầu mới nếu còn cần đổi.' } : r);
-    const affected = [...new Set([...row.published, ...row.draft].map((a: ScheduleAssignment) => a.employeeId))] as string[];
-    return record(Week, row, { published: row.draft, publishedAt: new Date().toISOString(), requests }, actor, 'WEEK_PUBLISHED', reason,
-      await noticeUsers(affected, 'Lịch làm tuần ' + row.weekStart + ' đã được công bố hoặc cập nhật. Mở Lịch của tôi để xem.'));
+    const affected = [...new Set(row.draft.map((a: ScheduleAssignment) => a.employeeId))] as string[];
+    return record(Week, row, { published: row.draft, publishedAt: new Date().toISOString() }, actor, 'WEEK_PUBLISHED', reason,
+      await noticeUsers(affected, 'Lịch làm tuần ' + row.weekStart + ' đã được công bố. Mở Lịch của tôi để xem.'));
   });
   return deliver(saved);
 }
@@ -528,54 +543,69 @@ export async function assertNoFuturePublishedSchedules(employeeId: string) {
   }
 }
 
+
 type RegistrationAudit = {
   id: string; from: ScheduleRegistration['status'] | null; to: ScheduleRegistration['status'];
   reason: string | null; alternative?: Pick<ScheduleAssignment, 'date' | 'shiftId' | 'shiftVersion'>;
 };
-type StoredRegistration = Omit<ScheduleRegistration, 'placement' | 'isOwn' | 'expired'> & {
-  requesterUserId: string; reviewer: { userId: string; role: AuthenticatedUser['role']; securityVersion: number } | null;
+type StoredRegistration = {
+  id: string; version: number; createdAt: string; status: ScheduleRegistration['status'];
+  requested: ScheduleAssignment; alternative: ScheduleAssignment | null;
+  reviewReason: string | null; requesterUserId: string;
+  // Kept on existing rows so their stored audit hashes continue to verify.
+  reviewer: { userId: string; role: AuthenticatedUser['role']; securityVersion: number } | null;
 };
 const registrationPending = (item: StoredRegistration) => item.status === 'PENDING_MANAGER' || item.status === 'PENDING_EMPLOYEE';
+const registrationVisible = (item: StoredRegistration) => registrationPending(item) || item.status === 'APPROVED';
+function linkedRegistrationIds(row: { publishedAt: string | null; draft: ScheduleAssignment[]; registrations?: StoredRegistration[] }) {
+  if (row.publishedAt) return [];
+  return (row.registrations ?? []).filter((item) => item.status === 'APPROVED' &&
+    row.draft.some((a) => a.id === item.id && a.employeeId === item.requested.employeeId)).map((item) => item.id);
+}
 const registrationWeekId = (storeId: string, weekStart: string) => idFor('schedule-v1:' + storeId + ':' + validateWeek(weekStart));
 
+function registrationWeekOpen(row: { publishedAt: string | null }) {
+  if (row.publishedAt) fail('SCHEDULE_WEEK_PUBLISHED', 'Tuần đã công bố. Hãy dùng luồng đổi hoặc nhận ca thay từ Lịch của tôi.');
+}
 function registrationHome(actor: AuthenticatedUser) {
   const store = actor.canonical?.verifiedStores.find((s) => s.id === actor.canonical?.ownStoreId);
   if (!actor.employeeId || !store) return fail('RBAC_DENIED', 'Cần có cửa hàng công tác đã xác minh để đăng ký ca.', 403);
   return { employeeId: actor.employeeId, store };
 }
-function registrationDto(row: any, item: StoredRegistration, viewer: AuthenticatedUser): ScheduleRegistration {
-  const { requesterUserId, reviewer, ...data } = item;
-  const slot = item.alternative ?? item.requested;
+function registrationDto(row: any, item: StoredRegistration, actor: AuthenticatedUser, manageable: boolean): ScheduleRegistration {
+  const { employeeName, employeeId, date, shiftId, shiftCode, shiftName, intervals } = item.alternative ?? item.requested;
   const contains = (assignments: ScheduleAssignment[]) => assignments.some((a) =>
-    a.id === slot.id && a.employeeId === slot.employeeId && a.date === slot.date && a.shiftId === slot.shiftId);
-  return { ...data, isOwn: requesterUserId === viewer.userId, expired: !future(slot),
+    a.id === item.id && a.employeeId === employeeId && a.date === date && a.shiftId === shiftId);
+  const isOwn = actor.employeeId === employeeId;
+  return { id: item.id, version: item.version, status: item.status, employeeName, slot: { date, shiftId, shiftCode, shiftName, intervals },
+    isOwn, canManage: manageable && !row.publishedAt, expired: !future({ date, intervals }),
+    reviewReason: manageable || isOwn ? item.reviewReason : null,
     placement: item.status === 'APPROVED' ? (contains(row.published) ? 'PUBLISHED' : contains(row.draft) ? 'DRAFT' : null) : null };
 }
-function registrationManager(actor: AuthenticatedUser, storeId: string, item: StoredRegistration) {
-  authorizeStore(actor, storeId, 'schedules.read_store');
-  authorizeStore(actor, storeId, 'schedules.manage');
-  if (!actor.employeeId || actor.userId === item.requesterUserId || actor.employeeId === item.requested.employeeId ||
-      !managedEmployeeIds(actor, storeId, 'schedules.manage').includes(item.requested.employeeId))
-    fail('RBAC_DENIED', 'Yêu cầu cần người duyệt độc lập có quyền quản lý nhân viên tại cửa hàng.', 403);
+function registrationManager(actor: AuthenticatedUser, storeId: string, employeeId: string) {
+  if (!canReceiveRegistrationNotice(actor, storeId, employeeId))
+    fail('RBAC_DENIED', 'Nhân viên ngoài phạm vi quản lý của bạn hoặc là chính bạn.', 403);
 }
 export async function listScheduleRegistrations(actor: AuthenticatedUser, weekStart: string, storeId?: string): Promise<ScheduleRegistrations> {
-  if (storeId) {
-    authorizeStore(actor, storeId, 'schedules.read_store');
-    authorizeStore(actor, storeId, 'schedules.manage');
-  } else requireCapability(actor, 'schedule_changes.request', { employeeId: actor.employeeId });
+  if (storeId) authorizeStore(actor, storeId, 'schedules.read_store');
+  else requireCapability(actor, 'schedules.read_self', { employeeId: actor.employeeId });
   const store = storeId ? actor.canonical?.verifiedStores.find((s) => s.id === storeId) : registrationHome(actor).store;
   if (!store) return fail('RBAC_DENIED', 'Cửa hàng chưa được xác minh.', 403);
   const row: any = await Week.findById(registrationWeekId(store.id, weekStart)).lean();
   if (row) verifySchedule(row);
-  const managed = storeId ? managedEmployeeIds(actor, store.id, 'schedules.manage') : [];
-  const items: StoredRegistration[] = (row?.registrations ?? []).filter((item: StoredRegistration) =>
-    storeId ? managed.includes(item.requested.employeeId) && item.requesterUserId !== actor.userId && item.requested.employeeId !== actor.employeeId
-      : item.requesterUserId === actor.userId && item.requested.employeeId === actor.employeeId);
-  return { storeId: store.id, storeName: store.name, shifts: (await readShiftDefinitions(store.id)).items.filter((s) => s.active),
-    items: items.reverse().map((item) => registrationDto(row, item, actor)) };
+  const published = !!row?.publishedAt;
+  const manager = !!storeId && !!actor.employeeId && storeAllowed(actor, store.id, 'schedules.manage');
+  const managed = manager ? new Set(managedEmployeeIds(actor, store.id, 'schedules.manage')) : new Set<string>();
+  const roster = manager && !published ? (await scheduleRoster(actor, store.id, true)).items
+    .filter((p) => managed.has(p.employeeId) && p.employeeId !== actor.employeeId) : [];
+  const items: StoredRegistration[] = (row?.registrations ?? []).filter(registrationVisible);
+  return { storeId: store.id, storeName: store.name, published, roster,
+    shifts: published ? [] : (await readShiftDefinitions(store.id)).items.filter((s) => s.active),
+    items: items.map((item) => registrationDto(row, item, actor, managed.has(item.requested.employeeId) && item.requested.employeeId !== actor.employeeId))
+      .sort((a, b) => a.slot.date.localeCompare(b.slot.date) || a.slot.intervals[0].startMinute - b.slot.intervals[0].startMinute || a.employeeName.localeCompare(b.employeeName, 'vi')) };
 }
 async function registrationSlot(row: any, actor: AuthenticatedUser, employeeId: string, id: string,
-  slot: Pick<ScheduleAssignment, 'date' | 'shiftId' | 'shiftVersion'>): Promise<ScheduleAssignment> {
+  slot: Pick<ScheduleAssignment, 'date' | 'shiftId' | 'shiftVersion'>, replacing = false): Promise<ScheduleAssignment> {
   if (slot.date < row.weekStart || slot.date > datePlus(row.weekStart, 6))
     return fail('INVALID_SCHEDULE_DATE', 'Chọn ngày trong tuần đang xem.', 400);
   const person = await eligiblePerson(actor, String(row.storeId), employeeId);
@@ -588,22 +618,33 @@ async function registrationSlot(row: any, actor: AuthenticatedUser, employeeId: 
     employeeName: person.fullName || person.full_name || '', employeeCode: person.employeeCode || person.employee_code || '',
     shiftCode: shift.code, shiftName: shift.name, intervals: shift.intervals };
   if (!future(assignment)) fail('SCHEDULE_ALREADY_STARTED', 'Chỉ được đăng ký ca chưa bắt đầu.');
-  for (const other of [...row.draft, ...row.published] as ScheduleAssignment[]) {
-    if (other.employeeId === employeeId && assignmentTimes(assignment).some((a) => assignmentTimes(other).some((b) => a.start < b.end && b.start < a.end)))
-      fail('SCHEDULE_OVERLAP', 'Ca trùng giờ với lịch hiện có. Nếu cần thay ca đã công bố, hãy dùng mục đổi ca.');
+  for (const other of row.draft as ScheduleAssignment[]) {
+    if (other.id === id && (!replacing || other.employeeId !== employeeId)) fail('SCHEDULE_REQUEST_CONFLICT', 'Mã phân công đã tồn tại.');
+    if (other.id !== id && other.employeeId === employeeId &&
+      assignmentTimes(assignment).some((a) => assignmentTimes(other).some((b) => a.start < b.end && b.start < a.end)))
+      fail('SCHEDULE_OVERLAP', 'Ca trùng giờ với lịch hiện có.');
   }
   await checkOverlaps(row, [assignment]);
   return assignment;
 }
-export async function createScheduleRegistration(user: AuthenticatedUser, input: unknown) {
-  const body = parse<z.infer<typeof ScheduleRegistrationCreateSchema>>(ScheduleRegistrationCreateSchema, input);
+export async function createScheduleRegistration(user: AuthenticatedUser, input: unknown, managedStoreId?: string) {
+  const body = parse<z.infer<typeof ScheduleRegistrationAddSchema>>(managedStoreId ? ScheduleRegistrationAddSchema : ScheduleRegistrationCreateSchema, input);
   const result = await writer(user, async (actor) => {
-    const { store, employeeId } = registrationHome(actor);
-    requireCapability(actor, 'schedule_changes.request', { employeeId });
-    const initial = emptyWeek(store.id, validateWeek(body.weekStart));
+    let storeId: string, employeeId: string;
+    if (managedStoreId) {
+      storeId = managedStoreId; employeeId = body.employeeId;
+      registrationManager(actor, storeId, employeeId);
+    } else {
+      const home = registrationHome(actor);
+      storeId = home.store.id; employeeId = home.employeeId;
+      requireCapability(actor, 'schedules.read_self', { employeeId });
+      requireCapability(actor, 'schedule_changes.request', { employeeId });
+    }
+    const initial = emptyWeek(storeId, validateWeek(body.weekStart));
     const existing: any = await Week.findById(initial._id).lean();
     if (existing) verifySchedule(existing);
     const row = existing ?? initial;
+    registrationWeekOpen(row);
     const registrations: StoredRegistration[] = row.registrations ?? [];
     const replay = registrations.find((r) => r.id === body.clientRequestId);
     if (replay) {
@@ -612,88 +653,66 @@ export async function createScheduleRegistration(user: AuthenticatedUser, input:
         return fail('SCHEDULE_REQUEST_CONFLICT', 'Mã yêu cầu đã được sử dụng.');
       return { saved: row, item: replay, actor };
     }
-    if (registrations.some((r) => r.requested.employeeId === employeeId && registrationPending(r) &&
-      [r.requested, r.alternative].some((slot) => slot?.date === body.slot.date && slot.shiftId === body.slot.shiftId)))
-      fail('SCHEDULE_REQUEST_CONFLICT', 'Ca này đã có yêu cầu đang chờ xử lý.');
+    if (registrations.some((r) => registrationVisible(r) && r.requested.employeeId === employeeId &&
+        (r.alternative ?? r.requested).date === body.slot.date && (r.alternative ?? r.requested).shiftId === body.slot.shiftId))
+      fail('SCHEDULE_REQUEST_CONFLICT', 'Nhân viên đã có đăng ký ca này.');
+    if (managedStoreId && row.draft.length >= 500) fail('SCHEDULE_STORAGE_LIMIT', 'Lịch tuần đã đầy.');
     const requested = await registrationSlot(row, actor, employeeId, body.clientRequestId, body.slot);
     const item: StoredRegistration = { id: body.clientRequestId, version: 1, createdAt: new Date().toISOString(),
-      status: 'PENDING_MANAGER', requested, alternative: null, reviewReason: null, requesterUserId: actor.userId, reviewer: null };
-    const changes = { registrations: [...registrations, item] };
-    const notices = await reviewNotices(actor, row, [actor.userId], employeeId);
-    if (!notices.length) return fail('SCHEDULE_REVIEWER_UNAVAILABLE', 'Chưa có quản lý độc lập được phân quyền duyệt ca tại cửa hàng.');
+      status: managedStoreId ? 'APPROVED' : 'PENDING_MANAGER', requested, alternative: null, reviewReason: null,
+      requesterUserId: actor.userId, reviewer: null };
+    const changes = { registrations: [...registrations, item], ...(managedStoreId ? { draft: [...row.draft, requested] } : {}) };
+    const notices = managedStoreId ? await noticeUsers([employeeId], 'Quản lý đã thêm ca cho bạn vào bản nháp lịch tuần.') :
+      await reviewNotices(actor, row, [actor.userId], employeeId);
     const audit = { id: item.id, from: null, to: item.status, reason: null };
-    const action = 'REGISTRATION_SUBMITTED', reason = 'Nhân viên gửi đăng ký ca.';
+    const action = managedStoreId ? 'REGISTRATION_ADDED' : 'REGISTRATION_SUBMITTED';
+    const reason = managedStoreId ? 'Quản lý thêm ca vào bảng đăng ký.' : 'Nhân viên gửi đăng ký ca.';
     const created = { ...initial, ...changes };
     const saved = existing ? await record(Week, row, changes, actor, action, reason, notices, audit) :
       (await Week.create({ ...created, history: [entry(null, created, actor.userId, action, reason, notices, audit)] })).toObject();
     return { saved, item, actor };
   });
   await deliver(result.saved);
-  return registrationDto(result.saved, result.item, result.actor);
+  return registrationDto(result.saved, result.item, result.actor, !!managedStoreId);
 }
 export async function actScheduleRegistration(user: AuthenticatedUser, storeId: string, requestId: string, input: unknown) {
   const body = parse<z.infer<typeof ScheduleRegistrationActionSchema>>(ScheduleRegistrationActionSchema, input);
   const result = await writer(user, async (actor) => {
-    const byEmployee = ['ACCEPT', 'DECLINE', 'CANCEL'].includes(body.action);
-    if (byEmployee) {
-      requireCapability(actor, body.action === 'CANCEL' ? 'schedule_changes.request' : 'schedule_changes.respond', { employeeId: actor.employeeId });
-      if (registrationHome(actor).store.id !== storeId) return fail('RBAC_DENIED', 'Yêu cầu ngoài cửa hàng công tác.', 403);
-    } else {
-      authorizeStore(actor, storeId, 'schedules.read_store');
-      authorizeStore(actor, storeId, 'schedules.manage');
-    }
+    authorizeStore(actor, storeId, 'schedules.read_store');
+    authorizeStore(actor, storeId, 'schedules.manage');
     const row = await weekRow(String(registrationWeekId(storeId, body.weekStart)));
+    registrationWeekOpen(row);
     const registrations: StoredRegistration[] = row.registrations ?? [];
     const previous = registrations.find((r) => r.id === requestId);
-    if (!previous) return fail('RESOURCE_NOT_FOUND', 'Không tìm thấy yêu cầu đăng ký.', 404);
+    if (!previous) return fail('RESOURCE_NOT_FOUND', 'Không tìm thấy đăng ký ca.', 404);
     const employeeId = previous.requested.employeeId;
-    if (byEmployee) {
-      if (previous.requesterUserId !== actor.userId || employeeId !== actor.employeeId)
-        return fail('RBAC_DENIED', 'Chỉ nhân viên gửi yêu cầu được phản hồi.', 403);
-    } else registrationManager(actor, storeId, previous);
-    if (previous.version !== body.expectedVersion) return fail('SCHEDULE_VERSION_CONFLICT', 'Yêu cầu đã thay đổi. Tải lại trước khi xử lý.');
-    if (!(body.action === 'CANCEL' ? registrationPending(previous) :
-      byEmployee ? previous.status === 'PENDING_EMPLOYEE' : previous.status === 'PENDING_MANAGER' ||
-        body.action === 'REJECT' && previous.status === 'PENDING_EMPLOYEE'))
-      return fail('SCHEDULE_REQUEST_STATE', 'Yêu cầu đã được xử lý hoặc đang chờ người khác.');
-    const item = { ...previous, version: previous.version + 1 };
-    let assignment: ScheduleAssignment | undefined;
-    if (body.action === 'PROPOSE' && body.alternative) {
-      if (previous.requested.date === body.alternative.date && previous.requested.shiftId === body.alternative.shiftId &&
-        previous.requested.shiftVersion === body.alternative.shiftVersion)
-        fail('SCHEDULE_REQUEST_CONFLICT', 'Hãy chọn ca khác hoặc duyệt ca đã đăng ký.');
-      item.alternative = await registrationSlot(row, actor, employeeId, item.id, body.alternative);
-      item.reviewer = { userId: actor.userId, role: actor.role, securityVersion: actor.securityVersion ?? 0 };
-      item.status = 'PENDING_EMPLOYEE';
-    } else if (body.action === 'APPROVE' || body.action === 'ACCEPT') {
-      const slot = body.action === 'ACCEPT' ? item.alternative : item.requested;
-      if (!slot) return fail('SCHEDULE_REQUEST_STATE', 'Chưa có ca thay thế để xác nhận.');
-      if (body.action === 'ACCEPT') {
-        const reviewer = item.reviewer;
-        if (!reviewer) return fail('RBAC_DENIED', 'Đề xuất chưa có người quản lý hợp lệ.', 403);
-        const manager = await resolvePrincipal({ sub: reviewer.userId, role: reviewer.role, securityVersion: reviewer.securityVersion })
-          .catch(() => fail('RBAC_DENIED', 'Quản lý đã thay đổi quyền. Hãy hủy và gửi yêu cầu mới.', 403));
-        registrationManager(manager, storeId, item);
-      }
-      if (row.draft.length >= 500) fail('SCHEDULE_STORAGE_LIMIT', 'Lịch tuần đã đầy.');
-      if ([...row.draft, ...row.published].some((a) => a.id === item.id))
-        fail('SCHEDULE_REQUEST_CONFLICT', 'Mã phân công đã tồn tại.');
-      assignment = await registrationSlot(row, actor, employeeId, item.id, slot);
-      item.status = 'APPROVED';
-    } else item.status = body.action === 'REJECT' ? 'REJECTED' : body.action === 'DECLINE' ? 'DECLINED' : 'CANCELLED';
-    if (!byEmployee) item.reviewReason = body.reason ?? null;
-    const notices = byEmployee ? await reviewNotices(actor, row, [actor.userId], employeeId, 'Nhân viên đã phản hồi một yêu cầu đăng ký ca.') :
-      await noticeUsers([employeeId], item.status === 'APPROVED' ? 'Ca đăng ký đã được duyệt và đang chờ công bố.' :
-        item.status === 'PENDING_EMPLOYEE' ? 'Quản lý đã đề xuất ca khác. Mở mục Đăng ký ca để xác nhận.' : 'Yêu cầu đăng ký ca không được duyệt. Mở mục Đăng ký ca để xem lý do.');
+    registrationManager(actor, storeId, employeeId);
+    if (previous.version !== body.expectedVersion) return fail('SCHEDULE_VERSION_CONFLICT', 'Đăng ký đã thay đổi. Tải lại trước khi xử lý.');
+    if (!registrationVisible(previous) || (body.action === 'APPROVE' && !registrationPending(previous)))
+      return fail('SCHEDULE_REQUEST_STATE', 'Đăng ký đã được xử lý.');
+    const item: StoredRegistration = { ...previous, version: previous.version + 1, reviewReason: body.reason ?? null,
+      status: body.action === 'REMOVE' ? 'CANCELLED' : 'APPROVED' };
+    const existing = (row.draft as ScheduleAssignment[]).find((a) => a.id === item.id);
+    if (existing && (previous.status !== 'APPROVED' || existing.employeeId !== employeeId))
+      fail('SCHEDULE_REQUEST_CONFLICT', 'Mã phân công đã được dùng cho ca khác.');
+    let draft = (row.draft as ScheduleAssignment[]).filter((a) => a.id !== item.id);
+    if (body.action !== 'REMOVE') {
+      if (draft.length >= 500) fail('SCHEDULE_STORAGE_LIMIT', 'Lịch tuần đã đầy.');
+      const slot = body.slot ?? previous.alternative ?? previous.requested;
+      const assignment = await registrationSlot(row, actor, employeeId, item.id, slot, !!existing);
+      if (body.action === 'EDIT') item.alternative = assignment;
+      draft.push(assignment);
+    }
+    const notices = await noticeUsers([employeeId], body.action === 'REMOVE' ? 'Quản lý đã xóa một ca của bạn khỏi bảng đăng ký.' :
+      body.action === 'EDIT' ? 'Quản lý đã chỉnh ca đăng ký của bạn. Mở bảng đăng ký để xem ca mới.' : 'Ca đăng ký đã được duyệt và đang chờ công bố.');
     const saved = await record(Week, row, {
-      registrations: registrations.map((r) => r.id === item.id ? item : r),
-      ...(assignment ? { draft: [...row.draft, assignment] } : {}),
-    }, actor, 'REGISTRATION_' + body.action, 'Cập nhật yêu cầu đăng ký ca.', notices, {
+      registrations: registrations.map((r) => r.id === item.id ? item : r), draft,
+    }, actor, 'REGISTRATION_' + body.action, 'Quản lý cập nhật bảng đăng ký ca.', notices, {
       id: item.id, from: previous.status, to: item.status, reason: body.reason ?? null,
-      ...(body.alternative ? { alternative: body.alternative } : {}),
+      ...(body.slot ? { alternative: body.slot } : {}),
     });
     return { saved, item, actor };
   });
   await deliver(result.saved);
-  return registrationDto(result.saved, result.item, result.actor);
+  return registrationDto(result.saved, result.item, result.actor, true);
 }

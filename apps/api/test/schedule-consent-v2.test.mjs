@@ -86,7 +86,7 @@ test('manager finds replacement, receiver may decline back to manager; consent a
   assert.equal((await action(rejectedBoard, rejected.body.request.id, 'sm', 'REJECT')).body.request.status, 'REJECTED');
   assert.equal((await reload(rejectedBoard)).published[0].employeeId, eid('staff'));
 });
-test('under24h is urgent manager workflow even if client requests DIRECT; started/changed terms never apply', async () => {
+test('under24h requires manager workflow and the published source cannot be edited around consent', async () => {
   const b = await board(true), r = await request(b); assert.equal(r.status, 200, JSON.stringify(r.body)); const id = r.body.request.id;
   assert.equal(r.body.request.urgent, true); assert.equal(r.body.request.arrangement, 'MANAGER'); assert.equal(r.body.request.status, 'PENDING_MANAGER');
   assert.equal((await action(b, id, 'ptch', 'ACCEPT')).status, 403);
@@ -98,9 +98,8 @@ test('under24h is urgent manager workflow even if client requests DIRECT; starte
   const stale = await board(), proposal = await request(stale), snapshot = await reload(stale);
   const draft = snapshot.published.map(({ id, employeeId, date, shiftId }) => ({ id, employeeId, date, shiftId }));
   draft[0].date = datePlus(draft[0].date, new Date(draft[0].date + 'T00:00:00Z').getUTCDay() === 0 ? -1 : 1);
-  const saved = await call('sm', `/scheduling/weeks/${stale.id}/draft`, { expectedVersion: snapshot.version, reason: 'Owned changed source terms', assignments: draft }); assert.equal(saved.status, 200);
-  const publish = await call('sm', `/scheduling/weeks/${stale.id}/publish`, { expectedVersion: saved.body.version, reason: 'Owned republish cancels stale offer' }); assert.equal(publish.status, 200);
-  assert.equal((await action(stale, proposal.body.request.id, 'ptch', 'ACCEPT')).status, 409);
+  const saved = await call('sm', `/scheduling/weeks/${stale.id}/draft`, { expectedVersion: snapshot.version, reason: 'Owned changed source terms', assignments: draft }); assert.equal(saved.body.error.code, 'SCHEDULE_WEEK_PUBLISHED');
+  assert.equal((await action(stale, proposal.body.request.id, 'ptch', 'ACCEPT')).status, 200);
 });
 test('revoked manager authorization cannot be reused by receiver; it does not invalidate receiver login', async () => {
   const b = await board(), r = await request(b, { arrangement: 'MANAGER', receiverEmployeeId: null }), id = r.body.request.id;
@@ -158,78 +157,74 @@ test('direct proposal requires directory scope while manager-assisted request ne
   } finally { await UserModel.collection.updateOne({ _id: account._id }, { $set: { authorization: account.authorization } }); }
 });
 
-test('shift registration is scoped, idempotent and only enters personal schedule on publication', async () => {
-  const b = await board();
-  const prefix = '/scheduling/stores/' + b.week.storeId;
-  const date = [0, 1, 2, 3, 4, 5, 6].map(d => datePlus(b.week.weekStart, d)).find(d => d !== b.source.date && d !== b.target.date);
-  const payload = { weekStart: b.week.weekStart, clientRequestId: randomUUID(), slot: { date, shiftId: b.source.shiftId, shiftVersion: b.source.shiftVersion } };
-  const submit = body => call('staff', '/scheduling/registrations', body);
-  assert.equal((await submit({ ...payload, slot: { ...payload.slot, date: b.source.date } })).body.error.code, 'SCHEDULE_OVERLAP');
-  assert.equal((await submit({ ...payload, slot: { ...payload.slot, shiftVersion: 99 } })).status, 409);
-  const created = await submit(payload);
-  assert.equal(created.status, 200, JSON.stringify(created.body));
-  assert.equal((await submit(payload)).body.id, created.body.id);
-  assert.equal((await submit({ ...payload, clientRequestId: randomUUID() })).status, 409);
-  const listing = prefix + '/registrations?weekStart=' + b.week.weekStart;
-  assert.equal((await call('sm', listing)).body.items.length, 1);
-  assert.equal((await call('staffB', listing)).status, 403);
-  assert.equal((await call('ptch', '/scheduling/registrations/me?weekStart=' + b.week.weekStart)).body.items.length, 0);
-  assert.equal((await call('sm', prefix + '/week?weekStart=' + b.week.weekStart)).body.week.registrations, undefined);
-  assert.ok(await NotificationModel.exists({ userId: f.actors.sm.user._id, entityId: b.id, body: /Có đăng ký ca/ }));
-  const action = (actor, kind, version, extra = {}) => call(actor, prefix + '/registrations/' + created.body.id,
-    { weekStart: b.week.weekStart, action: kind, expectedVersion: version, ...extra });
-  assert.equal((await action('staff', 'APPROVE', 1)).status, 403);
-  assert.equal((await action('sm', 'REJECT', 1)).status, 400);
-  const raced = await Promise.all([action('sm', 'APPROVE', 1), action('sm', 'APPROVE', 1)]);
-  assert.deepEqual(raced.map(r => r.status).sort(), [200, 409]);
-  assert.equal(raced.find(r => r.status === 200).body.placement, 'DRAFT');
-  const view = '/scheduling/me?from=' + b.week.weekStart + '&to=' + datePlus(b.week.weekStart, 6);
-  assert.equal((await call('staff', view)).body.assignments.some(a => a.id === created.body.id), false);
-  const row = await reload(b);
-  assert.equal(row.draft.filter(a => a.id === created.body.id).length, 1);
-  assert.equal(row.history.find(h => h.action === 'REGISTRATION_APPROVE').registrationAudit.from, 'PENDING_MANAGER');
-  assert.equal((await call('sm', '/scheduling/weeks/' + b.id + '/publish', { expectedVersion: row.version, reason: 'Synthetic registration publication' })).status, 200);
-  assert.equal((await call('staff', view)).body.assignments.some(a => a.id === created.body.id), true);
-  assert.equal((await call('sm', listing)).body.items[0].placement, 'PUBLISHED');
-});
 
-test('shift alternative needs employee consent; revoked reviewer, stale shift and rejection cannot change draft', async () => {
+test('shared registration board scopes reads, permits only self-submission and locks after publication', async () => {
   const b = await board(), weekStart = datePlus(b.week.weekStart, 7);
   const prefix = '/scheduling/stores/' + b.week.storeId;
+  const path = prefix + '/registrations';
   const slot = { date: weekStart, shiftId: b.source.shiftId, shiftVersion: b.source.shiftVersion };
-  const submit = date => call('staff', '/scheduling/registrations', { weekStart, clientRequestId: randomUUID(), slot: { ...slot, date } });
-  const first = await submit(weekStart);
-  assert.equal(first.status, 200, JSON.stringify(first.body));
-  const act = (actor, id, action, expectedVersion, extra = {}) => call(actor, prefix + '/registrations/' + id, { weekStart, action, expectedVersion, ...extra });
-  const alternative = { ...slot, date: datePlus(weekStart, 1) };
-  const proposed = await act('sm', first.body.id, 'PROPOSE', 1, { alternative, reason: 'Ca khác đang cần người' });
-  assert.equal(proposed.status, 200, JSON.stringify(proposed.body));
-  assert.equal(proposed.body.status, 'PENDING_EMPLOYEE');
+  const body = { weekStart, clientRequestId: randomUUID(), slot };
+  const submit = payload => call('staff', '/scheduling/registrations', payload);
+  assert.equal((await submit({ ...body, employeeId: eid('ptch') })).status, 400);
+  const created = await submit(body);
+  assert.equal(created.status, 200, JSON.stringify(created.body));
+  assert.equal((await submit(body)).body.id, created.body.id);
+  assert.equal((await submit({ ...body, clientRequestId: randomUUID() })).status, 409);
+  const self = actor => call(actor, '/scheduling/registrations/me?weekStart=' + weekStart);
+  const peer = (await self('ptch')).body.items[0];
+  assert.equal(peer.id, created.body.id);
+  assert.match(peer.employeeName, /staff/i);
+  assert.equal(peer.isOwn, false);
+  assert.equal(peer.canManage, false);
+  assert.deepEqual((await self('staffB')).body.items, []);
+  assert.equal((await call('staffB', path + '?weekStart=' + weekStart)).status, 403);
+  assert.equal((await call('staff', path, { ...body, employeeId: eid('ptch') })).status, 403);
+  const act = (actor, item, action, extra = {}) => call(actor, path + '/' + item.id, { weekStart, action, expectedVersion: item.version, ...extra });
+  assert.equal((await act('staff', created.body, 'APPROVE')).status, 403);
+  assert.equal((await act('ptch', created.body, 'REMOVE', { reason: 'Không được phép xóa' })).status, 403);
+  const managerBoard = await call('sm', path + '?weekStart=' + weekStart);
+  assert.equal(managerBoard.body.items[0].canManage, true);
   const week = async () => (await call('sm', prefix + '/week?weekStart=' + weekStart)).body.week;
-  assert.equal((await week()).draft.length, 0);
-  assert.equal((await act('ptch', first.body.id, 'ACCEPT', 2)).status, 403);
-  const manager = await UserModel.findById(f.actors.sm.user._id).lean();
-  try {
-    await UserModel.updateOne({ _id: manager._id }, { $pull: { 'authorization.grants.1.capabilities': 'schedules.manage' } });
-    assert.equal((await act('staff', first.body.id, 'ACCEPT', 2)).status, 403);
-  } finally { await UserModel.updateOne({ _id: manager._id }, { $set: { authorization: manager.authorization } }); }
-  assert.equal((await act('staff', first.body.id, 'ACCEPT', 1)).status, 409);
-  const accepted = await act('staff', first.body.id, 'ACCEPT', 2);
-  assert.equal(accepted.status, 200, JSON.stringify(accepted.body));
-  assert.equal(accepted.body.placement, 'DRAFT');
-  assert.equal((await week()).draft[0].date, alternative.date);
-  const rejected = await submit(datePlus(weekStart, 2));
-  const reason = 'Đã đủ người trong ca';
-  assert.equal((await act('sm', rejected.body.id, 'REJECT', 1, { reason })).body.reviewReason, reason);
-  const cancelled = await submit(datePlus(weekStart, 3));
-  assert.equal((await act('staff', cancelled.body.id, 'CANCEL', 1)).body.status, 'CANCELLED');
-  const stale = await submit(datePlus(weekStart, 4));
-  const newTerms = await act('sm', stale.body.id, 'PROPOSE', 1, { alternative: { ...slot, date: datePlus(weekStart, 5) }, reason });
-  assert.equal(newTerms.status, 200);
-  assert.equal((await call('sm', prefix + '/shifts', { expectedVersion: b.source.shiftVersion, definition: {
-    code: b.source.shiftCode, name: b.source.shiftName, active: true, intervals: [{ startMinute: 540, endMinute: 660 }],
-  } })).status, 200);
-  assert.equal((await act('staff', stale.body.id, 'ACCEPT', 2)).status, 409);
-  assert.equal((await act('staff', stale.body.id, 'DECLINE', 2)).body.status, 'DECLINED');
-  assert.equal((await week()).draft.length, 1);
+  const initial = await week();
+  assert.ok(await NotificationModel.exists({ userId: f.actors.sm.user._id, entityId: initial.id, body: /Có đăng ký ca/ }));
+  const approval = await Promise.all([act('sm', created.body, 'APPROVE'), act('sm', created.body, 'APPROVE')]);
+  assert.deepEqual(approval.map(r => r.status).sort(), [200, 409]);
+  const approved = approval.find(r => r.status === 200).body;
+  assert.equal(approved.placement, 'DRAFT');
+  const movedSlot = { ...slot, date: datePlus(weekStart, 1) };
+  const reason = 'Điều chỉnh nội bộ';
+  const edited = await act('sm', approved, 'EDIT', { slot: movedSlot, reason });
+  assert.equal(edited.status, 200, JSON.stringify(edited.body));
+  assert.equal((await self('staff')).body.items[0].reviewReason, reason);
+  assert.equal((await self('ptch')).body.items[0].reviewReason, null);
+  assert.doesNotMatch(JSON.stringify((await self('ptch')).body), /requesterUserId|employeeCode|employeeId|reviewer/);
+  const editedWeek = await week();
+  assert.equal(editedWeek.draft[0].date, movedSlot.date);
+  assert.equal((await call('sm', '/scheduling/weeks/' + editedWeek.id + '/draft', { expectedVersion: editedWeek.version,
+    assignments: [], reason: 'Cannot bypass shared board' })).body.error.code, 'SCHEDULE_REGISTRATION_LINKED');
+  assert.equal((await submit({ ...body, clientRequestId: randomUUID(), slot: movedSlot })).body.error.code, 'SCHEDULE_REQUEST_CONFLICT');
+
+  const add = (employeeId, date) => call('sm', path, { weekStart, clientRequestId: randomUUID(), employeeId, slot: { ...slot, date } });
+  assert.equal((await add(eid('staffB'), weekStart)).status, 403);
+  assert.equal((await add(eid('sm'), weekStart)).status, 403);
+  const added = await add(eid('ptch'), datePlus(weekStart, 2));
+  assert.equal(added.status, 200, JSON.stringify(added.body));
+  assert.equal(added.body.placement, 'DRAFT');
+  assert.equal((await act('sm', added.body, 'REMOVE', { reason: 'Xóa ca trống không cần' })).status, 200);
+  assert.equal((await self('ptch')).body.items.some(r => r.id === added.body.id), false);
+  const current = await week();
+  assert.equal(current.draft.length, 1);
+  const pending = await call('ptch', '/scheduling/registrations', { ...body, clientRequestId: randomUUID(), slot: { ...slot, date: datePlus(weekStart, 3) } });
+  assert.equal(pending.status, 200);
+  const row = await week();
+  assert.equal((await call('sm', '/scheduling/weeks/' + row.id + '/publish', { expectedVersion: row.version, reason: 'Publish owned board' })).status, 200);
+  const locked = await self('staff');
+  assert.equal(locked.body.published, true);
+  assert.equal(locked.body.items.find(r => r.id === created.body.id).placement, 'PUBLISHED');
+  assert.equal((await week()).published.length, 1);
+  assert.equal((await submit({ ...body, clientRequestId: randomUUID() })).body.error.code, 'SCHEDULE_WEEK_PUBLISHED');
+  assert.equal((await add(eid('ptch'), weekStart)).body.error.code, 'SCHEDULE_WEEK_PUBLISHED');
+  assert.equal((await act('sm', edited.body, 'REMOVE', { reason: 'Ca đã công bố' })).body.error.code, 'SCHEDULE_WEEK_PUBLISHED');
+  assert.equal((await act('sm', pending.body, 'APPROVE')).body.error.code, 'SCHEDULE_WEEK_PUBLISHED');
+  assert.equal((await reload({ id: row.id })).registrations.find(r => r.id === added.body.id).status, 'CANCELLED');
 });

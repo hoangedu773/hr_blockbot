@@ -11,7 +11,7 @@ import { EmployeeModel } from '../dist/models/Employee.js';
 import { NotificationModel } from '../dist/models/Notification.js';
 import { OperationalWeekModel } from '../dist/models/OperationalSchedule.js';
 import { authorizationV1Fixture } from './helpers/authorization-v1-fixture.mjs';
-import { datePlus, assignmentTimes, assertNoFuturePublishedSchedules } from '../dist/services/scheduling.service.js';
+import { datePlus, assignmentTimes, assertNoFuturePublishedSchedules, scheduleAuditEntry } from '../dist/services/scheduling.service.js';
 import { schedulingGrantPlan } from '../scripts/enable-scheduling-grants.mjs';
 import { beginAuthorizedChat, executeGatewayTool, authorizedChat } from '../dist/services/chat-authorization.service.js';
 import { resolvePrincipal } from '../dist/services/principal.service.js';
@@ -166,10 +166,13 @@ test('chat rejects stale replies when a published shift changes or an initially 
       let raw = ''; for await (const part of req) raw += part; const body = JSON.parse(raw);
       await executeGatewayTool(body.delegationToken, { requestId: body.requestId, tool: 'get_my_schedule', args: { from: weekStart, to: datePlus(weekStart, 6) } });
       week = await getWeek();
-      const assignments = week.draft.filter((a) => a.employeeId !== id(actorName)).map(({ id, employeeId, date, shiftId }) => ({ id, employeeId, date, shiftId }));
-      assignments.push({ id: randomUUID(), employeeId: id(actorName), date: datePlus(weekStart, actorName === 'ptch' ? 2 : 3), shiftId: a1.id });
-      const saved = await draft(assignments); assert.equal(saved.status, 200);
-      assert.equal((await call('sm', `/scheduling/weeks/${week.id}/publish`, { expectedVersion: saved.body.version, reason: 'Owned concurrent calendar change' })).status, 200);
+      const [requester, receiver] = actorName === 'ptch' ? ['ptch', 'sm'] : ['sm', 'staff'];
+      const source = week.published.find((a) => a.employeeId === id(requester));
+      const created = await call(requester, `/scheduling/weeks/${week.id}/changes`, { expectedVersion: week.version,
+        clientRequestId: randomUUID(), assignmentId: source.id, receiverEmployeeId: id(receiver), kind: 'COVER', reason: 'Owned concurrent calendar change' });
+      assert.equal(created.status, 200);
+      week = await getWeek();
+      assert.equal((await action(receiver, created.body.request, 'ACCEPT')).status, 200);
       res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ reply: 'Stale synthetic schedule answer', citations: [], attachments: [], proposedAction: null, decisionSource: 'isolated-provider' }));
     } catch { res.writeHead(503); res.end('{}'); }
   });
@@ -187,22 +190,34 @@ test('chat rejects stale replies when a published shift changes or an initially 
     for (const [name, value] of [['AI_SERVICE_URL', old.url], ['AI_LLM_API_KEY', old.key], ['AI_LLM_BASE_URL', old.base]]) if (value === undefined) delete process.env[name]; else process.env[name] = value;
   }
 });
-test('inactive/fenced people cannot be published; successful republication cancels old pending consent without erasing history', async () => {
-  week = await getWeek();
-  const source = week.published.find((a) => a.employeeId === id('ptch'));
-  const created = await call('ptch', `/scheduling/weeks/${week.id}/changes`, { expectedVersion: week.version, clientRequestId: randomUUID(), assignmentId: source.id,
-    receiverEmployeeId: id('staff'), kind: 'COVER', reason: 'Owned pending publication test' });
-  assert.equal(created.status, 200); week = await getWeek();
-  const assignments = [...week.draft.map(({ id, employeeId, date, shiftId }) => ({ id, employeeId, date, shiftId })), { id: randomUUID(), employeeId: id('sm'), date: weekStart, shiftId: a1.id }];
-  assert.equal((await draft(assignments)).status, 200); week = await getWeek();
+test('publication rejects fenced people and a legacy draft can only be discarded, leaving consent intact', async () => {
+  const fresh = (await call('sm', `/scheduling/stores/${store()}/weeks`, { weekStart: datePlus(weekStart, 7) })).body;
+  const prepared = await draft([{ id: randomUUID(), employeeId: id('ptch'), date: fresh.weekStart, shiftId: a1.id }], fresh);
+  assert.equal(prepared.status, 200);
   await EmployeeModel.updateOne({ _id: fixture.actors.ptch.employee._id }, { $set: { lifecyclePendingRequestId: new mongoose.Types.ObjectId().toString() } });
-  assert.equal((await call('sm', `/scheduling/weeks/${week.id}/publish`, { expectedVersion: week.version, reason: 'Cannot publish fenced fixture' })).status, 409);
-  assert.equal((await getWeek()).requests.find((r) => r.id === created.body.request.id).status, 'PENDING_RECEIVER');
-  await EmployeeModel.updateOne({ _id: fixture.actors.ptch.employee._id }, { $unset: { lifecyclePendingRequestId: '' } });
-  const published = await call('sm', `/scheduling/weeks/${week.id}/publish`, { expectedVersion: week.version, reason: 'Reviewed republication fixture' });
-  assert.equal(published.status, 200); week = published.body;
-  assert.equal(week.requests.find((r) => r.id === created.body.request.id).status, 'CANCELLED');
-  assert.ok(week.history.some((h) => h.action === 'CHANGE_REQUESTED'));
+  try {
+    assert.equal((await call('sm', `/scheduling/weeks/${fresh.id}/publish`, { expectedVersion: prepared.body.version, reason: 'Cannot publish fenced fixture' })).status, 409);
+  } finally {
+    await EmployeeModel.updateOne({ _id: fixture.actors.ptch.employee._id }, { $unset: { lifecyclePendingRequestId: '' } });
+  }
+  week = await getWeek();
+  const source = week.published.find((a) => a.employeeId === id('staff'));
+  const created = await call('staff', `/scheduling/weeks/${week.id}/changes`, { expectedVersion: week.version, clientRequestId: randomUUID(), assignmentId: source.id,
+    receiverEmployeeId: id('ptch'), kind: 'COVER', reason: 'Owned pending publication test' });
+  assert.equal(created.status, 200);
+  const saved = await OperationalWeekModel.findById(week.id).lean();
+  const changes = { draft: [], version: saved.version + 1 };
+  const legacy = scheduleAuditEntry(saved, changes, String(fixture.actors.sm.user._id), 'DRAFT_SAVED', 'Owned legacy pre-lock draft');
+  await OperationalWeekModel.collection.updateOne({ _id: saved._id }, { $set: changes, $push: { history: legacy } });
+  week = await getWeek();
+  assert.equal((await call('sm', `/scheduling/weeks/${week.id}/publish`, { expectedVersion: week.version, reason: 'Cannot publish legacy draft' })).body.error.code, 'SCHEDULE_WEEK_PUBLISHED');
+  assert.equal((await draft([])).body.error.code, 'SCHEDULE_WEEK_PUBLISHED');
+  const original = week.published.map(({ id, employeeId, date, shiftId }) => ({ id, employeeId, date, shiftId }));
+  assert.equal((await draft(original)).status, 200);
+  week = await getWeek();
+  assert.equal(week.hasUnpublishedChanges, false);
+  assert.equal(week.requests.find((r) => r.id === created.body.request.id).status, 'PENDING_RECEIVER');
+  assert.ok(week.history.some((h) => h.action === 'LEGACY_DRAFT_DISCARDED'));
 });
 test('tampered operational state is retained and denied instead of silently repaired', async () => {
   const before = await OperationalWeekModel.findById(week.id).lean();

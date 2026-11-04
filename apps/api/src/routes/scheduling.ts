@@ -49,6 +49,9 @@ router.get('/scheduling/stores/:storeId/registrations', endpoint(async (req, res
 router.post('/scheduling/registrations', endpoint(async (req, res) => {
   res.json(await schedules.createScheduleRegistration(req.user!, req.body));
 }));
+router.post('/scheduling/stores/:storeId/registrations', endpoint(async (req, res) => {
+  res.json(await schedules.createScheduleRegistration(req.user!, req.body, req.params.storeId));
+}));
 router.post('/scheduling/stores/:storeId/registrations/:requestId', endpoint(async (req, res) => {
   const requestId = parse(z.string().uuid(), req.params.requestId).toLowerCase();
   res.json(await schedules.actScheduleRegistration(req.user!, req.params.storeId, requestId, req.body));
