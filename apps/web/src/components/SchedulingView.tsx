@@ -3,6 +3,7 @@ import type { NotificationItem, PersonalSchedule, ScheduleAssignment, ScheduleCh
 import { ShiftDefinitionInputSchema } from '@hr-blockbot/contracts';
 import { requestJson } from '../services/api';
 import { fetchNotifications, markNotificationRead } from '../services/api';
+import { ScheduleRegistrationPanel } from './ScheduleRegistrationPanel';
 import { CrmDialog } from './ui/CrmDialog';
 import '../styles/scheduling.css';
 
@@ -116,6 +117,8 @@ export function SchedulingView() {
     </div>
     {message && <p role="status">{message}</p>}{error && <p role="alert" className="banner banner--error">{error}</p>}
     <details className="schedule-request"><summary>Thông báo lịch làm · {unreadNotices} chưa đọc</summary><p>Thông báo được lưu trong hệ thống; tự tải lại mỗi 30 giây khi đang mở trang.</p>{noticeError && <p role="status">{noticeError}</p>}{!notices.length && <p>Chưa có thông báo lịch trong danh sách gần đây.</p>}{notices.map(n => <article key={n.id}><h3>{n.title}</h3><p>{n.body}</p><p>{new Date(n.createdAt).toLocaleString('vi-VN')}</p>{!n.readAt && <button className="btn" onClick={() => void markNotificationRead(n.id).then(() => { setNotices(old => old.map(item => item.id === n.id ? { ...item, readAt: new Date().toISOString() } : item)); setUnreadNotices(old => Math.max(0, old - 1)); }).catch(() => setNoticeError('Chưa đánh dấu được thông báo.'))}>Đánh dấu đã đọc</button>}</article>)}{notices.length >= 50 && <button className="btn" onClick={() => void fetchNotifications(50, 'schedule', notices[notices.length - 1]?.createdAt).then(data => setNotices(old => [...old, ...data.items.filter(n => !old.some(item => item.id === n.id))])).catch(() => setNoticeError('Chưa tải được thông báo cũ.'))}>Xem thông báo cũ hơn</button>}</details>
+    {tab === 'mine' && access.canRequest && <ScheduleRegistrationPanel key={'self:' + weekStart} days={days} today={today()} hours={hours} blocked={busy} canRespond={access.canRespond} onChanged={load} />}
+    {tab === 'week' && selectedStore?.canRead && selectedStore.canManage && <ScheduleRegistrationPanel key={storeId + ':' + weekStart} storeId={storeId} days={days} today={today()} hours={hours} blocked={dirty || busy} onChanged={load} />}
     {loading ? <p role="status">Đang tải lịch…</p> : tab === 'shifts' ? <>
       <div className="crm-work-heading"><div><h3>Danh mục ca của cửa hàng</h3><p>Cấu hình giờ thực tế. Ca gãy dùng nhiều khoảng giờ; ca qua đêm chọn ngày hôm sau.</p></div>{selectedStore?.canConfigure && <button className="btn btn--primary" onClick={() => { setShiftForm({ code: '', name: '', active: true, intervals: [{ startMinute: 0, endMinute: 0 }], version: 0 }); setError(''); }}>Thêm mã ca</button>}</div>
       {!shifts.length && <div className="empty"><h3>Chưa có mã ca được cấu hình</h3><p>Nhập mã ca và giờ chuẩn trước khi xếp lịch.</p></div>}

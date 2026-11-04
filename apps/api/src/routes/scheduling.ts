@@ -37,4 +37,20 @@ router.get('/scheduling/me', endpoint(async (req, res) => {
 router.get('/scheduling/weeks/:weekId/partners', endpoint(async (req, res) => { res.json(await schedules.schedulePartners(req.user!, req.params.weekId)); }));
 router.post('/scheduling/weeks/:weekId/changes', endpoint(async (req, res) => { res.json(await schedules.createScheduleChange(req.user!, req.params.weekId, req.body)); }));
 router.post('/scheduling/weeks/:weekId/changes/:changeId', endpoint(async (req, res) => { res.json(await schedules.actScheduleChange(req.user!, req.params.weekId, req.params.changeId, req.body)); }));
+const registrationWeek = z.object({ weekStart: ScheduleDateSchema }).strict();
+router.get('/scheduling/registrations/me', endpoint(async (req, res) => {
+  const { weekStart } = parse(registrationWeek, req.query);
+  res.json(await schedules.listScheduleRegistrations(req.user!, weekStart));
+}));
+router.get('/scheduling/stores/:storeId/registrations', endpoint(async (req, res) => {
+  const { weekStart } = parse(registrationWeek, req.query);
+  res.json(await schedules.listScheduleRegistrations(req.user!, weekStart, req.params.storeId));
+}));
+router.post('/scheduling/registrations', endpoint(async (req, res) => {
+  res.json(await schedules.createScheduleRegistration(req.user!, req.body));
+}));
+router.post('/scheduling/stores/:storeId/registrations/:requestId', endpoint(async (req, res) => {
+  const requestId = parse(z.string().uuid(), req.params.requestId).toLowerCase();
+  res.json(await schedules.actScheduleRegistration(req.user!, req.params.storeId, requestId, req.body));
+}));
 export default router;

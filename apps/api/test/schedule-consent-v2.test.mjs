@@ -157,3 +157,79 @@ test('direct proposal requires directory scope while manager-assisted request ne
     const assisted = await request(b, { arrangement: 'MANAGER', receiverEmployeeId: null }); assert.equal(assisted.status, 200); assert.equal(assisted.body.request.status, 'PENDING_MANAGER');
   } finally { await UserModel.collection.updateOne({ _id: account._id }, { $set: { authorization: account.authorization } }); }
 });
+
+test('shift registration is scoped, idempotent and only enters personal schedule on publication', async () => {
+  const b = await board();
+  const prefix = '/scheduling/stores/' + b.week.storeId;
+  const date = [0, 1, 2, 3, 4, 5, 6].map(d => datePlus(b.week.weekStart, d)).find(d => d !== b.source.date && d !== b.target.date);
+  const payload = { weekStart: b.week.weekStart, clientRequestId: randomUUID(), slot: { date, shiftId: b.source.shiftId, shiftVersion: b.source.shiftVersion } };
+  const submit = body => call('staff', '/scheduling/registrations', body);
+  assert.equal((await submit({ ...payload, slot: { ...payload.slot, date: b.source.date } })).body.error.code, 'SCHEDULE_OVERLAP');
+  assert.equal((await submit({ ...payload, slot: { ...payload.slot, shiftVersion: 99 } })).status, 409);
+  const created = await submit(payload);
+  assert.equal(created.status, 200, JSON.stringify(created.body));
+  assert.equal((await submit(payload)).body.id, created.body.id);
+  assert.equal((await submit({ ...payload, clientRequestId: randomUUID() })).status, 409);
+  const listing = prefix + '/registrations?weekStart=' + b.week.weekStart;
+  assert.equal((await call('sm', listing)).body.items.length, 1);
+  assert.equal((await call('staffB', listing)).status, 403);
+  assert.equal((await call('ptch', '/scheduling/registrations/me?weekStart=' + b.week.weekStart)).body.items.length, 0);
+  assert.equal((await call('sm', prefix + '/week?weekStart=' + b.week.weekStart)).body.week.registrations, undefined);
+  assert.ok(await NotificationModel.exists({ userId: f.actors.sm.user._id, entityId: b.id, body: /Có đăng ký ca/ }));
+  const action = (actor, kind, version, extra = {}) => call(actor, prefix + '/registrations/' + created.body.id,
+    { weekStart: b.week.weekStart, action: kind, expectedVersion: version, ...extra });
+  assert.equal((await action('staff', 'APPROVE', 1)).status, 403);
+  assert.equal((await action('sm', 'REJECT', 1)).status, 400);
+  const raced = await Promise.all([action('sm', 'APPROVE', 1), action('sm', 'APPROVE', 1)]);
+  assert.deepEqual(raced.map(r => r.status).sort(), [200, 409]);
+  assert.equal(raced.find(r => r.status === 200).body.placement, 'DRAFT');
+  const view = '/scheduling/me?from=' + b.week.weekStart + '&to=' + datePlus(b.week.weekStart, 6);
+  assert.equal((await call('staff', view)).body.assignments.some(a => a.id === created.body.id), false);
+  const row = await reload(b);
+  assert.equal(row.draft.filter(a => a.id === created.body.id).length, 1);
+  assert.equal(row.history.find(h => h.action === 'REGISTRATION_APPROVE').registrationAudit.from, 'PENDING_MANAGER');
+  assert.equal((await call('sm', '/scheduling/weeks/' + b.id + '/publish', { expectedVersion: row.version, reason: 'Synthetic registration publication' })).status, 200);
+  assert.equal((await call('staff', view)).body.assignments.some(a => a.id === created.body.id), true);
+  assert.equal((await call('sm', listing)).body.items[0].placement, 'PUBLISHED');
+});
+
+test('shift alternative needs employee consent; revoked reviewer, stale shift and rejection cannot change draft', async () => {
+  const b = await board(), weekStart = datePlus(b.week.weekStart, 7);
+  const prefix = '/scheduling/stores/' + b.week.storeId;
+  const slot = { date: weekStart, shiftId: b.source.shiftId, shiftVersion: b.source.shiftVersion };
+  const submit = date => call('staff', '/scheduling/registrations', { weekStart, clientRequestId: randomUUID(), slot: { ...slot, date } });
+  const first = await submit(weekStart);
+  assert.equal(first.status, 200, JSON.stringify(first.body));
+  const act = (actor, id, action, expectedVersion, extra = {}) => call(actor, prefix + '/registrations/' + id, { weekStart, action, expectedVersion, ...extra });
+  const alternative = { ...slot, date: datePlus(weekStart, 1) };
+  const proposed = await act('sm', first.body.id, 'PROPOSE', 1, { alternative, reason: 'Ca khác đang cần người' });
+  assert.equal(proposed.status, 200, JSON.stringify(proposed.body));
+  assert.equal(proposed.body.status, 'PENDING_EMPLOYEE');
+  const week = async () => (await call('sm', prefix + '/week?weekStart=' + weekStart)).body.week;
+  assert.equal((await week()).draft.length, 0);
+  assert.equal((await act('ptch', first.body.id, 'ACCEPT', 2)).status, 403);
+  const manager = await UserModel.findById(f.actors.sm.user._id).lean();
+  try {
+    await UserModel.updateOne({ _id: manager._id }, { $pull: { 'authorization.grants.1.capabilities': 'schedules.manage' } });
+    assert.equal((await act('staff', first.body.id, 'ACCEPT', 2)).status, 403);
+  } finally { await UserModel.updateOne({ _id: manager._id }, { $set: { authorization: manager.authorization } }); }
+  assert.equal((await act('staff', first.body.id, 'ACCEPT', 1)).status, 409);
+  const accepted = await act('staff', first.body.id, 'ACCEPT', 2);
+  assert.equal(accepted.status, 200, JSON.stringify(accepted.body));
+  assert.equal(accepted.body.placement, 'DRAFT');
+  assert.equal((await week()).draft[0].date, alternative.date);
+  const rejected = await submit(datePlus(weekStart, 2));
+  const reason = 'Đã đủ người trong ca';
+  assert.equal((await act('sm', rejected.body.id, 'REJECT', 1, { reason })).body.reviewReason, reason);
+  const cancelled = await submit(datePlus(weekStart, 3));
+  assert.equal((await act('staff', cancelled.body.id, 'CANCEL', 1)).body.status, 'CANCELLED');
+  const stale = await submit(datePlus(weekStart, 4));
+  const newTerms = await act('sm', stale.body.id, 'PROPOSE', 1, { alternative: { ...slot, date: datePlus(weekStart, 5) }, reason });
+  assert.equal(newTerms.status, 200);
+  assert.equal((await call('sm', prefix + '/shifts', { expectedVersion: b.source.shiftVersion, definition: {
+    code: b.source.shiftCode, name: b.source.shiftName, active: true, intervals: [{ startMinute: 540, endMinute: 660 }],
+  } })).status, 200);
+  assert.equal((await act('staff', stale.body.id, 'ACCEPT', 2)).status, 409);
+  assert.equal((await act('staff', stale.body.id, 'DECLINE', 2)).body.status, 'DECLINED');
+  assert.equal((await week()).draft.length, 1);
+});

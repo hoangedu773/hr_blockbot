@@ -73,3 +73,27 @@ export type PersonalSchedule = {
   assignments: (ScheduleAssignment & { weekId: string; weekVersion: number; storeId: string; storeName: string })[];
   requests: (ScheduleChange & { weekId: string; weekVersion: number; storeName: string })[];
 };
+
+const RegistrationSlotSchema = z.object({ date: ScheduleDateSchema, shiftId: Id, shiftVersion: z.number().int().positive() }).strict();
+const RegistrationId = z.string().uuid().transform((value) => value.toLowerCase());
+const RegistrationAction = z.enum(['APPROVE', 'PROPOSE', 'REJECT', 'ACCEPT', 'DECLINE', 'CANCEL']);
+export const ScheduleRegistrationCreateSchema = z.object({
+  weekStart: ScheduleDateSchema, clientRequestId: RegistrationId, slot: RegistrationSlotSchema,
+}).strict();
+export const ScheduleRegistrationActionSchema = z.object({
+  weekStart: ScheduleDateSchema, expectedVersion: z.number().int().positive(),
+  action: RegistrationAction, alternative: RegistrationSlotSchema.optional(),
+  reason: z.string().trim().min(5).max(500).optional(),
+}).strict().refine((value) => (value.action === 'PROPOSE') === !!value.alternative &&
+  (!['PROPOSE', 'REJECT'].includes(value.action) || !!value.reason), 'Thiếu ca đề xuất hoặc lý do.');
+export type ScheduleRegistrationAction = z.infer<typeof RegistrationAction>;
+export type ScheduleRegistration = {
+  id: string; version: number; createdAt: string;
+  status: 'PENDING_MANAGER' | 'PENDING_EMPLOYEE' | 'APPROVED' | 'REJECTED' | 'DECLINED' | 'CANCELLED';
+  requested: ScheduleAssignment; alternative: ScheduleAssignment | null;
+  reviewReason: string | null; placement: 'DRAFT' | 'PUBLISHED' | null;
+  isOwn: boolean; expired: boolean;
+};
+export type ScheduleRegistrations = {
+  storeId: string; storeName: string; shifts: ShiftDefinition[]; items: ScheduleRegistration[];
+};

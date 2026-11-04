@@ -11,6 +11,7 @@ const week = new Schema({
   version: { type: Number, required: true }, draft: { type: [Schema.Types.Mixed], default: [] },
   published: { type: [Schema.Types.Mixed], default: [] }, publishedAt: { type: String, default: null },
   requests: { type: [Schema.Types.Mixed], default: [] }, history: { type: [Schema.Types.Mixed], default: [] },
+  registrations: { type: [Schema.Types.Mixed], default: undefined },
   deliveredNoticeIds: { type: [String], default: [] },
 }, { collection: 'operational_schedule_weeks', strict: 'throw', timestamps: true });
 export const OperationalShiftModel = mongoose.models.OperationalShift || mongoose.model('OperationalShift', shift);

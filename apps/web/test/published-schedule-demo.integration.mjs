@@ -66,6 +66,46 @@ try {
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
     }
   }
+
+  const staff = contexts[1].pages()[0], sm = contexts[0].pages()[0];
+  const future = new Date(Math.max(Date.now() + 28 * 86400000, Date.parse("2026-12-07"))).toISOString().slice(0, 10);
+  const monday = new Date(Date.parse(future) - ((new Date(future).getUTCDay() + 6) % 7) * 86400000).toISOString().slice(0, 10);
+  const thursday = new Date(Date.parse(monday) + 3 * 86400000).toISOString().slice(0, 10);
+  await staff.getByLabel('Tuần bắt đầu', { exact: true }).fill(monday);
+  await sm.getByLabel('Tuần bắt đầu', { exact: true }).fill(monday);
+  const requests = staff.getByRole('region', { name: 'Đăng ký ca của tôi' });
+  await requests.getByRole('button', { name: 'Đăng ký ca làm', exact: true }).click();
+  let dialog = staff.getByRole('dialog');
+  const shift = await dialog.getByLabel('Ca làm', { exact: true }).locator('option').nth(1).getAttribute('value');
+  assert.ok(shift);
+  await dialog.getByLabel('Ca làm', { exact: true }).selectOption(shift);
+  await dialog.getByRole('button', { name: 'Gửi quản lý', exact: true }).click();
+  await requests.getByText('Chờ quản lý duyệt', { exact: true }).waitFor();
+  assert.equal(await staff.locator('.schedule-personal .schedule-request').count(), 0);
+  const review = sm.getByRole('region', { name: 'Duyệt đăng ký ca' });
+  await review.locator('summary').click();
+  await review.getByRole('button', { name: 'Tải yêu cầu mới nhất', exact: true }).click();
+  await review.getByRole('button', { name: 'Đề xuất ca khác', exact: true }).click();
+  dialog = sm.getByRole('dialog');
+  await dialog.getByLabel('Ngày làm', { exact: true }).selectOption(thursday);
+  await dialog.getByLabel('Ca làm', { exact: true }).selectOption(shift);
+  await dialog.getByLabel('Lý do', { exact: true }).fill('Cửa hàng cần người vào thứ Năm');
+  await dialog.getByRole('button', { name: 'Đề xuất ca khác', exact: true }).click();
+  await review.getByText('Chờ nhân viên phản hồi', { exact: true }).waitFor();
+  await requests.getByRole('button', { name: 'Tải yêu cầu mới nhất', exact: true }).click();
+  await requests.getByRole('button', { name: 'Đồng ý ca đề xuất', exact: true }).click();
+  await staff.getByRole('dialog').getByRole('button', { name: 'Đồng ý ca đề xuất', exact: true }).click();
+  await requests.getByText('Đã duyệt · Chờ công bố lịch', { exact: true }).waitFor();
+  assert.equal(await staff.locator('.schedule-personal .schedule-request').count(), 0);
+  await sm.getByRole('button', { name: 'Tải lại lịch', exact: true }).click();
+  await sm.getByLabel('Ghi chú lần lưu / công bố').fill('Công bố ca đăng ký đã xác nhận');
+  await sm.getByRole('button', { name: 'Công bố lịch', exact: true }).click();
+  await sm.getByText('Đã công bố lịch và lưu thông báo cho nhân viên.', { exact: true }).waitFor();
+  await staff.getByRole('button', { name: 'Tải lại lịch', exact: true }).click();
+  await staff.locator('.schedule-personal .schedule-request').getByText(new RegExp(thursday)).waitFor();
+  await requests.getByRole('button', { name: 'Tải yêu cầu mới nhất', exact: true }).click();
+  await requests.getByText('Đã duyệt · Đã công bố', { exact: true }).waitFor();
+  console.log('PASS registration: staff -> SM proposes another day -> staff consents -> draft -> publish -> personal calendar');
   assert.deepEqual(errors, []); console.log('PASS published schedules: transaction -> populated manager grid -> populated personal schedule -> mobile; no random/demo source labels or external provider');
 } finally {
   for (const c of contexts) await c.close().catch(() => {}); await browser?.close();
