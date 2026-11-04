@@ -1,3 +1,4 @@
+import { decideRevenueKpiOpenAction, RevenueKpiPlanChangedError } from './services/revenue-kpi.service.js';
 import { Server as HttpServer } from "http";
 import { Server as SocketIOServer, Socket } from "socket.io";
 import {
@@ -68,6 +69,33 @@ export function initSocket(server: HttpServer): SocketIOServer {
       socket.join(`user:${userId}`);
     }
 
+    // One executor for chat:send(confirm) and chat:confirm so both client events
+    // cannot drift into different behaviour.
+    const decide = async (messageId: string, clientMessageId: string, actionId: string, approve: boolean,
+      plan?: { expectedVersion?: number; planDigest?: string }) => {
+      try {
+        const principal = await resolvePrincipal(socket.claims!);
+        const input = approve
+          ? { approve: true, clientRequestId: clientMessageId, expectedVersion: plan?.expectedVersion, planDigest: plan?.planDigest }
+          : { approve: false, clientRequestId: clientMessageId };
+        const action = await decideRevenueKpiOpenAction(principal, actionId, input);
+        socket.emit("chat:done", {
+          clientMessageId, messageId, finishReason: "TOOL_RESULT",
+          reply: action.result ? 'Đã xử lý kỳ KPI doanh thu. Xem kết quả từng mục.' : 'Đã hủy đề xuất mở kỳ KPI doanh thu.',
+          citations: [], proposedAction: null, revenueKpiOpenAction: action,
+        });
+      } catch (error) {
+        const known = error as { status?: number; code?: string; message?: string; name?: string };
+        socket.emit("chat:error", {
+          clientMessageId,
+          code: known.status ? known.code : known.name === 'ZodError' ? 'VALIDATION_FAILED' : 'REVENUE_KPI_ACTION_FAILED',
+          message: known.status && known.status < 500 ? known.message : 'Chưa xử lý được đề xuất KPI.',
+          retryable: known.status === 409,
+          ...(error instanceof RevenueKpiPlanChangedError ? { preview: error.preview } : {}),
+        });
+      }
+    };
+
     // FR-054 Canonical Chatbot Events: chat:send
     socket.on("chat:send", async (data: unknown) => {
       const parsed = ChatSendPayloadSchema.safeParse(data);
@@ -110,16 +138,8 @@ export function initSocket(server: HttpServer): SocketIOServer {
             card: result.proposedAction ? (result.proposedAction as Record<string, unknown>) : undefined,
           });
         } else if (payload.confirm) {
-          socket.emit("chat:done", {
-            clientMessageId: payload.clientMessageId,
-            messageId,
-            finishReason: "TOOL_RESULT",
-            reply: payload.confirm.approved
-              ? `Đã ghi nhận xác nhận của bạn cho hành động [${payload.confirm.actionId}]. Chưa có thay đổi dữ liệu nào được thực hiện.`
-              : `Đã hủy bỏ thực hiện hành động [${payload.confirm.actionId}]. Không có dữ liệu nào bị thay đổi.`,
-            citations: [],
-            proposedAction: null,
-          });
+          await decide(messageId, payload.clientMessageId, payload.confirm.actionId, payload.confirm.approved,
+            { expectedVersion: payload.confirm.expectedVersion, planDigest: payload.confirm.planDigest });
         }
       } catch (err: any) {
         socket.emit("chat:error", {
@@ -154,20 +174,8 @@ export function initSocket(server: HttpServer): SocketIOServer {
         acceptedAt: new Date().toISOString(),
       });
 
-      // P1-6: nothing here executes the action yet — no service is called and no
-      // document is written. The reply must say exactly that; claiming "đã thực thi"
-      // is a false statement to the user (and to the thesis report).
-      // TODO(hr): wire the real executor, then change this message.
-      socket.emit("chat:done", {
-        clientMessageId: payload.clientMessageId,
-        messageId,
-        finishReason: "TOOL_RESULT",
-        reply: payload.approve
-          ? `Đã ghi nhận xác nhận của bạn cho hành động [${payload.actionId}]. Chưa có thay đổi dữ liệu nào được thực hiện.`
-          : `Đã hủy bỏ thực hiện hành động [${payload.actionId}]. Không có dữ liệu nào bị thay đổi.`,
-        citations: [],
-        proposedAction: null,
-      });
+      await decide(messageId, payload.clientMessageId, payload.actionId, payload.approve,
+        { expectedVersion: payload.expectedVersion, planDigest: payload.planDigest });
     });
 
     socket.on("disconnect", () => {

@@ -1,3 +1,4 @@
+import { getRevenueKpiOpenAction } from './revenue-kpi.service.js';
 import { getPerformanceEvaluation } from './performance-kpi-evaluation.service.js';
 import mongoose from 'mongoose';
 import { randomUUID } from 'node:crypto';
@@ -116,12 +117,20 @@ async function evidenceAllowed(user: AuthenticatedUser, evidence: any) {
   } catch (e: any) { if ([401, 403, 404, 409].includes(e?.status)) return false; throw e; }
 }
 async function turnDto(user: AuthenticatedUser, row: any) {
-  const visible = row.status === 'COMPLETED' && await evidenceAllowed(user, row.evidence);
+  let visible = row.status === 'COMPLETED' && await evidenceAllowed(user, row.evidence);
+  let proposedAction = null;
+  if (visible && row.evidence.revenueOpenActionId) {
+    try { proposedAction = await getRevenueKpiOpenAction(user, row.evidence.revenueOpenActionId); }
+    catch (error) {
+      if (![401, 403, 404, 409, 503].includes((error as { status?: number }).status ?? 0)) throw error;
+      visible = false;
+    }
+  }
   let performanceKpi;
   if(visible&&row.evidence?.performanceEvaluations?.length){const e=await getPerformanceEvaluation(user,row.evidence.performanceEvaluations[0].id);performanceKpi={evaluationId:e.id,period:e.period,status:e.evaluationStatus,score:e.finalScore,canReconsider:e.employeeId===user.employeeId&&e.evaluationStatus==='PROVISIONAL'&&!e.reconsideration,canAppeal:e.employeeId===user.employeeId&&!!e.reconsideration&&e.evaluationStatus!=='FINAL'&&e.evaluationStatus!=='CORRECTED'};}
   return { ...(performanceKpi?{performanceKpi}:{}), id: row.clientMessageId, userMessage: row.userMessage, createdAt: row.createdAt.toISOString(), status: row.status,
     reply: visible ? row.reply : null, citations: visible ? row.citations : [],
-    replyHidden: row.status === 'COMPLETED' && !visible, attachments: [], proposedAction: null };
+    replyHidden: row.status === 'COMPLETED' && !visible, attachments: [], proposedAction };
 }
 async function ownedTurnDto(user: AuthenticatedUser, row: any) {
   if (!row) missing();

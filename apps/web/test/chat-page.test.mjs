@@ -39,7 +39,18 @@ test('ChatPageView renders citations/attachments, confirms drafts honestly and r
   const { build } = createRequire(import.meta.url)('esbuild');
   const contracts = await build({ entryPoints: [fileURLToPath(new URL('../../../packages/contracts/dist/index.js', import.meta.url))], bundle: true, platform: 'browser', format: 'iife', globalName: 'ChatContracts', write: false });
   const source = await readFile(new URL('../src/components/chat/ChatPageView.tsx', import.meta.url), 'utf8');
-  const compiled = await harnessSource(source);
+  const card = await readFile(new URL('../src/components/RevenueKpiOpenCard.tsx', import.meta.url), 'utf8');
+  const compiled = await harnessSource(card.slice(card.indexOf('const itemLabels')).replace(/^export /gm, '') + source);
+  const now = new Date().toISOString(), id = 'a'.repeat(24), secondId = 'b'.repeat(24);
+  const unit = { unitType: 'STORE', storeId: id, storeIds: [id], areaKey: null, label: 'Cửa hàng kiểm thử',
+    assigneeEmployeeId: id, assigneeName: 'SM kiểm thử', assigneeRole: 'SM', assignmentId: null,
+    targetMode: 'ABSOLUTE_VND', growthPercent: null, targetVnd: 100000, code: null, message: null, retryable: false, fixHint: null };
+  const blocked = { ...unit, storeId: secondId, storeIds: [secondId], label: 'Cửa hàng thiếu SM',
+    status: 'BLOCKED', retryable: true, code: 'MISSING_SM', message: 'Cần bổ nhiệm SM' };
+  const proposal = { actionId: 'dbafcc4e-b2e3-4370-8354-40be02fd4c41', type: 'revenue_kpi.open_period',
+    status: 'PENDING', expiresAt: new Date(Date.now() + 600000).toISOString(), requiresConfirmation: true, executed: false, result: null,
+    preview: { periodId: id, period: '2026-11', version: 1, status: 'DRAFT', planDigest: 'a'.repeat(64), generatedAt: now, executed: false,
+      summary: { create: 1, skipped: 0, blocked: 1, total: 2 }, items: [{ ...unit, status: 'CREATE' }, blocked] } };
   const browser = await chromium.launch({ headless: true });
   const errors = [];
   try {
@@ -62,7 +73,8 @@ test('ChatPageView renders citations/attachments, confirms drafts honestly and r
       'const { useState, useEffect, useRef } = React;',
       "const API_BASE = '/api';",
       'const apiFetch = fetch;',
-      'const { ChatConversationListSchema, ChatHistoryPageSchema, ChatHistorySendSchema } = ChatContracts;',
+      "const newClientMessageId = () => '375a3b79-6a09-4c3a-b551-32ae773d93c3';",
+      'const { ChatConversationListSchema, ChatHistoryPageSchema, ChatHistorySendSchema, RevenueKpiOpenActionSchema, RevenueKpiOpenPreviewSchema } = ChatContracts;',
       "const useAuth = () => ({ user: { authorization: { profile: 'staff' } } });",
       'const BrandMark = () => null;',
       'const ThemeToggle = () => null;',
@@ -93,7 +105,7 @@ test('ChatPageView renders citations/attachments, confirms drafts honestly and r
             { title: 'Biên bản bàn giao công việc', type: 'pdf', url: '/api/attachments/pdf/bb-cv.pdf', fileName: 'bb-cv.pdf' },
             { title: 'Liên kết độc hại', type: 'pdf', url: 'javascript:alert(1)', fileName: 'x.pdf' },
           ],
-          proposedAction: { type: 'request_shift_swap', requiresConfirmation: true, preview: 'Bản nháp đổi ca' },
+          proposedAction: proposal,
         },
       });
     });
@@ -131,9 +143,50 @@ test('ChatPageView renders citations/attachments, confirms drafts honestly and r
     assert.deepEqual(links, ['/api/attachments/pdf/bb-cv.pdf'], 'unsafe javascript: attachment URL must be dropped');
     assert.equal(await page.evaluate(() => window.injected), undefined);
 
-    await pageRoot.getByRole('button', { name: 'Xác Nhận (Confirm)' }).click();
-    assert.equal(await pageRoot.getByText('Đã xác nhận đề xuất. Chưa thực thi.', { exact: true }).isVisible(), true);
-    assert.equal(requests.length, 1, 'Confirm must not issue a server write');
+    const decisions = [], retries = [], reads = [];
+    const retry = { ...proposal, actionId: '70cc657c-5998-4776-8630-74fce48a3206', preview: { ...proposal.preview, version: 2, status: 'OPEN' } };
+    const policy = await page.evaluate(() => ChatContracts.RevenueKpiPolicySchema.parse({}));
+    const executed = { ...proposal, status: 'EXECUTED', requiresConfirmation: false, executed: true,
+      result: { period: { id, period: '2026-11', status: 'OPEN', policy, openedBy: id, openedAt: now,
+        closedBy: null, closedAt: null, version: 2, history: [], createdAt: now, updatedAt: now },
+        executed: true, outcome: 'PARTIAL', summary: { created: 1, skipped: 0, blocked: 1, failed: 0, total: 2 },
+        created: [{ ...unit, status: 'CREATED', assignmentId: id }], skipped: [], blocked: [blocked], failed: [] } };
+    await page.route('**/api/chat/actions/**/decision', async route => {
+      const input = route.request().postDataJSON();
+      decisions.push(input);
+      if (!input.approve) return route.fulfill({ json: { ...retry, status: 'CANCELLED', requiresConfirmation: false } });
+      // Simulate another tab deciding first: the card must re-read the stored
+      // outcome instead of keeping stale PENDING controls.
+      if (decisions.filter(item => item.approve).length === 1)
+        return route.fulfill({ status: 409, json: { error: { code: 'REVENUE_KPI_ACTION_DECIDED', message: 'Đề xuất đã được xử lý.' } } });
+      return route.fulfill({ json: executed });
+    });
+    await page.route('**/api/chat/actions/**', async route => {
+      if (route.request().method() !== 'GET') return route.fallback();
+      reads.push(route.request().url());
+      return route.fulfill({ json: executed });
+    });
+    await page.route('**/api/revenue-kpi/periods/2026-11/open-proposal', route => {
+      retries.push(route.request().postDataJSON());
+      return route.fulfill({ json: retry });
+    });
+    const card = pageRoot.getByRole('region', { name: 'Kế hoạch mở kỳ KPI doanh thu' });
+    await card.getByText('Dự kiến tạo 1 · Đã có 0 · Cần xử lý 1.').waitFor();
+    assert.equal(decisions.length, 0);
+    await card.getByRole('button', { name: 'Xác nhận kế hoạch' }).click();
+    await card.getByText(/Kỳ đang mở. Đã tạo 1/).waitFor();
+    assert.equal(decisions.length, 1);
+    assert.equal(decisions[0].expectedVersion, 1);
+    assert.equal(decisions[0].planDigest, proposal.preview.planDigest);
+    assert.equal(reads.length, 1, 'A decided action must be re-read from the server');
+    assert.equal(await card.getByRole('button', { name: 'Xác nhận kế hoạch' }).count(), 0);
+    await card.getByText('Cần bổ nhiệm SM').waitFor();
+    await card.getByRole('button', { name: 'Xem trước để thử lại' }).click();
+    await card.getByRole('button', { name: 'Hủy đề xuất' }).click();
+    await card.getByText('Đã hủy đề xuất. Kỳ và bản nháp giữ nguyên.').waitFor();
+    assert.deepEqual(retries, [{}]);
+    assert.deepEqual(Object.keys(decisions[1]).sort(), ['approve', 'clientRequestId']);
+    assert.equal(decisions[1].approve, false);
 
     mode = 'invalid';
     await input.fill('Câu hỏi tiếp theo');

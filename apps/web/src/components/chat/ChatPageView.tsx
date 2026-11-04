@@ -1,3 +1,5 @@
+import { RevenueKpiOpenCard } from '../RevenueKpiOpenCard';
+import { RevenueKpiOpenActionSchema, type RevenueKpiOpenAction } from '@hr-blockbot/contracts';
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { BrandMark } from '../BrandMark';
@@ -6,7 +8,6 @@ import { apiFetch, API_BASE } from '../../services/auth';
 import { ChatConversationListSchema, ChatHistoryPageSchema, ChatHistorySendSchema, type ChatConversationSummary, type ChatHistoryTurn } from '@hr-blockbot/contracts';
 import type {
   Citation,
-  ProposedAction,
   Attachment,
 } from '../../types/chat';
 
@@ -86,7 +87,7 @@ interface Message {
   performanceKpi?: ChatHistoryTurn['performanceKpi'];
   citations?: Citation[];
   attachments?: Attachment[];
-  proposedAction?: ProposedAction | null;
+  proposedAction?: RevenueKpiOpenAction | null;
 }
 
 const TOPICS = [
@@ -176,22 +177,8 @@ function parseReply(value: unknown): Omit<Message, 'id' | 'sender'> & { conversa
       });
     }
   }
-  let proposedAction: ProposedAction | null = null;
-  if (value.proposedAction != null) {
-    const action = value.proposedAction;
-    if (!isRecord(action) || typeof action.type !== 'string' || !action.type.trim()
-      || (action.preview !== undefined && typeof action.preview !== 'string')
-      || (action.actionId !== undefined && typeof action.actionId !== 'string')
-      || (action.args !== undefined && !isRecord(action.args))) {
-      throw new Error('Invalid proposed action');
-    }
-    proposedAction = {
-      type: action.type,
-      preview: action.preview as string | undefined,
-      actionId: action.actionId as string | undefined,
-      status: 'pending',
-    };
-  }
+  const action = RevenueKpiOpenActionSchema.safeParse(value.proposedAction);
+  const proposedAction = action.success ? action.data : null;
   if (value.conversationId != null && (typeof value.conversationId !== 'string' || !value.conversationId.trim())) {
     throw new Error('Invalid conversation ID');
   }
@@ -270,7 +257,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
       rows.push({ id: turn.id + ':assistant', sender: 'assistant', text: turn.replyHidden
         ? 'Phản hồi cũ được ẩn vì quyền truy cập hoặc dữ liệu nguồn đã thay đổi. Bạn có thể hỏi lại với quyền hiện tại.'
         : turn.status === 'COMPLETED' ? turn.reply || 'Chưa tải được phản hồi đã lưu.'
-        : 'Lượt trả lời bị gián đoạn hoặc chưa thành công. Câu hỏi đã được lưu; bạn có thể gửi lại.', citations: turn.citations, performanceKpi: turn.replyHidden ? undefined : turn.performanceKpi });
+        : 'Lượt trả lời bị gián đoạn hoặc chưa thành công. Câu hỏi đã được lưu; bạn có thể gửi lại.', citations: turn.citations, proposedAction: turn.replyHidden ? null : turn.proposedAction, performanceKpi: turn.replyHidden ? undefined : turn.performanceKpi });
     }
     setMessages(rows);
   };
@@ -389,12 +376,6 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
       setMessages((previous) => [...previous, { ...reply, id: ++nextId.current, sender: 'assistant' }]);
       setIsTyping(false);
     }, 600);
-  };
-
-  const confirm = (id: number | string, approved: boolean) => {
-    setMessages((previous) => previous.map((message) => message.id === id && message.proposedAction?.status === 'pending'
-      ? { ...message, proposedAction: { ...message.proposedAction, status: approved ? 'confirmed' : 'cancelled' } }
-      : message));
   };
 
   const composer = (
@@ -586,15 +567,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
                         })}
                       </section>
                     )}
-                    {message.proposedAction && <section className="guta-chat-card" aria-label="Đề xuất hành động">
-                      <strong>Đề xuất hành động (Confirm-before-write)</strong>
-                      <p>{message.proposedAction.preview || message.proposedAction.type}</p>
-                      <p>Chỉ ghi nhận lựa chọn tại giao diện. Chưa gửi lệnh hoặc thay đổi dữ liệu.</p>
-                      {message.proposedAction.status === 'pending' ? <div className="guta-chat-actions">
-                        <button className="chat-primary" type="button" onClick={() => confirm(message.id, true)}>Xác Nhận (Confirm)</button>
-                        <button type="button" onClick={() => confirm(message.id, false)}>Từ Chối</button>
-                      </div> : <p role="status">{message.proposedAction.status === 'confirmed' ? 'Đã xác nhận đề xuất. Chưa thực thi.' : 'Đã từ chối hành động. Không có dữ liệu nào bị thay đổi.'}</p>}
-                    </section>}
+                    {message.proposedAction && <RevenueKpiOpenCard key={message.proposedAction.actionId} initial={message.proposedAction} />}
                   </article>
                 ))}
                 {/* ponytail: CSS keyframes step carousel; add SSE streaming stage events when backend supports event-driven progress */}

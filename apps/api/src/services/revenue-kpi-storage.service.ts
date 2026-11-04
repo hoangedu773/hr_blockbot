@@ -24,6 +24,13 @@ export async function ensureRevenueKpiStorage() {
       }
       try { await db.createCollection('revenue_kpi_grants'); } catch (e: any) { if (e.code !== 48) throw e; }
       await db.collection('revenue_kpi_grants').createIndex({ userId: 1, sourceGrantId: 1 }, { unique: true });
+      // Chat proposals that were never confirmed must not accumulate forever.
+      // purgeAt is set only on creation and removed once a decision is stored, so
+      // executed/cancelled proposals remain available to chat history.
+      try { await db.createCollection('revenue_kpi_open_actions'); } catch (e: any) { if (e.code !== 48) throw e; }
+      const actions = db.collection('revenue_kpi_open_actions');
+      await actions.createIndex({ ownerId: 1, status: 1 });
+      await actions.createIndex({ purgeAt: 1 }, { expireAfterSeconds: 0 });
     })().catch(() => { initialized.delete(db); throw new WorkflowError(503, 'REVENUE_KPI_STORAGE_UNAVAILABLE', 'Chưa thể khởi tạo lưu trữ KPI doanh thu.'); });
     initialized.set(db, ready);
   }

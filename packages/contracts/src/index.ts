@@ -1,3 +1,4 @@
+import { RevenueKpiOpenActionSchema, RevenueKpiOpenPreviewSchema } from './revenue-kpi.js';
 import { z } from "zod";
 import { AuthorizationSummarySchema } from "./authorization.js";
 import { F4CandidateSchema } from "./f4.js";
@@ -540,6 +541,9 @@ export const ErrorCodeSchema = z.enum([
   "DUPLICATE_REQUEST",
   "MAX_CHANGE_REQUESTS_REACHED",
   "PROFILE_CHANGE_CONFLICT",
+  "REVENUE_KPI_ACTION_FAILED", "REVENUE_KPI_PLAN_CHANGED", "REVENUE_KPI_ACTION_DECIDED",
+  "REVENUE_KPI_ACTION_EXPIRED", "REVENUE_KPI_ACTION_NOT_FOUND", "REVENUE_KPI_AUTHORITY_CHANGED",
+  "REVENUE_KPI_INVALID_STATE", "REVENUE_KPI_VERSION_CONFLICT", "REVENUE_KPI_DISABLED", "REVENUE_KPI_NOT_FOUND",
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
 
@@ -829,7 +833,7 @@ export const ChatHistoryTurnSchema = z.object({
   status: z.enum(['QUEUED', 'PENDING', 'COMPLETED', 'FAILED', 'INTERRUPTED']),
   reply: z.string().max(64000).nullable(), replyHidden: z.boolean(),
   citations: z.array(z.object({ document: z.string(), version: z.string().optional(), article: z.string().optional(), score: z.number().finite().optional() })),
-  attachments: z.array(z.unknown()).max(0), proposedAction: z.null(),
+  attachments: z.array(z.unknown()).max(0), proposedAction: RevenueKpiOpenActionSchema.nullable(),
 });
 export const ChatHistoryPageSchema = z.object({ conversation: ChatConversationSummarySchema, items: z.array(ChatHistoryTurnSchema).max(30), nextCursor: z.string().max(300).nullable() });
 export const ChatHistorySendSchema = z.object({ conversationId: z.string().uuid(), turn: ChatHistoryTurnSchema });
@@ -896,6 +900,10 @@ export const ChatSendPayloadSchema = z
       .object({
         actionId: z.string().min(1),
         approved: z.boolean(),
+        // Optional plan binding so a confirm sent through chat:send can be
+        // executed by the same checked executor as chat:confirm.
+        expectedVersion: z.number().int().nonnegative().optional(),
+        planDigest: z.string().regex(/^[a-f0-9]{64}$/).optional(),
       })
       .optional(),
   })
@@ -974,6 +982,8 @@ export const ChatConfirmPayloadSchema = z.object({
   clientMessageId: z.string().min(1),
   actionId: z.string().min(1),
   approve: z.boolean(),
+  expectedVersion: z.number().int().nonnegative().optional(),
+  planDigest: z.string().regex(/^[a-f0-9]{64}$/).optional(),
 });
 export type ChatConfirmPayload = z.infer<typeof ChatConfirmPayloadSchema>;
 
@@ -1025,6 +1035,7 @@ export const ChatDonePayloadSchema = z.object({
   decisionAnalysis: DecisionAnalysisSchema.optional(),
   citations: z.array(CitationSchema).optional(),
   card: z.record(z.unknown()).optional(),
+  revenueKpiOpenAction: RevenueKpiOpenActionSchema.optional(),
   score: z.number().optional(),
   usage: z
     .object({
@@ -1042,6 +1053,7 @@ export const ChatErrorPayloadSchema = z.object({
   code: ErrorCodeSchema,
   message: z.string(),
   retryable: z.boolean(),
+  preview: RevenueKpiOpenPreviewSchema.optional(),
 });
 export type ChatErrorPayload = z.infer<typeof ChatErrorPayloadSchema>;
 

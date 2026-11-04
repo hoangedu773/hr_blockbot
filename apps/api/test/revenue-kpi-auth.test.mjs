@@ -20,7 +20,12 @@ test('HR routes, strict body, scoped recipients, AM cannot approve, staff cannot
   const input = command(0, { period: '2026-10', policy: RevenueKpiPolicySchema.parse({ allowDemoData: true }) });
   assert.equal((await call('am', '/periods', input)).status, 403);
   assert.equal((await call('hr', '/periods', { ...input, targetVnd: 1 })).status, 400);
-  let r = await call('hr', '/periods', input); assert.equal(r.status, 201); r = await call('hr', '/periods/2026-10/open', command(r.body.version)); assert.equal(r.status, 200);
+  let r = await call('hr', '/periods', input); assert.equal(r.status, 201);
+  // The one-shot route must not bypass preview/confirm by default.
+  assert.equal((await call('hr', '/periods/2026-10/open', command(r.body.version))).status, 410);
+  process.env.REVENUE_KPI_LEGACY_OPEN = 'true';
+  try { r = await call('hr', '/periods/2026-10/open', command(r.body.version)); assert.equal(r.status, 200); }
+  finally { delete process.env.REVENUE_KPI_LEGACY_OPEN; }
   const d = await call('hr', '/dashboard?period=2026-10'); assert.equal(d.status, 200); const a = d.body.assignments.find(a => a.unitType === 'STORE');
   assert.equal((await call('staff', '/assignments/' + a.id + '/result')).status, 403);
   assert.equal((await call('am', '/assignments/' + a.id + '/publish', command(a.version))).status, 403);

@@ -1,3 +1,5 @@
+import { RevenueKpiOpenCard, requestRevenueOpenProposal } from './RevenueKpiOpenCard';
+import type { RevenueKpiOpenAction } from '@hr-blockbot/contracts';
 import { useEffect, useRef, useState } from 'react';
 import { RevenueKpiDashboardSchema, RevenueKpiPolicySchema, type NotificationItem, type RevenueKpiAssignment as Assignment, type RevenueKpiResult as Result, type RevenueKpiDashboard as Dashboard } from '@hr-blockbot/contracts';
 import { useAuthorization } from '../context/useAuthorization';
@@ -18,6 +20,8 @@ export function RevenueKpiView() {
   const [employeeId, setEmployeeId] = useState<string | null>(null);
   const [period, setPeriod] = useState(initialMonth), [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [periods, setPeriods] = useState<string[]>([]), [missing, setMissing] = useState(false), [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState(''), [reload, setReload] = useState(0);
+  const [openProposal, setOpenProposal] = useState<RevenueKpiOpenAction | null>(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
   const [modal, setModal] = useState<Modal | null>(null), [values, setValues] = useState<Values>(defaults);
   const [notices, setNotices] = useState<NotificationItem[]>([]), [unread, setUnread] = useState(0);
   const dialog = useRef<HTMLDialogElement>(null), trigger = useRef<HTMLElement | null>(null), commandCache = useRef<{ key: string; id: string } | null>(null);
@@ -54,7 +58,6 @@ export function RevenueKpiView() {
     const targetChange = () => values.mode === 'ABSOLUTE_VND' || a?.unitType === 'AREA' ? { newTargetVnd: Number(values.amount) } : { newGrowthPercent: Number(values.growth) };
     await run(async () => {
       if (kind === 'create') return api.createRevenueKpiPeriod(cmd(0, { period, policy: RevenueKpiPolicySchema.parse({ defaultGrowthPercent: Number(values.growth), underperformingRateThresholdPercent: Number(values.threshold), acceptanceWindowWorkingDays: Number(values.days), allowDemoData: values.allowDemo }) }));
-      if (kind === 'open') return api.openRevenueKpiPeriod(period, cmd(p!.version));
       if (kind === 'compute') return api.computeRevenueKpiPeriod(period, cmd(p!.version));
       if (kind === 'close') return api.closeRevenueKpiPeriod(period, cmd(p!.version));
       if (kind === 'draft' || kind === 'edit') return api.saveRevenueKpiAssignment(cmd(a?.version ?? 0, { ...(a ? { id: a.id } : {}), period, unitType: values.unitType, ...(values.unitType === 'STORE' ? { storeId: values.storeId } : {}), assigneeEmployeeId: values.employeeId,
@@ -87,6 +90,13 @@ export function RevenueKpiView() {
     }
   }, kind === 'apply' ? 'Đã áp dụng đề xuất vào bản nháp. Cần kiểm tra và phát hành riêng.' : kind === 'ai' ? 'Đã lấy đề xuất cho các cửa hàng đủ dữ liệu.' : 'Đã phát hành các bản nháp đủ điều kiện.');
   const v = (key: keyof Values, value: string | boolean) => setValues(x => ({ ...x, [key]: value }));
+  const previewOpen = async () => {
+    setError('');
+    setPreviewBusy(true);
+    try { setOpenProposal(await requestRevenueOpenProposal(period)); }
+    catch (error) { setError(error instanceof Error ? error.message : 'Chưa lập được bản xem trước.'); }
+    finally { setPreviewBusy(false); }
+  };
   const isOpen = dashboard?.period.status === 'OPEN', selected = modal?.a;
   return <section className="revenue-kpi" aria-labelledby="rk-title" aria-busy={loading || busy}>
     <header><div><p className="rk-eyebrow">MỤC TIÊU VẬN HÀNH</p><h1 id="rk-title">KPI doanh thu</h1><p>Mục tiêu theo cửa hàng và khu vực · HR xem xét, người nhận xác nhận.</p></div>
@@ -94,10 +104,12 @@ export function RevenueKpiView() {
     {periods.length > 0 && <nav aria-label="Các kỳ KPI">{periods.map(p => <button key={p} type="button" aria-pressed={p === period} onClick={() => setPeriod(p)}>{p.slice(5)}/{p.slice(0, 4)}</button>)}</nav>}
     {notice && <p role="status" className="rk-notice">{notice}</p>}{error && !modal && <p role="alert" className="rk-error">{error}</p>}
     <details className="rk-flags"><summary>Thông báo KPI doanh thu · {unread} chưa đọc</summary>{!notices.length && <p>Chưa có thông báo gần đây.</p>}{notices.map(n => <article key={n.id}><p><strong>{n.title}</strong> · {date(n.createdAt)}</p><p>{n.body}</p>{!n.readAt && <button type="button" onClick={() => void markNotificationRead(n.id).then(() => { setNotices(old => old.map(item => item.id === n.id ? { ...item, readAt: new Date().toISOString() } : item)); setUnread(n => Math.max(0, n - 1)); }).catch(() => setError('Chưa đánh dấu được thông báo.'))}>Đánh dấu đã đọc</button>}</article>)}{notices.length >= 30 && <button type="button" onClick={() => void fetchNotifications(30, 'revenue_kpi', notices[notices.length - 1].createdAt).then(r => setNotices(old => [...old, ...r.items.filter(n => !old.some(item => item.id === n.id))]))}>Xem thông báo cũ</button>}</details>
+        {hr && openProposal?.preview.period === period && <RevenueKpiOpenCard key={openProposal.actionId} initial={openProposal} onExecuted={() => setReload(n => n + 1)} />}
     {loading ? <p role="status">Đang tải KPI doanh thu…</p> : missing ? <div className="rk-empty"><h2>Chưa có kỳ KPI này</h2><p>{hr ? 'Tạo kỳ, đặt mức tăng và ngưỡng đánh giá trước khi giao mục tiêu.' : 'HR chưa giao mục tiêu cho bạn trong kỳ này.'}</p>{hr && <button type="button" onClick={() => open('create')}>Tạo kỳ KPI</button>}</div> : dashboard && <>
       <div className="rk-policy"><strong>{labels[dashboard.period.status]}</strong><span>Tăng mặc định {percentage(dashboard.period.policy.defaultGrowthPercent)}</span><span>Ngưỡng cửa hàng chưa đạt ≤ {percentage(dashboard.period.policy.underperformingRateThresholdPercent)}</span><span>Xác nhận trong {dashboard.period.policy.acceptanceWindowWorkingDays} ngày làm việc</span>{dashboard.period.policy.allowDemoData && <small title="Kỳ cho phép doanh thu POS mẫu">Dữ liệu demo</small>}</div>
       {hr && <div className="rk-toolbar">
-        {dashboard.period.status === 'DRAFT' && <button type="button" disabled={busy} onClick={() => open('open')}>Mở kỳ & tạo nháp</button>}
+        {(dashboard.period.status === 'DRAFT' || isOpen) && <button type="button" disabled={busy || previewBusy}
+          onClick={() => void previewOpen()}>{previewBusy ? 'Đang lập bản xem trước…' : isOpen ? 'Xem trước bản nháp còn thiếu' : 'Xem trước mở kỳ'}</button>}
         {isOpen && <><button type="button" disabled={busy} onClick={() => open('draft')}>Thêm mục tiêu</button><button type="button" disabled={busy || !dashboard.assignments.some(a => a.status === 'DRAFT' && a.unitType === 'STORE')} onClick={() => void bulk('ai')}>Đề xuất AI hàng loạt</button><button type="button" disabled={busy || !dashboard.assignments.some(a => a.status === 'DRAFT' && a.aiProposal?.suggestedGrowthPercent != null)} onClick={() => open('bulk-apply')}>Áp dụng đề xuất đã xem</button><button type="button" disabled={busy || !dashboard.assignments.some(a => a.status === 'DRAFT')} onClick={() => open('bulk-publish')}>Phát hành bản nháp</button><button type="button" disabled={busy} onClick={() => open('compute')}>Tính kết quả</button><button type="button" disabled={busy} onClick={() => open('close')}>Chốt kỳ</button></>}
       </div>}
       {hr && dashboard.flags.length > 0 && <details className="rk-flags"><summary>Cần kiểm tra người phụ trách ({dashboard.flags.length})</summary><ul>{dashboard.flags.map((f, i) => <li key={i}>{f}</li>)}</ul><p>Không có SM: chưa giao. Chưa xác định SM chính: HR chọn người có căn cứ khi thêm mục tiêu.</p></details>}
@@ -133,7 +145,7 @@ export function RevenueKpiView() {
     </>}
     <dialog ref={dialog} className="rk-dialog" aria-labelledby="rk-dialog-title" onCancel={e => { e.preventDefault(); close(); }}>
       {modal && <form onSubmit={e => { e.preventDefault(); if (modal.kind === 'bulk-apply' || modal.kind === 'bulk-publish') void bulk(modal.kind === 'bulk-apply' ? 'apply' : 'publish'); else void submit(); }}>
-        <div className="rk-dialog-head"><h2 id="rk-dialog-title">{({ create: 'Tạo kỳ KPI doanh thu', open: 'Mở kỳ và tạo bản nháp', compute: 'Tính kết quả doanh thu', close: 'Chốt kỳ KPI', draft: 'Thêm mục tiêu', edit: 'Sửa mục tiêu nháp', publish: 'Phát hành mục tiêu', accept: 'Chấp nhận KPI', refuse: 'Từ chối KPI', decision: 'HR xử lý mục tiêu', request: 'Yêu cầu điều chỉnh', verify: 'AM xác minh', adjustment: 'HR quyết định điều chỉnh', reason: 'Giải trình kết quả', review: 'Xem xét giải trình', confirm: 'Xác nhận kết quả', correct: 'Điều chỉnh sau chốt', responsibility: 'Cập nhật SM phụ trách', ai: 'Lấy đề xuất AI', 'bulk-apply': 'Áp dụng đề xuất vào bản nháp', 'bulk-publish': 'Phát hành các bản nháp' } as Record<string, string>)[modal.kind]}</h2><button type="button" disabled={busy} onClick={close} aria-label="Đóng hộp thoại KPI">×</button></div>
+        <div className="rk-dialog-head"><h2 id="rk-dialog-title">{({ create: 'Tạo kỳ KPI doanh thu', compute: 'Tính kết quả doanh thu', close: 'Chốt kỳ KPI', draft: 'Thêm mục tiêu', edit: 'Sửa mục tiêu nháp', publish: 'Phát hành mục tiêu', accept: 'Chấp nhận KPI', refuse: 'Từ chối KPI', decision: 'HR xử lý mục tiêu', request: 'Yêu cầu điều chỉnh', verify: 'AM xác minh', adjustment: 'HR quyết định điều chỉnh', reason: 'Giải trình kết quả', review: 'Xem xét giải trình', confirm: 'Xác nhận kết quả', correct: 'Điều chỉnh sau chốt', responsibility: 'Cập nhật SM phụ trách', ai: 'Lấy đề xuất AI', 'bulk-apply': 'Áp dụng đề xuất vào bản nháp', 'bulk-publish': 'Phát hành các bản nháp' } as Record<string, string>)[modal.kind]}</h2><button type="button" disabled={busy} onClick={close} aria-label="Đóng hộp thoại KPI">×</button></div>
         {selected && <p>{selected.unitType === 'STORE' ? selected.stores[0].storeName : `Khu vực ${selected.assigneeName}`} · {money(selected.targetVnd)}</p>}
         {['draft', 'edit'].includes(modal.kind) && <>
           <label>Loại mục tiêu<select aria-label="Loại mục tiêu" value={values.unitType} disabled={modal.kind === 'edit'} onChange={e => { v('unitType', e.target.value); v('employeeId', ''); }}><option value="STORE">Cửa hàng · SM</option><option value="AREA">Khu vực · AM</option></select></label>

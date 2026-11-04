@@ -141,11 +141,12 @@ export class ChatSocketClient {
     return payload;
   }
 
-  confirmAction(actionId: string, approve: boolean): ChatConfirmPayload {
+  confirmAction(actionId: string, approve: boolean, plan?: Pick<ChatConfirmPayload, 'expectedVersion' | 'planDigest'>): ChatConfirmPayload {
     const payload: ChatConfirmPayload = {
       clientMessageId: createClientMessageId(),
       actionId,
       approve,
+      ...plan,
     };
     this.socket?.emit('chat:confirm', payload);
     return payload;

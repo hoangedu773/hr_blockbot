@@ -32,7 +32,7 @@ try {
   browser = await chromium.launch({ headless: true });
   for (const profile of ['hr', 'sm', 'am', 'staff']) {
     const context = await browser.newContext({ viewport: { width: 1440, height: 1050 } }); contexts.push(context);
-    await context.route('**/*', async route => { const u = new URL(route.request().url()); if (u.pathname.startsWith('/api/')) return route.fulfill({ response: await route.fetch({ url: apiOrigin + u.pathname + u.search }) }); return u.origin === origin ? route.continue() : route.fulfill({ status: 200, body: '' }); });
+    await context.route('**/*', async route => { const u = new URL(route.request().url()); if (u.pathname.startsWith('/api/')) return route.fulfill({ response: await route.fetch({ url: apiOrigin + u.pathname + u.search, maxRetries: 1 }) }); return u.origin === origin ? route.continue() : route.fulfill({ status: 200, body: '' }); });
     const page = await context.newPage(); actors[profile] = page; page.setDefaultTimeout(15000); page.on('pageerror', e => errors.push(e.message));
     await page.goto(origin, { waitUntil: 'networkidle' }); await page.getByRole('button', { name: 'Get Started', exact: true }).click();
     await page.locator('#login-username').fill('v1-' + profile); await page.locator('#login-password').fill(f.password); await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click(); await page.locator('.crm-sidebar').waitFor();
@@ -41,16 +41,22 @@ try {
   }
   const hr = actors.hr, sm = actors.sm, am = actors.am;
   await hr.getByRole('button', { name: 'Tạo kỳ KPI', exact: true }).click(); await hr.getByLabel('Cho phép dữ liệu POS demo trong kỳ này').check(); await confirm(hr);
-  await action(hr, hr.getByRole('button', { name: 'Mở kỳ & tạo nháp', exact: true }));
+  await hr.getByRole('button', { name: 'Xem trước mở kỳ', exact: true }).click();
+  const openCard = hr.getByRole('region', { name: 'Kế hoạch mở kỳ KPI doanh thu' });
+  await openCard.getByText('Dự kiến tạo 2 · Đã có 0 · Cần xử lý 0.').waitFor();
+  assert.equal(await Assignment.countDocuments(), 0);
+  await openCard.getByRole('button', { name: 'Xác nhận kế hoạch' }).click();
+  await openCard.getByText(/Kỳ đang mở. Đã tạo 2/).waitFor();
+  await settle(hr);
   const storeCard = page => page.locator('.rk-assignment').filter({ has: page.getByText('CỬA HÀNG · SM', { exact: true }) });
   const areaCard = page => page.locator('.rk-assignment').filter({ has: page.getByText('KHU VỰC · AM', { exact: true }) });
   await action(hr, storeCard(hr).getByRole('button', { name: 'Đề xuất AI', exact: true })); assert.match(await storeCard(hr).innerText(), /Đang dùng phân tích dự phòng/);
   await action(hr, hr.getByRole('button', { name: 'Phát hành bản nháp', exact: true }));
-  for (const p of [sm, am]) { await p.reload({ waitUntil: 'networkidle' }); await p.locator('[data-section="revenueKpi"]').click(); await p.getByLabel('Kỳ KPI doanh thu').fill('2026-10'); await settle(p); }
+  for (const p of [sm, am]) { await p.reload({ waitUntil: 'networkidle' }); await p.locator('[data-section="revenueKpi"]').click(); await p.getByLabel('Kỳ KPI doanh thu', { exact: true }).fill('2026-10'); await settle(p); }
   await sm.getByRole('button', { name: 'Từ chối', exact: true }).click(); await sm.getByLabel('Lý do KPI doanh thu').fill('a'); await sm.locator('.rk-dialog').getByRole('button', { name: 'Xác nhận', exact: true }).click(); assert.equal(await sm.locator('.rk-dialog[open]').count(), 1);
   await sm.getByLabel('Lý do KPI doanh thu').fill('Cần xem xét mục tiêu do sửa chữa.'); await confirm(sm);
   // Refresh by switching HR period away and back, exercising persisted data.
-  const refresh = async p => { await p.getByLabel('Kỳ KPI doanh thu').fill('2026-09'); await settle(p); await p.getByLabel('Kỳ KPI doanh thu').fill('2026-10'); await settle(p); };
+  const refresh = async p => { await p.getByLabel('Kỳ KPI doanh thu', { exact: true }).fill('2026-09'); await settle(p); await p.getByLabel('Kỳ KPI doanh thu', { exact: true }).fill('2026-10'); await settle(p); };
   await refresh(hr); await storeCard(hr).getByRole('button', { name: 'HR xử lý', exact: true }).click(); await hr.getByLabel('Cách giao mục tiêu').selectOption('ABSOLUTE_VND'); await hr.getByLabel('Mục tiêu VND', { exact: true }).fill('110000'); await hr.getByLabel('Lý do KPI doanh thu').fill('HR điều chỉnh sau trao đổi độc lập.'); await confirm(hr);
   await refresh(sm); await action(sm, sm.getByRole('button', { name: 'Chấp nhận', exact: true }));
   await sm.getByRole('button', { name: 'Xin điều chỉnh', exact: true }).click(); await sm.getByLabel('Bằng chứng điều chỉnh').fill('Biên bản sửa chữa mô phỏng số 01.'); await sm.getByLabel('Lý do KPI doanh thu').fill('Cửa hàng sửa chữa cần điều chỉnh.'); await confirm(sm);

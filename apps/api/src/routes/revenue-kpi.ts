@@ -15,8 +15,23 @@ router.post('/revenue-kpi/periods', endpoint(async (req, res) => { res.status(20
 router.get('/revenue-kpi/dashboard', endpoint(async (req, res) => { const { period } = z.object({ period: RevenueKpiMonthSchema }).strict().parse(req.query); res.json(await S.revenueKpiDashboard(req.user!, period)); }));
 router.get('/revenue-kpi/periods/:period', endpoint(async (req, res) => { res.json(await S.revenueKpiDashboard(req.user!, String(req.params.period))); }));
 router.get('/revenue-kpi/periods/:period/assignments', endpoint(async (req, res) => { res.json({ items: (await S.revenueKpiDashboard(req.user!, String(req.params.period))).assignments }); }));
-for (const [action, fn] of [['open', S.openRevenueKpiPeriod], ['compute', S.computeRevenueKpiPeriod], ['close', S.closeRevenueKpiPeriod]] as const)
+for (const [action, fn] of [['compute', S.computeRevenueKpiPeriod], ['close', S.closeRevenueKpiPeriod]] as const)
   router.post('/revenue-kpi/periods/:period/' + action, endpoint(async (req, res) => { res.json(await fn(req.user!, String(req.params.period), req.body)); }));
+// Bulk open must never write before HR has reviewed a preview. The legacy
+// one-shot route stays only as an explicit, operator-enabled compatibility
+// endpoint; first-party Web and chat use open-preview -> open-proposal -> decision.
+router.post('/revenue-kpi/periods/:period/open', endpoint(async (req, res) => {
+  if (process.env.REVENUE_KPI_LEGACY_OPEN !== 'true')
+    throw new WorkflowError(410, 'REVENUE_KPI_CONFIRM_REQUIRED', 'Mở kỳ cần xem trước và xác nhận. Dùng bản xem trước mở kỳ.');
+  res.json(await S.openRevenueKpiPeriod(req.user!, String(req.params.period), req.body));
+}));
+router.get('/revenue-kpi/periods/:period/open-preview', endpoint(async (req, res) => {
+  res.set('Cache-Control', 'private, no-store').json(await S.planRevenueKpiPeriodOpen(req.user!, String(req.params.period)));
+}));
+router.post('/revenue-kpi/periods/:period/open-proposal', endpoint(async (req, res) => {
+  z.object({}).strict().parse(req.body);
+  res.set('Cache-Control', 'private, no-store').json(await S.proposeRevenueKpiPeriodOpen(req.user!, String(req.params.period)));
+}));
 router.post('/revenue-kpi/assignments', endpoint(async (req, res) => { res.json(await S.saveRevenueKpiAssignment(req.user!, req.body)); }));
 for (const action of ['publish', 'accept', 'refuse', 'hr-decision', 'adjustment-request', 'adjustment-verify', 'adjustment-decision', 'responsibility'])
   router.post('/revenue-kpi/assignments/:id/' + action, endpoint(async (req, res) => { res.json(await S.mutateRevenueKpiAssignment(req.user!, String(req.params.id), action, req.body)); }));
