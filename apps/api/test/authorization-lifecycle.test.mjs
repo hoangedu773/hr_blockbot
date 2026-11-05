@@ -143,8 +143,10 @@ test('socket rereads account per packet: a live connection cannot confirm or que
   const token = await signAccessToken({ sub: String(value._id), role: 'Employee' });
   const client = clientIo(base, { auth: { token }, transports: ['websocket'], reconnection: false }); clients.push(client);
   await event(client, 'connect');
-  const done = event(client, 'chat:done'); client.emit('chat:confirm', { actionId: 'fixture-only', approve: true, clientMessageId: 'fixture-confirm' });
-  assert.equal((await done).finishReason, 'TOOL_RESULT');
+  const accepted = event(client, 'chat:accepted'), notFound = event(client, 'chat:error');
+  client.emit('chat:confirm', { actionId: randomUUID(), approve: true, clientMessageId: 'fixture-confirm' });
+  assert.equal((await accepted).clientMessageId, 'fixture-confirm');
+  assert.equal((await notFound).code, 'REVENUE_KPI_ACTION_NOT_FOUND');
   await UserModel.updateOne({ _id: value._id }, { $inc: { securityVersion: 1 } });
   let completed = false; client.once('chat:done', () => { completed = true; });
   const denied = event(client, 'chat:error'), disconnected = event(client, 'disconnect');

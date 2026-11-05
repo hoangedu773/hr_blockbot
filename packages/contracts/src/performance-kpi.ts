@@ -35,3 +35,228 @@ export type PerformanceFramework=z.infer<typeof PerformanceFrameworkSchema>;
 export type PerformancePolicy=z.infer<typeof PerformancePolicySchema>;
 
 export const ClosePerformancePeriodRequestSchema=PerformanceReasonRequestSchema.extend({policyVersions:z.record(id,z.number().int().positive())});
+
+// ============================================================================
+// P5b — Performance KPI actions qua chat (plan P5-hr-assign-performance-actions)
+// Proposal type 'performance_kpi.task_action' | 'performance_kpi.evaluation_action',
+// lưu cùng collection `revenue_kpi_open_actions`, phân biệt bằng field `type`.
+// Mọi action gọi service hiện có (openPerformancePeriod, mutateTask,
+// mutatePerformanceEvaluation) — không bypass, không viết lại state machine.
+// Model KHÔNG chọn điểm số: score/weight/evidence chỉ xuất hiện trong preview,
+// model chỉ diễn giải.
+// ============================================================================
+
+export const PerformanceKpiActionDigestSchema = z.string().regex(/^[a-f0-9]{64}$/, 'planDigest must be 64 hex chars');
+export type PerformanceKpiActionDigest = z.infer<typeof PerformanceKpiActionDigestSchema>;
+
+// --- task_action: open_period, task.assign, task.accept, task.submit, task.evaluate ---
+export const PerformanceKpiTaskActionKindSchema = z.enum([
+  'open_period', 'task.assign', 'task.accept', 'task.submit', 'task.evaluate',
+]);
+export type PerformanceKpiTaskActionKind = z.infer<typeof PerformanceKpiTaskActionKindSchema>;
+export const PerformanceKpiTaskAssignmentItemSchema = z.object({
+  taskId: id,
+  assigneeEmployeeId: id,
+}).strict();
+export type PerformanceKpiTaskAssignmentItem = z.infer<typeof PerformanceKpiTaskAssignmentItemSchema>;
+
+// Args mirror OpenPerformancePeriodRequestSchema (bulk open_period: employeeIds
+// 1..500, preview + confirm) và các request schema task hiện có. Không thêm
+// trường score — điểm số chỉ có trong preview do planner tính qua service.
+export const PerformanceKpiTaskActionArgsSchema = command.extend({
+  kind: PerformanceKpiTaskActionKindSchema,
+  policyId: id.optional(),
+  employeeIds: z.array(id).min(1).max(500).optional(),
+  taskId: id.optional(),
+  assignments: z.array(PerformanceKpiTaskAssignmentItemSchema).min(1).max(100).optional(),
+  segmentId: id.optional(),
+  assigneeEmployeeId: id.optional(),
+  title: z.string().trim().min(3).max(200).optional(),
+  description: z.string().max(10000).optional(),
+  dueAt: time.optional(),
+  taskWeightPercent: z.number().min(5).max(50).optional(),
+  templateId: id.optional(),
+  completedStepCodes: z.array(z.string()).max(30).optional(),
+  evidenceRefs: evidence.optional(),
+  reason: reason.optional(),
+  expectedVersion: z.number().int().nonnegative(),
+  planDigest: PerformanceKpiActionDigestSchema,
+}).strict()
+  .refine(v => v.kind !== 'open_period' || (!!v.policyId && !!v.employeeIds?.length), 'open_period requires policyId and employeeIds')
+  .refine(v => v.kind === 'open_period' || !!v.taskId || !!v.assignments?.length, 'Task actions require taskId or assignments')
+  .refine(v => !v.assignments || new Set(v.assignments.map(a => a.taskId)).size === v.assignments.length, 'Duplicate taskId in assignments is not allowed');
+export type PerformanceKpiTaskActionArgs = z.infer<typeof PerformanceKpiTaskActionArgsSchema>;
+
+// Per-employee/plan item của preview (open_period + task.assign bulk).
+export const PerformanceKpiTaskActionItemSchema = z.object({
+  employeeId: id.nullable(),
+  employeeName: z.string().nullable(),
+  storeId: id.nullable(),
+  taskId: id.nullable(),
+  evaluationId: id.nullable(),
+  title: z.string().nullable(),
+  taskWeightPercent: score.nullable(),
+  dueAt: time.nullable(),
+  currentStatus: z.string().nullable(),
+  projectedStatus: z.string().nullable(),
+  willCreate: z.boolean(),
+  willSkip: z.boolean(),
+  blocked: z.boolean(),
+  code: z.string().nullable(),
+  message: z.string().nullable(),
+  fixHint: z.string().nullable(),
+  taskVersion: z.number().int().nonnegative().nullable().optional(),
+}).strict();
+export type PerformanceKpiTaskActionItem = z.infer<typeof PerformanceKpiTaskActionItemSchema>;
+
+export const PerformanceKpiTaskActionPreviewSchema = z.object({
+  kind: PerformanceKpiTaskActionKindSchema,
+  period: month.nullable(),
+  policyId: id.nullable(),
+  expectedVersion: z.number().int().nonnegative(),
+  planDigest: PerformanceKpiActionDigestSchema,
+  summary: z.string().min(1).max(2000),
+  willCreate: z.array(PerformanceKpiTaskActionItemSchema).max(500),
+  willSkip: z.array(PerformanceKpiTaskActionItemSchema).max(500),
+  blocked: z.array(PerformanceKpiTaskActionItemSchema).max(500),
+  warnings: z.array(z.string().max(500)).max(20),
+  executed: z.literal(false),
+}).strict();
+export type PerformanceKpiTaskActionPreview = z.infer<typeof PerformanceKpiTaskActionPreviewSchema>;
+
+export const PerformanceKpiTaskActionResultSchema = z.object({
+  outcome: z.enum(['FULL', 'PARTIAL', 'NONE']),
+  policy: PerformancePolicySchema.nullable(),
+  tasks: z.array(z.object({ taskId: id, employeeId: id.nullable(), status: z.string() }).strict()).max(500),
+  created: z.array(PerformanceKpiTaskActionItemSchema).max(500),
+  skipped: z.array(PerformanceKpiTaskActionItemSchema).max(500),
+  blocked: z.array(PerformanceKpiTaskActionItemSchema).max(500),
+  failed: z.array(PerformanceKpiTaskActionItemSchema).max(500),
+  summary: z.object({ created: z.number().int().nonnegative(), skipped: z.number().int().nonnegative(), blocked: z.number().int().nonnegative(), failed: z.number().int().nonnegative(), total: z.number().int().nonnegative() }).strict(),
+}).strict();
+export type PerformanceKpiTaskActionResult = z.infer<typeof PerformanceKpiTaskActionResultSchema>;
+
+export const PerformanceKpiTaskActionSchema = z.object({
+  actionId: z.string().uuid(),
+  type: z.literal('performance_kpi.task_action'),
+  status: z.enum(['PENDING', 'CONFIRMED', 'CANCELLED', 'EXECUTED', 'EXPIRED', 'FAILED']),
+  expiresAt: time,
+  requiresConfirmation: z.boolean(),
+  executed: z.boolean(),
+  args: PerformanceKpiTaskActionArgsSchema,
+  preview: PerformanceKpiTaskActionPreviewSchema,
+  result: PerformanceKpiTaskActionResultSchema.nullable(),
+}).strict();
+export type PerformanceKpiTaskAction = z.infer<typeof PerformanceKpiTaskActionSchema>;
+
+export const PerformanceKpiTaskActionDecisionSchema = z.discriminatedUnion('approve', [
+  z.object({ expectedVersion: z.number().int().nonnegative(), planDigest: PerformanceKpiActionDigestSchema, approve: z.literal(true), clientRequestId: z.string().uuid() }).strict(),
+  z.object({ clientRequestId: z.string().uuid(), approve: z.literal(false) }).strict(),
+]);
+export type PerformanceKpiTaskActionDecision = z.infer<typeof PerformanceKpiTaskActionDecisionSchema>;
+
+// --- evaluation_action: evaluation.score, reconsideration.request/response, appeal.request/decision ---
+export const PerformanceKpiEvaluationActionKindSchema = z.enum([
+  'evaluation.score', 'reconsideration.request', 'reconsideration.response', 'appeal.request', 'appeal.decision',
+]);
+export type PerformanceKpiEvaluationActionKind = z.infer<typeof PerformanceKpiEvaluationActionKindSchema>;
+
+export const PerformanceKpiEvaluationActionArgsSchema = command.extend({
+  kind: PerformanceKpiEvaluationActionKindSchema,
+  evaluationId: id,
+  criterionCodes: z.array(z.string()).min(1).max(20).optional(),
+  taskIds: z.array(id).max(50).optional(),
+  // Chỉ service mới ghi score; args chỉ mang tham chiếu để planner build preview.
+  decision: z.enum(['ADJUSTED', 'UPHELD', 'ACCEPTED', 'WITHDRAWN', 'RETURNED']).optional(),
+  text: reason.optional(),
+  evidenceRefs: evidence.optional(),
+  expectedVersion: z.number().int().positive(),
+  planDigest: PerformanceKpiActionDigestSchema,
+}).strict()
+  .refine(v => !['reconsideration.request', 'appeal.request'].includes(v.kind) || (!!v.text && !!v.evidenceRefs?.length), 'Reconsideration/appeal request requires text and evidenceRefs');
+export type PerformanceKpiEvaluationActionArgs = z.infer<typeof PerformanceKpiEvaluationActionArgsSchema>;
+
+// Preview item của score: khớp PerformanceCriterionScoreSchema (score/effective
+// weight/evidence do planner tính qua service, model chỉ diễn giải).
+export const PerformanceKpiScorePreviewItemSchema = z.object({
+  code: z.string().max(60),
+  name: z.string().max(200),
+  currentScore: score.nullable(),
+  projectedScore: score.nullable(),
+  maxScore: z.literal(100),
+  originalWeightPercent: score,
+  effectiveWeightPercent: score,
+  evidenceRefs: evidence,
+  notApplicable: z.boolean(),
+}).strict();
+export type PerformanceKpiScorePreviewItem = z.infer<typeof PerformanceKpiScorePreviewItemSchema>;
+
+export const PerformanceKpiEvaluationActionPreviewSchema = z.object({
+  kind: PerformanceKpiEvaluationActionKindSchema,
+  evaluationId: id,
+  period: month,
+  currentStatus: PerformanceEvaluationStatusSchema,
+  projectedStatus: PerformanceEvaluationStatusSchema,
+  expectedVersion: z.number().int().positive(),
+  planDigest: PerformanceKpiActionDigestSchema,
+  summary: z.string().min(1).max(2000),
+  // Reconsideration/appeal: criterion/task bị tranh chấp + deadline.
+  disputedCriterionCodes: z.array(z.string().max(60)).max(20),
+  disputedTaskIds: z.array(id).max(50),
+  deadlineAt: time.nullable(),
+  criteriaScores: z.array(PerformanceKpiScorePreviewItemSchema).max(20),
+  taskGroupScore: score.nullable(),
+  projectedFinalScore: score.nullable(),
+  warnings: z.array(z.string().max(500)).max(20),
+  executed: z.literal(false),
+}).strict();
+export type PerformanceKpiEvaluationActionPreview = z.infer<typeof PerformanceKpiEvaluationActionPreviewSchema>;
+
+export const PerformanceKpiEvaluationActionResultSchema = z.object({
+  evaluation: PerformanceEvaluationSchema.nullable(),
+}).strict();
+export type PerformanceKpiEvaluationActionResult = z.infer<typeof PerformanceKpiEvaluationActionResultSchema>;
+
+export const PerformanceKpiEvaluationActionSchema = z.object({
+  actionId: z.string().uuid(),
+  type: z.literal('performance_kpi.evaluation_action'),
+  status: z.enum(['PENDING', 'CONFIRMED', 'CANCELLED', 'EXECUTED', 'EXPIRED', 'FAILED']),
+  expiresAt: time,
+  requiresConfirmation: z.boolean(),
+  executed: z.boolean(),
+  args: PerformanceKpiEvaluationActionArgsSchema,
+  preview: PerformanceKpiEvaluationActionPreviewSchema,
+  result: PerformanceKpiEvaluationActionResultSchema.nullable(),
+}).strict();
+export type PerformanceKpiEvaluationAction = z.infer<typeof PerformanceKpiEvaluationActionSchema>;
+
+export const PerformanceKpiEvaluationActionDecisionSchema = z.discriminatedUnion('approve', [
+  z.object({ expectedVersion: z.number().int().positive(), planDigest: PerformanceKpiActionDigestSchema, approve: z.literal(true), clientRequestId: z.string().uuid() }).strict(),
+  z.object({ clientRequestId: z.string().uuid(), approve: z.literal(false) }).strict(),
+]);
+export type PerformanceKpiEvaluationActionDecision = z.infer<typeof PerformanceKpiEvaluationActionDecisionSchema>;
+
+// Union chung Performance cho executor decideChatAction (cùng collection).
+export const PerformanceKpiChatActionSchema = z.discriminatedUnion('type', [
+  PerformanceKpiTaskActionSchema,
+  PerformanceKpiEvaluationActionSchema,
+]);
+export type PerformanceKpiChatAction = z.infer<typeof PerformanceKpiChatActionSchema>;
+
+export const PerformanceKpiPreviewTaskActionResponseSchema = z.object({
+  actionId: z.string().uuid(),
+  type: z.literal('performance_kpi.task_action'),
+  preview: PerformanceKpiTaskActionPreviewSchema,
+  requiresConfirmation: z.literal(true),
+  executed: z.literal(false),
+}).strict();
+export type PerformanceKpiPreviewTaskActionResponse = z.infer<typeof PerformanceKpiPreviewTaskActionResponseSchema>;
+
+export const PerformanceKpiPreviewEvaluationActionResponseSchema = z.object({
+  actionId: z.string().uuid(),
+  type: z.literal('performance_kpi.evaluation_action'),
+  preview: PerformanceKpiEvaluationActionPreviewSchema,
+  requiresConfirmation: z.literal(true),
+  executed: z.literal(false),
+}).strict();
+export type PerformanceKpiPreviewEvaluationActionResponse = z.infer<typeof PerformanceKpiPreviewEvaluationActionResponseSchema>;

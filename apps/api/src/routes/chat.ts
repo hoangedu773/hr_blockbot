@@ -1,21 +1,174 @@
-import { decideRevenueKpiOpenAction, getRevenueKpiOpenAction, RevenueKpiPlanChangedError } from '../services/revenue-kpi.service.js';
+import mongoose from "mongoose";
 import { Router } from "express";
-import { ChatRequestSchema } from "@hr-blockbot/contracts";
+import { decideRevenueKpiOpenAction, getRevenueKpiOpenAction, decideChatAction, getRevenueKpiAssignmentAction, getRevenueKpiResultAction, decideChatKpiResultAction, RevenueKpiPlanChangedError, RevenueKpiAssignmentPlanChangedError, RevenueKpiResultPlanChangedError } from '../services/revenue-kpi.service.js';
+import { getChatRevenueCreatePeriodAction, getChatRevenueSaveAssignmentAction, decideChatRevenueCreatePeriod, decideChatRevenueSaveAssignment } from '../services/chat-authorization.service.js';
+import { getChatPerformanceKpiAction, decideChatPerformanceKpiAction, previewPerformanceKpiTaskAction, previewPerformanceKpiEvaluationAction, PerformanceKpiTaskPlanChangedError, PerformanceKpiEvaluationPlanChangedError } from '../services/performance-kpi-action.service.js';
+import { z } from "zod";
+import { ChatRequestSchema, RevenueKpiOpenActionIdSchema, RevenueKpiCreatePeriodActionSchema, RevenueKpiSaveAssignmentActionSchema, PerformanceKpiChatActionSchema } from "@hr-blockbot/contracts";
+import type { RevenueKpiOpenAction, RevenueKpiAssignmentAction, RevenueKpiChatAction, RevenueKpiResultAction, RevenueKpiCreatePeriodAction, RevenueKpiSaveAssignmentAction, PerformanceKpiChatAction } from "@hr-blockbot/contracts";
+import { RevenueKpiChatActionSchema } from "@hr-blockbot/contracts";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
 import { endpoint as endpoint } from "../lib/endpoint.js";
 import { authorizedChat } from "../services/chat-authorization.service.js";
 import { WorkflowError } from "../services/project-workflow.service.js";
+import type { AuthenticatedUser } from "../middlewares/auth.middleware.js";
 import { createConversation, listConversations, conversationMessages, chatWithHistory, deleteConversation } from '../services/chat-history.service.js';
 const router = Router();
+
+type ChatKpiDecisionResult = { kind: 'open_period'; action: RevenueKpiOpenAction } | { kind: 'mutate_assignment'; action: RevenueKpiAssignmentAction } | { kind: 'result_action'; action: RevenueKpiResultAction } | { kind: 'create_period'; action: RevenueKpiCreatePeriodAction } | { kind: 'save_assignment'; action: RevenueKpiSaveAssignmentAction } | { kind: 'performance'; action: PerformanceKpiChatAction };
+
+// P5 loaders live in chat-authorization.service and share the 404 contract
+// (REVENUE_KPI_ACTION_NOT_FOUND on missing row or wrong persisted type), so the
+// same notFound() collapse below covers all six row types without leaking
+// existence. Executors are selected by the row's persisted `type`, never the
+// client payload.
+const p5NotFound = (error: unknown) => error instanceof WorkflowError && error.code === 'REVENUE_KPI_ACTION_NOT_FOUND';
+type ChatKpiActionDispatchRow = {
+  _id: string;
+  ownerId: string;
+  type?: string;
+};
+
+// Server-owned dispatch: read the action row's persisted `type` directly from
+// storage to select the executor/loader without triggering feature-flag checks
+// (e.g. 503 REVENUE_KPI_DISABLED) across different action domains.
+export async function getChatKpiAction(user: AuthenticatedUser, id: string): Promise<RevenueKpiChatAction | PerformanceKpiChatAction> {
+  const parsedId = RevenueKpiOpenActionIdSchema.safeParse(id);
+  if (!parsedId.success) throw new WorkflowError(400, 'VALIDATION_FAILED', 'Message/conversation identifier is invalid');
+  const actionId = parsedId.data;
+  const row = await mongoose.connection.collection<ChatKpiActionDispatchRow>('revenue_kpi_open_actions').findOne(
+    { _id: actionId, ownerId: user.userId },
+    { projection: { type: 1 } }
+  );
+  if (!row) throw new WorkflowError(404, 'REVENUE_KPI_ACTION_NOT_FOUND', 'Không tìm thấy đề xuất KPI.');
+  const actionType = row.type ?? 'revenue_kpi.open_period';
+  if (actionType === 'performance_kpi.task_action' || actionType === 'performance_kpi.evaluation_action') {
+    return getChatPerformanceKpiAction(user, actionId);
+  }
+  if (actionType === 'revenue_kpi.open_period') {
+    return getRevenueKpiOpenAction(user, actionId);
+  }
+  if (actionType === 'revenue_kpi.mutate_assignment') {
+    return getRevenueKpiAssignmentAction(user, actionId);
+  }
+  if (actionType === 'revenue_kpi.result_action') {
+    return getRevenueKpiResultAction(user, actionId);
+  }
+  if (actionType === 'revenue_kpi.create_period') {
+    return getChatRevenueCreatePeriodAction(user, actionId);
+  }
+  if (actionType === 'revenue_kpi.save_assignment') {
+    return getChatRevenueSaveAssignmentAction(user, actionId);
+  }
+  throw new WorkflowError(404, 'REVENUE_KPI_ACTION_NOT_FOUND', 'Không tìm thấy đề xuất KPI.');
+}
+
+export async function decideChatKpiAction(user: AuthenticatedUser, actionId: string, raw: unknown): Promise<ChatKpiDecisionResult> {
+  const parsedId = RevenueKpiOpenActionIdSchema.safeParse(actionId);
+  if (!parsedId.success) throw new WorkflowError(400, 'VALIDATION_FAILED', 'Message/conversation identifier is invalid');
+  const id = parsedId.data;
+  const row = await mongoose.connection.collection<ChatKpiActionDispatchRow>('revenue_kpi_open_actions').findOne(
+    { _id: id, ownerId: user.userId },
+    { projection: { type: 1 } }
+  );
+  if (!row) throw new WorkflowError(404, 'REVENUE_KPI_ACTION_NOT_FOUND', 'Không tìm thấy đề xuất KPI.');
+  const actionType = row.type ?? 'revenue_kpi.open_period';
+  if (actionType === 'performance_kpi.task_action' || actionType === 'performance_kpi.evaluation_action') {
+    const decision = await decideChatPerformanceKpiAction(user, id, raw);
+    return { kind: 'performance', action: PerformanceKpiChatActionSchema.parse(publicChatKpiAction(decision) as unknown) };
+  }
+  if (actionType === 'revenue_kpi.open_period') {
+    return { kind: 'open_period', action: await decideRevenueKpiOpenAction(user, id, raw) };
+  }
+  if (actionType === 'revenue_kpi.mutate_assignment') {
+    return { kind: 'mutate_assignment', action: await decideChatAction(user, id, raw) };
+  }
+  if (actionType === 'revenue_kpi.result_action') {
+    return { kind: 'result_action', action: await decideChatKpiResultAction(user, id, raw) };
+  }
+  if (actionType === 'revenue_kpi.create_period') {
+    const decision = await decideChatRevenueCreatePeriod(user, id, raw);
+    return { kind: 'create_period', action: RevenueKpiCreatePeriodActionSchema.parse(publicChatKpiAction(decision) as unknown) };
+  }
+  if (actionType === 'revenue_kpi.save_assignment') {
+    const decision = await decideChatRevenueSaveAssignment(user, id, raw);
+    return { kind: 'save_assignment', action: RevenueKpiSaveAssignmentActionSchema.parse(publicChatKpiAction(decision) as unknown) };
+  }
+  throw new WorkflowError(404, 'REVENUE_KPI_ACTION_NOT_FOUND', 'Không tìm thấy đề xuất KPI.');
+}
+
+function publicChatKpiAction(action: object): Record<string, unknown> {
+  const payload = { ...action } as Record<string, unknown>;
+  delete payload.kind;
+  const args = payload.args;
+  if (args && typeof args === 'object' && !Array.isArray(args)) {
+    const normalizedArgs = { ...args };
+    if ('storeIds' in normalizedArgs && normalizedArgs.storeIds === null) delete normalizedArgs.storeIds;
+    payload.args = normalizedArgs;
+  }
+  return payload;
+}
+
 router.get('/chat/actions/:id', authenticateToken, endpoint(async (req, res) => {
-  res.set('Cache-Control', 'private, no-store').json(await getRevenueKpiOpenAction(req.user!, String(req.params.id)));
+  const action = await getChatKpiAction(req.user!, String(req.params.id));
+  const schema = action.type.startsWith('performance_kpi') ? PerformanceKpiChatActionSchema : RevenueKpiChatActionSchema;
+  res.set('Cache-Control', 'private, no-store').json(schema.parse(publicChatKpiAction(action)));
+}));
+router.post('/chat/actions/performance/preview', authenticateToken, endpoint(async (req, res) => {
+  res.set('Cache-Control', 'private, no-store');
+  const parsed = z.object({
+    domain: z.enum(['task', 'evaluation']),
+    kind: z.string().min(3).max(40),
+    target: z.record(z.unknown()).default({}),
+    content: z.record(z.unknown()).default({}),
+    reason: z.string().trim().min(5).max(2000).optional(),
+  }).strict().parse(req.body);
+  const content = {
+    ...parsed.content,
+    ...(parsed.reason && !parsed.content.reason ? { reason: parsed.reason } : {}),
+  };
+  if (parsed.domain === 'task') {
+    const proposal = await previewPerformanceKpiTaskAction(
+      req.user!,
+      parsed.kind,
+      parsed.target as { policyId?: string; taskId?: string },
+      content
+    );
+    res.json({
+      ...proposal,
+      requiresConfirmation: true,
+      executed: false,
+    });
+  } else {
+    if (!parsed.target.evaluationId || typeof parsed.target.evaluationId !== 'string') {
+      throw new WorkflowError(400, 'VALIDATION_FAILED', 'Target evaluationId is required');
+    }
+    const proposal = await previewPerformanceKpiEvaluationAction(
+      req.user!,
+      parsed.kind,
+      { evaluationId: parsed.target.evaluationId },
+      content
+    );
+    res.json({
+      ...proposal,
+      requiresConfirmation: true,
+      executed: false,
+    });
+  }
 }));
 router.post('/chat/actions/:id/decision', authenticateToken, endpoint(async (req, res) => {
   res.set('Cache-Control', 'private, no-store');
   try {
-    res.json(await decideRevenueKpiOpenAction(req.user!, String(req.params.id), req.body));
+    const { action } = await decideChatKpiAction(req.user!, String(req.params.id), req.body);
+    const schema = action.type.startsWith('performance_kpi') ? PerformanceKpiChatActionSchema : RevenueKpiChatActionSchema;
+    res.json(schema.parse(publicChatKpiAction(action)));
   } catch (error) {
-    if (!(error instanceof RevenueKpiPlanChangedError)) throw error;
+    if (error instanceof RevenueKpiResultPlanChangedError || error instanceof PerformanceKpiTaskPlanChangedError || error instanceof PerformanceKpiEvaluationPlanChangedError || (error instanceof WorkflowError && (error.code === 'PERFORMANCE_KPI_PLAN_CHANGED' || error.code === 'REVENUE_KPI_PLAN_CHANGED'))) {
+      const preview = error && typeof error === 'object' && 'preview' in error ? (error as { preview: unknown }).preview : undefined;
+      res.status(409).json({ error: { code: (error as { code: string }).code, message: (error as Error).message }, preview });
+      return;
+    }
+    if (!(error instanceof RevenueKpiPlanChangedError || error instanceof RevenueKpiAssignmentPlanChangedError)) throw error;
     res.status(409).json({ error: { code: error.code, message: error.message }, preview: error.preview });
   }
 }));

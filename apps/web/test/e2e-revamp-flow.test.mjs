@@ -25,6 +25,7 @@ const STORE_FIXTURE_ITEMS = [
     district: 'Tân Bình',
     managerName: 'Nguyễn Thị Phương Anh',
     managerEmployeeId: '65f1c0ffee0000000000e001',
+    storeManagerStatus: 'identified',
     employeeCount: 46,
     activeEmployeeCount: 44,
     status: 'ACTIVE',
@@ -37,6 +38,7 @@ const STORE_FIXTURE_ITEMS = [
     district: 'Quận 10',
     managerName: 'Đỗ Quỳnh Anh',
     managerEmployeeId: '65f1c0ffee0000000000e002',
+    storeManagerStatus: 'identified',
     employeeCount: 56,
     activeEmployeeCount: 51,
     status: 'ACTIVE',
@@ -49,6 +51,7 @@ const STORE_FIXTURE_ITEMS = [
     district: 'Quận 1',
     managerName: 'Trương Quốc Thái',
     managerEmployeeId: '65f1c0ffee0000000000e003',
+    storeManagerStatus: 'identified',
     employeeCount: 43,
     activeEmployeeCount: 43,
     status: 'ACTIVE',
@@ -231,6 +234,21 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
       return route.fulfill({ status: 200, json: buildStoreResponse(new URL(request.url())) });
     });
     await page.route('**/api/dashboard/overview', (route) => route.fulfill({ status: 200, json: DASHBOARD_OVERVIEW_FIXTURE }));
+    // KPI feature gates: baseline suite has no KPI feature enabled.
+    await page.route('**/api/performance-kpi/config', (route) => route.fulfill({ status: 200, json: { enabled: false } }));
+    await page.route('**/api/revenue-kpi/config', (route) => route.fulfill({ status: 200, json: { enabled: false } }));
+    // DashboardRevenue contract (packages/contracts/src/index.ts:1176): no verified
+    // revenue source -> value/orderCount MUST stay null/0 with dataKind 'none',
+    // matching the overview revenue fixture above.
+    await page.route('**/api/dashboard/revenue**', (route) => route.fulfill({ status: 200, json: {
+      value: null,
+      reason: DASHBOARD_OVERVIEW_FIXTURE.revenue.reason,
+      source: 'cash_counts',
+      asOf: DASHBOARD_OVERVIEW_FIXTURE.revenue.asOf,
+      orderCount: 0,
+      dataKind: 'none',
+      period: { from: '2026-10-23T00:00:00.000Z', to: '2026-10-29T23:59:59.999Z', timezone: 'Asia/Ho_Chi_Minh' },
+    } }));
     await page.route('**/api/departments', (route) => route.fulfill({ status: 200, json: { items: [] } }));
     // This visual suite starts with no persisted conversations; persistence is
     // exercised separately against real Node/MongoDB by chat-history.integration.mjs.
@@ -494,7 +512,10 @@ describe('Guta UI Revamp E2E Flow (Playwright)', () => {
     await page.waitForFunction((id) => document.querySelector('#detail-drawer')?.classList.contains('drawer-open'), target.id);
     assert.equal(await page.locator('#d-id').textContent(), target.code);
     assert.equal(await page.locator('#d-name').textContent(), target.name);
-    assert.equal(await page.locator('#d-district').textContent(), `Quận: ${target.district} • Cửa hàng trưởng: ${target.managerName}`);
+    assert.equal(await page.locator('#d-district').textContent(), `Quận: ${target.district}`);
+    const leadership = page.getByRole('region', { name: 'Phân công quản lý' });
+    assert.equal(await leadership.getByText('Cửa hàng trưởng · SM').isVisible(), true);
+    assert.equal(await leadership.getByText(target.managerName).isVisible(), true);
     assert.match(await page.locator('#d-staff').textContent(), new RegExp(`${target.activeEmployeeCount} / ${target.employeeCount}`));
 
     // Flat drawer, no blur (ADR-021); wait for 240ms slide-in transition to settle.
