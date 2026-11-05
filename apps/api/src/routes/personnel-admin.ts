@@ -5,6 +5,7 @@ import { authenticateToken } from "../middlewares/auth.middleware.js";
 import { EmployeeModel } from "../models/Employee.js";
 import { DepartmentModel } from "../models/Department.js";
 import { endpoint as endpoint } from "../lib/endpoint.js";
+import { pagingMeta } from "../lib/paging.js";
 import { WorkflowError, assertDepartmentWrite, referenceMatch, objectId } from "../services/project-workflow.service.js";
 import { employeeDepartment, employeeDepartmentScope, employeeDto, canActOnEmployee } from "../services/employee-profile.service.js";
 import { requireCapability, resourceScope } from "../services/authorization-scope.service.js";
@@ -48,7 +49,7 @@ router.get("/employees/:id/profile-history", endpoint(async (req, res) => {
   const fields = new Set(["fullName", "phone", "skills", "hiredAt"]);
   const safe = (snapshot: any) => Object.fromEntries(Object.entries(snapshot ?? {}).filter(([key, value]) => fields.has(key) && (key === "skills" ? Array.isArray(value) && value.length <= 30 && value.every((item) => typeof item === "string" && item.length <= 100) : key === "hiredAt" ? (typeof value === "string" || value instanceof Date) && Number.isFinite(new Date(value as any).getTime()) : typeof value === "string" && value.length <= (key === "phone" ? 30 : 200))).map(([key, value]) => [key, key === "hiredAt" ? new Date(value as any).toISOString() : value]));
   const all = (employee.profileHistory ?? []).filter((event: any) => ["PROFILE_EDITED", "PROFILE_CHANGE_REQUESTED", "PROFILE_CHANGE_APPROVED", "PROFILE_CHANGE_REJECTED"].includes(event.type)).map((event: any) => ({ id: String(event.id ?? ""), type: event.type, actorId: String(event.actorId ?? ""), at: event.at, reason: String(event.reason ?? "").slice(0, 2000), before: safe(event.before), after: safe(event.after) })).reverse();
-  res.json({ items: all.slice((page - 1) * limit, page * limit), paging: { page, limit, totalItems: all.length, totalPages: Math.max(1, Math.ceil(all.length / limit)), hasNext: page * limit < all.length, hasPrev: page > 1 }, integrity: "APPEND_ONLY_APPLICATION_HISTORY_NOT_BLOCKCHAIN" });
+  res.json({ items: all.slice((page - 1) * limit, page * limit), paging: pagingMeta({ page, limit, totalItems: all.length }), integrity: "APPEND_ONLY_APPLICATION_HISTORY_NOT_BLOCKCHAIN" });
 }));
 
 router.post("/employees", endpoint(async (req, res) => {

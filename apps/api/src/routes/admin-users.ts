@@ -4,6 +4,7 @@ import { PaginationQuerySchema } from "@hr-blockbot/contracts";
 import { UserModel } from "../models/User.js";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
 import { endpoint as endpoint } from "../lib/endpoint.js";
+import { pagingMeta } from "../lib/paging.js";
 import { requireCapability, resolveCanonicalContext } from "../services/authorization-scope.service.js";
 import { EmployeeModel } from "../models/Employee.js";
 import { accountMetadata, setAccountStatus, redactedSecurityAudit } from "../services/account-security.service.js";
@@ -46,7 +47,7 @@ router.get("/admin/users", authenticateToken, endpoint(async (req, res) => {
   const q = typeof req.query.q === "string" ? req.query.q.trim().slice(0, 64).replace(/[.*+?^$(){}|[\]\\]/g, "\\$&") : "";
   const query = q ? { username: { $regex: q, $options: "i" } } : {};
   const [users, totalItems] = await Promise.all([UserModel.find(query).select("-passwordHash -securityAudit -passwordRecovery.tokenHash").sort({ username: 1, _id: 1 }).skip((page - 1) * limit).limit(limit).lean(), UserModel.countDocuments(query)]);
-  res.json({ items: users.map(accountMetadata), paging: { page, limit, totalItems, totalPages: Math.max(1, Math.ceil(totalItems / limit)), hasNext: page * limit < totalItems, hasPrev: page > 1 } });
+  res.json({ items: users.map(accountMetadata), paging: pagingMeta({ page, limit, totalItems }) });
 }));
 router.patch("/admin/users/:id", authenticateToken, endpoint(async (req, res) => {
   requireCapability(req.user!, "accounts.manage");

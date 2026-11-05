@@ -31,10 +31,11 @@ export async function fetchRevenueProposal(payload: any, transport: { origin?: s
   try {
     const response = await fetch(origin.replace(/\/+$/, '') + '/api/v1/kpi/propose-target', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-ai-service-key': key },
       body: JSON.stringify({ ...payload, providerConfig: transport.providerConfig ?? null }), signal: AbortSignal.timeout(transport.timeoutMs ?? 20000) });
-    if (!response.ok) return fallback;
-    const parsed = answerSchema.safeParse(await response.json()); if (!parsed.success) return fallback;
+    if (!response.ok) { console.warn(`[RevenueKpiAI] Request failed with status ${response.status}; using fallback`); return fallback; }
+    const parsed = answerSchema.safeParse(await response.json());
+    if (!parsed.success) { console.warn('[RevenueKpiAI] Invalid response schema; using fallback'); return fallback; }
     return { ...parsed.data, suggestedGrowthPercent: round2(clamp(parsed.data.suggestedGrowthPercent, payload.allowedMinPercent, payload.allowedMaxPercent)), degraded: parsed.data.degraded ?? false, model: parsed.data.model ?? 'configured-llm' };
-  } catch { return fallback; }
+  } catch (error) { console.warn(`[RevenueKpiAI] Request failed (${error instanceof Error ? error.name : typeof error}); using fallback`); return fallback; }
 }
 export async function proposeRevenueTarget(user: AuthenticatedUser, id: string, raw: unknown) {
   const input = RevenueKpiAiProposalRequestSchema.parse(raw), { a, p } = await revenueKpiAiContext(user, id);
@@ -47,7 +48,7 @@ export async function proposeRevenueTarget(user: AuthenticatedUser, id: string, 
   if (months.length !== 3 || kinds.size !== 1) proposal = { suggestedGrowthPercent: null, rangeMinPercent: null, rangeMaxPercent: null, rationale: 'Chưa đủ ba tháng hoàn chỉnh cùng nguồn. HR có thể nhập mục tiêu trực tiếp.', confidence: null, model: null, degraded: true, insufficientData: true, dataMonths: months.length, generatedAt: new Date().toISOString() };
   else {
     const range = revenueProposalBaseline(months); let providers: any[] = [];
-    try { providers = await getActiveProviderConfig(); } catch { /* environment fallback below */ }
+    try { providers = await getActiveProviderConfig(); } catch { console.warn('[RevenueKpiAI] Provider settings unavailable; using environment configuration'); }
     if (!providers.length) providers = revenueEnvironmentProviders(process.env, getRotatedKeyPool());
     const transportProviders = providers.map(({ name: _displayName, ...provider }) => provider);
     const r = await fetchRevenueProposal({ unitType: 'STORE', months, ...range }, { providerConfig: providers.length ? { configVersion: 'revenue-target-v1', providers: transportProviders } : null });

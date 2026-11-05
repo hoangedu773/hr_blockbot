@@ -1,12 +1,15 @@
 """Advisory performance helpers. Scores and responsibility remain API-owned."""
 from __future__ import annotations
 import json
+import logging
 import re
 from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.kpi_analysis import _parse_json
 from app.llm.base import ChatMessage, CompletionOptions
 from app.llm.chain import provider_cache
+
+logger = logging.getLogger("ai.kpi")
 
 
 class Strict(BaseModel):
@@ -142,7 +145,8 @@ def suggest_structure(request: SuggestTaskStructureRequest) -> dict:
         body = _parse_json(result.text)
         body.update(model=(result.model or "configured-llm")[:120], degraded=False)
         return SuggestTaskStructureResponse.model_validate(body).model_dump()
-    except Exception:
+    except Exception as exc:
+        logger.warning("suggest_structure degraded to fallback: %s", type(exc).__name__)
         return fallback
 
 
@@ -158,7 +162,8 @@ def summarize_evaluation(request: SummarizeEvaluationRequest) -> dict:
         body = _parse_json(result.text)
         body.update(model=(result.model or "configured-llm")[:120], degraded=False)
         return SummarizeEvaluationResponse.model_validate(body).model_dump()
-    except Exception:
+    except Exception as exc:
+        logger.warning("summarize_evaluation degraded to fallback: %s", type(exc).__name__)
         return fallback
 
 
