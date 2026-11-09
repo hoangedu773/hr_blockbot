@@ -99,3 +99,42 @@ export type ScheduleRegistrations = {
   storeId: string; storeName: string; published: boolean; shifts: ShiftDefinition[]; items: ScheduleRegistration[];
   roster: { employeeId: string; fullName: string; employeeCode: string }[];
 };
+
+// ── Chat actions cho luồng lịch ───────────────────────────────────────────────
+// Ba loại dưới đây theo đúng pattern revenue KPI: server dựng preview, người dùng
+// xác nhận, server mới ghi. Model không bao giờ tự chọn shiftId/assignmentId.
+export const ScheduleRegistrationChatActionSchema = z.object({
+  type: z.literal('schedule.registration'), actionId: z.string().uuid(),
+  args: z.object({ weekStart: ScheduleDateSchema, slot: RegistrationSlotSchema }).strict(),
+  preview: z.object({ date: ScheduleDateSchema, shiftCode: z.string(), shiftName: z.string(),
+    storeName: z.string(), weekStart: ScheduleDateSchema, published: z.boolean() }).strict(),
+  expiresAt: z.string().datetime(),
+}).strict();
+
+export const ScheduleChangeChatActionSchema = z.object({
+  type: z.literal('schedule.change'), actionId: z.string().uuid(),
+  args: z.object({ weekId: z.string().regex(/^[a-f0-9]{24}$/i), assignmentId: z.string().uuid(),
+    receiverEmployeeId: z.string().regex(/^[a-f0-9]{24}$/i).nullable().optional(),
+    arrangement: z.enum(['DIRECT', 'MANAGER']),
+    targetAssignmentId: z.string().uuid().optional(),
+    kind: z.enum(['COVER', 'SWAP']), reason: z.string().trim().min(5).max(500) }).strict(),
+  preview: z.object({ weekId: z.string(), sourceDate: ScheduleDateSchema, sourceShift: z.string(),
+    receiverName: z.string().nullable(), kind: z.string(), arrangement: z.string() }).strict(),
+  expiresAt: z.string().datetime(),
+}).strict();
+
+export const ScheduleChangeDecisionChatActionSchema = z.object({
+  type: z.literal('schedule.change_decision'), actionId: z.string().uuid(),
+  args: z.object({ weekId: z.string().regex(/^[a-f0-9]{24}$/i), changeId: z.string().uuid(),
+    action: z.enum(['ACCEPT', 'DECLINE', 'CANCEL', 'APPROVE', 'REJECT', 'SELECT']) }).strict(),
+  preview: z.object({ requesterName: z.string(), receiverName: z.string().nullable(),
+    status: z.string(), sourceDate: ScheduleDateSchema }).strict(),
+  expiresAt: z.string().datetime(),
+}).strict();
+
+export const ScheduleChatActionSchema = z.discriminatedUnion('type', [
+  ScheduleRegistrationChatActionSchema,
+  ScheduleChangeChatActionSchema,
+  ScheduleChangeDecisionChatActionSchema,
+]);
+export type ScheduleChatAction = z.infer<typeof ScheduleChatActionSchema>;

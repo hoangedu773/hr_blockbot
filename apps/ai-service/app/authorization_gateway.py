@@ -37,6 +37,17 @@ REVENUE_INTENT = re.compile(r"(kpi\s+doanh\s*thu|doanh\s*thu|revenue)", re.IGNOR
 PENDING_INTENT = re.compile(r"(việc cần xử lý|việc chờ xử lý|chờ xử lý|chờ xác nhận|cần xử lý|việc nào cần|cần làm gì|pending|nhắc việc)", re.IGNORECASE)
 TASKS_INTENT = re.compile(r"(nhiệm vụ đang giao|task đang giao|(?:task|nhiệm vụ)[^\n.]{0,40}(của tôi|của em|của mình))", re.IGNORECASE)
 DETAIL_INTENT = re.compile(r"(chi tiết|detail|xem kpi|assignment)", re.IGNORECASE)
+# Lịch: đọc tách khỏi ghi. `đổi ca` trước đây nằm trong nhóm đọc nên chatbot trả lời
+# như đã xử lý trong khi chỉ gọi tool đọc — bug hành vi, không phải thiếu tính năng.
+SCHEDULE_READ_INTENT = re.compile(
+    r"(lịch làm|lịch ca|lịch tuần|lịch trực|lịch của tôi|xem lịch|ca làm|làm ca|ca trực|ca nào|"
+    r"ca mấy giờ|ca sáng|ca chiều|ca tối|ca của tôi|có ca|đi làm không|ngày nào tuần này|"
+    r"làm (?:những )?ngày nào|những ngày nào)", re.IGNORECASE)
+SCHEDULE_REGISTER_INTENT = re.compile(r"(đăng ký ca|đăng kí ca|xin ca|muốn làm ca|chọn ca|đăng ký lịch)", re.IGNORECASE)
+SCHEDULE_CHANGE_INTENT = re.compile(r"(đổi ca|nhận ca thay|ca thay|xin nghỉ ca|nhờ người làm ca)", re.IGNORECASE)
+SCHEDULE_REVIEW_INTENT = re.compile(r"(duyệt (yêu cầu )?đổi ca|yêu cầu đổi ca nào|xử lý đổi ca|đổi ca nào đang chờ)", re.IGNORECASE)
+CANONICAL_WEEK_START = re.compile(r"(?<![0-9])20[0-9]{2}-[0-9]{2}-[0-9]{2}(?![0-9])")
+UUID_ID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.IGNORECASE)
 PENDING_PROMPT_RULE = (
     " Quy tắc danh sách việc cần xử lý: nếu list_my_pending_actions trả về rỗng, nói đúng rằng hiện"
     " không còn việc nào cần xử lý. Nếu có mục ACTION_REQUIRED hoặc URGENT, liệt kê tối đa 5 việc"
@@ -414,6 +425,7 @@ async def _prepare_chat(request: AuthorizedChatRequest, key: str) -> dict | Prep
         calls = [(tool, {"query": request.message} if tool == "query_policy" else {})
                  for tool in ("get_my_profile", "list_projects", "query_policy")]
         needs_assignment_id = False
+        needs_schedule_context = False
         period = requested_kpi_period(request.message)
         if re.search(r"(kpi|điểm|đánh giá|hiệu suất|xếp hạng)", request.message, re.IGNORECASE):
             calls.append(("get_my_kpi", {"period": period} if period else {}))
@@ -421,7 +433,29 @@ async def _prepare_chat(request: AuthorizedChatRequest, key: str) -> dict | Prep
                 calls.append(("get_department_kpi", {"period": period} if period else {}))
         if re.search(r"(hạn|deadline|sắp hết|quá hạn|nhắc|tiến độ|nộp báo cáo)", request.message, re.IGNORECASE):
             calls.append(("get_upcoming_deadlines", {}))
-        if re.search(r"(lịch làm|lịch ca|lịch tuần|phân ca|ca làm|làm ca|ca trực|ca nào|đổi ca)", request.message, re.IGNORECASE):
+        if SCHEDULE_REGISTER_INTENT.search(request.message):
+            week = CANONICAL_WEEK_START.search(request.message)
+            shift = CANONICAL_ASSIGNMENT_ID.search(request.message)
+            if not week or not shift:
+                needs_schedule_context = True
+            else:
+                calls.append(("preview_schedule_registration", {"weekStart": week.group(0), "slot": {
+                    "date": week.group(0), "shiftId": shift.group(0), "shiftVersion": 1}}))
+        elif SCHEDULE_CHANGE_INTENT.search(request.message):
+            week = CANONICAL_WEEK_START.search(request.message)
+            assignment = UUID_ID.search(request.message)
+            if not week or not assignment:
+                needs_schedule_context = True
+            else:
+                calls.append(("preview_schedule_change", {"weekId": week.group(0), "scheduleAssignmentId": assignment.group(0),
+                    "arrangement": "MANAGER", "changeKind": "COVER", "reason": "Đổi ca qua trợ lý chat"}))
+        elif SCHEDULE_REVIEW_INTENT.search(request.message):
+            change = UUID_ID.search(request.message)
+            if not change:
+                needs_schedule_context = True
+            else:
+                calls.append(("preview_schedule_change_decision", {"weekId": "", "changeId": change.group(0), "scheduleAction": "APPROVE"}))
+        elif SCHEDULE_READ_INTENT.search(request.message):
             local_day = datetime.now(timezone(timedelta(hours=7))).date()
             start = local_day
             end = start + timedelta(days=6)
@@ -540,6 +574,13 @@ async def _prepare_chat(request: AuthorizedChatRequest, key: str) -> dict | Prep
         return {"reply": str(performance.get("summary", ""))[:16000] + "\n" + "\n".join(performance.get("advice", [])),
                 "citations": [], "attachments": [], "proposedAction": None, "abstain": False,
                 "degraded": False, "decisionSource": "stored-performance-evidence-v2", **analysis}
+    if needs_schedule_context:
+        schedule_context_note = (
+            " Người dùng muốn thao tác trên lịch nhưng câu không kèm mã tuần/ca. Trả lời rằng hãy mở màn"
+            " Lịch, chọn đúng tuần và ca, rồi bấm nút trợ lý ở đó — không được tự đoán ca hoặc nói đã đổi."
+        )
+    else:
+        schedule_context_note = ""
     if needs_assignment_id:
         return {"reply": "Bạn cho tôi mã assignment (24 ký tự hex) của KPI doanh thu cần xem chi tiết nhé. Tôi sẽ không đoán mã.",
             "citations": [], "attachments": [], "proposedAction": None, "abstain": False,
@@ -556,13 +597,14 @@ async def _prepare_chat(request: AuthorizedChatRequest, key: str) -> dict | Prep
             "Hôm nay là " + datetime.now(timezone(timedelta(hours=7))).strftime("%Y-%m-%d")
             + ". Chỉ trả lời từ dữ liệu được API cho phép dưới đây. Nếu thiếu dữ liệu, nói rõ chưa có; không suy đoán nhân sự khác. Không thực thi thao tác, không tạo link/citation hoặc giả đã ghi dữ liệu. Khi trả lời lịch làm, ghi rõ ngày và giờ Việt Nam từ dữ liệu; chỉ dùng ca đã công bố, không suy giờ từ mã ca. Nếu sourceKind là DEMO_RANDOM, phải nói rõ đó là lịch mẫu ngẫu nhiên để test, không xác nhận đã đi làm. LĐ là đứng trước quán vẫy/đón khách."
             + " Jev chỉ là tín hiệu phân loại đã được xác thực; không phải quyền truy cập và không tự phê duyệt thao tác. Nếu tín hiệu Jev cho biết cần quản lý duyệt, chỉ giải thích rằng thao tác cần quy trình xác nhận, không tự thực hiện."
-            + PENDING_PROMPT_RULE
+            + PENDING_PROMPT_RULE + schedule_context_note
             + "\n" + json.dumps(contexts, ensure_ascii=False) + "\nJev decision metadata: " + decision_hint
         )
     else:
         system_prompt = (
             "Hôm nay là " + datetime.now(timezone(timedelta(hours=7))).strftime("%Y-%m-%d")
             + ". Chỉ trả lời từ dữ liệu được API cho phép dưới đây. Nếu thiếu dữ liệu, nói rõ chưa có; không suy đoán nhân sự khác. Không thực thi thao tác, không tạo link/citation hoặc giả đã ghi dữ liệu. Khi trả lời lịch làm, ghi rõ ngày và giờ Việt Nam từ dữ liệu; chỉ dùng ca đã công bố, không suy giờ từ mã ca. Nếu sourceKind là DEMO_RANDOM, phải nói rõ đó là lịch mẫu ngẫu nhiên để test, không xác nhận đã đi làm. LĐ là đứng trước quán vẫy/đón khách." + PENDING_PROMPT_RULE
+            + schedule_context_note
             + "\n" + json.dumps(contexts, ensure_ascii=False)
         )
     messages = [

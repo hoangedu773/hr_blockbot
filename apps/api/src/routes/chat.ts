@@ -2,10 +2,11 @@ import mongoose from "mongoose";
 import { Router } from "express";
 import { decideRevenueKpiOpenAction, getRevenueKpiOpenAction, decideChatAction, getRevenueKpiAssignmentAction, getRevenueKpiResultAction, decideChatKpiResultAction, RevenueKpiPlanChangedError, RevenueKpiAssignmentPlanChangedError, RevenueKpiResultPlanChangedError } from '../services/revenue-kpi.service.js';
 import { getChatRevenueCreatePeriodAction, getChatRevenueSaveAssignmentAction, decideChatRevenueCreatePeriod, decideChatRevenueSaveAssignment } from '../services/chat-authorization.service.js';
+import { decideChatScheduleAction } from '../services/schedule-chat.service.js';
 import { getChatPerformanceKpiAction, decideChatPerformanceKpiAction, previewPerformanceKpiTaskAction, previewPerformanceKpiEvaluationAction, PerformanceKpiTaskPlanChangedError, PerformanceKpiEvaluationPlanChangedError } from '../services/performance-kpi-action.service.js';
 import { z } from "zod";
-import { ChatRequestSchema, RevenueKpiOpenActionIdSchema, RevenueKpiCreatePeriodActionSchema, RevenueKpiSaveAssignmentActionSchema, PerformanceKpiChatActionSchema } from "@hr-blockbot/contracts";
-import type { RevenueKpiOpenAction, RevenueKpiAssignmentAction, RevenueKpiChatAction, RevenueKpiResultAction, RevenueKpiCreatePeriodAction, RevenueKpiSaveAssignmentAction, PerformanceKpiChatAction } from "@hr-blockbot/contracts";
+import { ChatRequestSchema, RevenueKpiOpenActionIdSchema, RevenueKpiCreatePeriodActionSchema, RevenueKpiSaveAssignmentActionSchema, PerformanceKpiChatActionSchema, ScheduleChatActionSchema } from "@hr-blockbot/contracts";
+import type { RevenueKpiOpenAction, RevenueKpiAssignmentAction, RevenueKpiChatAction, RevenueKpiResultAction, RevenueKpiCreatePeriodAction, RevenueKpiSaveAssignmentAction, PerformanceKpiChatAction, ScheduleChatAction } from "@hr-blockbot/contracts";
 import { RevenueKpiChatActionSchema } from "@hr-blockbot/contracts";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
 import { endpoint as endpoint } from "../lib/endpoint.js";
@@ -16,7 +17,7 @@ import { createConversation, listConversations, conversationMessages, chatWithHi
 import { startSseResponse, sendSseEvent, mapToChatErrorPayload } from '../lib/chat-sse.js';
 const router = Router();
 
-type ChatKpiDecisionResult = { kind: 'open_period'; action: RevenueKpiOpenAction } | { kind: 'mutate_assignment'; action: RevenueKpiAssignmentAction } | { kind: 'result_action'; action: RevenueKpiResultAction } | { kind: 'create_period'; action: RevenueKpiCreatePeriodAction } | { kind: 'save_assignment'; action: RevenueKpiSaveAssignmentAction } | { kind: 'performance'; action: PerformanceKpiChatAction };
+type ChatKpiDecisionResult = { kind: 'open_period'; action: RevenueKpiOpenAction } | { kind: 'mutate_assignment'; action: RevenueKpiAssignmentAction } | { kind: 'result_action'; action: RevenueKpiResultAction } | { kind: 'create_period'; action: RevenueKpiCreatePeriodAction } | { kind: 'save_assignment'; action: RevenueKpiSaveAssignmentAction } | { kind: 'performance'; action: PerformanceKpiChatAction } | { kind: 'schedule'; action: ScheduleChatAction };
 
 // P5 loaders live in chat-authorization.service and share the 404 contract
 // (REVENUE_KPI_ACTION_NOT_FOUND on missing row or wrong persisted type), so the
@@ -95,6 +96,10 @@ export async function decideChatKpiAction(user: AuthenticatedUser, actionId: str
     const decision = await decideChatRevenueSaveAssignment(user, id, raw);
     return { kind: 'save_assignment', action: RevenueKpiSaveAssignmentActionSchema.parse(publicChatKpiAction(decision) as unknown) };
   }
+  if (actionType.startsWith('schedule.')) {
+    const decision = await decideChatScheduleAction(user, id, raw);
+    return { kind: 'schedule', action: ScheduleChatActionSchema.parse(decision) };
+  }
   throw new WorkflowError(404, 'REVENUE_KPI_ACTION_NOT_FOUND', 'Không tìm thấy đề xuất KPI.');
 }
 
@@ -161,7 +166,8 @@ router.post('/chat/actions/:id/decision', authenticateToken, endpoint(async (req
   res.set('Cache-Control', 'private, no-store');
   try {
     const { action } = await decideChatKpiAction(req.user!, String(req.params.id), req.body);
-    const schema = action.type.startsWith('performance_kpi') ? PerformanceKpiChatActionSchema : RevenueKpiChatActionSchema;
+    const schema = action.type.startsWith('performance_kpi') ? PerformanceKpiChatActionSchema
+      : action.type.startsWith('schedule.') ? ScheduleChatActionSchema : RevenueKpiChatActionSchema;
     res.json(schema.parse(publicChatKpiAction(action)));
   } catch (error) {
     if (error instanceof RevenueKpiResultPlanChangedError || error instanceof PerformanceKpiTaskPlanChangedError || error instanceof PerformanceKpiEvaluationPlanChangedError || (error instanceof WorkflowError && (error.code === 'PERFORMANCE_KPI_PLAN_CHANGED' || error.code === 'REVENUE_KPI_PLAN_CHANGED'))) {

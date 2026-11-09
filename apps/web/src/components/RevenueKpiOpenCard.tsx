@@ -112,6 +112,83 @@ export function RevenueKpiOpenCard({ initial, onExecuted }: {
   const canRetry = changed || expired || ['FAILED', 'CONFIRMED'].includes(action.status)
     || result?.blocked.some(item => item.retryable) || result?.failed.some(item => item.retryable);
 
+  const blockedTargetRows = useMemo(
+    () =>
+      rows.filter(
+        item =>
+          item.status === 'BLOCKED' &&
+          item.code === 'REVENUE_KPI_TARGET_INVALID' &&
+          item.assigneeEmployeeId != null
+      ),
+    [rows]
+  );
+
+  const quickFillBaselineTargets = () =>
+    run(async () => {
+      const storeRows = blockedTargetRows.filter(item => item.unitType === 'STORE' && item.storeId);
+      const areaRows = blockedTargetRows.filter(item => item.unitType === 'AREA');
+
+      const computeTierTargetVnd = (label: string, idx: number) => {
+        const lower = label.toLowerCase();
+        if (lower.includes('quận 1 ') || lower.includes('quận 3') || lower.includes('quận 10') || lower.includes('phú nhuận')) {
+          return 28_000_000 + (idx % 9) * 1_850_000;
+        }
+        if (lower.includes('bình thạnh') || lower.includes('tân bình') || lower.includes('quận 5') || lower.includes('quận 7')) {
+          return 21_000_000 + (idx % 8) * 1_450_000;
+        }
+        return 16_500_000 + (idx % 7) * 1_250_000;
+      };
+
+      const CHUNK = 6;
+      for (let i = 0; i < storeRows.length; i += CHUNK) {
+        const slice = storeRows.slice(i, i + CHUNK);
+        await Promise.all(
+          slice.map((item, offset) =>
+            apiFetch(API_BASE + '/revenue-kpi/assignments', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                expectedVersion: 0,
+                clientRequestId: newClientMessageId(),
+                period: preview.period,
+                unitType: 'STORE',
+                storeId: item.storeId,
+                assigneeEmployeeId: item.assigneeEmployeeId,
+                targetMode: 'ABSOLUTE_VND',
+                targetVnd: computeTierTargetVnd(item.label, i + offset),
+                reason: 'Khởi tạo mục tiêu cơ sở tự động theo phân tầng khu vực.',
+              }),
+            })
+          )
+        );
+      }
+
+      for (let i = 0; i < areaRows.length; i += CHUNK) {
+        const slice = areaRows.slice(i, i + CHUNK);
+        await Promise.all(
+          slice.map(item =>
+            apiFetch(API_BASE + '/revenue-kpi/assignments', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                expectedVersion: 0,
+                clientRequestId: newClientMessageId(),
+                period: preview.period,
+                unitType: 'AREA',
+                assigneeEmployeeId: item.assigneeEmployeeId,
+                targetMode: 'ABSOLUTE_VND',
+                reason: 'Tổng hợp mục tiêu cơ sở khu vực AM tự động.',
+              }),
+            })
+          )
+        );
+      }
+
+      const refreshed = await requestRevenueOpenProposal(preview.period);
+      onExecuted?.();
+      return refreshed;
+    });
+
   const filteredRows = useMemo(() => {
     return rows.filter(item => {
       if (filter === 'BLOCKED' && item.status !== 'BLOCKED') return false;
@@ -377,6 +454,17 @@ export function RevenueKpiOpenCard({ initial, onExecuted }: {
           >
             {busy ? 'Đang xử lý…' : 'Xác nhận kế hoạch'}
           </button>
+          {blockedTargetRows.length > 0 && (
+            <button
+              type="button"
+              className="rk-btn-secondary"
+              disabled={busy}
+              onClick={() => void quickFillBaselineTargets()}
+              title="Tự động tạo mục tiêu VND phân tầng cho các chi nhánh thiếu doanh thu tháng gốc"
+            >
+              {busy ? 'Đang khởi tạo…' : `⚡ Tự động khởi tạo mục tiêu cơ sở (${blockedTargetRows.length})`}
+            </button>
+          )}
           <button
             type="button"
             className="rk-btn-danger-outline"
@@ -390,6 +478,17 @@ export function RevenueKpiOpenCard({ initial, onExecuted }: {
 
       {canRetry && (
         <div className="rk-open-actions">
+          {!pending && blockedTargetRows.length > 0 && (
+            <button
+              type="button"
+              className="rk-btn-primary"
+              disabled={busy}
+              onClick={() => void quickFillBaselineTargets()}
+              title="Tự động tạo mục tiêu VND phân tầng cho các chi nhánh thiếu doanh thu tháng gốc"
+            >
+              {busy ? 'Đang khởi tạo…' : `⚡ Tự động khởi tạo mục tiêu cơ sở (${blockedTargetRows.length})`}
+            </button>
+          )}
           <button
             type="button"
             className="rk-btn-secondary"

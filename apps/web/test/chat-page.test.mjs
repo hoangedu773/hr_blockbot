@@ -171,6 +171,12 @@ test('ChatPageView renders citations/attachments, confirms drafts honestly and r
     status: 'PENDING', expiresAt: new Date(Date.now() + 600000).toISOString(), requiresConfirmation: true, executed: false, result: null,
     preview: { periodId: id, period: '2026-11', version: 1, status: 'DRAFT', planDigest: 'a'.repeat(64), generatedAt: now, executed: false,
       summary: { create: 1, skipped: 0, blocked: 1, total: 2 }, items: [{ ...unit, status: 'CREATE' }, blocked] } };
+  const scheduleProposal = { actionId: 'c1f0b1a2-3d4e-4f50-8a9b-0c1d2e3f4a5b', type: 'schedule.registration',
+    expiresAt: new Date(Date.now() + 600000).toISOString(),
+    args: { weekStart: '2026-11-16', slot: { date: '2026-11-17', shiftId: id, shiftVersion: 1 } },
+    preview: { date: '2026-11-17', shiftCode: 'CA1', shiftName: 'Ca sáng', storeName: 'Cửa hàng kiểm thử',
+      weekStart: '2026-11-16', published: false } };
+  const scheduleDecisions = [];
   const browser = await chromium.launch({ headless: true });
   const errors = [];
   try {
@@ -230,7 +236,7 @@ test('ChatPageView renders citations/attachments, confirms drafts honestly and r
             replyHidden: false,
             citations: [{ document: 'Tài liệu kiểm thử', article: 'Điều 1', score: 1 }],
             attachments: [],
-             proposedAction: proposal,
+            proposedAction: mode === 'schedule' ? scheduleProposal : proposal,
           },
         })}\n\n`,
       ].join('');
@@ -302,6 +308,11 @@ test('ChatPageView renders citations/attachments, confirms drafts honestly and r
       reads.push(route.request().url());
       return route.fulfill({ json: executed });
     });
+    await page.route('**/api/chat/actions/c1f0b1a2-3d4e-4f50-8a9b-0c1d2e3f4a5b/decision', async route => {
+      const input = route.request().postDataJSON();
+      scheduleDecisions.push(input);
+      return route.fulfill({ json: { ...scheduleProposal, executed: input.approve, status: input.approve ? 'EXECUTED' : 'CANCELLED' } });
+    });
     await page.route('**/api/revenue-kpi/periods/2026-11/open-proposal', route => {
       retries.push(route.request().postDataJSON());
       return route.fulfill({ json: retry });
@@ -323,6 +334,17 @@ test('ChatPageView renders citations/attachments, confirms drafts honestly and r
     assert.deepEqual(retries, [{}]);
     assert.deepEqual(Object.keys(decisions[1]).sort(), ['approve', 'clientRequestId']);
     assert.equal(decisions[1].approve, false);
+
+    mode = 'schedule';
+    await input.fill('Đăng ký ca sáng thứ 3 tuần sau');
+    await input.press('Enter');
+    const scheduleCard = pageRoot.getByRole('region', { name: 'Đăng ký ca' });
+    await scheduleCard.getByText(/Cửa hàng kiểm thử/).waitFor({ timeout: 5000 });
+    await scheduleCard.getByText(/CA1 — Ca sáng/).waitFor();
+    assert.equal(scheduleDecisions.length, 0);
+    await scheduleCard.getByRole('button', { name: 'Gửi đăng ký ca' }).click();
+    await scheduleCard.getByText(/Đã ghi nhận/).waitFor();
+    assert.deepEqual(scheduleDecisions, [{ approve: true }]);
 
     mode = 'invalid';
     await input.fill('Câu hỏi tiếp theo');

@@ -83,11 +83,17 @@ export function initSocket(server: HttpServer): SocketIOServer {
           ? { approve: true, clientRequestId: clientMessageId, expectedVersion: plan?.expectedVersion, planDigest: plan?.planDigest }
           : { approve: false, clientRequestId: clientMessageId };
         const { kind, action } = await decideChatKpiAction(principal, actionId, input);
-        const reply = action.status === 'EXECUTED' && action.result
-          ? kind === 'open_period' ? 'Đã xử lý kỳ KPI doanh thu. Xem kết quả từng mục.'
-            : kind === 'result_action' ? 'Đã xử lý KPI kết quả doanh thu. Xem kết quả.'
-            : 'Đã xử lý KPI. Xem kết quả.'
-          : 'Đã hủy đề xuất KPI.';
+        // Schedule proposals carry their own reply: they are not KPI records and
+        // do not expose `status`/`result` on the action itself.
+        const scheduleStatus = kind === 'schedule' ? (action as { status?: string; executed?: boolean }).status : undefined;
+        const reply = kind === 'schedule'
+          ? (scheduleStatus === 'EXECUTED' ? 'Đã ghi nhận thay đổi lịch. Kiểm tra lại bảng lịch của bạn.'
+            : 'Đã hủy đề xuất lịch.')
+          : action.status === 'EXECUTED' && action.result
+            ? kind === 'open_period' ? 'Đã xử lý kỳ KPI doanh thu. Xem kết quả từng mục.'
+              : kind === 'result_action' ? 'Đã xử lý KPI kết quả doanh thu. Xem kết quả.'
+              : 'Đã xử lý KPI. Xem kết quả.'
+            : 'Đã hủy đề xuất KPI.';
         socket.emit("chat:done", {
           clientMessageId, messageId, finishReason: "TOOL_RESULT",
           reply, citations: [], proposedAction: null,
