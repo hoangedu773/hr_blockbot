@@ -2,6 +2,11 @@ export function revenueText(text: string) {
   return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/đ/g, 'd').trim().replace(/\s+/g, ' ');
 }
 
+export function revenueParts(text: string) {
+  const parts = /^(.+?)(?:[\s,;]+(?:lý do|ly do|ghi chú|ghi chu|nội dung|noi dung)\s*[:=]\s*|\s+(?:bởi vì|vì|vi)\s+(?!sao\b))(.+)$/is.exec(text);
+  return { instruction: (parts?.[1] ?? text).trim(), note: parts?.[2].trim() ?? '' };
+}
+
 export type RevenueIntent =
   | 'list' | 'periods' | 'detail' | 'history' | 'export' | 'pending' | 'help'
   | 'create' | 'open' | 'close-check' | 'compute' | 'close'
@@ -47,7 +52,7 @@ const rules: [RevenueIntent, RegExp][] = [
 ];
 
 export function detectRevenueIntent(text: string, inContext: boolean): RevenueIntent | null {
-  const command = revenueText(text);
+  const command = revenueText(revenueParts(text).instruction);
   const scoped = /\b(?:kpi doanh thu|chi tieu doanh thu|muc tieu doanh thu|ky doanh thu)\b/.test(command);
   const periodCommand = /\b(?:tao|lap|mo|chot|dong|khoa) ky\b/.test(command) && /\b(?:thang|20\d{2}-|\d{1,2}\/20\d{2})/.test(command);
   if (/\b(?:hieu suat|tiep nhan nhan vien|ho so tiep nhan|ho so cua toi|lich lam|thong bao|nghiem thu cong viec|thong tin nhan su)\b/.test(command) && !scoped) return null;

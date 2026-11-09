@@ -7,7 +7,7 @@ import {
   currentRevenueMonth, draftRevenuePlan, isUnitIntent, openRevenuePlan, periodStatus, resultStatus,
   revenueMoney, unitName, unitRevenuePlan, type Plan, type Step, type UnitIntent,
 } from './revenue-chat-actions';
-import { detectRevenueIntent, pickRevenueChoice, revenueMonth, revenueText, type RevenueIntent } from './revenue-chat-intent';
+import { detectRevenueIntent, pickRevenueChoice, revenueMonth, revenueParts, revenueText, type RevenueIntent } from './revenue-chat-intent';
 
 type Turn = { sender: 'user' | 'assistant'; text: string };
 type Session = { period: string; options: string[]; selected?: string };
@@ -148,6 +148,7 @@ export function useRevenueKpiChat({
     const signal = controller.signal;
     const say = (reply: string) => { if (!signal.aborted) append({ sender: 'assistant', text: reply }); };
     const q = revenueText(text).replace(/[.!?]+$/, '');
+    const { instruction } = revenueParts(text);
     append({ sender: 'user', text });
     setBusy(true);
 
@@ -203,7 +204,7 @@ export function useRevenueKpiChat({
         say(lines.join('\n'));
         return;
       }
-      const period = revenueMonth(text, session.current?.period ?? currentRevenueMonth());
+      const period = revenueMonth(instruction, session.current?.period ?? currentRevenueMonth());
       const current = session.current?.period === period ? session.current : { period, options: [] };
       session.current = current;
       if (intent === 'periods') {
@@ -244,7 +245,7 @@ export function useRevenueKpiChat({
         return;
       }
       if (intent === 'list' || intent === 'pending' || intent === 'export') {
-        const rows = filteredRows(d, text, employeeId);
+        const rows = filteredRows(d, instruction, employeeId);
         const selected = intent === 'pending'
           ? rows.flatMap(a => { const label = pendingLabel(d, a, employeeId, can); return label ? [{ a, label }] : []; })
           : rows.map(a => ({ a, label: assignmentStatus[a.status] }));
@@ -260,16 +261,16 @@ export function useRevenueKpiChat({
           ...(selected.length ? ['\nNhắn “xem mục 1” để đọc chi tiết.'] : []), ...(intent === 'pending' ? d.flags.map(flag => '• ' + flag) : [])].join('\n'));
         return;
       }
-      if (isUnitIntent(intent) && /\b(?:hang loat|tat ca|toan bo|dong loat)\b/.test(q)
+      if (isUnitIntent(intent) && /\b(?:hang loat|tat ca|toan bo|dong loat)\b/.test(revenueText(instruction))
         && (intent === 'ai' || intent === 'apply-ai' || intent === 'publish' || intent === 'confirm')) {
-        const plan = bulkRevenuePlan(d, intent, filteredRows(d, text, employeeId));
+        const plan = bulkRevenuePlan(d, intent, filteredRows(d, instruction, employeeId));
         decision.current = { plan };
         say(planned(plan));
         return;
       }
       const unitIntent = isUnitIntent(intent) ? intent : undefined;
       function* select(): Step<Plan> {
-        const a = yield* selectAssignment(d, current, text, unitIntent, employeeId);
+        const a = yield* selectAssignment(d, current, instruction, unitIntent, employeeId);
         current.selected = a.id;
         if (!unitIntent) return { summary: '', readOnly: true, execute: async () => describe(d, a, intent === 'history') };
         return yield* unitRevenuePlan(d, a, unitIntent, text);

@@ -2,7 +2,7 @@ import { RevenueKpiOpenActionSchema, RevenueKpiOpenPreviewSchema, RevenueKpiPoli
   type RevenueKpiAssignment, type RevenueKpiDashboard, type RevenueKpiResult } from '@hr-blockbot/contracts';
 import { newClientMessageId, requestJson } from '../../services/api';
 import * as api from '../../services/revenue-kpi-api';
-import { pickRevenueChoice, revenueText, type RevenueIntent } from './revenue-chat-intent';
+import { pickRevenueChoice, revenueParts, revenueText, type RevenueIntent } from './revenue-chat-intent';
 
 type Assignment = RevenueKpiAssignment;
 type Candidate = RevenueKpiDashboard['candidates'][number];
@@ -95,8 +95,7 @@ function* target(question = 'Bạn muốn giao bao nhiêu? Ví dụ “12 triệ
 }
 const targetLabel = (t: Target) => t.targetMode === 'ABSOLUTE_VND' ? revenueMoney(t.targetVnd) : `${t.growthPercent}% so với tháng trước`;
 const targetChange = (t: Target) => t.targetMode === 'ABSOLUTE_VND' ? { newTargetVnd: t.targetVnd } : { newGrowthPercent: t.growthPercent };
-const inlineNote = (text: string) => text.match(/(?:lý do|ly do|ghi chú|ghi chu|nội dung|noi dung)\s*[:=]\s*(.+)$/is)?.[1] ?? '';
-const inlineTarget = (text: string) => text.match(/(?:mức|muc|thành|thanh|lên|len|xuống|xuong)\s+([^;]+?)(?:\s*(?:;|lý do:|$))/i)?.[1] ?? '';
+const inlineTarget = (text: string) => revenueParts(text).instruction.match(/(?:mức|muc|thành|thanh|lên|len|xuống|xuong)\s+([^;]+?)(?:\s*(?:;|$))/i)?.[1] ?? '';
 
 function action(summary: string, run: () => Promise<unknown>, reply = 'Đã lưu thay đổi KPI doanh thu.'): Plan {
   return { summary, execute: async () => { await run(); return reply; } };
@@ -152,7 +151,8 @@ function saveDraft(d: RevenueKpiDashboard, a: Assignment | undefined, candidate:
 }
 
 export function* draftRevenuePlan(d: RevenueKpiDashboard, prompt: string, a?: Assignment): Step<Plan> {
-  const input = revenueText(prompt);
+  const { instruction, note: supplied } = revenueParts(prompt);
+  const input = revenueText(instruction);
   let area = a ? a.unitType === 'AREA' : /khu vuc|\bam\b/.test(input);
   if (!a && !area && !/cua hang|chi nhanh|\bsm\b/.test(input) && !pickRevenueChoice(input, d.stores, s => s.name).length) {
     area = (yield* choose(['Cửa hàng', 'Khu vực'], item => item, 'Bạn muốn tạo KPI cửa hàng hay khu vực?')) === 'Khu vực';
@@ -160,14 +160,14 @@ export function* draftRevenuePlan(d: RevenueKpiDashboard, prompt: string, a?: As
   let store = d.stores.find(s => s.id === a?.storeId);
   if (!area && !store) {
     const available = d.stores.filter(s => s.smEmployeeIds.length && !d.assignments.some(row => row.storeId === s.id));
-    const named = pickRevenueChoice(prompt, available, s => s.name);
+    const named = pickRevenueChoice(instruction, available, s => s.name);
     store = named.length === 1 ? named[0] : yield* choose(named.length ? named : available, s => s.name, 'Bạn muốn giao cho cửa hàng nào?');
   }
   const candidates = d.candidates.filter(c => c.role === (area ? 'AM' : 'SM') && (area || store?.smEmployeeIds.includes(c.employeeId)));
-  const named = pickRevenueChoice(prompt, candidates, c => c.name);
+  const named = pickRevenueChoice(instruction, candidates, c => c.name);
   const candidate = named.length === 1 ? named[0] : yield* choose(named.length ? named : candidates, c => c.name, 'Ai sẽ phụ trách KPI này?');
   const chosen = area ? undefined : yield* target(undefined, inlineTarget(prompt));
-  const reason = yield* note('Bạn ghi lý do giao hoặc sửa mục tiêu giúp mình nhé.', inlineNote(prompt));
+  const reason = yield* note('Bạn ghi lý do giao hoặc sửa mục tiêu giúp mình nhé.', supplied);
   const summary = `${a ? 'Sửa bản nháp' : 'Tạo bản nháp'} ${d.period.period} · ${store?.name ?? 'Khu vực'} · ${candidate.name} · ${chosen ? targetLabel(chosen) : 'tổng chỉ tiêu các cửa hàng phụ trách'}.\nLý do · ${reason}`;
   return action(summary, () => saveDraft(d, a, candidate, store?.id, chosen, reason));
 }
@@ -283,7 +283,7 @@ export function canUseUnit(d: RevenueKpiDashboard, a: Assignment, intent: UnitIn
 export function* unitRevenuePlan(d: RevenueKpiDashboard, a: Assignment, intent: UnitIntent, prompt: string): Step<Plan> {
   const title = `${labels[intent]} · ${unitName(a)} · kỳ ${a.period}`;
   const r = resultFor(d, a);
-  const supplied = inlineNote(prompt);
+  const { instruction, note: supplied } = revenueParts(prompt);
   switch (intent) {
     case 'edit': return yield* draftRevenuePlan(d, prompt, a);
     case 'accept': return action(title, () => api.acceptRevenueKpiAssignment(a.id, command(a.version)), 'Đã chấp nhận KPI doanh thu.');
@@ -302,7 +302,7 @@ export function* unitRevenuePlan(d: RevenueKpiDashboard, a: Assignment, intent: 
     case 'confirm': return action(`${title} · thực tế ${revenueMoney(r!.actualRevenueVnd)}`, () => api.confirmRevenueKpiResult(r!.id, command(r!.version)), 'Đã xác nhận kết quả KPI.');
     case 'responsibility': {
       const candidates = d.candidates.filter(c => c.role === 'SM' && c.employeeId !== a.assigneeEmployeeId && c.storeIds.includes(a.storeId!));
-      const named = pickRevenueChoice(prompt, candidates, c => c.name);
+      const named = pickRevenueChoice(instruction, candidates, c => c.name);
       const candidate = named.length === 1 ? named[0] : yield* choose(named.length ? named : candidates, c => c.name, 'Bạn chọn SM tiếp nhận KPI này.');
       let effectiveAt: string | undefined;
       while (!effectiveAt) {
