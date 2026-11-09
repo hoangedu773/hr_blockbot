@@ -10,6 +10,7 @@ export interface IUser extends Document {
   username: string;
   email?: string | null;
   emailVerifiedAt?: Date | null;
+  googleSubject?: string | null;
   passwordChangeOtp?: {
     id: string;
     email: string;
@@ -65,6 +66,7 @@ const UserSchema = new Schema<IUser>(
       default: undefined,
     },
     emailVerifiedAt: { type: Date },
+    googleSubject: { type: String },
     passwordChangeOtp: { type: Schema.Types.Mixed, select: false },
     passwordHash: { type: String, required: true },
     role: { type: String, enum: ["Admin", "Employee"], required: true },
@@ -99,6 +101,7 @@ const UserSchema = new Schema<IUser>(
 
 // Email unique nhưng phải sparse: gần như toàn bộ tài khoản không có email.
 UserSchema.index({ email: 1 }, { unique: true, sparse: true });
+UserSchema.index({ googleSubject: 1 }, { unique: true, partialFilterExpression: { googleSubject: { $type: "string" } } });
 UserSchema.index({ "passwordRecovery.tokenHash": 1 }, { unique: true, partialFilterExpression: { "passwordRecovery.tokenHash": { $type: "string" } } });
 
 // Mỗi hồ sơ nhân viên chỉ được gắn tối đa một tài khoản. Partial (không phải sparse)

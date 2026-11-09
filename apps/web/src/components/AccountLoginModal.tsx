@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { LoginRequest } from '@hr-blockbot/contracts';
+import { loginWithGoogle } from '../services/auth';
+import { GoogleAccountButton } from './GoogleAccountButton';
 
 interface AccountLoginModalProps {
   isOpen: boolean;
@@ -108,7 +110,23 @@ export const AccountLoginModal: React.FC<AccountLoginModalProps> = ({
           <button type="submit" disabled={busy} style={{ width: '100%', padding: '13px 16px', border: 0, borderRadius: 10, color: '#171717', background: '#f5f5f5', fontWeight: 600, fontSize: 15, opacity: busy ? .65 : 1, cursor: busy ? 'wait' : 'pointer' }}>
             {isRestoringSession ? 'Đang kiểm tra phiên…' : isSubmitting ? 'Đang đăng nhập…' : 'Đăng nhập'}
           </button>
-          <p style={{ margin: 0, color: '#b4b4b4', fontSize: 12, lineHeight: 1.6 }}>Nếu chưa có tài khoản hoặc quên mật khẩu, vui lòng liên hệ quản trị viên.</p>        </form>
+          <p style={{ margin: 0, color: '#b4b4b4', fontSize: 12, lineHeight: 1.6 }}>Nếu chưa có tài khoản hoặc quên mật khẩu, vui lòng liên hệ quản trị viên.</p>
+        </form>
+        <div style={{ marginTop: 16 }}>
+          <GoogleAccountButton disabled={busy} onCredential={async input => {
+            if (submittingRef.current) return;
+            submittingRef.current = true;
+            setIsSubmitting(true);
+            setError('');
+            try {
+              await loginWithGoogle(input);
+              onClose();
+            } finally {
+              submittingRef.current = false;
+              setIsSubmitting(false);
+            }
+          }} />
+        </div>
       </div>
     </div>
   );

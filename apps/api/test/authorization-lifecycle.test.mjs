@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
-import { SignJWT } from 'jose';
+import { SignJWT, generateKeyPair } from 'jose';
 import { createApp } from '../dist/app.js';
 import { connectDB, disconnectDB } from '../dist/db.js';
 import { initSocket } from '../dist/socket.js';
@@ -13,6 +13,7 @@ import { EmployeeModel } from '../dist/models/Employee.js';
 import { ProjectModel } from '../dist/models/Project.js';
 import { hashPassword, signAccessToken, getJwtSecret } from '../dist/services/auth.service.js';
 import { resolvePrincipal } from '../dist/services/principal.service.js';
+import { consumeGoogleIdentity, googleLoginAccount, issueGoogleChallenge } from '../dist/services/google-sign-in.service.js';
 import { testGrant } from './helpers/authorization-v1-fixture.mjs';
 const requireWeb = createRequire(new URL('../../web/package.json', import.meta.url));
 const { io: clientIo } = requireWeb('socket.io-client');
@@ -55,6 +56,41 @@ test('single login returns unconfigured authorization honestly; no profile from 
   assert.equal(body.authorization.configured, false);
   assert.equal(body.authorization.enforcement, 'MIGRATING');
   assert.deepEqual(body.authorization.capabilities, []);
+});
+
+test('Google identity is bound to the challenge and existing account, and only succeeds once', async () => {
+  const clientId = 'isolated-google-client.apps.googleusercontent.com';
+  const saved = process.env.GOOGLE_SIGN_IN_CLIENT_ID;
+  process.env.GOOGLE_SIGN_IN_CLIENT_ID = clientId;
+  try {
+    const { privateKey, publicKey } = await generateKeyPair('RS256');
+    const getKey = async () => publicKey;
+    const challenge = await issueGoogleChallenge();
+    const subject = 'isolated-google-identity';
+    const sign = (audience, nonce, verified = true) => new SignJWT({ nonce, email_verified: verified, email: 'test@example.com' })
+      .setProtectedHeader({ alg: 'RS256' }).setIssuer('https://accounts.google.com').setSubject(subject)
+      .setAudience(audience).setIssuedAt().setExpirationTime('5m').sign(privateKey);
+    for (const credential of [
+      await sign('another-client', challenge.nonce),
+      await sign(clientId, 'another-nonce'),
+      await sign(clientId, challenge.nonce, false),
+    ]) {
+      await assert.rejects(consumeGoogleIdentity(credential, challenge.nonce, undefined, getKey), { code: 'GOOGLE_CREDENTIAL_INVALID' });
+    }
+    const credential = await sign(clientId, challenge.nonce);
+    const results = await Promise.allSettled([1, 2].map(() => consumeGoogleIdentity(credential, challenge.nonce, undefined, getKey)));
+    assert.equal(results.filter(result => result.status === 'fulfilled' && result.value === subject).length, 1);
+    assert.equal(results.filter(result => result.status === 'rejected' && result.reason.code === 'GOOGLE_CREDENTIAL_INVALID').length, 1);
+    await fixture('google-email-only', { email: 'test@example.com' });
+    await assert.rejects(googleLoginAccount(subject), { code: 'GOOGLE_ACCOUNT_UNAVAILABLE' });
+    const linked = await fixture('google-linked', { googleSubject: subject });
+    assert.equal(String((await googleLoginAccount(subject))._id), String(linked._id));
+    await UserModel.updateOne({ _id: linked._id }, { $set: { status: 'disabled' } });
+    await assert.rejects(googleLoginAccount(subject), { code: 'GOOGLE_ACCOUNT_UNAVAILABLE' });
+  } finally {
+    if (saved === undefined) delete process.env.GOOGLE_SIGN_IN_CLIENT_ID;
+    else process.env.GOOGLE_SIGN_IN_CLIENT_ID = saved;
+  }
 });
 
 test('legacy token without version and token from before security revision are rejected', async () => {

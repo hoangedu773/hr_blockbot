@@ -151,7 +151,8 @@ async function finish(row: any, options: OnboardingOptions) {
       AuthorizationStateSchema.parse(authorization);
     }
     const status = row.kind === "EXIT" ? "disabled" : row.kind === "REACTIVATE" ? "active" : user.status;
-    const changes: any = { status, authorization, lifecycleAppliedRequestId: id };
+    const changes: any = { status, authorization, lifecycleAppliedRequestId: id,
+      ...(row.kind === "EXIT" || row.kind === "REACTIVATE" ? { googleSubject: null } : {}) };
     if (row.kind === "REACTIVATE") {
       if (!row.recoveryPasswordHash || user.status !== "disabled" || user.authorization?.profile === "system_admin") throw new WorkflowError(409, "SECURE_RECOVERY_REQUIRED", "Tái kích hoạt cần mật khẩu mới và hồ sơ nghiệp vụ hợp lệ; tài khoản kỹ thuật cần quy trình riêng.");
       Object.assign(changes, { passwordHash: row.recoveryPasswordHash, mustChangePassword: false, passwordChangedAt: new Date() });

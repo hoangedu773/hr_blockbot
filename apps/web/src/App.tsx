@@ -5,6 +5,7 @@ import { ToastContainer, type ToastMessage, type NotifyFn } from './components/T
 import { BrandMark } from './components/BrandMark';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { PasswordOtpDialog } from './components/PasswordOtpDialog';
+import { GoogleLinkDialog } from './components/GoogleLinkDialog';
 import { ActivationView } from './components/ActivationView';
 import { NotificationCenter } from './components/NotificationCenter';
 import type { ActiveCrmView } from './components/CrmDashboardView';
@@ -25,6 +26,7 @@ export const AppContent: React.FC = () => {
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isSplashFading, setIsSplashFading] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const [googleLinkOpen, setGoogleLinkOpen] = useState(false);
 
   // The workspace opens on the operating surface, not on the assistant. CRM is
   // where the shift and roster decisions live; chat is a secondary tool reached
@@ -184,6 +186,7 @@ export const AppContent: React.FC = () => {
               notificationView={notificationView}
               onNotificationViewApplied={clearNotificationView}
               onChangePassword={() => setPasswordOpen(true)}
+              onLinkGoogle={() => setGoogleLinkOpen(true)}
             />
           )}
         </React.Suspense>
@@ -199,6 +202,10 @@ export const AppContent: React.FC = () => {
       {passwordOpen && <PasswordOtpDialog onClose={() => setPasswordOpen(false)} onSuccess={() => {
         setPasswordOpen(false);
         addToast('Đã đổi mật khẩu. Hãy đăng nhập lại bằng mật khẩu mới.', 'success');
+      }} />}
+      {googleLinkOpen && <GoogleLinkDialog onClose={() => setGoogleLinkOpen(false)} onLinked={() => {
+        setGoogleLinkOpen(false);
+        addToast('Đã liên kết. Bạn có thể dùng Google ở lần đăng nhập tiếp theo.', 'success');
       }} />}
       <ToastContainer toasts={toasts} onDismiss={removeToast} />
     </>

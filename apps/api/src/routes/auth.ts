@@ -11,7 +11,9 @@ import {
   MeResponseSchema,
   ChangePasswordRequestSchema,
 } from "@hr-blockbot/contracts";
-import { UserModel } from "../models/User.js";
+import { UserModel, type IUser } from "../models/User.js";
+import { consumeGoogleIdentity, googleAccountUnavailable, googleLoginAccount, issueGoogleChallenge } from "../services/google-sign-in.service.js";
+import { WorkflowError } from "../services/project-workflow.service.js";
 import { RefreshSessionModel } from "../models/RefreshSession.js";
 import {
   verifyPassword,
@@ -34,6 +36,86 @@ const router = Router();
 function loginAttemptKey(req: Request, username: string): string {
   return `${req.ip || "unknown"}|${username.toLowerCase()}`;
 }
+
+async function sendLoginSession(req: Request, res: Response, user: IUser) {
+  const { accessToken, rawRefreshToken } = await createLoginSession(user, {
+    ip: req.ip, userAgent: req.headers["user-agent"],
+  });
+  const principal = await resolvePrincipal({ sub: String(user._id), role: user.role, securityVersion: securityVersion(user) });
+  const responseBody = LoginResponseSchema.parse({
+    accessToken,
+    user: { id: String(user._id), role: user.role, username: user.username,
+      mustChangePassword: user.mustChangePassword === true, authorization: authorizationSummary(principal) },
+  });
+  res.cookie("refreshToken", rawRefreshToken, getRefreshTokenCookieOptions());
+  res.status(200).json(responseBody);
+}
+
+const googleCredential = z.object({
+  credential: z.string().min(1).max(8192),
+  nonce: z.string().regex(/^[a-f0-9]{64}$/),
+}).strict();
+const googleLink = googleCredential.extend({ currentPassword: z.string().min(1).max(128) }).strict();
+const googleRateLimit = () => new WorkflowError(429, "TOO_MANY_ATTEMPTS", "Bạn đã thử quá nhiều lần. Vui lòng thử lại sau.");
+
+router.get("/auth/google/challenge", endpoint(async (req, res) => {
+  if (registerLoginAttempt("google-challenge|" + req.ip)) throw googleRateLimit();
+  res.set("Cache-Control", "no-store").json(await issueGoogleChallenge());
+}));
+
+router.post("/auth/google/login", endpoint(async (req, res) => {
+  const { credential, nonce } = googleCredential.parse(req.body);
+  const key = "google-login|" + req.ip;
+  if (registerLoginAttempt(key)) throw googleRateLimit();
+  const subject = await consumeGoogleIdentity(credential, nonce);
+  const user = await googleLoginAccount(subject);
+  try { await sendLoginSession(req, res, user); }
+  catch (error) {
+    if (error instanceof PrincipalUnavailableError) throw googleAccountUnavailable();
+    throw error;
+  }
+  clearLoginAttempts(key);
+  clearLoginAttempts("google-challenge|" + req.ip);
+}));
+
+router.get("/auth/google/link", authenticateToken, endpoint(async (req, res) => {
+  if (registerLoginAttempt("google-link-challenge|" + req.user!.userId)) throw googleRateLimit();
+  res.set("Cache-Control", "no-store").json(await issueGoogleChallenge(req.user!));
+}));
+
+router.post("/auth/google/link", authenticateToken, endpoint(async (req, res) => {
+  const { credential, nonce, currentPassword } = googleLink.parse(req.body);
+  const principal = req.user!;
+  const key = "google-link|" + principal.userId;
+  if (registerLoginAttempt(key)) throw googleRateLimit();
+  const user = await UserModel.findById(principal.userId);
+  if (!user || !await verifyPassword(user.passwordHash, currentPassword)) {
+    throw new WorkflowError(400, "CURRENT_PASSWORD_INCORRECT", "Mật khẩu hiện tại không đúng.");
+  }
+  const subject = await consumeGoogleIdentity(credential, nonce, principal);
+  const version = securityVersion(principal);
+  try {
+    await UserModel.init();
+    const indexes = await UserModel.collection.indexes();
+    if (!indexes.some(index => index.unique && index.key.googleSubject === 1)) {
+      throw new WorkflowError(503, "GOOGLE_LINK_UNAVAILABLE", "Chưa thể liên kết Google lúc này.");
+    }
+    const changed = await UserModel.updateOne({
+      _id: user._id, status: "active", passwordHash: user.passwordHash,
+      ...securityVersionFilter(version), mustChangePassword: { $ne: true },
+      $or: [{ googleSubject: null }, { googleSubject: subject }],
+    }, { $set: { googleSubject: subject } });
+    if (!changed.matchedCount) throw new WorkflowError(409, "GOOGLE_LINK_CONFLICT", "Tài khoản HRM đã liên kết Google khác hoặc đã thay đổi.");
+  } catch (error) {
+    if (typeof error === "object" && error && "code" in error && error.code === 11000) {
+      throw new WorkflowError(409, "GOOGLE_LINK_CONFLICT", "Tài khoản Google đã được liên kết với tài khoản HRM khác.");
+    }
+    throw error;
+  }
+  clearLoginAttempts(key);
+  clearLoginAttempts("google-link-challenge|" + principal.userId);
+  res.status(204).end();
+}));
 
 // A throwaway hash so the "user not found" branch costs the same as a wrong password.
 let dummyHashPromise: Promise<string> | null = null;
@@ -104,28 +186,7 @@ router.post("/auth/login", async (req: Request, res: Response) => {
 
     clearLoginAttempts(attemptKey);
 
-    const sessionCtx = {
-      ip: req.ip,
-      userAgent: req.headers["user-agent"],
-    };
-
-    const { accessToken, rawRefreshToken } = await createLoginSession(user, sessionCtx);
-
-    // Set Refresh Token in secure cookie
-    res.cookie("refreshToken", rawRefreshToken, getRefreshTokenCookieOptions());
-
-    const responseBody = LoginResponseSchema.parse({
-      accessToken,
-      user: {
-        id: user._id.toString(),
-        role: user.role,
-        username: user.username,
-        mustChangePassword: user.mustChangePassword === true,
-        authorization: authorizationSummary(await resolvePrincipal({ sub: String(user._id), role: user.role, securityVersion: securityVersion(user) })),
-      },
-    });
-
-    res.status(200).json(responseBody);
+    await sendLoginSession(req, res, user);
   } catch (err) {
     console.error("[Auth] Login error:", err instanceof Error ? err.message : "internal error");
     res.status(500).json({

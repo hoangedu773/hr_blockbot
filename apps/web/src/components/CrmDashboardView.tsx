@@ -39,6 +39,7 @@ export interface CrmDashboardViewProps {
   notificationView?: ActiveCrmView | null;
   onNotificationViewApplied?: () => void;
   onChangePassword?: () => void;
+  onLinkGoogle?: () => void;
 }
 
 const CRM_HTML = `
@@ -174,6 +175,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
   notificationView,
   onNotificationViewApplied,
   onChangePassword,
+  onLinkGoogle,
 }) => {
   const { can, summary: authorization } = useAuthorization();
   const [performanceEnabled, setPerformanceEnabled] = useState(false);
@@ -488,7 +490,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
         dangerouslySetInnerHTML={{ __html: CRM_HTML }}
       />
       {themePortalEl &&
-        createPortal(<div className="crm-header-controls">{notificationButton}{!allowedViews.profile && onChangePassword && <button type="button" className="btn" onClick={onChangePassword}>Đổi mật khẩu</button>}<ThemeToggle /></div>, themePortalEl)}
+        createPortal(<div className="crm-header-controls">{notificationButton}{!allowedViews.profile && onChangePassword && <button type="button" className="btn" onClick={onChangePassword}>Đổi mật khẩu</button>}{!allowedViews.profile && onLinkGoogle && <button type="button" className="btn" onClick={onLinkGoogle}>Liên kết Google</button>}<ThemeToggle /></div>, themePortalEl)}
       {storesPortalEl && activeView === 'stores' && allowedViews.stores &&
         createPortal(
           <StoreDirectoryView
@@ -515,7 +517,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
           ) : activeView === 'employees' && allowedViews.employees ? (
             <EmployeeListView />
           ) : activeView === 'profile' && allowedViews.profile ? (
-            <EmployeeProfileView onLogout={onLogout} onNotify={safeNotify} onChangePassword={onChangePassword} />
+            <EmployeeProfileView onLogout={onLogout} onNotify={safeNotify} onChangePassword={onChangePassword} onLinkGoogle={onLinkGoogle} />
           ) : activeView === 'schedules' && allowedViews.schedules ? (
             <SchedulingView />
           ) : activeView === 'projects' && allowedViews.projects ? (

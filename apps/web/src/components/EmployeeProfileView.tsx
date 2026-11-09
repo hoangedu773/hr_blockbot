@@ -7,11 +7,11 @@ import { SmAppointments, isSmPositionCandidate } from './SmAppointments';
 import { employeeLocationLabel, employeeJobLabel, profileDate } from '../services/employee-display';
 import '../styles/employee-profile.css';
 
-interface EmployeeProfileViewProps { onLogout: () => void; onNotify: NotifyFn; onChangePassword?: () => void }
+interface EmployeeProfileViewProps { onLogout: () => void; onNotify: NotifyFn; onChangePassword?: () => void; onLinkGoogle?: () => void }
 const labels: Record<string, string> = { level: 'Cấp bậc', hiredAt: 'Ngày vào làm', jobTitle: 'Chức danh' };
 const dateOnlyRequest = (r: ProfileChangeRequest) => !!r.targetFields.hiredAt && Object.keys(r.targetFields).every(k => k === 'hiredAt');
 
-export const EmployeeProfileView: React.FC<EmployeeProfileViewProps> = ({ onNotify, onChangePassword }) => {
+export const EmployeeProfileView: React.FC<EmployeeProfileViewProps> = ({ onNotify, onChangePassword, onLinkGoogle }) => {
   const { can } = useAuthorization();
   const canEditRegular = can('profile.update_self_basic'), canRequestChange = can('profile.request_self');
   const [profile, setProfile] = useState<EmployeeDetail | null>(null), [isLoading, setIsLoading] = useState(true), [loadError, setLoadError] = useState('');
@@ -71,6 +71,7 @@ export const EmployeeProfileView: React.FC<EmployeeProfileViewProps> = ({ onNoti
     {onChangePassword && <section className="card card--pad employee-profile-card" aria-label="Bảo mật tài khoản">
       <h3>Bảo mật tài khoản</h3><p>Xác nhận bằng mã gửi tới email đã xác minh.</p>
       <button type="button" className="btn" onClick={onChangePassword}>Đổi mật khẩu</button>
+      {onLinkGoogle && <button type="button" className="btn" onClick={onLinkGoogle}>Liên kết Google</button>}
     </section>}
     <div className="employee-profile-columns">
       <section className="card card--pad employee-profile-card" aria-label="Thông tin cơ bản">
