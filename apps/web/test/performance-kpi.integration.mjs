@@ -32,9 +32,21 @@ try{
  const dist=path.join(root,'apps/web/dist');web=http.createServer((req,res)=>{const name=new URL(req.url,'http://127.0.0.1').pathname,file=path.resolve(dist,'.'+(name==='/'?'/index.html':name));if(!file.startsWith(dist+path.sep)||!fs.existsSync(file))return res.writeHead(404).end();res.setHeader('Content-Type',{'.html':'text/html','.js':'application/javascript','.css':'text/css','.svg':'image/svg+xml'}[path.extname(file)]??'application/octet-stream');fs.createReadStream(file).pipe(res);});await new Promise(r=>web.listen(0,'127.0.0.1',r));origin='http://127.0.0.1:'+web.address().port;process.env.FRONTEND_URL=origin;api=http.createServer(createApp());await new Promise(r=>api.listen(0,'127.0.0.1',r));apiOrigin='http://127.0.0.1:'+api.address().port;browser=await chromium.launch({headless:true});
  for(const profile of ['hr','sm','am','staff','ptch','staffB']){const context=await browser.newContext({viewport:{width:1440,height:1050}});contexts.push(context);await context.route('**/*',async route=>{const u=new URL(route.request().url());if(u.pathname.startsWith('/api/'))return route.fulfill({response:await route.fetch({url:apiOrigin+u.pathname+u.search})});return u.origin===origin?route.continue():route.fulfill({status:200,body:''});});const page=await context.newPage();actors[profile]=page;page.setDefaultTimeout(18000);page.on('pageerror',e=>errors.push(e.message));await page.goto(origin,{waitUntil:'networkidle'});await page.getByRole('button',{name:'Get Started',exact:true}).click();await page.locator('#login-username').fill('v1-'+profile.toLowerCase());await page.locator('#login-password').fill(f.password);await page.getByRole('button',{name:'Đăng nhập',exact:true}).click();await page.locator('.crm-sidebar').waitFor();await page.locator('[data-section="performanceKpi"]').click();await page.getByLabel('Kỳ đánh giá',{exact:true}).fill('2026-11');await settle(page);}
  const {hr,sm,am,staff,ptch,staffB}=actors;
- const notices=staff.locator('.pf-notifications');await notices.locator('summary').click();const severity=notices.getByLabel('Mức độ');await severity.selectOption('ACTION_REQUIRED');
- const assigned=notices.locator('li').filter({hasText:'Đã giao nhiệm vụ'}).first();await assigned.waitFor();await assigned.getByRole('button',{name:'Xem nhiệm vụ'}).click();await assigned.locator('.pf-notification-target strong').waitFor();assert.match(await assigned.locator('.pf-notification-target strong').innerText(),/Nhiệm vụ [ABC]/);
- await assigned.getByRole('button',{name:'Đánh dấu đã đọc'}).click();await assigned.getByText('Đã đọc',{exact:true}).waitFor();await severity.selectOption('INFO');assert.equal(await notices.locator('li').filter({hasText:'Đã giao nhiệm vụ'}).count(),0);await severity.selectOption('ALL');
+ await staff.getByRole('button',{name:/^Thông báo/}).first().click();
+ const inbox=staff.getByRole('dialog',{name:'Thông báo',exact:true});
+ const assigned=inbox.locator('li').filter({hasText:'Đã giao nhiệm vụ'}).first();
+ await assigned.waitFor();
+ await assigned.getByRole('button',{name:'Xem nhiệm vụ',exact:true}).click();
+ await assigned.locator('.pf-notification-target strong').waitFor();
+ assert.match(await assigned.locator('.pf-notification-target strong').innerText(),/Nhiệm vụ [ABC]/);
+ await assigned.getByRole('button',{name:'Đánh dấu đã đọc'}).click();
+ await assigned.getByText('Đã đọc',{exact:true}).waitFor();
+ await inbox.getByRole('button',{name:'Đóng',exact:true}).click();
+ const notices=staff.locator('.pf-notifications');await notices.locator('summary').click();
+ const severity=notices.getByLabel('Mức độ');
+ await severity.selectOption('ACTION_REQUIRED');
+ assert.equal(await notices.locator('li').filter({hasText:'Đã giao nhiệm vụ'}).count(),0);
+ await severity.selectOption('ALL');
  for(const width of [320,375,768,1440]){await staff.setViewportSize({width,height:900});await notices.scrollIntoViewIfNeeded();await staff.screenshot({path:path.join(output,`notifications-${width}.png`)});const small=await notices.locator('summary,select,button').evaluateAll(els=>els.map(el=>({name:el.textContent.trim(),width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height})).filter(r=>r.width<44||r.height<44));assert.deepEqual(small,[],`Notification controls must be at least 44px at ${width}px`);}
  await staff.setViewportSize({width:1440,height:1050});await notices.locator('summary').click();
  assert.match(await staffB.locator('.pf-view').innerText(),/Chưa có bản đánh giá/);assert.doesNotMatch(await staffB.locator('.pf-view').innerText(),/Isolated V1 staff\s/);
