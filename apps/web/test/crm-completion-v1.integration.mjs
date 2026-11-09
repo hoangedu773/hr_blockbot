@@ -105,19 +105,30 @@ try {
     await sm.page.getByRole('button', { name: 'Gửi', exact: true }).click();
   };
   await intake.getByText(/Đã chọn .* làm quản lý trực tiếp/).waitFor();
+  // This instant is already 31 October in Vietnam and still 30 October in UTC.
+  await sm.page.clock.setFixedTime(new Date('2026-10-30T17:05:00Z'));
   assert.equal(await sm.page.getByRole('dialog').count(), 0);
   for (const [question, value] of [
     [/tên đầy đủ là gì/, 'Synthetic browser new hire'],
     [/Cho mình số điện thoại/, NEW_PHONE],
     [/email nào/, 'khong-phai-email'],
     [/Thông tin chưa hợp lệ.*email nào/, 'new-core@example.com'],
-    [/vào làm ngày nào/, '31/10/2026'],
+    [/vào làm ngày nào/, '31/11/2026'],
+    [/Thông tin chưa hợp lệ.*vào làm ngày nào/, 'hôm nay'],
     [/lý do tiếp nhận/, 'Owned browser complete core flow'],
   ]) {
     await intake.getByText(question).first().waitFor();
     await answer(value);
   }
   await intake.getByText(/Xem trước hồ sơ/).waitFor();
+  await intake.getByText('Mình ghi nhận ngày vào làm là 31/10/2026 theo giờ Việt Nam.', { exact: true }).waitFor();
+  await answer('sửa ngày vào làm');
+  await answer('ngày mai');
+  await intake.getByText(/Xem trước hồ sơ.*Ngày vào làm: 01\/11\/2026/s).waitFor();
+  await answer('sửa ngày vào làm');
+  await answer('bắt đầu từ hôm nay');
+  await intake.getByText(/Xem trước hồ sơ.*Ngày vào làm: 31\/10\/2026/s).last().waitFor();
+  await sm.page.clock.setFixedTime(new Date());
   assert.equal(await OnboardingRequestModel.countDocuments(), 0);
   await answer('sửa email');
   await intake.getByText('Nhân viên dùng email nào để nhận link kích hoạt?', { exact: true }).last().waitFor();
@@ -129,6 +140,7 @@ try {
   assert.equal(ordinaryChatRequests.length, 0);
   const onboard = await OnboardingRequestModel.findOne({ 'payload.fullName': 'Synthetic browser new hire' }).lean(); assert.ok(onboard);
   assert.equal(onboard.payload.email, 'new-core-corrected@example.com');
+  assert.equal(onboard.payload.hiredAt, '2026-10-30T17:00:00.000Z');
   NEW_CODE = onboard.payload.employeeCode; assert.match(NEW_CODE, /^GT-CH2610\d{4}$/);
   assert.equal((await call(sm, '/onboarding/pending-review')).status, 403);
   assert.equal(await mongoose.connection.collection('notifications').countDocuments({ entityKind: 'onboarding', entityId: String(onboard._id), userId: fixture.actors.hr.user._id }), 1);
