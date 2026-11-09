@@ -498,9 +498,127 @@ function OutletEmployees({ onOpenManagers, onNavigateOnboarding }: { onOpenManag
     </>}
     {!loading && !error && can('employees.review') && <ProfileApprovalQueue />}
     {selected && <CrmDialog title="Chi tiết nhân sự" onClose={() => { detailRequest.current++; setSelected(null); }}>
-      {!detailLoading && !detailError && can('employees.update_other') && <button type="button" className="btn" onClick={() => { setEditingEmployee(selected.employeeId); setSelected(null); }}>Chỉnh sửa thông tin thường</button>}
-      {detailLoading ? <p role="status">Đang tải hồ sơ…</p> : detailError ? <div role="alert" className="banner banner--error">{detailError}<button className="btn" type="button" onClick={() => void details(selected)}>Thử lại</button></div> : <dl className="crm-work-detail"><dt>Họ tên</dt><dd>{selected.fullName}</dd><dt>Chức danh</dt><dd>{selected.jobTitle || 'Chưa cập nhật'}</dd><dt>Phòng ban / điểm bán</dt><dd>{employeeLocationLabel(selected)}</dd><dt>Kỹ năng</dt><dd>{selected.skills.join(', ') || 'Chưa cập nhật'}</dd><dt>Trạng thái</dt><dd>{selected.status === 'active' ? 'Hoạt động' : selected.status === 'inactive' ? 'Tạm dừng' : 'Chưa xác minh'}</dd></dl>}
-      {!detailLoading && !detailError && can('employees.read_hr') && 'profileVersion' in selected && <><dl><dt>Mã nhân viên</dt><dd>{selected.employeeCode}</dd><dt>Điện thoại</dt><dd>{selected.phone || 'Chưa có'}</dd><dt>Ngày vào làm</dt><dd>{selected.hiredAt ? new Date(selected.hiredAt).toLocaleDateString('vi-VN') : 'Chưa có'}</dd></dl><EmployeeHrHistory employeeId={selected.employeeId} /></>}
+      {detailLoading ? (
+        <p role="status">Đang tải hồ sơ…</p>
+      ) : detailError ? (
+        <div role="alert" className="banner banner--error">
+          {detailError}
+          <button className="btn" type="button" onClick={() => void details(selected)}>Thử lại</button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '12px',
+              padding: '14px 16px',
+              borderRadius: '12px',
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid rgba(255,255,255,0.08)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '50%',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '15px',
+                  fontWeight: 700,
+                  background: 'rgba(59, 130, 246, 0.18)',
+                  color: '#60a5fa',
+                  border: '1px solid rgba(59, 130, 246, 0.35)',
+                }}
+              >
+                {selected.fullName.trim().split(/\s+/).slice(-2).map((w) => w[0]).join('').toUpperCase()}
+              </span>
+              <div>
+                <div style={{ fontSize: '16px', fontWeight: 700, color: '#f8fafc' }}>{selected.fullName}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '3px', flexWrap: 'wrap' }}>
+                  <code style={{ fontSize: '11px', padding: '2px 7px', borderRadius: '6px', background: 'rgba(255,255,255,0.06)', color: '#93c5fd' }}>
+                    {'employeeCode' in selected && selected.employeeCode ? selected.employeeCode : selected.employeeId}
+                  </code>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: '#cbd5e1' }}>
+                    {selected.jobTitle || 'Chưa cập nhật'}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                      background: selected.status === 'active' ? 'rgba(16, 185, 129, 0.14)' : 'rgba(148, 163, 184, 0.14)',
+                      color: selected.status === 'active' ? '#34d399' : '#94a3b8',
+                    }}
+                  >
+                    {selected.status === 'active' ? 'Hoạt động' : selected.status === 'inactive' ? 'Tạm dừng' : 'Chưa xác minh'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            {can('employees.update_other') && (
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  setEditingEmployee(selected.employeeId);
+                  setSelected(null);
+                }}
+              >
+                ✎ Chỉnh sửa hồ sơ
+              </button>
+            )}
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+              gap: '10px',
+              padding: '14px',
+              borderRadius: '10px',
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(255,255,255,0.06)',
+            }}
+          >
+            <div>
+              <div style={{ fontSize: '11px', color: '#94a3b8' }}>Phòng ban / Điểm bán</div>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0', marginTop: '2px' }}>
+                {employeeLocationLabel(selected)}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: '11px', color: '#94a3b8' }}>Kỹ năng nghiệp vụ</div>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0', marginTop: '2px' }}>
+                {selected.skills.join(', ') || 'Chưa cập nhật'}
+              </div>
+            </div>
+            {can('employees.read_hr') && 'profileVersion' in selected && (
+              <>
+                <div>
+                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>Điện thoại liên hệ</div>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0', marginTop: '2px' }}>
+                    {selected.phone || 'Chưa có'}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>Ngày vào làm</div>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0', marginTop: '2px' }}>
+                    {selected.hiredAt ? new Date(selected.hiredAt).toLocaleDateString('vi-VN') : 'Chưa có'}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+      {!detailLoading && !detailError && can('employees.read_hr') && 'profileVersion' in selected && <EmployeeHrHistory employeeId={selected.employeeId} />}
       {!detailLoading && !detailError && isSmPositionCandidate(selected.jobTitle) && <SmAppointments key={selected.employeeId} employeeId={selected.employeeId} />}
     </CrmDialog>}
     {showAdd && <CrmDialog title="Tiếp nhận & Thêm nhân viên mới" busy={addBusy} onClose={() => { if (!addBusy) setShowAdd(false); }}>
