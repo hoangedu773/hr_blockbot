@@ -179,7 +179,7 @@ try {
     await hr.page.getByLabel('Tin nhắn cho Guta AI').fill(text);
     await hr.page.getByRole('button', { name: 'Gửi', exact: true }).click();
   }
-  const chatNotices = hr.page.getByRole('log', { name: 'Thông báo và hồ sơ trong chat' });
+  const chatNotices = hr.page.getByRole('log', { name: 'Hội thoại', exact: true });
   const replies = chatNotices.locator('[data-sender="assistant"] p');
   await askHrChat('tôi có thông báo gì cần xử lí k');
   await replies.filter({ hasText: 'Sự kiện khẩn cấp' }).waitFor();
