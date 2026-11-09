@@ -12,7 +12,7 @@ const questions = {
   fullName: 'Nhân viên mới tên đầy đủ là gì?',
   phone: 'Cho mình số điện thoại của nhân viên.',
   email: 'Nhân viên dùng email nào để nhận link kích hoạt?',
-  hiredAt: 'Nhân viên vào làm ngày nào? Ví dụ 15/11/2026.',
+  hiredAt: 'Nhân viên vào làm ngày nào? Bạn có thể gõ “hôm nay”, “ngày mai” hoặc một ngày cụ thể như 15/11/2026.',
   reason: 'Bạn cho mình lý do tiếp nhận nhân viên này nhé.',
 } satisfies Record<keyof Draft, string>;
 const nextStep: Record<keyof Draft, keyof Draft | 'confirm'> = { fullName: 'phone', phone: 'email', email: 'hiredAt', hiredAt: 'reason', reason: 'confirm' };
@@ -24,9 +24,26 @@ export function isOnboardingRequest(value: string) {
   return /^(?:(?:toi|minh|em|chi|anh) )?(?:(?:can|muon|hay|cho toi|cho minh|giup toi) )*(?:(?:them|tao|dang ky|tiep nhan|onboard) (?:ho so (?:tiep nhan )?)?(?:nhan vien|nhan su|nv)(?: moi)?|tao (?:de nghi|ho so) tiep nhan)(?: (?:giup toi|giup minh|nhe|voi|duoc khong))*$/.test(commandText(value));
 }
 
+const relativeHireDays = new Map([
+  ['hom qua', -1], ['hom nay', 0], ['ngay hom nay', 0],
+  ['mai', 1], ['ngay mai', 1], ['ngay kia', 2], ['ngay mot', 2],
+]);
+const vietnamDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' });
+const displayHireDate = (day: string) => day.split('-').reverse().join('/');
+
 function hireDate(text: string) {
-  const local = /^(\d{1,2})[/-](\d{1,2})[/-](20\d{2})$/.exec(text);
-  const iso = /^(20\d{2})-(\d{2})-(\d{2})$/.exec(text);
+  const input = commandText(text).replace(/^(?:(?:bat dau|vao lam)(?: tu)?|tu) /, '');
+  const offset = relativeHireDays.get(input);
+  if (offset !== undefined) {
+    const localDay = new Date(vietnamDate.format(new Date()) + 'T00:00:00Z');
+    localDay.setUTCDate(localDay.getUTCDate() + offset);
+    return localDay.toISOString().slice(0, 10);
+  }
+
+  const explicit = input.replace(/^ngay /, '');
+  const local = /^(\d{1,2})[/-](\d{1,2})[/-](20\d{2})$/.exec(explicit)
+    ?? /^(\d{1,2}) thang (\d{1,2}) nam (20\d{2})$/.exec(explicit);
+  const iso = /^(20\d{2})-(\d{2})-(\d{2})$/.exec(explicit);
   const parts = local ? [local[3], local[2].padStart(2, '0'), local[1].padStart(2, '0')] : iso?.slice(1);
   if (!parts) return null;
   const day = parts.join('-');
@@ -82,7 +99,7 @@ export function ChatOnboarding({ prompt, stores, onExit, renderComposer }: {
   const askManager = (choices: Manager[]) => say('Bạn muốn đề xuất ai làm quản lý trực tiếp? Gõ số hoặc “bỏ qua”.\n' + numbered(choices.map(item => `${item.fullName} · ${item.employeeCode}`)));
   const showPreview = (values: Draft, place: Store, lead?: Manager) => {
     setStep('confirm');
-    say(`Xem trước hồ sơ\nHọ tên: ${values.fullName}\nSố điện thoại: ${values.phone}\nEmail: ${values.email}\nNgày vào làm: ${values.hiredAt.split('-').reverse().join('/')}\nCửa hàng: ${place.name}\nQuản lý trực tiếp: ${lead?.fullName ?? 'Chưa đề xuất'}\nLý do: ${values.reason}\n\nGõ “xác nhận” để gửi HR, “sửa email” (hoặc tên trường cần sửa) để chỉnh, hoặc “hủy”.`);
+    say(`Xem trước hồ sơ\nHọ tên: ${values.fullName}\nSố điện thoại: ${values.phone}\nEmail: ${values.email}\nNgày vào làm: ${displayHireDate(values.hiredAt)}\nCửa hàng: ${place.name}\nQuản lý trực tiếp: ${lead?.fullName ?? 'Chưa đề xuất'}\nLý do: ${values.reason}\n\nGõ “xác nhận” để gửi HR, “sửa email” (hoặc tên trường cần sửa) để chỉnh, hoặc “hủy”.`);
   };
   const afterChoice = (place: Store, lead?: Manager) => {
     if (editing.current) { editing.current = false; showPreview(draft, place, lead); }
@@ -144,6 +161,7 @@ export function ChatOnboarding({ prompt, stores, onExit, renderComposer }: {
     if (step !== 'confirm') {
       const value = fieldValue(step, text);
       if (value === null) { say('Thông tin chưa hợp lệ. ' + questions[step]); return; }
+      if (step === 'hiredAt') say(`Mình ghi nhận ngày vào làm là ${displayHireDate(value)} theo giờ Việt Nam.`);
       const values = { ...draft, [step]: value };
       setDraft(values);
       const next = nextStep[step];
