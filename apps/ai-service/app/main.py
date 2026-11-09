@@ -228,7 +228,7 @@ def health_check() -> dict[str, Any]:
         "readiness": "ready" if db_connected else "not_ready",
         "database": {
             "status": "connected" if db_connected else "disconnected",
-            "name": "hr_bot" if db_connected else None,
+            "name": (db_client.db.name if db_connected and db_client.db is not None else None),
         },
         "rag_engine": {
             "status": "active" if db_connected else "degraded",
