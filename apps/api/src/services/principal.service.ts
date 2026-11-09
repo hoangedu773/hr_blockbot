@@ -81,6 +81,7 @@ export async function resolvePrincipal(claims: TokenClaims, options: { delegatio
     securityVersion: version, accountActive: true, employeeActive: !!employee,
     authorization: parsed.success ? await withPerformanceModuleGrants(String(user._id), await withRevenueModuleGrants(String(user._id), parsed.data)) : null,
     canonical: parsed.success && !user.mustChangePassword ? await resolveCanonicalContext(employee) : { verifiedStores: [], managedByStore: {}, ownStoreId: null },
+    sid: claims.sid ?? null,
   };
   if (options.delegations !== false && parsed.success && !user.mustChangePassword && employee) {
     const { resolveEffectiveDelegations } = await import("./delegation.service.js");

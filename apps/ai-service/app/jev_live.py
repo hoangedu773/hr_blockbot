@@ -5,6 +5,7 @@ runtime. The API must complete scoped preflight before calling this adapter.
 """
 from __future__ import annotations
 
+import asyncio
 import math
 import os
 import time
@@ -113,7 +114,7 @@ def _usejevai_questions() -> list[dict[str, Any]]:
     return questions
 
 
-def _usejevai(client: httpx.Client, key: str, message: str, budget: float) -> LiveDecision:
+async def _usejevai(client: httpx.AsyncClient, key: str, message: str, budget: float) -> LiveDecision:
     """One idempotent submission; poll the same run, never resubmit on uncertainty."""
     expiry = time.monotonic() + budget
     def timeout() -> float:
@@ -122,7 +123,7 @@ def _usejevai(client: httpx.Client, key: str, message: str, budget: float) -> Li
             raise TimeoutError("Decision deadline exceeded")
         return value
     headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
-    response = client.post("https://usejevai.com/api/v1/runs", headers=headers, timeout=timeout(), json={
+    response = await client.post("https://usejevai.com/api/v1/runs", headers=headers, timeout=timeout(), json={
         "funding": "prefer_trial", "idempotencyKey": uuid.uuid4().hex,
         "input": {"state": message, "questions": _usejevai_questions()},
     })
@@ -134,7 +135,7 @@ def _usejevai(client: httpx.Client, key: str, message: str, budget: float) -> Li
     if not isinstance(run_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", run_id):
         raise ValueError("Invalid run identifier")
     while True:
-        response = client.get("https://usejevai.com/api/v1/runs/" + run_id, headers=headers, timeout=timeout())
+        response = await client.get("https://usejevai.com/api/v1/runs/" + run_id, headers=headers, timeout=timeout())
         response.raise_for_status()
         body = response.json()
         if body.get("code") != 0:
@@ -145,10 +146,10 @@ def _usejevai(client: httpx.Client, key: str, message: str, budget: float) -> Li
             return _extract({"data": {"result": {"answers": data["result"]["response"]["answers"]}}})
         if data.get("status") not in ("queued", "running"):
             raise ValueError("UseJevAI run did not succeed")
-        time.sleep(min(0.25, timeout()))
+        await asyncio.sleep(min(0.25, timeout()))
 
 
-def analyze_live(message: str, deadline_at_ms: int | None = None) -> dict[str, Any]:
+async def analyze_live(message: str, deadline_at_ms: int | None = None) -> dict[str, Any]:
     """Call Jev only when operators explicitly enable LIVE and external text."""
     if os.getenv("JEV_V1_MODE", "OFF").strip().upper() != "LIVE":
         return {"mode": "LIVE", "status": "not_configured", "execution": "none", "source": None}
@@ -164,11 +165,11 @@ def analyze_live(message: str, deadline_at_ms: int | None = None) -> dict[str, A
     payload = {"model": os.getenv("JEV_MODEL", "typesafe/jev-1.14"), "state": message, "questions": _questions()}
     started = time.monotonic()
     try:
-        with httpx.Client(timeout=timeout, follow_redirects=False, trust_env=False) as client:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False, trust_env=False) as client:
             if provider == "usejevai":
-                decision = _usejevai(client, key, message, timeout)
+                decision = await _usejevai(client, key, message, timeout)
             else:
-                response = client.post("https://thejevai.com/v1/systemone", json=payload,
+                response = await client.post("https://thejevai.com/v1/systemone", json=payload,
                                        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
                 response.raise_for_status()
                 body = response.json()
@@ -182,7 +183,6 @@ def analyze_live(message: str, deadline_at_ms: int | None = None) -> dict[str, A
                 "latencyMs": min(15000, max(0, round((time.monotonic() - started) * 1000)))}
     except (httpx.HTTPError, RuntimeError, TimeoutError, ValueError, KeyError, TypeError, AttributeError, ValidationError):
         return {"mode": "LIVE", "status": "unavailable", "execution": "none", "source": None}
-
 
 def live_mode_enabled() -> bool:
     return os.getenv("JEV_V1_MODE", "OFF").strip().upper() == "LIVE"

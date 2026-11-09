@@ -192,15 +192,28 @@ test('legacy and canonical socket confirmations never report successful executio
   const { io } = requireWeb('socket.io-client');
   const socket = io(base, { auth: { token: actors.staff.token }, transports: ['websocket'], autoConnect: false, reconnection: false });
   const beforeProjects = JSON.stringify(await ProjectModel.find({}).sort({ _id: 1 }).lean());
+  let doneCount = 0;
+  const onDone = () => { doneCount += 1; };
+  socket.on('chat:done', onDone);
   try {
     const connected = once(socket, 'connect', { signal: AbortSignal.timeout(5000) }); socket.connect(); await connected;
     for (const [event, payload] of [
-      ['chat:send', { clientMessageId: 'legacy-confirm', confirm: { actionId: 'not-executable', approved: true } }],
-      ['chat:confirm', { clientMessageId: 'canonical-confirm', actionId: 'not-executable', approve: true }],
+      ['chat:send', { clientMessageId: 'legacy-confirm', confirm: { actionId: '11111111-1111-4111-8111-111111111111', approved: false } }],
+      ['chat:confirm', { clientMessageId: 'canonical-confirm', actionId: '11111111-1111-4111-8111-111111111111', approve: false }],
     ]) {
-      const done = once(socket, 'chat:done', { signal: AbortSignal.timeout(5000) }); socket.emit(event, payload);
-      const [result] = await done; assert.match(result.reply, /Chưa có thay đổi dữ liệu/); assert.doesNotMatch(result.reply, /thực thi thành công/);
+      const acceptedPromise = once(socket, 'chat:accepted', { signal: AbortSignal.timeout(5000) });
+      const errorPromise = once(socket, 'chat:error', { signal: AbortSignal.timeout(5000) });
+      socket.emit(event, payload);
+      const [accepted] = await acceptedPromise;
+      const [error] = await errorPromise;
+      assert.equal(accepted.clientMessageId, payload.clientMessageId);
+      assert.equal(error.clientMessageId, payload.clientMessageId);
+      assert.equal(error.code, 'REVENUE_KPI_ACTION_NOT_FOUND');
+      assert.equal(doneCount, 0);
     }
     assert.equal(JSON.stringify(await ProjectModel.find({}).sort({ _id: 1 }).lean()), beforeProjects);
-  } finally { socket.close(); }
+  } finally {
+    socket.off('chat:done', onDone);
+    socket.close();
+  }
 });

@@ -1,5 +1,6 @@
 import { PaginationQuerySchema } from "@hr-blockbot/contracts";
 import { WorkflowError, objectId } from "./project-workflow.service.js";
+import { pagingMeta } from "../lib/paging.js";
 
 // Authorization must be expressed in `scope` BEFORE count/skip/limit. Never
 // filter a bounded page afterward: that silently hides older authorized rows.
@@ -11,7 +12,7 @@ export async function workflowPage(model: any, scope: any, input: unknown, dto: 
   const [rows, totalItems] = await Promise.all([model.find(scope).select("-history -activationTokenHash -activationPasswordHash -recoveryTokenHash -recoveryPasswordHash").sort({ createdAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean(), model.countDocuments(scope)]);
   // Histories can approach the document guard. Load just ONE complete history
   // through the equally scoped detail endpoint, not 100 large audit arrays.
-  return { items: rows.map((row: any) => ({ ...dto({ ...row, history: [] }), historyIncluded: false })), paging: { page, limit, totalItems, totalPages: Math.max(1, Math.ceil(totalItems / limit)), hasNext: page * limit < totalItems, hasPrev: page > 1 } };
+  return { items: rows.map((row: any) => ({ ...dto({ ...row, history: [] }), historyIncluded: false })), paging: pagingMeta({ page, limit, totalItems }) };
 }
 export async function workflowDetail(model: any, scope: any, id: string, dto: (row: any) => any) {
   const row = await model.findOne({ $and: [scope, { _id: objectId(id) }] }).lean();

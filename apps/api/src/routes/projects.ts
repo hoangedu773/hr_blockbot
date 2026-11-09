@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import mongoose from "mongoose";
 import { z } from "zod";
 import { endpoint } from "../lib/endpoint.js";
+import { pagingMeta } from "../lib/paging.js";
 import {
   ProjectCreateSchema, ProjectUpdateSchema, ProjectAssignSchema, ProjectTransitionSchema,
   ProjectProgressSchema, PaginationQuerySchema, ProjectStatusSchema, PaginatedProjectsResponseSchema,
@@ -85,7 +86,7 @@ router.get("/projects", authenticateToken, endpoint(async (req, res) => {
   ]);
   res.json(PaginatedProjectsResponseSchema.parse({
     items: await projectDtos(projects),
-    paging: { page, limit, totalItems, totalPages: Math.max(1, Math.ceil(totalItems / limit)), hasNext: page * limit < totalItems, hasPrev: page > 1 },
+    paging: pagingMeta({ page, limit, totalItems }),
   }));
 }));
 
@@ -131,7 +132,7 @@ router.get("/projects/:id/eligible-assignees", authenticateToken, endpoint(async
   const query = { $and: [employeeScopeQuery(user, "projects.assign"), { status: "active", storeId: project.storeId,
     _id: { $in: managedEmployeeIds(user, String(project.storeId), "projects.assign").map(objectId) } }, ...(q ? [{ $or: [{ fullName: { $regex: q, $options: "i" } }, { full_name: { $regex: q, $options: "i" } }] }] : [])] };
   const [rows, total] = await Promise.all([EmployeeModel.find(query).select("fullName full_name skills level").sort({ fullName: 1, _id: 1 }).skip((page - 1) * limit).limit(limit).lean(), EmployeeModel.countDocuments(query)]);
-  res.json({ items: rows.map((row: any) => ({ employeeId: String(row._id), fullName: row.fullName || row.full_name || "", level: row.level ?? "Junior", skills: row.skills ?? [], status: "active", department: String(project.departmentId) })), paging: { page, limit, totalItems: total, totalPages: Math.max(1, Math.ceil(total / limit)), hasNext: page * limit < total, hasPrev: page > 1 } });
+  res.json({ items: rows.map((row: any) => ({ employeeId: String(row._id), fullName: row.fullName || row.full_name || "", level: row.level ?? "Junior", skills: row.skills ?? [], status: "active", department: String(project.departmentId) })), paging: pagingMeta({ page, limit, totalItems: total }) });
 }));
 
 router.patch("/projects/:id", authenticateToken, endpoint(async (req, res) => {

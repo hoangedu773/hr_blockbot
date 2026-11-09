@@ -13,9 +13,11 @@ when at least one provider answered with a quota/timeout error, callers may choo
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
+import sys
 import threading
 import time
 
@@ -32,7 +34,7 @@ _provider_cooldowns: dict[tuple[str, str], float] = {}
 
 def _cooldown_key(provider: LLMProvider) -> tuple[str, str]:
     return (provider.config.id, (provider.config.api_key or "")[-4:])
-from typing import Any
+from typing import Any, AsyncIterator, Iterator
 
 from app.config import settings
 from app.deadline import remaining_seconds, use_deadline
@@ -45,6 +47,8 @@ from app.llm.base import (
     LLMUnavailable,
     ProviderConfig,
     ProviderError,
+    ProviderSafetyBlocked,
+    ProviderTimeout,
 )
 from app.llm.fake import FakeProvider
 from app.llm.gemini import GeminiProvider
@@ -131,6 +135,15 @@ class ProviderChain:
         with use_deadline(None):
             return self._run_with_deadline("embed", self._providers, texts, opts)
 
+    async def stream(
+        self,
+        messages: list[ChatMessage],
+        opts: CompletionOptions | None = None,
+    ) -> AsyncIterator[str]:
+        with use_deadline(None):
+            async for delta in self._stream_with_deadline(self._providers, messages, opts):
+                yield delta
+
     def _run_with_deadline(self, op: str, providers: list[LLMProvider], payload: Any, opts: Any):
         errors: list[dict[str, str]] = list(self.build_errors)
         if not providers:
@@ -174,6 +187,8 @@ class ProviderChain:
                     else:
                         result = provider.embed(payload, opts)
                     remaining_seconds(provider.timeout)
+            except ProviderSafetyBlocked:
+                raise
             except (ProviderError, TimeoutError) as exc:
                 elapsed = (time.monotonic() - started) * 1000
                 logger.info(
@@ -212,6 +227,131 @@ class ProviderChain:
             if isinstance(result, CompletionResult):
                 result.provider_errors = errors + result.provider_errors
             return result
+        raise LLMUnavailable(errors)
+
+    async def _stream_with_deadline(
+        self,
+        providers: list[LLMProvider],
+        messages: list[ChatMessage],
+        opts: CompletionOptions | None = None,
+    ) -> AsyncIterator[str]:
+        errors: list[dict[str, str]] = list(self.build_errors)
+        if not providers:
+            raise LLMUnavailable(errors)
+        group_expiry = 0.0
+        previous_group = None
+        now = time.monotonic()
+        available = [
+            (index, provider)
+            for index, provider in enumerate(providers)
+            if _provider_cooldowns.get(_cooldown_key(provider), 0) <= now
+        ]
+        if not available:
+            parked = sorted(
+                ((index, provider) for index, provider in enumerate(providers)),
+                key=lambda ip: _provider_cooldowns.get(_cooldown_key(ip[1]), 0),
+            )
+            available = parked[:1]
+
+        for position, (index, provider) in enumerate(available):
+            config = provider.config
+            group = (config.type, config.model, config.base_url)
+            started = time.monotonic()
+            yielded_any = False
+            token_count = 0
+            stream_iter: AsyncIterator[str] | None = None
+            try:
+                remaining = remaining_seconds(15.0)
+                if group != previous_group:
+                    remaining_models = max(
+                        1,
+                        len({(p.config.type, p.config.model, p.config.base_url) for _, p in available[position:]}),
+                    )
+                    group_expiry = time.monotonic() + remaining / remaining_models
+                    previous_group = group
+                budget = min(provider.timeout, max(0.0, group_expiry - time.monotonic()))
+                if budget <= 0:
+                    continue
+                stream_iter = provider.stream(messages, opts)
+                first_delta = None
+                try:
+                    # Bound only the first delta waiting time via asyncio timeout,
+                    # allowing HTTPX to keep the overall deadline without premature socket read timeout.
+                    first_delta = await asyncio.wait_for(anext(stream_iter), timeout=budget)
+                except StopAsyncIteration:
+                    # Empty response before first chunk: failover to next provider is valid
+                    errors.append({"providerId": provider.name, "code": "EMPTY_RESPONSE"})
+                    continue
+
+                yielded_any = True
+                token_count += 1
+                yield first_delta
+
+                # After the first delta, failover is forbidden. The provider is allowed
+                # the remainder of the overall request deadline and its provider timeout,
+                # rather than being cut short by the initial group trial budget.
+                while True:
+                    chunk_timeout = remaining_seconds(provider.timeout)
+                    try:
+                        delta = await asyncio.wait_for(anext(stream_iter), timeout=chunk_timeout)
+                    except StopAsyncIteration:
+                        break
+                    token_count += 1
+                    yield delta
+                remaining_seconds(provider.timeout)
+
+                elapsed = (time.monotonic() - started) * 1000
+                logger.info(
+                    "llm provider=%s op=stream ok=true latency_ms=%.0f tokens_out=%d",
+                    provider.name,
+                    elapsed,
+                    token_count,
+                )
+                return
+            except (ProviderError, TimeoutError, asyncio.TimeoutError) as exc:
+                elapsed = (time.monotonic() - started) * 1000
+                if isinstance(exc, (TimeoutError, asyncio.TimeoutError)):
+                    code = "LLM_TIMEOUT"
+                else:
+                    code = getattr(exc, "code", "LLM_TIMEOUT")
+                if code not in {"PROVIDER_ERROR", "LLM_TIMEOUT", "QUOTA_EXCEEDED", "INVALID_PROVIDER_CONFIG", "SAFETY_BLOCKED"}:
+                    code = "PROVIDER_ERROR"
+                logger.info(
+                    "llm provider=%s op=stream ok=false code=%s latency_ms=%.0f yielded_any=%s",
+                    provider.name,
+                    code,
+                    elapsed,
+                    yielded_any,
+                )
+                if code in _PROVIDER_COOLDOWN_SECONDS:
+                    _provider_cooldowns[_cooldown_key(provider)] = (
+                        time.monotonic() + _PROVIDER_COOLDOWN_SECONDS[code]
+                    )
+                if yielded_any or code == "SAFETY_BLOCKED" or isinstance(exc, ProviderSafetyBlocked):
+                    if isinstance(exc, (TimeoutError, asyncio.TimeoutError)) and not isinstance(exc, ProviderError):
+                        raise ProviderTimeout("stream timed out", provider_id=provider.name) from exc
+                    raise
+                errors.append({"providerId": provider.name, "code": code})
+                try:
+                    remaining_seconds(provider.timeout)
+                except TimeoutError:
+                    break
+                continue
+            finally:
+                if stream_iter is not None and hasattr(stream_iter, "aclose"):
+                    active_exc = sys.exc_info()[1]
+                    try:
+                        await stream_iter.aclose()
+                    except (asyncio.CancelledError, GeneratorExit):
+                        raise
+                    except Exception as clean_exc:
+                        logger.warning(
+                            "llm provider=%s op=stream cleanup_failed code=%s",
+                            provider.name,
+                            type(clean_exc).__name__,
+                        )
+                        if active_exc is None:
+                            raise ProviderError("failed to close provider stream", provider_id=provider.name) from clean_exc
         raise LLMUnavailable(errors)
 class ProviderChainCache:
     """Per-configVersion cache with TTL, used so key material stays short-lived."""

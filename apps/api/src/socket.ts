@@ -1,4 +1,7 @@
-import { decideRevenueKpiOpenAction, RevenueKpiPlanChangedError } from './services/revenue-kpi.service.js';
+import { RevenueKpiPlanChangedError, RevenueKpiAssignmentPlanChangedError, RevenueKpiResultPlanChangedError } from './services/revenue-kpi.service.js';
+import { P5PlanChangedError } from './services/chat-authorization.service.js';
+import { PerformanceKpiTaskPlanChangedError, PerformanceKpiEvaluationPlanChangedError } from './services/performance-kpi-action.service.js';
+import { decideChatKpiAction } from './routes/chat.js';
 import { Server as HttpServer } from "http";
 import { Server as SocketIOServer, Socket } from "socket.io";
 import {
@@ -8,6 +11,7 @@ import {
 import { verifyAccessToken, TokenClaims } from "./services/auth.service.js";
 import { authorizedChat } from "./services/chat-authorization.service.js";
 import { requireCapability } from "./services/authorization-scope.service.js";
+import { WorkflowError } from "./services/project-workflow.service.js";
 import { resolvePrincipal } from "./services/principal.service.js";
 
 let io: SocketIOServer | null = null;
@@ -78,20 +82,33 @@ export function initSocket(server: HttpServer): SocketIOServer {
         const input = approve
           ? { approve: true, clientRequestId: clientMessageId, expectedVersion: plan?.expectedVersion, planDigest: plan?.planDigest }
           : { approve: false, clientRequestId: clientMessageId };
-        const action = await decideRevenueKpiOpenAction(principal, actionId, input);
+        const { kind, action } = await decideChatKpiAction(principal, actionId, input);
+        const reply = action.status === 'EXECUTED' && action.result
+          ? kind === 'open_period' ? 'Đã xử lý kỳ KPI doanh thu. Xem kết quả từng mục.'
+            : kind === 'result_action' ? 'Đã xử lý KPI kết quả doanh thu. Xem kết quả.'
+            : 'Đã xử lý KPI. Xem kết quả.'
+          : 'Đã hủy đề xuất KPI.';
         socket.emit("chat:done", {
           clientMessageId, messageId, finishReason: "TOOL_RESULT",
-          reply: action.result ? 'Đã xử lý kỳ KPI doanh thu. Xem kết quả từng mục.' : 'Đã hủy đề xuất mở kỳ KPI doanh thu.',
-          citations: [], proposedAction: null, revenueKpiOpenAction: action,
+          reply, citations: [], proposedAction: null,
+          ...(kind === 'open_period' ? { revenueKpiOpenAction: action } : {}),
         });
       } catch (error) {
+        const planChanged = error instanceof RevenueKpiPlanChangedError ||
+          error instanceof RevenueKpiAssignmentPlanChangedError ||
+          error instanceof RevenueKpiResultPlanChangedError ||
+          error instanceof P5PlanChangedError ||
+          error instanceof PerformanceKpiTaskPlanChangedError ||
+          error instanceof PerformanceKpiEvaluationPlanChangedError ||
+          (error instanceof WorkflowError && (error.code === 'REVENUE_KPI_PLAN_CHANGED' || error.code === 'PERFORMANCE_KPI_PLAN_CHANGED'));
         const known = error as { status?: number; code?: string; message?: string; name?: string };
+        const preview = error && typeof error === 'object' && 'preview' in error ? (error as { preview: unknown }).preview : undefined;
         socket.emit("chat:error", {
           clientMessageId,
           code: known.status ? known.code : known.name === 'ZodError' ? 'VALIDATION_FAILED' : 'REVENUE_KPI_ACTION_FAILED',
           message: known.status && known.status < 500 ? known.message : 'Chưa xử lý được đề xuất KPI.',
           retryable: known.status === 409,
-          ...(error instanceof RevenueKpiPlanChangedError ? { preview: error.preview } : {}),
+          ...(planChanged ? { preview } : {}),
         });
       }
     };
@@ -141,13 +158,14 @@ export function initSocket(server: HttpServer): SocketIOServer {
           await decide(messageId, payload.clientMessageId, payload.confirm.actionId, payload.confirm.approved,
             { expectedVersion: payload.confirm.expectedVersion, planDigest: payload.confirm.planDigest });
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const safe = err instanceof WorkflowError && err.status >= 400 && err.status < 500;
         socket.emit("chat:error", {
           clientMessageId: payload.clientMessageId,
           messageId,
-          code: "AI_SERVICE_UNAVAILABLE",
-          message: err?.message || "Không thể kết nối tới AI Service",
-          retryable: true,
+          code: safe ? err.code : "AI_SERVICE_UNAVAILABLE",
+          message: safe ? err.message : "Không thể kết nối tới AI Service",
+          retryable: safe ? err.status === 409 : true,
         });
       }
     });

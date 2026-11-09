@@ -1,11 +1,12 @@
-import { RevenueKpiOpenCard } from '../RevenueKpiOpenCard';
-import { RevenueKpiOpenActionSchema, type RevenueKpiOpenAction } from '@hr-blockbot/contracts';
+import { KpiActionDispatcher } from '../kpi-action-dispatcher';
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { BrandMark } from '../BrandMark';
 import { ThemeToggle } from '../ThemeToggle';
 import { apiFetch, API_BASE } from '../../services/auth';
-import { ChatConversationListSchema, ChatHistoryPageSchema, ChatHistorySendSchema, type ChatConversationSummary, type ChatHistoryTurn } from '@hr-blockbot/contracts';
+import { newClientMessageId } from '../../services/api';
+import { streamChat } from '../../services/chat-stream';
+import { ChatConversationListSchema, ChatHistoryPageSchema, type ChatAction, type ChatConversationSummary, type ChatHistoryTurn } from '@hr-blockbot/contracts';
 import type {
   Citation,
   Attachment,
@@ -87,7 +88,7 @@ interface Message {
   performanceKpi?: ChatHistoryTurn['performanceKpi'];
   citations?: Citation[];
   attachments?: Attachment[];
-  proposedAction?: RevenueKpiOpenAction | null;
+  proposedAction?: ChatAction | null;
 }
 
 const TOPICS = [
@@ -96,30 +97,17 @@ const TOPICS = [
   { title: 'Báo cáo két ca', prompt: 'Tổng hợp doanh thu két sáng toàn chuỗi' },
 ];
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-
-function messageId(): string {
-  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
-  const bytes = crypto.getRandomValues(new Uint8Array(16)); bytes[6] = bytes[6] & 15 | 64; bytes[8] = bytes[8] & 63 | 128;
-  const hex = [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('');
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
-
 const SAFE_URL_PROTOCOLS = new Set(['http:', 'https:']);
 
-/**
- * Server-provided URLs end up in href/src, so only plain web URLs and root-relative
- * paths are allowed. Anything else (javascript:, data:, vbscript:, file:, protocol
- * relative //host) returns null and the caller drops the attachment.
- */
-function safeUrl(raw: string): string | null {
-  const value = raw.trim();
-  if (!value) return null;
-  if (value.startsWith('/') && !value.startsWith('//')) return value;
+export function safeAttachmentUrl(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith('//') || trimmed.startsWith('/\\') || trimmed.startsWith('\\')) return null;
+  if (trimmed.startsWith('/')) return trimmed;
   try {
-    const parsed = new URL(value);
-    return SAFE_URL_PROTOCOLS.has(parsed.protocol) ? parsed.href : null;
+    const parsed = new URL(trimmed);
+    return SAFE_URL_PROTOCOLS.has(parsed.protocol) ? trimmed : null;
   } catch {
     return null;
   }
@@ -138,53 +126,6 @@ function isServiceFault(error: unknown): boolean {
   return true; // invalid reply payload
 }
 
-function parseReply(value: unknown): Omit<Message, 'id' | 'sender'> & { conversationId?: string } {
-  if (!isRecord(value) || typeof value.reply !== 'string' || !value.reply.trim()) {
-    throw new Error('Invalid chat reply');
-  }
-  const citations: Citation[] = [];
-  if (value.citations != null) {
-    if (!Array.isArray(value.citations)) throw new Error('Invalid citations');
-    for (const item of value.citations) {
-      if (!isRecord(item) || typeof item.document !== 'string' || !item.document.trim()
-        || (item.version !== undefined && typeof item.version !== 'string')
-        || (item.article !== undefined && typeof item.article !== 'string')
-        || (item.score !== undefined && (typeof item.score !== 'number' || !Number.isFinite(item.score)))) {
-        throw new Error('Invalid citation');
-      }
-      citations.push({
-        document: item.document,
-        version: item.version as string | undefined,
-        article: item.article as string | undefined,
-        score: item.score as number | undefined,
-      });
-    }
-  }
-  const attachments: Attachment[] = [];
-  if (value.attachments != null) {
-    if (!Array.isArray(value.attachments)) throw new Error('Invalid attachments');
-    for (const item of value.attachments) {
-      if (!isRecord(item) || typeof item.title !== 'string' || typeof item.url !== 'string') {
-        continue;
-      }
-      const url = safeUrl(item.url);
-      if (!url) continue;
-      attachments.push({
-        title: item.title,
-        type: item.type === 'image' ? 'image' : 'pdf',
-        url,
-        fileName: typeof item.fileName === 'string' && item.fileName ? item.fileName : url.split('/').pop() || 'document',
-      });
-    }
-  }
-  const action = RevenueKpiOpenActionSchema.safeParse(value.proposedAction);
-  const proposedAction = action.success ? action.data : null;
-  if (value.conversationId != null && (typeof value.conversationId !== 'string' || !value.conversationId.trim())) {
-    throw new Error('Invalid conversation ID');
-  }
-  return { text: value.reply, citations, attachments, proposedAction, conversationId: value.conversationId as string | undefined };
-}
-
 
 
 export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogout }) => {
@@ -193,8 +134,10 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   const quickReplies = ['Tóm tắt nhiệm vụ tôi được phép xem', 'Xem thông tin hồ sơ của tôi', 'Tra cứu tài liệu đã được duyệt'].map((label) => ({ label, prompt: label }));
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [serviceUnavailable, setServiceUnavailable] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [announcement, setAnnouncement] = useState('');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<AbortController | null>(null);
   const conversationId = useRef<string | undefined>();
@@ -212,10 +155,11 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   const owner = useRef(user?.id); owner.current = user?.id;
 
   const cancelPending = () => {
-    if (timer.current !== null) clearTimeout(timer.current);
+    clearTimeout(timer.current!);
     timer.current = null;
     pending.current?.abort();
     pending.current = null;
+    setIsStreaming(false);
   };
 
   useEffect(() => {
@@ -244,7 +188,8 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     conversationId.current = undefined;
     setMessages([]);
     setIsTyping(false);
-    setSidebarOpen(false);
+    setIsStreaming(false);
+    setAnnouncement('');
     if (focus) inputRef.current?.focus();
   };
 
@@ -289,8 +234,20 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     finally { if (seq === historySequence.current && owner.current === userId && !silent) setHistoryLoading(false); }
   };
   const openConversation = (id: string) => {
-    cancelPending(); historySequence.current++; turns.current.clear(); setMessages([]); setIsTyping(false); setServiceUnavailable(false);
-    conversationId.current = id; setSelectedConversation(id); setSidebarOpen(false); setMessageCursor(null); setHistoryError(''); void loadMessages(id);
+    cancelPending();
+    historySequence.current++;
+    turns.current.clear();
+    setMessages([]);
+    setIsTyping(false);
+    setIsStreaming(false);
+    setServiceUnavailable(false);
+    conversationId.current = id;
+    setSelectedConversation(id);
+    setSidebarOpen(false);
+    setMessageCursor(null);
+    setHistoryError('');
+    setAnnouncement('');
+    void loadMessages(id);
   };
   const removeConversation = async () => {
     if (!deleteTarget || deleting) return;
@@ -323,59 +280,109 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     return () => { window.removeEventListener('focus', refresh); window.clearInterval(timer); };
   }, [selectedConversation, isTyping, user?.id]);
 
-  const send = (prompt: string) => {
+  const send = async (prompt: string) => {
     const text = prompt.trim();
-    if (!text || text.length > 2000 || pending.current) return;
+    if (!text || text.length > 2000 || pending.current || isTyping) return;
     historySequence.current++;
     const controller = new AbortController();
-    const clientMessageId = messageId();
+    const clientMessageId = newClientMessageId();
     pending.current = controller;
     setMessages((previous) => [...previous, { id: clientMessageId + ':user', sender: 'user', text }]);
     setIsTyping(true);
+    setIsStreaming(false);
     setSidebarOpen(false);
-    // Preserve the delay and cancel it on reset/unmount before starting a request.
-    timer.current = setTimeout(async () => {
-      timer.current = null;
-      const timeout = setTimeout(() => controller.abort(), 20000);
-      let reply: ReturnType<typeof parseReply>;
-      let unavailable = false;
-      try {
-        const response = await apiFetch(`${API_BASE}/chat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: text,
-            conversationId: conversationId.current,
-            clientMessageId,
-          }),
-          signal: controller.signal,
-        });
-        if (!response.ok) throw new Error(`Chat HTTP ${response.status}`);
-        const data: unknown = await response.json();
-        const saved = ChatHistorySendSchema.safeParse(data);
-        if (saved.success) {
+    setAnnouncement('Đang gửi tin nhắn...');
+
+    let accumulatedText = '';
+    let streamFailed = false;
+    let streamDone = false;
+    const timeout = setTimeout(() => controller.abort(), 45000);
+    timer.current = timeout;
+
+    try {
+      await streamChat({
+        message: text,
+        conversationId: conversationId.current,
+        clientMessageId,
+        signal: controller.signal,
+        onAccepted: (payload) => {
           if (pending.current !== controller) return;
-          pending.current = null; conversationId.current = saved.data.conversationId; setSelectedConversation(saved.data.conversationId);
-          mergeTurns([saved.data.turn]); setIsTyping(['QUEUED', 'PENDING'].includes(saved.data.turn.status));
-          setServiceUnavailable(saved.data.turn.status === 'FAILED'); void loadConversations(); return;
-        }
-        reply = parseReply(data);
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Lỗi kết nối máy chủ';
-        unavailable = isServiceFault(err);
-        reply = {
-          text: `Không thể kết nối đến máy chủ AI hoặc hệ thống đang bận (${message}). Vui lòng kiểm tra đường truyền và thử lại.`,
-        };
-      } finally {
-        clearTimeout(timeout);
-      }
+          if (payload.conversationId) {
+            conversationId.current = payload.conversationId;
+            setSelectedConversation(payload.conversationId);
+          }
+        },
+        onChunk: (delta) => {
+          if (pending.current !== controller) return;
+          accumulatedText += delta;
+          setIsStreaming(true);
+          setMessages((previous) => {
+            const assistantId = clientMessageId + ':assistant';
+            const existingIndex = previous.findIndex((m) => m.id === assistantId);
+            if (existingIndex >= 0) {
+              const updated = [...previous];
+              updated[existingIndex] = { ...updated[existingIndex], text: accumulatedText };
+              return updated;
+            }
+            return [...previous, { id: assistantId, sender: 'assistant', text: accumulatedText }];
+          });
+        },
+        onDone: (saved) => {
+          if (pending.current !== controller) return;
+          streamDone = true;
+          setIsStreaming(false);
+          conversationId.current = saved.conversationId;
+          setSelectedConversation(saved.conversationId);
+          mergeTurns([saved.turn]);
+          setIsTyping(['QUEUED', 'PENDING'].includes(saved.turn.status));
+          setServiceUnavailable(saved.turn.status === 'FAILED');
+          setAnnouncement(`Guta AI: ${saved.turn.reply || 'Đã nhận phản hồi.'}`);
+          void loadConversations();
+        },
+        onError: (errPayload) => {
+          if (pending.current !== controller) return;
+          streamFailed = true;
+          setMessages((previous) => [
+            ...previous.filter((m) => m.id !== clientMessageId + ':assistant'),
+            { id: ++nextId.current, sender: 'assistant', text: errPayload.message || 'Lỗi kết nối máy chủ' },
+          ]);
+          setServiceUnavailable(errPayload.code === 'AI_SERVICE_UNAVAILABLE' || errPayload.code === 'LLM_UNAVAILABLE');
+          setAnnouncement(`Lỗi: ${errPayload.message || 'Lỗi kết nối máy chủ'}`);
+          setIsTyping(false);
+          setIsStreaming(false);
+        },
+      });
+    } catch (err: unknown) {
       if (pending.current !== controller) return;
-      pending.current = null;
-      if (reply.conversationId) conversationId.current = reply.conversationId;
-      setServiceUnavailable(unavailable);
-      setMessages((previous) => [...previous, { ...reply, id: ++nextId.current, sender: 'assistant' }]);
-      setIsTyping(false);
-    }, 600);
+      if (!streamFailed) {
+        const message = err instanceof Error ? err.message : 'Lỗi kết nối máy chủ';
+        const unavailable = isServiceFault(err);
+        setServiceUnavailable(unavailable);
+        setMessages((previous) => [
+          ...previous.filter((m) => m.id !== clientMessageId + ':assistant'),
+          {
+            id: ++nextId.current,
+            sender: 'assistant',
+            text: `Không thể kết nối đến máy chủ AI hoặc hệ thống đang bận (${message}). Vui lòng kiểm tra đường truyền và thử lại.`,
+          },
+        ]);
+        setAnnouncement(`Không thể kết nối đến máy chủ AI hoặc hệ thống đang bận (${message}). Vui lòng kiểm tra đường truyền và thử lại.`);
+        setIsTyping(false);
+        setIsStreaming(false);
+      }
+    } finally {
+      clearTimeout(timeout);
+      if (timer.current === timeout) {
+        timer.current = null;
+      }
+      if (pending.current === controller) {
+        pending.current = null;
+        if (!streamDone) {
+          setIsTyping(false);
+        }
+        setIsStreaming(false);
+      }
+    }
   };
 
   const composer = (
@@ -445,6 +452,9 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
             <button type="button" aria-label="Quay lại CRM" onClick={() => onSwitchTab('crm')}>CRM</button>
           </div>
         </header>
+        <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {announcement}
+        </div>
         {historyError && <p className="guta-chat-banner" role="status">{historyError}</p>}
         {historyLoading && <p className="guta-chat-note" role="status">Đang tải hội thoại đã lưu…</p>}
         {messageCursor && selectedConversation && <button type="button" className="btn" disabled={historyLoading} onClick={() => void loadMessages(selectedConversation, messageCursor)}>Xem tin nhắn cũ hơn</button>}
@@ -482,7 +492,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
           </section>
         ) : (
           <>
-            <div className="guta-chat-body" role="log" aria-label="Hội thoại" aria-live="polite" aria-relevant="additions text">
+            <div className="guta-chat-body" role="log" aria-label="Hội thoại">
               <div className="guta-chat-width">
                 {messages.map((message) => (
                   <article className="guta-chat-message" data-sender={message.sender} key={message.id}>
@@ -501,6 +511,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
                         <strong>Tài liệu & Biểu mẫu đính kèm (Attachments)</strong>
                         {message.attachments.map((att, index) => {
                           const isPdf = att.type === 'pdf';
+                          const safeHref = safeAttachmentUrl(att.url);
                           return (
                             <div
                               key={index}
@@ -528,24 +539,26 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
                                       </div>
                                     </div>
                                   </div>
-                                  <a
-                                    href={att.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    style={{
-                                      padding: '6px 12px',
-                                      borderRadius: '6px',
-                                      background: '#10b981',
-                                      color: '#fff',
-                                      fontSize: '12px',
-                                      fontWeight: 600,
-                                      textDecoration: 'none',
-                                      whiteSpace: 'nowrap',
-                                      flexShrink: 0,
-                                    }}
-                                  >
-                                    Xem / Tải PDF
-                                  </a>
+                                  {safeHref && (
+                                    <a
+                                      href={safeHref}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      style={{
+                                        padding: '6px 12px',
+                                        borderRadius: '6px',
+                                        background: '#10b981',
+                                        color: '#fff',
+                                        fontSize: '12px',
+                                        fontWeight: 600,
+                                        textDecoration: 'none',
+                                        whiteSpace: 'nowrap',
+                                        flexShrink: 0,
+                                      }}
+                                    >
+                                      Xem / Tải PDF
+                                    </a>
+                                  )}
                                 </>
                               ) : (
                                 <>
@@ -553,12 +566,14 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
                                     <span style={{ background: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa', fontSize: '10px', fontWeight: 600, padding: '2px 6px', borderRadius: '4px' }}>Ảnh tham chiếu</span>
                                     <span style={{ fontWeight: 600, fontSize: '13px', color: '#fff' }}>{att.title}</span>
                                   </div>
-                                  <a href={att.url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', borderRadius: '6px', overflow: 'hidden', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                                    <img src={att.url} alt={att.title} style={{ width: '100%', maxHeight: '200px', objectFit: 'contain', background: '#000', display: 'block' }} loading="lazy" />
-                                  </a>
+                                  {safeHref && (
+                                    <a href={safeHref} target="_blank" rel="noopener noreferrer" style={{ display: 'block', borderRadius: '6px', overflow: 'hidden', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                                      <img src={safeHref} alt={att.title} style={{ width: '100%', maxHeight: '200px', objectFit: 'contain', background: '#000', display: 'block' }} loading="lazy" />
+                                    </a>
+                                  )}
                                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--chat-muted)' }}>
                                     <span>{att.fileName}</span>
-                                    <a href={att.url} target="_blank" rel="noopener noreferrer" style={{ color: '#38bdf8', textDecoration: 'none' }}>Xem ảnh lớn ↗</a>
+                                    {safeHref && <a href={safeHref} target="_blank" rel="noopener noreferrer" style={{ color: '#38bdf8', textDecoration: 'none' }}>Xem ảnh lớn ↗</a>}
                                   </div>
                                 </>
                               )}
@@ -567,11 +582,13 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
                         })}
                       </section>
                     )}
-                    {message.proposedAction && <RevenueKpiOpenCard key={message.proposedAction.actionId} initial={message.proposedAction} />}
+                    {message.proposedAction && (
+                      <KpiActionDispatcher key={message.proposedAction.actionId} action={message.proposedAction} />
+                    )}
                   </article>
                 ))}
                 {/* ponytail: CSS keyframes step carousel; add SSE streaming stage events when backend supports event-driven progress */}
-                {isTyping && (
+                {isTyping && !isStreaming && (
                   <div className="guta-chat-status" role="status">
                     <div className="guta-thinking-avatar" aria-hidden="true">
                       <img src="/assets/logos/guta-mark-white.svg" alt="" />
