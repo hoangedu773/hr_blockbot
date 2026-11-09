@@ -133,7 +133,9 @@ export interface ChatAuthorizationRequestDoc {
 
 const receipts = () => mongoose.connection.collection<ChatAuthorizationRequestDoc>("chat_authorization_requests");
 const contextHash = (user: AuthenticatedUser) => digest({ authorization: user.authorization, canonical: user.canonical, delegations: user.effectiveDelegations ?? [], employeeId: user.employeeId });
-export const GatewayToolRequestSchema = z.object({ requestId: z.string().uuid(), tool: z.enum(["get_my_profile", "list_projects", "get_project_status", "query_policy", "directory", "submit_report", "get_my_kpi", "get_department_kpi", "get_upcoming_deadlines", "get_my_schedule", "preview_revenue_period_open", "get_my_revenue_kpi", "list_my_pending_actions", "get_revenue_kpi_detail", "get_my_tasks", "preview_revenue_assignment_action", "get_revenue_kpi_result", "preview_revenue_kpi_assign_action", "preview_performance_kpi_action", "suggest_suitable_candidates", "validate_context"]),
+import { decideChatScheduleAction, listMyRegistrations, previewScheduleChange, previewScheduleChangeDecision, previewScheduleRegistration } from './schedule-chat.service.js';
+
+export const GatewayToolRequestSchema = z.object({ requestId: z.string().uuid(), tool: z.enum(["get_my_profile", "list_projects", "get_project_status", "query_policy", "directory", "submit_report", "get_my_kpi", "get_department_kpi", "get_upcoming_deadlines", "get_my_schedule", "preview_revenue_period_open", "get_my_revenue_kpi", "list_my_pending_actions", "get_revenue_kpi_detail", "get_my_tasks", "preview_revenue_assignment_action", "get_revenue_kpi_result", "preview_revenue_kpi_assign_action", "preview_performance_kpi_action", "suggest_suitable_candidates", "list_my_registrations", "preview_schedule_registration", "preview_schedule_change", "preview_schedule_change_decision", "validate_context"]),
   args: z.object({ projectId: z.string().regex(/^[a-f0-9]{24}$/i).optional(), taskRef: z.string().regex(/^[a-f0-9]{24}$/i).optional(), query: z.string().max(2000).optional(), period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(), from: z.union([ScheduleDateSchema, z.string().datetime()]).optional(), to: ScheduleDateSchema.optional(),
     assignmentId: z.string().regex(/^[a-f0-9]{24}$/i).optional(),
     domain: z.enum(["task", "evaluation"]).optional(),
@@ -170,7 +172,17 @@ export const GatewayToolRequestSchema = z.object({ requestId: z.string().uuid(),
     reason: z.string().trim().min(5).max(2000).optional(), evidenceRef: z.string().trim().min(5).max(2000).optional(), evidenceRefs: z.array(z.string().trim().min(5).max(200)).max(20).optional(),
     newTargetVnd: z.number().int().safe().positive().optional(), newGrowthPercent: z.number().finite().min(-50).max(100).optional(),
     force: z.boolean().optional(), assigneeEmployeeId: z.string().regex(/^[a-f0-9]{24}$/i).optional(),
-    limit: z.number().int().min(1).max(100).optional(), offset: z.number().int().min(0).max(100000).optional() }).strict().default({}) }).strict();
+    limit: z.number().int().min(1).max(100).optional(), offset: z.number().int().min(0).max(100000).optional(),
+    // Lịch: id canonical do UI gửi (assignment/change dùng uuid, week dùng ObjectId).
+    weekStart: ScheduleDateSchema.optional(),
+    weekId: z.string().regex(/^[a-f0-9]{24}$/i).optional(),
+    slot: z.object({ date: ScheduleDateSchema, shiftId: z.string().regex(/^[a-f0-9]{24}$/i), shiftVersion: z.number().int().positive() }).strict().optional(),
+    scheduleAssignmentId: z.string().uuid().optional(),
+    changeId: z.string().uuid().optional(),
+    targetAssignmentId: z.string().uuid().optional(),
+    arrangement: z.enum(['DIRECT', 'MANAGER']).optional(),
+    changeKind: z.enum(['COVER', 'SWAP']).optional(),
+    scheduleAction: z.enum(['ACCEPT', 'DECLINE', 'CANCEL', 'APPROVE', 'REJECT', 'SELECT']).optional() }).strict().default({}) }).strict();
 export function serviceKeyValid(provided: string): boolean {
   const expected = process.env.AI_SERVICE_API_KEY;
   if (!expected || !provided) return false;
@@ -948,6 +960,22 @@ export async function executeGatewayTool(token: string, body: unknown) {
   if (tool === "get_my_profile") {
     result = await readMyProfile(user);
     profileReads.push({ digest: digest(result) });
+  } else if (tool === "list_my_registrations") {
+    result = await listMyRegistrations(user, String(args.weekStart ?? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())));
+  } else if (tool === "preview_schedule_registration") {
+    if (!args.weekStart || !args.slot) throw new WorkflowError(400, "VALIDATION_FAILED", "weekStart và slot là bắt buộc");
+    return { result: await previewScheduleRegistration(user, { weekStart: args.weekStart, slot: args.slot }, requestId), proposalOnly: true };
+  } else if (tool === "preview_schedule_change") {
+    if (!args.weekId || !args.scheduleAssignmentId || !args.arrangement || !args.changeKind || !args.reason)
+      throw new WorkflowError(400, "VALIDATION_FAILED", "weekId, assignmentId, arrangement, kind và reason là bắt buộc");
+    return { result: await previewScheduleChange(user, {
+      weekId: args.weekId, assignmentId: args.scheduleAssignmentId, receiverEmployeeId: args.assigneeEmployeeId ?? null,
+      arrangement: args.arrangement, targetAssignmentId: args.targetAssignmentId, kind: args.changeKind, reason: args.reason,
+    }, requestId), proposalOnly: true };
+  } else if (tool === "preview_schedule_change_decision") {
+    if (!args.weekId || !args.changeId || !args.scheduleAction)
+      throw new WorkflowError(400, "VALIDATION_FAILED", "weekId, changeId và action là bắt buộc");
+    return { result: await previewScheduleChangeDecision(user, { weekId: args.weekId, changeId: args.changeId, action: args.scheduleAction }, requestId), proposalOnly: true };
   } else if (tool === "list_projects") {
     const rows: any[] = await ProjectModel.find(projectReadScope(user)).select("title status progress assigneeId version").sort({ updatedAt: -1, _id: -1 }).limit(20).lean();
     projects = rows.map((row) => ({ projectId: String(row._id), version: row.version ?? 1 }));

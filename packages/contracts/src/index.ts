@@ -4,6 +4,7 @@ import {
   RevenueKpiOpenPreviewSchema,
 } from './revenue-kpi.js';
 import { PerformanceKpiChatActionSchema } from './performance-kpi.js';
+import { ScheduleChatActionSchema } from './scheduling.js';
 import { z } from "zod";
 import { AuthorizationSummarySchema } from "./authorization.js";
 import { F4CandidateSchema } from "./f4.js";
@@ -840,6 +841,7 @@ export const PerformanceChatCardSchema = z.object({evaluationId:z.string().regex
 export const ChatActionSchema = z.discriminatedUnion('type', [
   ...RevenueKpiChatActionSchema.options,
   ...PerformanceKpiChatActionSchema.options,
+  ...ScheduleChatActionSchema.options,
 ]);
 export type ChatAction = z.infer<typeof ChatActionSchema>;
 export const ChatHistoryTurnSchema = z.object({
