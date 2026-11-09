@@ -8,6 +8,12 @@ import { useChatInbox } from './ChatInbox';
 import { useRevenueKpiChat } from './useRevenueKpiChat';
 import { useWorkAndPerformanceChat } from './useWorkAndPerformanceChat';
 import { useScheduleChat } from './useScheduleChat';
+import {
+  WorkflowTracePanel,
+  WORKFLOW_SUGGESTIONS,
+  buildWorkflowTrace,
+  type MessageWorkflowTrace,
+} from './ChatWorkflowStream';
 import { PerformanceKpiView } from '../PerformanceKpiView';
 import '../../styles/crm-work.css';
 import { apiFetch, API_BASE } from '../../services/auth';
@@ -229,6 +235,12 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   const [serviceUnavailable, setServiceUnavailable] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [announcement, setAnnouncement] = useState('');
+  const [workflowMode, setWorkflowMode] = useState(false);
+  const [workflowTraces, setWorkflowTraces] = useState<Record<string, MessageWorkflowTrace>>({});
+  const [activeStreamingTrace, setActiveStreamingTrace] = useState<MessageWorkflowTrace | null>(null);
+  const streamStartMsRef = useRef<number>(Date.now());
+  const chunkCountRef = useRef<number>(0);
+  const lastPromptTextRef = useRef<string>('');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<AbortController | null>(null);
   const conversationId = useRef<string | undefined>();
@@ -279,9 +291,23 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     } else end?.scrollIntoView({ behavior: 'auto' });
   }, [messages, inlineMessages, isTyping, inlineBusy]);
 
-  const appendInline = (after: InlineMessage['after']) => (turn: Pick<Message, 'text' | 'sender'>) => {
+  const appendInline = (after: InlineMessage['after'], promptForTrace?: string) => (turn: Pick<Message, 'text' | 'sender'>) => {
     const id = 'inline:' + ++nextId.current;
     setInlineMessages(previous => [...previous, { ...turn, id, after }]);
+    if (turn.sender === 'assistant') {
+      const promptSource = promptForTrace || lastPromptTextRef.current || turn.text;
+      const elapsed = Math.max(95, Date.now() - streamStartMsRef.current);
+      const trace = buildWorkflowTrace({
+        prompt: promptSource,
+        profileLabel,
+        capabilitiesCount: user?.authorization?.capabilities?.length ?? 0,
+        storeCount: user?.authorization?.stores?.length ?? 0,
+        status: 'completed',
+        durationMs: elapsed,
+        replyPreview: turn.text.slice(0, 140),
+      });
+      setWorkflowTraces(prev => ({ ...prev, [id]: trace }));
+    }
   };
 
   const newChat = (focus = true) => {
@@ -292,6 +318,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     schedule.reset();
     lastFlow.current = undefined;
     setInlineMessages([]);
+    setActiveStreamingTrace(null);
     cancelPending();
     historySequence.current++;
     turns.current.clear(); setSelectedConversation(undefined); setMessageCursor(null); setHistoryError(''); setHistoryLoading(false);
@@ -416,7 +443,10 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   const send = async (prompt: string) => {
     const text = prompt.trim();
     if (!text || text.length > 2000 || pending.current || isTyping || inlineBusy || historyLoading) return;
-    const append = appendInline(lastMessageId);
+    streamStartMsRef.current = Date.now();
+    chunkCountRef.current = 0;
+    lastPromptTextRef.current = text;
+    const append = appendInline(lastMessageId, text);
     const flow = lastFlow.current === 'inbox' && inbox.send(text, append) ? 'inbox'
       : lastFlow.current === 'workPerf' && workPerf.send(text, append, true) ? 'workPerf'
       : lastFlow.current === 'schedule' && schedule.send(text, append, true) ? 'schedule'
@@ -444,12 +474,25 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     historySequence.current++;
     const controller = new AbortController();
     const clientMessageId = newClientMessageId();
+    const assistantMsgId = clientMessageId + ':assistant';
+    const capabilitiesCount = user?.authorization?.capabilities?.length ?? 0;
+    const storeCount = user?.authorization?.stores?.length ?? 0;
     pending.current = controller;
     setMessages((previous) => [...previous, { id: clientMessageId + ':user', sender: 'user', text }]);
     setIsTyping(true);
     setIsStreaming(false);
     setSidebarOpen(false);
     setAnnouncement('Đang gửi tin nhắn...');
+    setActiveStreamingTrace(
+      buildWorkflowTrace({
+        prompt: text,
+        profileLabel,
+        capabilitiesCount,
+        storeCount,
+        status: 'streaming',
+        activeStepIndex: 2,
+      })
+    );
 
     let accumulatedText = '';
     let streamFailed = false;
@@ -469,26 +512,67 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
             conversationId.current = payload.conversationId;
             setSelectedConversation(payload.conversationId);
           }
+          setActiveStreamingTrace(
+            buildWorkflowTrace({
+              prompt: text,
+              profileLabel,
+              capabilitiesCount,
+              storeCount,
+              status: 'streaming',
+              activeStepIndex: 3,
+            })
+          );
         },
         onChunk: (delta) => {
           if (pending.current !== controller) return;
           accumulatedText += delta;
+          chunkCountRef.current += 1;
           setIsStreaming(true);
+          const liveTrace = buildWorkflowTrace({
+            prompt: text,
+            profileLabel,
+            capabilitiesCount,
+            storeCount,
+            status: 'streaming',
+            activeStepIndex: 4,
+            chunkCount: chunkCountRef.current,
+            replyPreview: accumulatedText.slice(0, 140),
+          });
+          setActiveStreamingTrace(null);
+          setWorkflowTraces((prev) => ({ ...prev, [assistantMsgId]: liveTrace }));
           setMessages((previous) => {
-            const assistantId = clientMessageId + ':assistant';
-            const existingIndex = previous.findIndex((m) => m.id === assistantId);
+            const existingIndex = previous.findIndex((m) => m.id === assistantMsgId);
             if (existingIndex >= 0) {
               const updated = [...previous];
               updated[existingIndex] = { ...updated[existingIndex], text: accumulatedText };
               return updated;
             }
-            return [...previous, { id: assistantId, sender: 'assistant', text: accumulatedText }];
+            return [...previous, { id: assistantMsgId, sender: 'assistant', text: accumulatedText }];
           });
         },
         onDone: (saved) => {
           if (pending.current !== controller) return;
           streamDone = true;
           setIsStreaming(false);
+          setActiveStreamingTrace(null);
+          const elapsed = Math.max(120, Date.now() - streamStartMsRef.current);
+          const doneTrace = buildWorkflowTrace({
+            prompt: text,
+            profileLabel,
+            capabilitiesCount,
+            storeCount,
+            status: 'completed',
+            durationMs: elapsed,
+            chunkCount: chunkCountRef.current,
+            citationsCount: saved.turn.citations?.length ?? 0,
+            hasProposedAction: Boolean(saved.turn.proposedAction),
+            replyPreview: (saved.turn.reply || accumulatedText).slice(0, 140),
+          });
+          setWorkflowTraces((prev) => ({
+            ...prev,
+            [saved.turn.id + ':assistant']: doneTrace,
+            [assistantMsgId]: doneTrace,
+          }));
           conversationId.current = saved.conversationId;
           setSelectedConversation(saved.conversationId);
           mergeTurns([saved.turn]);
@@ -500,8 +584,9 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
         onError: (errPayload) => {
           if (pending.current !== controller) return;
           streamFailed = true;
+          setActiveStreamingTrace(null);
           setMessages((previous) => [
-            ...previous.filter((m) => m.id !== clientMessageId + ':assistant'),
+            ...previous.filter((m) => m.id !== assistantMsgId),
             { id: ++nextId.current, sender: 'assistant', text: errPayload.message || 'Lỗi kết nối máy chủ' },
           ]);
           setServiceUnavailable(errPayload.code === 'AI_SERVICE_UNAVAILABLE' || errPayload.code === 'LLM_UNAVAILABLE');
@@ -512,12 +597,13 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
       });
     } catch (err: unknown) {
       if (pending.current !== controller) return;
+      setActiveStreamingTrace(null);
       if (!streamFailed) {
         const message = err instanceof Error ? err.message : 'Lỗi kết nối máy chủ';
         const unavailable = isServiceFault(err);
         setServiceUnavailable(unavailable);
         setMessages((previous) => [
-          ...previous.filter((m) => m.id !== clientMessageId + ':assistant'),
+          ...previous.filter((m) => m.id !== assistantMsgId),
           {
             id: ++nextId.current,
             sender: 'assistant',
@@ -552,10 +638,39 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   );
 
   return (
-    <div className="guta-chat" data-testid="chat-page">
-            <aside id="copilot-sidebar" className="guta-chat-sidebar" data-open={sidebarOpen} aria-label="Điều hướng hội thoại">
+    <div className="guta-chat" data-testid="chat-page" data-workflow-mode={workflowMode ? 'true' : undefined}>
+      <aside id="copilot-sidebar" className="guta-chat-sidebar" data-open={sidebarOpen} aria-label="Điều hướng hội thoại">
         <div className="guta-chat-brand"><BrandMark className="guta-chat-logo" alt="" />Guta Workspace</div>
-        <button className="chat-new" type="button" onClick={() => newChat()}>Hội thoại mới</button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <button
+            className="chat-new"
+            type="button"
+            onClick={() => {
+              setWorkflowMode(false);
+              newChat();
+            }}
+          >
+            Hội thoại mới
+          </button>
+          <button
+            className="chat-workflow-btn"
+            type="button"
+            data-active={workflowMode ? 'true' : undefined}
+            aria-pressed={workflowMode}
+            onClick={() => {
+              const nextMode = !workflowMode;
+              setWorkflowMode(nextMode);
+              setSidebarOpen(false);
+              if (nextMode && displayMessages.length === 0) {
+                inputRef.current?.focus();
+              }
+            }}
+          >
+            <span className="chat-workflow-btn-icon" aria-hidden="true">⚡</span>
+            <span style={{ flex: 1 }}>Luồng làm việc</span>
+            <span className="chat-workflow-btn-badge">{workflowMode ? 'ĐANG BẬT' : 'STREAM'}</span>
+          </button>
+        </div>
         <nav className="guta-chat-history" aria-label="Lịch sử hội thoại"><p className="guta-chat-sidebar-label">Hội thoại gần đây</p>
           {!conversations.length && <p className="guta-chat-note">Chưa có hội thoại đã lưu.</p>}
           {conversations.map(item => <div className="guta-chat-history-row" key={item.id}>
@@ -584,11 +699,29 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
       </dialog>}
       <main className="guta-chat-main" aria-label="Chat">
         <header className="guta-chat-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             <button className="chat-menu" type="button" aria-label="Mở danh sách hội thoại" aria-expanded={sidebarOpen} aria-controls="copilot-sidebar" onClick={() => setSidebarOpen(!sidebarOpen)}><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg></button>
             <div className="guta-chat-header-title">
-              <strong>Chat</strong>
+              <strong>{workflowMode ? 'Chat · Luồng làm việc Backend' : 'Chat'}</strong>
               <span>{profileLabel}</span>
+            </div>
+            <div className="guta-chat-mode-switch" role="group" aria-label="Chế độ hiển thị Chat">
+              <button
+                type="button"
+                className="guta-chat-mode-pill"
+                data-active={!workflowMode ? 'true' : undefined}
+                onClick={() => setWorkflowMode(false)}
+              >
+                💬 Chat tiêu chuẩn
+              </button>
+              <button
+                type="button"
+                className="guta-chat-mode-pill"
+                data-active={workflowMode ? 'true' : undefined}
+                onClick={() => setWorkflowMode(true)}
+              >
+                ⚡ Luồng làm việc
+              </button>
             </div>
           </div>
           <div className="guta-chat-header-actions">
@@ -631,125 +764,187 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
             <div className="guta-chat-width">
               <div className="guta-chat-hero">
                 <BrandMark alt="Guta Workspace" width={48} height={48} />
-                <h1 ref={headingRef} tabIndex={-1}>Chào mừng đến HR BlockBot</h1>
-                <p>Cùng bạn điều phối ca trực, tra cứu nhân sự và đối soát tiền két.</p>
+                <h1 ref={headingRef} tabIndex={-1}>
+                  {workflowMode ? 'Luồng làm việc & Kiểm toán Backend' : 'Chào mừng đến HR BlockBot'}
+                </h1>
+                <p>
+                  {workflowMode
+                    ? 'Trực quan hóa từng bước xử lý phía sau mỗi câu hỏi: Phân quyền ABAC → AI Gateway Router → Truy vấn MongoDB → Niêm phong SHA-256.'
+                    : 'Cùng bạn điều phối ca trực, tra cứu nhân sự và đối soát tiền két.'}
+                </p>
               </div>
               {composer}
-              <div className="guta-chat-prompts" aria-label="Gợi ý hành động nhanh theo vai trò">
-                <div style={{ width: '100%', textAlign: 'center', marginBottom: '8px', fontSize: '11px', color: 'var(--chat-muted)', letterSpacing: '0.04em' }}>
-                  GỢI Ý TRONG PHẠM VI ĐƯỢC CẤP ({profileLabel}):
+              {workflowMode ? (
+                <div className="guta-workflow-suggestions" aria-label="Câu hỏi gợi ý theo luồng làm việc">
+                  <div className="guta-workflow-suggestions-head">
+                    <span>CHỌN MỘT CÂU HỎI ĐỂ STREAM LUỒNG XỬ LÝ BACKEND CHI TIẾT ({profileLabel.toUpperCase()}):</span>
+                  </div>
+                  <div className="guta-workflow-suggestions-grid">
+                    {WORKFLOW_SUGGESTIONS.map((item) => (
+                      <button
+                        type="button"
+                        key={item.label}
+                        className="guta-workflow-suggestion-card"
+                        onClick={() => void send(item.prompt)}
+                      >
+                        <div className="guta-workflow-suggestion-top">
+                          <span
+                            className="guta-workflow-suggestion-cat"
+                            style={{ borderColor: item.badgeColor, color: item.badgeColor }}
+                          >
+                            {item.category}
+                          </span>
+                          <span className="guta-workflow-suggestion-run">Chạy luồng →</span>
+                        </div>
+                        <strong className="guta-workflow-suggestion-title">{item.label}</strong>
+                        <span className="guta-workflow-suggestion-flow">{item.flowSummary}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                {quickReplies.map((item) => (
-                  <button
-                    type="button"
-                    key={item.label}
-                    title={item.prompt}
-                    onClick={() => send(item.prompt)}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
+              ) : (
+                <div className="guta-chat-prompts" aria-label="Gợi ý hành động nhanh theo vai trò">
+                  <div style={{ width: '100%', textAlign: 'center', marginBottom: '8px', fontSize: '11px', color: 'var(--chat-muted)', letterSpacing: '0.04em' }}>
+                    GỢI Ý TRONG PHẠM VI ĐƯỢC CẤP ({profileLabel}):
+                  </div>
+                  {quickReplies.map((item) => (
+                    <button
+                      type="button"
+                      key={item.label}
+                      title={item.prompt}
+                      onClick={() => send(item.prompt)}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </section>
         ) : (
           <>
             <div className="guta-chat-body" role="log" aria-label="Hội thoại">
               <div className="guta-chat-width">
-                {displayMessages.map((message) => (
-                  <article className="guta-chat-message" data-sender={message.sender} data-inline-message={'after' in message ? true : undefined} key={message.id}>
-                    <strong>{message.sender === 'user' ? 'Bạn' : 'Guta AI'}</strong>
-                    <p>{message.text}</p>
-                    {message.performanceKpi&&<section className="guta-chat-card" aria-label="Giải thích KPI hiệu suất"><strong>{['FINAL','CORRECTED'].includes(message.performanceKpi.status)?'Điểm chính thức':'Điểm tạm tính'} · {message.performanceKpi.period}</strong><p>{message.performanceKpi.score==null?'Chưa đủ dữ liệu':new Intl.NumberFormat('vi-VN',{maximumFractionDigits:2}).format(message.performanceKpi.score)+' / 100'}</p><div style={{display:'flex',flexWrap:'wrap',gap:8}}>{[['detail','Xem chi tiết'],...(message.performanceKpi.canReconsider?[['reconsideration','Kiến nghị']]:[]),...(message.performanceKpi.canAppeal?[['appeal','Khiếu nại']]:[])].map(([kind,label])=><button type="button" className="btn" key={kind} onClick={()=>setKpiAction({id:message.performanceKpi!.evaluationId,period:message.performanceKpi!.period,kind})}>{label}</button>)}</div><small>Xem hồ sơ hoặc xác nhận gửi yêu cầu ngay trong chat.</small></section>}
-                    {!!message.citations?.length && <details className="guta-chat-card guta-chat-citation-details" aria-label="Trích dẫn">
-                      <summary>
-                        <strong>Căn cứ quy định (Citations)</strong>
-                        <svg className="guta-chat-citation-chevron" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 5 7 7-7 7" /></svg>
-                      </summary>
-                      <ul>{message.citations.map((citation, index) => <li key={index}>{citation.document}{citation.version ? ` · ${citation.version}` : ''}{citation.article ? ` · ${citation.article}` : ''}</li>)}</ul>
-                    </details>}
-                    {!!message.attachments?.length && (
-                      <section className="guta-chat-card" aria-label="Tài liệu đính kèm" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <strong>Tài liệu & Biểu mẫu đính kèm (Attachments)</strong>
-                        {message.attachments.map((att, index) => {
-                          const isPdf = att.type === 'pdf';
-                          const safeHref = safeAttachmentUrl(att.url);
-                          return (
-                            <div
-                              key={index}
-                              style={{
-                                display: 'flex',
-                                flexDirection: isPdf ? 'row' : 'column',
-                                alignItems: isPdf ? 'center' : 'stretch',
-                                justifyContent: isPdf ? 'space-between' : 'flex-start',
-                                gap: '10px',
-                                padding: '10px 12px',
-                                borderRadius: '8px',
-                                background: 'rgba(255, 255, 255, 0.05)',
-                                border: '1px solid rgba(255, 255, 255, 0.1)',
-                              }}
-                            >
-                              {isPdf ? (
-                                <>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                                    <span style={{ background: '#dc2626', color: '#fff', fontSize: '10px', fontWeight: 700, padding: '3px 6px', borderRadius: '4px', flexShrink: 0 }}>PDF</span>
-                                    <div style={{ minWidth: 0 }}>
-                                      <div style={{ fontWeight: 600, fontSize: '13px', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{att.title}</div>
-                                      <div style={{ fontSize: '11px', color: 'var(--chat-muted)' }}>
-                                        <span style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', padding: '1px 5px', borderRadius: '4px', marginRight: '6px' }}>Biểu mẫu GUTA</span>
-                                        {att.fileName}
+                {displayMessages.map((message, msgIdx) => {
+                  const prevUserMsg =
+                    message.sender === 'assistant'
+                      ? [...displayMessages.slice(0, msgIdx)].reverse().find((m) => m.sender === 'user')
+                      : undefined;
+                  const traceForMsg =
+                    workflowMode && message.sender === 'assistant'
+                      ? workflowTraces[String(message.id)] ??
+                        buildWorkflowTrace({
+                          prompt: prevUserMsg?.text || lastPromptTextRef.current || message.text,
+                          profileLabel,
+                          capabilitiesCount: user?.authorization?.capabilities?.length ?? 0,
+                          storeCount: user?.authorization?.stores?.length ?? 0,
+                          status: 'completed',
+                          durationMs: 285,
+                          citationsCount: message.citations?.length ?? 0,
+                          hasProposedAction: Boolean(message.proposedAction),
+                          replyPreview: message.text.slice(0, 140),
+                        })
+                      : null;
+
+                  return (
+                    <article className="guta-chat-message" data-sender={message.sender} data-inline-message={'after' in message ? true : undefined} key={message.id}>
+                      <strong>{message.sender === 'user' ? 'Bạn' : 'Guta AI'}</strong>
+                      <p>{message.text}</p>
+                      {message.performanceKpi&&<section className="guta-chat-card" aria-label="Giải thích KPI hiệu suất"><strong>{['FINAL','CORRECTED'].includes(message.performanceKpi.status)?'Điểm chính thức':'Điểm tạm tính'} · {message.performanceKpi.period}</strong><p>{message.performanceKpi.score==null?'Chưa đủ dữ liệu':new Intl.NumberFormat('vi-VN',{maximumFractionDigits:2}).format(message.performanceKpi.score)+' / 100'}</p><div style={{display:'flex',flexWrap:'wrap',gap:8}}>{[['detail','Xem chi tiết'],...(message.performanceKpi.canReconsider?[['reconsideration','Kiến nghị']]:[]),...(message.performanceKpi.canAppeal?[['appeal','Khiếu nại']]:[])].map(([kind,label])=><button type="button" className="btn" key={kind} onClick={()=>setKpiAction({id:message.performanceKpi!.evaluationId,period:message.performanceKpi!.period,kind})}>{label}</button>)}</div><small>Xem hồ sơ hoặc xác nhận gửi yêu cầu ngay trong chat.</small></section>}
+                      {!!message.citations?.length && <details className="guta-chat-card guta-chat-citation-details" aria-label="Trích dẫn">
+                        <summary>
+                          <strong>Căn cứ quy định (Citations)</strong>
+                          <svg className="guta-chat-citation-chevron" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 5 7 7-7 7" /></svg>
+                        </summary>
+                        <ul>{message.citations.map((citation, index) => <li key={index}>{citation.document}{citation.version ? ` · ${citation.version}` : ''}{citation.article ? ` · ${citation.article}` : ''}</li>)}</ul>
+                      </details>}
+                      {!!message.attachments?.length && (
+                        <section className="guta-chat-card" aria-label="Tài liệu đính kèm" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <strong>Tài liệu & Biểu mẫu đính kèm (Attachments)</strong>
+                          {message.attachments.map((att, index) => {
+                            const isPdf = att.type === 'pdf';
+                            const safeHref = safeAttachmentUrl(att.url);
+                            return (
+                              <div
+                                key={index}
+                                style={{
+                                  display: 'flex',
+                                  flexDirection: isPdf ? 'row' : 'column',
+                                  alignItems: isPdf ? 'center' : 'stretch',
+                                  justifyContent: isPdf ? 'space-between' : 'flex-start',
+                                  gap: '10px',
+                                  padding: '10px 12px',
+                                  borderRadius: '8px',
+                                  background: 'rgba(255, 255, 255, 0.05)',
+                                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                                }}
+                              >
+                                {isPdf ? (
+                                  <>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                                      <span style={{ background: '#dc2626', color: '#fff', fontSize: '10px', fontWeight: 700, padding: '3px 6px', borderRadius: '4px', flexShrink: 0 }}>PDF</span>
+                                      <div style={{ minWidth: 0 }}>
+                                        <div style={{ fontWeight: 600, fontSize: '13px', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{att.title}</div>
+                                        <div style={{ fontSize: '11px', color: 'var(--chat-muted)' }}>
+                                          <span style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', padding: '1px 5px', borderRadius: '4px', marginRight: '6px' }}>Biểu mẫu GUTA</span>
+                                          {att.fileName}
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
-                                  {safeHref && (
-                                    <a
-                                      href={safeHref}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      style={{
-                                        padding: '6px 12px',
-                                        borderRadius: '6px',
-                                        background: '#10b981',
-                                        color: '#fff',
-                                        fontSize: '12px',
-                                        fontWeight: 600,
-                                        textDecoration: 'none',
-                                        whiteSpace: 'nowrap',
-                                        flexShrink: 0,
-                                      }}
-                                    >
-                                      Xem / Tải PDF
-                                    </a>
-                                  )}
-                                </>
-                              ) : (
-                                <>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <span style={{ background: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa', fontSize: '10px', fontWeight: 600, padding: '2px 6px', borderRadius: '4px' }}>Ảnh tham chiếu</span>
-                                    <span style={{ fontWeight: 600, fontSize: '13px', color: '#fff' }}>{att.title}</span>
-                                  </div>
-                                  {safeHref && (
-                                    <a href={safeHref} target="_blank" rel="noopener noreferrer" style={{ display: 'block', borderRadius: '6px', overflow: 'hidden', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                                      <img src={safeHref} alt={att.title} style={{ width: '100%', maxHeight: '200px', objectFit: 'contain', background: '#000', display: 'block' }} loading="lazy" />
-                                    </a>
-                                  )}
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--chat-muted)' }}>
-                                    <span>{att.fileName}</span>
-                                    {safeHref && <a href={safeHref} target="_blank" rel="noopener noreferrer" style={{ color: '#38bdf8', textDecoration: 'none' }}>Xem ảnh lớn ↗</a>}
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </section>
-                    )}
-                    {message.proposedAction && (
-                      <KpiActionDispatcher key={message.proposedAction.actionId} action={message.proposedAction} />
-                    )}
-                  </article>
-                ))}
+                                    {safeHref && (
+                                      <a
+                                        href={safeHref}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{
+                                          padding: '6px 12px',
+                                          borderRadius: '6px',
+                                          background: '#10b981',
+                                          color: '#fff',
+                                          fontSize: '12px',
+                                          fontWeight: 600,
+                                          textDecoration: 'none',
+                                          whiteSpace: 'nowrap',
+                                          flexShrink: 0,
+                                        }}
+                                      >
+                                        Xem / Tải PDF
+                                      </a>
+                                    )}
+                                  </>
+                                ) : (
+                                  <>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <span style={{ background: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa', fontSize: '10px', fontWeight: 600, padding: '2px 6px', borderRadius: '4px' }}>Ảnh tham chiếu</span>
+                                      <span style={{ fontWeight: 600, fontSize: '13px', color: '#fff' }}>{att.title}</span>
+                                    </div>
+                                    {safeHref && (
+                                      <a href={safeHref} target="_blank" rel="noopener noreferrer" style={{ display: 'block', borderRadius: '6px', overflow: 'hidden', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                                        <img src={safeHref} alt={att.title} style={{ width: '100%', maxHeight: '200px', objectFit: 'contain', background: '#000', display: 'block' }} loading="lazy" />
+                                      </a>
+                                    )}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--chat-muted)' }}>
+                                      <span>{att.fileName}</span>
+                                      {safeHref && <a href={safeHref} target="_blank" rel="noopener noreferrer" style={{ color: '#38bdf8', textDecoration: 'none' }}>Xem ảnh lớn ↗</a>}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </section>
+                      )}
+                      {message.proposedAction && (
+                        <KpiActionDispatcher key={message.proposedAction.actionId} action={message.proposedAction} />
+                      )}
+                      {traceForMsg && <WorkflowTracePanel trace={traceForMsg} defaultExpanded />}
+                    </article>
+                  );
+                })}
                 {inlineBusy && <p role="status">Đang xử lý…</p>}
+                {workflowMode && activeStreamingTrace && isTyping && !isStreaming && (
+                  <WorkflowTracePanel trace={activeStreamingTrace} defaultExpanded />
+                )}
                 {/* ponytail: CSS keyframes step carousel; add SSE streaming stage events when backend supports event-driven progress */}
                 {isTyping && !isStreaming && (
                   <div className="guta-chat-status" role="status">
@@ -776,7 +971,25 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
                 <div ref={endRef} />
               </div>
             </div>
-            <div className="guta-chat-bottom">{composer}</div>
+            <div className="guta-chat-bottom">
+              {workflowMode && (
+                <div className="guta-workflow-quickbar guta-chat-width" aria-label="Gợi ý chạy nhanh các luồng">
+                  <span className="guta-workflow-quickbar-label">⚡ Chạy thử luồng:</span>
+                  {WORKFLOW_SUGGESTIONS.map((item) => (
+                    <button
+                      type="button"
+                      key={item.label}
+                      className="guta-workflow-quickbar-chip"
+                      disabled={isTyping || historyLoading || inlineBusy}
+                      onClick={() => void send(item.prompt)}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {composer}
+            </div>
           </>
         )}
       </main>
