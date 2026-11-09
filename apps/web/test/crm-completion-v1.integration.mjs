@@ -74,6 +74,9 @@ try {
   await connectDB(); fixture = await authorizationV1Fixture(); await EmployeeLifecycleRequestModel.init();
   for (const actor of ['hr', 'hr2']) await UserModel.updateOne({ _id: fixture.actors[actor].user._id }, { $push: { 'authorization.grants.1.scope.storeIds': String(fixture.stores[1]._id) } });
   await UserModel.updateOne({ _id: fixture.actors.sm.user._id }, { $push: { 'authorization.grants.1.capabilities': 'onboarding.reporting_propose' } });
+  await EmployeeModel.collection.updateOne({ _id: fixture.actors.sm.employee._id }, { $set: {
+    job_title: 'SM', hrmProfileMappingV1: { identityMappingVerified: true, sourceTitleVerified: true, sourceJobTitle: 'SM' },
+  } });
   await UserModel.updateOne({ _id: fixture.actors.am.user._id }, { $push: { 'authorization.grants.1.capabilities': 'onboarding.reporting_review' } });
   const destination = await EmployeeModel.create({ employeeCode: 'CORE-SM-B', fullName: 'Synthetic destination manager', status: 'active', storeId: fixture.stores[1]._id, storeMappingRef: 'owned-destination-mapping', departmentId: fixture.departmentId, level: 'Junior' });
   const destinationUser = await UserModel.create({ username: 'v1-smb', passwordHash: fixture.actors.sm.user.passwordHash, role: 'Employee', employeeId: destination._id, authorization: { schemaVersion: 1, profile: 'sm', grants: [testGrant('sm', { kind: 'self' }, SELF_CAPS, fixture.actors.om.user._id), testGrant('sm', { kind: 'organization', storeIds: [String(fixture.stores[1]._id)] }, MANAGEMENT_CAPS, fixture.actors.om.user._id)] } });
@@ -91,23 +94,19 @@ try {
   await sm.page.locator('nav [data-section="onboarding"]').click(); await sm.page.getByRole('button', { name: 'Tạo đề nghị nhân viên', exact: true }).click();
   let dialog = sm.page.getByRole('dialog', { name: 'Đề nghị tiếp nhận nhân viên', exact: true });
   await dialog.getByLabel('Cửa hàng', { exact: true }).selectOption(String(fixture.stores[0]._id));
-  for (const [label, value] of [['Họ tên', 'Synthetic browser new hire'], ['Thông tin điện thoại', 'owned-contact'], ['Ngày bắt đầu', '2026-10-31'], ['Lý do đề nghị', 'Owned browser complete core flow']]) await dialog.getByLabel(label, { exact: true }).fill(value);
+  for (const [label, value] of [['Họ tên', 'Synthetic browser new hire'], ['Thông tin điện thoại', 'owned-contact'], ['Email nhận link kích hoạt', 'new-core@example.com'], ['Ngày vào làm', '2026-10-31'], ['Lý do đề nghị', 'Owned browser complete core flow']]) await dialog.getByLabel(label, { exact: true }).fill(value);
+  await dialog.getByText(/Đã điền SM chính/).waitFor();
+  assert.equal(await dialog.getByLabel('Quản lý trực tiếp', { exact: true }).inputValue(), String(fixture.actors.sm.employee._id));
   await dialog.getByRole('button', { name: 'Lưu đề nghị', exact: true }).click(); await dialog.waitFor({ state: 'hidden' });
   const onboard = await OnboardingRequestModel.findOne({ 'payload.fullName': 'Synthetic browser new hire' }).lean(); assert.ok(onboard);
   NEW_CODE = onboard.payload.employeeCode; assert.match(NEW_CODE, /^GT-CH2610\d{4}$/);
-  await sm.page.locator('nav [data-section="initialReporting"]').click(); await sm.page.getByRole('button', { name: 'Đề xuất quản lý ban đầu', exact: true }).click();
-  dialog = sm.page.getByRole('dialog', { name: 'Đề xuất quản lý ban đầu', exact: true });
-  await dialog.getByLabel('Nhân viên tiếp nhận', { exact: true }).selectOption(String(onboard._id));
-  await dialog.getByLabel('Quản lý trực tiếp đề xuất', { exact: true }).selectOption(String(fixture.actors.sm.employee._id));
-  await dialog.getByLabel('Ngày giờ hiệu lực quan hệ', { exact: true }).fill(localDate(new Date(Date.now() - 60000)));
-  await dialog.getByLabel('Tham chiếu bằng chứng quan hệ', { exact: true }).fill('owned-browser-evidence');
-  await dialog.getByLabel('Lý do đề xuất quan hệ', { exact: true }).fill('Explicit manager choice, no title inheritance');
-  await dialog.getByRole('button', { name: 'Gửi đề xuất quan hệ', exact: true }).click(); await dialog.waitFor({ state: 'hidden' });
+  assert.equal(await sm.page.locator('nav [data-section="initialReporting"]').count(), 0);
+  await sm.page.getByRole('button', { name: 'Quản lý trực tiếp', exact: true }).click();
   const reporting = await OnboardingReportingModel.findOne({ onboardingId: onboard._id }).lean();
   assert.equal((await call(sm, `/initial-reporting/${reporting._id}/approve`, { expectedVersion: 1, reason: 'Self approval forbidden' })).status, 403);
   await hr.page.locator('nav [data-section="onboarding"]').click(); await hr.page.getByRole('button', { name: 'Đối chiếu và lịch sử', exact: true }).click();
   dialog = hr.page.getByRole('dialog', { name: 'Đối chiếu đề nghị tiếp nhận', exact: true }); await dialog.getByLabel('Lý do quyết định', { exact: true }).fill('Independent HR ordinary personnel review'); await dialog.getByRole('button', { name: 'Phê duyệt tiếp nhận', exact: true }).click(); await dialog.waitFor({ state: 'hidden' });
-  await am.page.locator('nav [data-section="initialReporting"]').click(); await am.page.getByRole('button', { name: 'Lịch sử quan hệ ban đầu', exact: true }).click();
+  await am.page.locator('nav [data-section="onboarding"]').click(); await am.page.getByRole('button', { name: 'Lịch sử quan hệ ban đầu', exact: true }).click();
   dialog = am.page.getByRole('dialog', { name: 'Duyệt quan hệ quản lý ban đầu', exact: true }); await dialog.getByLabel('Lý do phê duyệt quan hệ', { exact: true }).fill('Actual independent upper manager verifies relation'); await dialog.getByRole('button', { name: 'Phê duyệt quan hệ ban đầu', exact: true }).click(); await dialog.waitFor({ state: 'hidden' });
   assert.equal(await ManagementRelationModel.countDocuments({ employeeId: onboard.employeeId, revokedAt: null }), 0);
   const activation = await browser.newPage(); contexts.push(activation.context()); await activation.route('**/api/**', async (route) => { const url = new URL(route.request().url()); return route.fulfill({ response: await route.fetch({ url: apiOrigin + url.pathname }) }); });

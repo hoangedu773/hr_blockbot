@@ -112,6 +112,7 @@ export const OnboardingCreateSchema = z.object({
   clientRequestId: z.string().uuid(),
   fullName: z.string().trim().min(1).max(200), storeId: Id,
   hiredAt: DateTime, phone: z.string().trim().min(1).max(30), email: AccountEmailSchema.optional(),
+  initialManagerEmployeeId: Id.optional(),
   reason: z.string().trim().min(1).max(2000),
 }).strict();
 export const OnboardingReviewSchema = z.object({

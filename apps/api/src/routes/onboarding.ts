@@ -3,7 +3,8 @@ import { z } from "zod";
 import { OnboardingReviewSchema, ActivationRequestSchema } from "@hr-blockbot/contracts";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
 import { endpoint as endpoint } from "../lib/endpoint.js";
-import { createOnboarding, reviewOnboarding, pageOnboarding, getOnboarding, resubmitOnboarding, resumeOnboarding, submitOnboarding, activateOnboarding, onboardingDto, type OnboardingOptions } from "../services/onboarding.service.js";
+import { reviewOnboarding, pageOnboarding, getOnboarding, resubmitOnboarding, resumeOnboarding, submitOnboarding, activateOnboarding, onboardingDto, type OnboardingOptions } from "../services/onboarding.service.js";
+import { createOnboardingWithManager, onboardingManagerSummary } from "../services/onboarding-reporting.service.js";
 import { WorkflowError } from "../services/project-workflow.service.js";
 import { completePasswordRecovery } from "../services/password-recovery.service.js";
 const router = Router();
@@ -14,11 +15,14 @@ const parse = <T>(schema: z.ZodType<T>, input: unknown): T => {
   return value.data;
 };
 router.get("/onboarding", authenticateToken, endpoint(async (req, res) => { res.json(await pageOnboarding(req.user!, req.query)); }));
-router.get("/onboarding/:id", authenticateToken, endpoint(async (req, res) => { res.json(await getOnboarding(req.user!, req.params.id)); }));
+router.get("/onboarding/:id", authenticateToken, endpoint(async (req, res) => {
+  const row = await getOnboarding(req.user!, req.params.id);
+  res.json({ ...row, initialReporting: await onboardingManagerSummary(row) });
+}));
 router.post("/onboarding/:id/resubmit", authenticateToken, endpoint(async (req, res) => { res.json(onboardingDto(await resubmitOnboarding(req.user!, req.params.id, req.body))); }));
 router.post("/onboarding", authenticateToken, endpoint(async (req, res) => {
   const draft = req.user!.authorization?.profile === "hr";
-  res.status(201).json(onboardingDto(await createOnboarding(req.user!, req.body, draft)));
+  res.status(201).json(onboardingDto(await createOnboardingWithManager(req.user!, req.body, draft)));
 }));
 router.post("/onboarding/:id/submit", authenticateToken, endpoint(async (req, res) => {
   const body = parse(z.object({ expectedVersion: z.number().int().positive() }).strict(), req.body);

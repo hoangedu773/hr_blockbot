@@ -169,6 +169,28 @@ test('G07 full API/database: explicit SM proposes manager, actual independent AM
   assert.equal((await UserModel.findById(onboard.userId)).authorization.grants.some((grant) => grant.capabilities.includes('projects.assign')), false, 'no auto manager grant');
 });
 
+test('onboarding can propose the verified store SM with one submission and replay it safely', async () => {
+  const storeId = String(fixture.stores[0]._id), managerId = String(fixture.actors.sm.employee._id);
+  const endpoint = '/initial-reporting/managers?storeId=' + storeId;
+  assert.equal((await call('sm', endpoint)).body.defaultManager, null);
+  await EmployeeModel.collection.updateOne({ _id: fixture.actors.sm.employee._id }, { $set: {
+    job_title: 'SM', hrmProfileMappingV1: { identityMappingVerified: true, sourceTitleVerified: true, sourceJobTitle: 'SM' },
+  } });
+  assert.equal((await call('sm', endpoint)).body.defaultManager.employeeId, managerId);
+  const body = { clientRequestId: randomUUID(), fullName: 'Synthetic inline manager', phone: 'owned-fixture-contact',
+    hiredAt: '2026-10-31T00:00:00Z', storeId, reason: 'Reviewed inline manager proposal', initialManagerEmployeeId: managerId };
+  const first = await call('sm', '/onboarding', body);
+  assert.equal(first.status, 201, JSON.stringify(first.body));
+  const retry = await call('sm', '/onboarding', body);
+  assert.equal(retry.status, 201, JSON.stringify(retry.body));
+  assert.equal(first.body.id, retry.body.id);
+  const detail = await call('hr', '/onboarding/' + first.body.id);
+  assert.equal(detail.status, 200);
+  assert.equal(detail.body.initialReporting.status, 'PENDING');
+  assert.equal(await OnboardingReportingModel.countDocuments({ onboardingId: first.body.id, managerEmployeeId: managerId }), 1);
+  assert.equal(await ManagementRelationModel.countDocuments({ employeeId: first.body.employeeId }), 0);
+});
+
 test('initial reporting respects future effectivity, SAM->SM direct mapping, CAS, no title shortcut, and staged-edge crash recovery', async () => {
   const onboard = await newOnboarding('CORE-SAM-RELATION');
   // Explicitly replace fixture reporting edge; never derive SAM->SM from rank.
