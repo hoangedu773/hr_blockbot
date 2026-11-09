@@ -1670,7 +1670,7 @@ export async function getMyTasks(user: AuthenticatedUser, period?: string) {
   const u = await resolvePrincipal({ sub: user.userId, role: user.role, securityVersion: user.securityVersion });
   if (!['hr', 'am', 'sm', 'ptch', 'staff'].includes(u.authorization?.profile ?? '')) throw new WorkflowError(403, 'RBAC_DENIED', 'Bạn chưa có quyền sử dụng KPI hiệu suất.');
   if (!u.employeeId) return C.RevenueKpiMyTasksSchema.parse({ period: p, items: [] });
-  const rows = await Task.find({ kpiPeriod: p, assigneeEmployeeId: u.employeeId }).sort({ dueAt: 1, _id: 1 }).limit(PENDING_MAX + 1).lean();
+  const rows = await Task.find({ kpiPeriod: p, $or: [{ assigneeEmployeeId: u.employeeId }, { 'responsibilitySegments.employeeId': u.employeeId }] }).sort({ dueAt: 1, _id: 1 }).limit(PENDING_MAX + 1).lean();
   const items = [];
   for (const row of rows.slice(0, PENDING_MAX)) {
     const t = taskDto(row);

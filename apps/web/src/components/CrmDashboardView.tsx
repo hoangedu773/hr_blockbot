@@ -196,7 +196,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
     kpi: canReadLegacyKpi,
     settings: can('provider_settings.manage'), accounts: can('accounts.manage'), onboarding: canReadOnboarding || canReadReporting,
     delegations: can('authorization.inspect_self') || can('delegations.request') || can('delegations.review') || !!authorization?.delegations.length,
-    lifecycle: can('employees.lifecycle_request') || can('employees.lifecycle_review') || can('employees.transfer_confirm') };
+    lifecycle: can('employees.lifecycle_request') || can('employees.lifecycle_review') || can('employees.transfer') || can('employees.transfer_confirm') };
   const authorizationKey = JSON.stringify(allowedViews);
   const [activeView, setActiveView] = useState<ActiveCrmView>('stores');
   useEffect(() => { if (!allowedViews[activeView]) setActiveView((Object.keys(allowedViews) as ActiveCrmView[]).find((view) => allowedViews[view]) ?? 'profile'); }, [authorizationKey, activeView]);

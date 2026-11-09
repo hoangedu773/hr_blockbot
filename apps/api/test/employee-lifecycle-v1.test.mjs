@@ -102,3 +102,27 @@ test('future effective date stays pending and concurrent HR decisions cannot dou
   assert.deepEqual(results.map((result) => result.status).sort(), [200, 409]); assert.equal(results.find((result) => result.status === 200).body.status, 'PENDING_EFFECTIVE');
   assert.equal((await EmployeeModel.findById(fixture.actors.staffB.employee._id)).status, 'active'); assert.equal((await UserModel.findById(fixture.actors.staffB.user._id)).securityVersion, 0);
 });
+test('SM can propose single-store exit for managed employee, AM can propose multi-store transfer, only HR reviews, and active TaskInstance blocks exit', async () => {
+  await UserModel.updateOne({ _id: fixture.actors.sm.user._id }, { $addToSet: { 'authorization.grants.1.capabilities': 'employees.lifecycle_request' } });
+  await UserModel.updateOne({ _id: fixture.actors.am.user._id }, { $addToSet: { 'authorization.grants.1.capabilities': { $each: ['employees.lifecycle_request', 'employees.transfer'] }, 'authorization.grants.1.scope.storeIds': String(fixture.stores[1]._id) } });
+  // SM cannot propose for unmanaged supervisor (AM) or foreign store (staffB), nor propose cross-store TRANSFER.
+  assert.equal((await call('sm', '/employee-lifecycle', await proposal('am', 'EXIT'))).status, 403);
+  assert.equal((await call('sm', '/employee-lifecycle', await proposal('staffB', 'EXIT'))).status, 403);
+  assert.equal((await call('sm', '/employee-lifecycle', await proposal('ptch', 'TRANSFER', { targetStoreId: String(fixture.stores[1]._id) }))).status, 403);
+  // SM proposes EXIT for managed employee (ptch); SM cannot review, HR reviews and active TaskInstance holds in PENDING_HANDOVER.
+  const exitReq = await call('sm', '/employee-lifecycle', await proposal('ptch', 'EXIT')); assert.equal(exitReq.status, 201);
+  assert.equal((await call('sm', `/employee-lifecycle/${exitReq.body.id}/review`, review(exitReq.body))).status, 403);
+  const taskId = new mongoose.Types.ObjectId().toHexString();
+  await mongoose.connection.collection('task_instances').insertOne({ _id: taskId, status: 'IN_PROGRESS', assigneeEmployeeId: String(fixture.actors.ptch.employee._id), responsibilitySegments: [{ segmentId: taskId, employeeId: String(fixture.actors.ptch.employee._id), status: 'ACTIVE', to: null }] });
+  const held = await call('hr', `/employee-lifecycle/${exitReq.body.id}/review`, review(exitReq.body)); assert.equal(held.status, 200); assert.equal(held.body.status, 'PENDING_HANDOVER');
+  await mongoose.connection.collection('task_instances').updateOne({ _id: taskId }, { $set: { status: 'COMPLETED' } });
+  // Reject or cancel another request first; here we reject a separate AM transfer proposal to verify AM proposal + HR review.
+  const resumed = await call('hr', `/employee-lifecycle/${exitReq.body.id}/resume`, {}); assert.equal(resumed.status, 200); assert.equal(resumed.body.status, 'COMPLETED');
+  // AM proposes REACTIVATE for ptch, HR approves and activates, then AM proposes TRANSFER across stores A -> B.
+  const reactivate = await call('am', '/employee-lifecycle', await proposal('ptch', 'REACTIVATE')); assert.equal(reactivate.status, 201);
+  assert.equal((await call('am', `/employee-lifecycle/${reactivate.body.id}/review`, review(reactivate.body))).status, 403);
+  assert.equal((await call('hr', `/employee-lifecycle/${reactivate.body.id}/review`, review(reactivate.body, 'REJECT'))).status, 200);
+  const transferReq = await call('am', '/employee-lifecycle', await proposal('sm', 'TRANSFER', { targetStoreId: String(fixture.stores[1]._id) })); assert.equal(transferReq.status, 201);
+  assert.equal((await call('am', `/employee-lifecycle/${transferReq.body.id}/review`, review(transferReq.body))).status, 403);
+  assert.equal((await call('hr', `/employee-lifecycle/${transferReq.body.id}/review`, review(transferReq.body, 'REJECT'))).status, 200);
+});
