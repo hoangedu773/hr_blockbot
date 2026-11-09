@@ -31,8 +31,12 @@ def boundary(monkeypatch):
         "list_my_pending_actions": {"items": [], "nextOffset": None},
         "get_revenue_kpi_detail": {"assignment": {}, "result": None},
         "get_my_tasks": {"period": None, "items": []},
+        "get_department_kpi": {"period": "2026-11", "published": 5, "pendingReview": 1, "averageFinalScore": 84.5},
+        "get_upcoming_deadlines": [],
         "preview_revenue_assignment_action": {"actionId": "act-" + "0" * 8, "type": "revenue_kpi.mutate_assignment",
                                               "requiresConfirmation": True, "executed": False},
+        "preview_performance_kpi_action": {"actionId": "act-perf-" + "0" * 8, "type": "performance_kpi.task_action",
+                                           "requiresConfirmation": True, "executed": False},
     }
     statuses = {}
 
@@ -1198,3 +1202,37 @@ def test_shadow_mode_preflight_401_blocks_jev_and_all_reads(boundary, monkeypatc
     assert len(calls) == 1
     assert calls[0]["tool"] == "validate_context"
     assert not prompts
+
+
+def test_pending_intent_without_revenue_keyword_calls_list_my_pending_actions(boundary):
+    client, calls, prompts, _ = boundary
+    body = payload(message="Việc nào đang chờ xử lý của tôi?")
+    response = send(client, body)
+    assert response.status_code == 200
+    assert any(call["tool"] == "list_my_pending_actions" for call in calls)
+    assert calls[-1]["tool"] == "validate_context"
+
+
+def test_department_kpi_intent_not_blocked_by_performance_early_return(boundary):
+    client, calls, prompts, _ = boundary
+    body = payload(message="Tổng hợp KPI hiệu suất của cửa hàng tháng 11/2026 thế nào?")
+    response = send(client, body)
+    assert response.status_code == 200
+    assert any(call["tool"] == "get_department_kpi" for call in calls)
+    assert response.json()["reply"] == "Allowed answer"
+
+
+def test_performance_task_accept_intent_proposes_server_owned_card_never_executes(boundary):
+    client, calls, prompts, statuses = boundary
+    task_id = "f" * 24
+    statuses["preview_performance_kpi_action"] = 200
+    body = payload(message=f"Chấp nhận nhiệm vụ {task_id}")
+    response = send(client, body)
+    assert response.status_code == 200
+    assert calls == [{"requestId": body["requestId"], "tool": "preview_performance_kpi_action",
+                      "args": {"domain": "task", "kind": "task.accept", "target": {"taskId": task_id}, "content": {}}}]
+    assert not prompts
+    card = response.json()["proposedAction"]
+    assert card == {"actionId": "act-perf-" + "0" * 8, "type": "performance_kpi.task_action",
+                    "requiresConfirmation": True, "executed": False}
+

@@ -830,9 +830,35 @@ export async function readDepartmentKpi(user: AuthenticatedUser, resolvedPeriod:
   if (stores.length) clauses.push({ storeId: { $in: stores.map((id) => new mongoose.Types.ObjectId(id)) } });
   if (user.departmentId && mongoose.Types.ObjectId.isValid(user.departmentId)) clauses.push({ departmentId: new mongoose.Types.ObjectId(user.departmentId) });
   if (!clauses.length) throw new WorkflowError(403, "RBAC_DENIED", "Chưa có phạm vi KPI phòng ban");
-  const rows: any[] = await EvaluationModel.find({ period: resolvedPeriod, $or: clauses, frameworkVersion: { $not: { $gte: 2 } } }).select("status finalScore machineScore").limit(5000).lean();
-  const published = rows.filter((row) => row.status === "PUBLISHED" && typeof row.finalScore === "number");
+  const allRows: any[] = await EvaluationModel.find({ period: resolvedPeriod, $or: clauses })
+    .select("status finalScore machineScore frameworkVersion evaluationStatus taskGroupScore performanceSnapshot")
+    .limit(5000)
+    .lean();
   const average = (values: number[]) => values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length * 100) / 100 : null;
+  const v2Rows = allRows.filter((row) => row.frameworkVersion >= 2);
+  if (v2Rows.length > 0 && allRows.length === v2Rows.length) {
+    const scored = v2Rows.filter((row) => {
+      const status = row.evaluationStatus ?? row.performanceSnapshot?.evaluationStatus;
+      const score = row.finalScore ?? row.performanceSnapshot?.finalScore;
+      return ["FINAL", "CORRECTED", "PROVISIONAL"].includes(status) && typeof score === "number";
+    });
+    const finalized = v2Rows.filter((row) => ["FINAL", "CORRECTED"].includes(row.evaluationStatus ?? row.performanceSnapshot?.evaluationStatus));
+    const provisional = v2Rows.filter((row) => (row.evaluationStatus ?? row.performanceSnapshot?.evaluationStatus) === "PROVISIONAL");
+    const disputed = v2Rows.filter((row) => (row.evaluationStatus ?? row.performanceSnapshot?.evaluationStatus) === "PENDING_DISPUTE");
+    return {
+      period: resolvedPeriod,
+      published: scored.length,
+      finalized: finalized.length,
+      provisional: provisional.length,
+      disputed: disputed.length,
+      pendingReview: v2Rows.length - scored.length,
+      averageFinalScore: average(scored.map((row) => row.finalScore ?? row.performanceSnapshot?.finalScore).filter((v) => typeof v === "number")),
+      averageMachineScore: average(scored.map((row) => row.taskGroupScore ?? row.performanceSnapshot?.taskGroupScore).filter((v) => typeof v === "number")),
+      note: "Chỉ số tổng hợp; không trả điểm hay nhận xét của từng nhân viên.",
+    };
+  }
+  const rows = allRows.filter((row) => !(row.frameworkVersion >= 2));
+  const published = rows.filter((row) => row.status === "PUBLISHED" && typeof row.finalScore === "number");
   return { period: resolvedPeriod, published: published.length, pendingReview: rows.length - published.length,
     averageFinalScore: average(published.map((row) => row.finalScore)),
     averageMachineScore: average(published.map((row) => row.machineScore).filter((value) => typeof value === "number")),
@@ -1096,8 +1122,8 @@ function revenueOpenIntent(message: string) {
 
 function ownPerformancePeriod(message: string) {
   const normalized = message.normalize('NFC').toLocaleLowerCase('vi').normalize('NFD').replace(/\p{M}/gu, '').replace(/đ/g, 'd');
-  if (!/\bkpi hieu suat\b/.test(normalized) || !/\bcua (?:toi|minh|em)\b/.test(normalized)
-    || /\b(?:doanh thu|phong ban|doi ngu|kien nghi|khieu nai|cham diem)\b/.test(normalized)) return undefined;
+  if (!/\bkpi hieu suat\b/.test(normalized) || !/\b(?:cua (?:toi|minh|em)|ca nhan)\b/.test(normalized)
+    || /\b(?:doanh thu|phong ban|cua hang|chi nhanh|doi ngu|kien nghi|khieu nai|cham diem|quy dinh|quy trinh|cach tinh)\b/.test(normalized)) return undefined;
   const forward = normalized.match(/\b(20\d{2})[-/](1[0-2]|0?[1-9])\b/);
   if (forward) return forward[1] + '-' + forward[2].padStart(2, '0');
   const reverse = normalized.match(/\b(1[0-2]|0?[1-9])(?:[/. -]|\s+nam\s+)(20\d{2})\b/);

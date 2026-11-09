@@ -35,7 +35,11 @@ REVENUE_KPI_TOOLS = frozenset({"get_my_revenue_kpi", "list_my_pending_actions", 
 CANONICAL_ASSIGNMENT_ID = re.compile(r"(?<![0-9a-f])[0-9a-f]{24}(?![0-9a-f])")
 REVENUE_INTENT = re.compile(r"(kpi\s+doanh\s*thu|doanh\s*thu|revenue)", re.IGNORECASE)
 PENDING_INTENT = re.compile(r"(việc cần xử lý|việc chờ xử lý|chờ xử lý|chờ xác nhận|cần xử lý|việc nào cần|cần làm gì|pending|nhắc việc)", re.IGNORECASE)
-TASKS_INTENT = re.compile(r"(nhiệm vụ đang giao|task đang giao|(?:task|nhiệm vụ)[^\n.]{0,40}(của tôi|của em|của mình))", re.IGNORECASE)
+TASKS_INTENT = re.compile(
+    r"(nhiệm vụ đang giao|task đang giao|công việc cần nghiệm thu|việc có thang điểm|công việc đang giao|"
+    r"(?:task|nhiệm vụ|công việc)[^\n.]{0,40}(của tôi|của em|của mình|được giao|tháng này|chờ nhận|cần nộp))",
+    re.IGNORECASE,
+)
 DETAIL_INTENT = re.compile(r"(chi tiết|detail|xem kpi|assignment)", re.IGNORECASE)
 # Lịch: đọc tách khỏi ghi. `đổi ca` trước đây nằm trong nhóm đọc nên chatbot trả lời
 # như đã xử lý trong khi chỉ gọi tool đọc — bug hành vi, không phải thiếu tính năng.
@@ -385,6 +389,31 @@ async def _prepare_chat(request: AuthorizedChatRequest, key: str) -> dict | Prep
                         "citations": [], "attachments": [],
                         "proposedAction": proposal if isinstance(proposal, dict) and proposal.get("requiresConfirmation") is True and proposal.get("executed") is not True else None,
                         "abstain": response.status_code != 200, "degraded": False, "decisionSource": "authorization-v1"}
+        elif re.search(r"(nhận|chấp\s*nhận|accept).*(nhiệm\s*vụ|công\s*việc|task)", request.message, re.IGNORECASE):
+            task_id = CANONICAL_ASSIGNMENT_ID.search(request.message)
+            if task_id:
+                try:
+                    response = await client.post(url, headers={"x-ai-service-key": key, "Authorization": "Bearer " + request.delegationToken},
+                        json={"requestId": request.requestId, "tool": "preview_performance_kpi_action",
+                              "args": {"domain": "task", "kind": "task.accept", "target": {"taskId": task_id.group(0)}, "content": {}}},
+                        timeout=remaining_seconds(12))
+                except httpx.HTTPError:
+                    raise HTTPException(503, "Performance task proposal unavailable") from None
+                if response.status_code == 401:
+                    raise HTTPException(401, "End-user delegation is no longer valid")
+                replies = {
+                    200: "Đã lập bản xem trước nhận nhiệm vụ. Hãy kiểm tra nội dung rồi xác nhận trên hệ thống.",
+                    403: "Bạn chưa có quyền nhận nhiệm vụ này.",
+                    404: "Không tìm thấy nhiệm vụ này trong phạm vi của bạn.",
+                    409: "Nhiệm vụ này đang ở trạng thái không thể nhận. Hãy kiểm tra trên Web.",
+                }
+                if response.status_code not in replies:
+                    raise HTTPException(503, "Performance task proposal unavailable")
+                proposal = response.json().get("result") if response.status_code == 200 else None
+                return {"reply": replies[response.status_code],
+                        "citations": [], "attachments": [],
+                        "proposedAction": proposal if isinstance(proposal, dict) and proposal.get("requiresConfirmation") is True and proposal.get("executed") is not True else None,
+                        "abstain": response.status_code != 200, "degraded": False, "decisionSource": "authorization-v1"}
         config = None
         if mode == "SHADOW":
             config = getattr(app.state, "jev_synthetic_mock", None)
@@ -495,6 +524,11 @@ async def _prepare_chat(request: AuthorizedChatRequest, key: str) -> dict | Prep
                         needs_assignment_id = True
                 if not TASKS_INTENT.search(request.message) and not DETAIL_INTENT.search(request.message):
                     calls.append(("get_my_revenue_kpi", {"period": period} if period else {}))
+        elif PENDING_INTENT.search(request.message):
+            calls.append(("list_my_pending_actions", {"limit": 5}))
+            if TASKS_INTENT.search(request.message):
+                period = requested_kpi_period(request.message)
+                calls.append(("get_my_tasks", {"period": period} if period else {}))
         elif TASKS_INTENT.search(request.message):
             period = requested_kpi_period(request.message)
             calls.append(("get_my_tasks", {"period": period} if period else {}))
@@ -569,7 +603,9 @@ async def _prepare_chat(request: AuthorizedChatRequest, key: str) -> dict | Prep
     performance = contexts.get("get_my_kpi")
     revenue_read = REVENUE_KPI_TOOLS & contexts.keys()
     pending_intent = PENDING_INTENT.search(request.message) is not None or needs_assignment_id
-    if isinstance(performance, dict) and performance.get("kind") == "performance_kpi" and not revenue_read and not pending_intent:
+    department_read = "get_department_kpi" in contexts
+    policy_intent = re.search(r"(quy định|quy chế|quy trình|hướng dẫn|cách tính|công thức)", request.message, re.IGNORECASE) is not None
+    if isinstance(performance, dict) and performance.get("kind") == "performance_kpi" and not revenue_read and not pending_intent and not department_read and not policy_intent:
         # Grounded API explanation, same API/audit as Web. No model rescores it.
         return {"reply": str(performance.get("summary", ""))[:16000] + "\n" + "\n".join(performance.get("advice", [])),
                 "citations": [], "attachments": [], "proposedAction": None, "abstain": False,
