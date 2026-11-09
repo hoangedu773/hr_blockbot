@@ -44,6 +44,8 @@ All request bodies are validated by the shared contracts package. Authorization 
 
 The scheduler is disabled unless `REMINDER_SCHEDULER_ENABLED=true`. When enabled, it runs in-process with `REMINDER_INTERVAL_MS` (default 15 minutes), uses daily/idempotent dedupe keys, and emits `notification:new` through Socket.IO only for newly inserted notifications. It covers project reminders at 3 days, 1 day, and overdue; pending assignment acknowledgement escalation; and manager KPI review digests.
 
+Performance KPI and task notices show their severity and readable event content. The KPI view filters by severity, opens a scoped task/evaluation preview, and lets the owner mark notices read. Older generic notices are rendered using their event type without modifying stored records.
+
 ## Verification
 
 - `apps/api/test/kpi-v1.test.mjs`: **3 passed** — lifecycle, scope denials, and scheduler idempotency.

@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { NotificationItemSchema, NotificationNewPayloadSchema, type NotificationItem, type NotificationType } from "@hr-blockbot/contracts";
 import { NotificationModel } from "../models/Notification.js";
 import { getIO } from "../socket.js";
+import { performanceNotificationContent } from "./performance-notification-content.js";
 
 export interface NotifyInput {
   userId: string;
@@ -53,10 +54,15 @@ export async function notifyUser(input: NotifyInput): Promise<{ created: boolean
 }
 
 export function notificationDto(row: any): NotificationItem {
+  const type = row.performanceType ?? row.revenueType ?? row.type;
+  const legacyContent = row.title === 'Cập nhật nhiệm vụ' || row.title === 'Cập nhật KPI hiệu suất'
+    ? performanceNotificationContent(type, row.dedupeKey)
+    : undefined;
   return NotificationItemSchema.parse({
-    id: String(row._id), type: row.performanceType ?? row.revenueType ?? row.type, title: row.title, body: row.body,
+    id: String(row._id), type, title: legacyContent?.title ?? row.title, body: legacyContent?.body ?? row.body,
     channel: "in_app", entityKind: row.entityKind ?? null, entityId: row.entityId ?? null,
-    severity: row.severity ?? "INFO", actionRef: row.actionRef ?? null,
+    severity: legacyContent?.severity ?? row.severity ?? "INFO",
+    actionRef: row.actionRef ?? (legacyContent ? row.entityId : null) ?? null,
     readAt: row.readAt ? new Date(row.readAt).toISOString() : null,
     createdAt: new Date(row.createdAt).toISOString(),
   });
