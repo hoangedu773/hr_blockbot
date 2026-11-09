@@ -8,7 +8,6 @@ import { ProjectModel } from "../models/Project.js";
 import { endpoint as endpoint } from "../lib/endpoint.js";
 import { pagingMeta } from "../lib/paging.js";
 import { WorkflowError, projectReadScope, visibleProject, projectDtos, assertProjectManagement } from "../services/project-workflow.service.js";
-import { allowedStoreIds, hasCapability } from "../services/authorization-scope.service.js";
 import { respondToAssignment, reviewAssignment, confirmHandover, assignmentMessage, effectiveAssignment } from "../services/assignment.service.js";
 import { verifyProjectAudit } from "../services/project-audit.service.js";
 import { replacementCandidates } from "../services/assignment-candidates.service.js";
@@ -16,6 +15,7 @@ import { prepareDecisionAnchor, verifyDecisionAnchor } from "../services/decisio
 import { z } from "zod";
 import { objectId } from "../services/project-workflow.service.js";
 import { DecisionAnchorModel } from "../models/DecisionAnchor.js";
+import { assignmentNoticeRecipients, listScopedAssignmentNotices } from "../services/assignment-notification.service.js";
 
 const router = Router();
 router.use(["/projects", "/assignment"], authenticateToken);
@@ -82,23 +82,15 @@ router.get("/assignment/summary", endpoint(async (req, res) => {
     pendingHandover: open.filter((project) => effectiveAssignment(project) === "HANDOVER_PENDING").length,
     overdue: open.filter((project) => project.dueDate && new Date(project.dueDate).getTime() < Date.now()).length });
 }));
-function recipients(user: NonNullable<Express.Request["user"]>) {
-  return [...(user.employeeId ? ["employee:" + user.employeeId] : []), ...allowedStoreIds(user, "assignment.review").map((id) => "store-managers:" + id)];
-}
 router.get("/assignment/notifications", endpoint(async (req, res) => {
   const { page, limit } = PaginationQuerySchema.parse(req.query);
-  const allowed = recipients(req.user!);
-  const projects: any[] = await ProjectModel.find({ $and: [projectReadScope(req.user!), { "assignmentNotices.recipients": { $in: allowed } }] })
-    .select("title assignmentNotices notificationReads").lean();
-  const items = projects.flatMap((project) => (project.assignmentNotices ?? []).filter((item: any) => item.recipients.some((to: string) => allowed.includes(to)))
-    .map((item: any) => ({ id: item.id, projectId: String(project._id), projectTitle: project.title, message: item.message, at: item.at,
-      read: (project.notificationReads ?? []).includes(req.user!.userId + ":" + item.id) }))).sort((a, b) => b.at.localeCompare(a.at));
+  const items = (await listScopedAssignmentNotices(req.user!)).sort((a, b) => b.at.localeCompare(a.at));
   res.json({ items: items.slice((page - 1) * limit, page * limit), totalItems: items.length, unreadCount: items.filter((item) => !item.read).length,
     paging: pagingMeta({ page, limit, totalItems: items.length }) });
 }));
 router.post("/assignment/notifications/:projectId/:noticeId/read", endpoint(async (req, res) => {
   const project = await visibleProject(req.user!, req.params.projectId);
-  const allowed = recipients(req.user!);
+  const allowed = assignmentNoticeRecipients(req.user!);
   const item = (project.assignmentNotices ?? []).find((entry: any) => entry.id === req.params.noticeId && entry.recipients.some((to: string) => allowed.includes(to)));
   if (!item) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy thông báo.");
   // Read receipts are metadata, never overwrite the immutable notification/event.

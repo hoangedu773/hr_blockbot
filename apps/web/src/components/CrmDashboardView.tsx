@@ -36,6 +36,9 @@ export interface CrmDashboardViewProps {
   onOpenAiCopilot?: () => void;
   onSwitchTab?: (tab: 'crm' | 'chat') => void;
   onNotify?: NotifyFn;
+  notificationButton?: React.ReactNode;
+  notificationView?: ActiveCrmView | null;
+  onNotificationViewApplied?: () => void;
 }
 
 const CRM_HTML = `
@@ -168,6 +171,9 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
   onOpenAiCopilot,
   onSwitchTab,
   onNotify,
+  notificationButton,
+  notificationView,
+  onNotificationViewApplied,
 }) => {
   const { can, summary: authorization } = useAuthorization();
   const [performanceEnabled, setPerformanceEnabled] = useState(false);
@@ -184,9 +190,15 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
     lifecycle: can('employees.lifecycle_request') || can('employees.lifecycle_review') || can('employees.transfer_confirm'), initialReporting: can('onboarding.reporting_propose') || can('onboarding.reporting_review') };
   const authorizationKey = JSON.stringify(allowedViews);
   const [activeView, setActiveView] = useState<ActiveCrmView>('stores');
+  useEffect(() => { if (!allowedViews[activeView]) setActiveView((Object.keys(allowedViews) as ActiveCrmView[]).find((view) => allowedViews[view]) ?? 'profile'); }, [authorizationKey, activeView]);
+  useEffect(() => {
+    if (notificationView && allowedViews[notificationView]) {
+      setActiveView(notificationView);
+      onNotificationViewApplied?.();
+    }
+  }, [notificationView, authorizationKey, onNotificationViewApplied]);
   useEffect(()=>{if(allowedViews.performanceKpi&&sessionStorage.getItem('performance-kpi-navigation'))setActiveView('performanceKpi');},[performanceEnabled,authorizationKey]);
   const [themePortalEl, setThemePortalEl] = useState<HTMLElement | null>(null);
-  useEffect(() => { if (!allowedViews[activeView]) setActiveView((Object.keys(allowedViews) as ActiveCrmView[]).find((view) => allowedViews[view]) ?? 'profile'); }, [authorizationKey, activeView]);
   const [storesPortalEl, setStoresPortalEl] = useState<HTMLElement | null>(null);
   const [customViewPortalEl, setCustomViewPortalEl] = useState<HTMLElement | null>(null);
   const [drawerRootEl, setDrawerRootEl] = useState<HTMLElement | null>(null);
@@ -461,7 +473,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
         dangerouslySetInnerHTML={{ __html: CRM_HTML }}
       />
       {themePortalEl &&
-        createPortal(<ThemeToggle />, themePortalEl)}
+        createPortal(<div className="crm-header-controls">{notificationButton}<ThemeToggle /></div>, themePortalEl)}
       {storesPortalEl && activeView === 'stores' && allowedViews.stores &&
         createPortal(
           <StoreDirectoryView

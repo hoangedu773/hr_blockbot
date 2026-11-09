@@ -14,6 +14,7 @@ import type {
 interface ChatPageViewProps {
   onSwitchTab: (tab: 'crm' | 'chat') => void;
   onLogout: () => void;
+  notificationButton?: React.ReactNode;
 }
 
 interface ChatComposerProps {
@@ -187,7 +188,7 @@ function parseReply(value: unknown): Omit<Message, 'id' | 'sender'> & { conversa
 
 
 
-export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogout }) => {
+export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogout, notificationButton }) => {
   const { user } = useAuth();
   const profileLabel = user?.authorization?.profile || 'Chưa cấp profile';
   const quickReplies = ['Tóm tắt nhiệm vụ tôi được phép xem', 'Xem thông tin hồ sơ của tôi', 'Tra cứu tài liệu đã được duyệt'].map((label) => ({ label, prompt: label }));
@@ -441,6 +442,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
                 {profileLabel}
               </span>
             </div>
+            {notificationButton}
             <ThemeToggle className="theme-toggle--chat" />
             <button type="button" aria-label="Quay lại CRM" onClick={() => onSwitchTab('crm')}>CRM</button>
           </div>
