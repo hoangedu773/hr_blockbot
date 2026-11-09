@@ -165,8 +165,8 @@ function isServiceFault(error: unknown): boolean {
 export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogout, notificationButton, onboardingNotification, onOnboardingNotificationOpened }) => {
   const { user } = useAuth();
   const profileLabel = user?.authorization?.profile || 'Chưa cấp profile';
-  const canProposeOnboarding = user?.authorization?.capabilities.includes('onboarding.propose');
-  const canReviewOnboarding = user?.authorization?.capabilities.includes('onboarding.review');
+  const canProposeOnboarding = user?.authorization?.capabilities?.includes('onboarding.propose');
+  const canReviewOnboarding = user?.authorization?.capabilities?.includes('onboarding.review');
   const onboardingSequence = useRef(0);
   const [onboarding, setOnboarding] = useState<{ mode: 'create' | 'review'; id?: string; key: number } | null>(null);
   useEffect(() => {

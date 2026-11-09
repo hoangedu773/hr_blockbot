@@ -150,7 +150,7 @@ test('ChatPageView renders citations/attachments, confirms drafts honestly and r
             }
             if (args.path === 'api-service') {
               return {
-                contents: "export const newClientMessageId = () => '375a3b79-6a09-4c3a-b551-32ae773d93c3';",
+                contents: "export const API_BASE = '/api'; export const apiFetch = (...args) => window.fetch(...args); export const requestJson = (...args) => window.fetch(...args); export const newClientMessageId = () => '375a3b79-6a09-4c3a-b551-32ae773d93c3'; export const fetchMe = () => window.fetch('/api/auth/me');",
                 loader: 'js',
               };
             }
