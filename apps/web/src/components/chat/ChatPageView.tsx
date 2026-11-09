@@ -340,6 +340,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   useEffect(() => {
     if (!onboardingNotification || isTyping || historyLoading || inbox.busy || pending.current) return;
     if (canReviewOnboarding) {
+      historySequence.current++;
       setIntakePrompt(null);
       setKpiAction(null);
       setServiceUnavailable(false);
@@ -352,6 +353,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     const text = prompt.trim();
     if (!text || text.length > 2000 || pending.current || isTyping || inbox.busy || historyLoading) return;
     if (inbox.send(text, appendInline(lastMessageId))) {
+      historySequence.current++;
       setSidebarOpen(false);
       setServiceUnavailable(false);
       return;
