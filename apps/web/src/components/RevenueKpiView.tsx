@@ -305,6 +305,7 @@ export function RevenueKpiView() {
     setBusy(true);
     if (targetCardId) setActiveCardId(targetCardId);
     setError('');
+    const prevScrollY = typeof window !== 'undefined' ? window.scrollY : 0;
     try {
       const res = await operation();
       if (res && typeof res === 'object' && 'id' in res) {
@@ -323,7 +324,19 @@ export function RevenueKpiView() {
       commandCache.current = null;
       setModal(null);
       setNotice(message);
-      trigger.current?.focus();
+
+      // Restore scroll and safe focus to prevent jump-scrolling / feeling of page reload
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: prevScrollY, behavior: 'instant' });
+      }
+      if (trigger.current && document.body.contains(trigger.current)) {
+        trigger.current.focus({ preventScroll: true });
+      } else if (targetCardId) {
+        const cardElem = document.getElementById(`rk-card-${targetCardId}`);
+        if (cardElem) {
+          cardElem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Thao tác chưa hoàn tất.');
     } finally {
@@ -458,36 +471,56 @@ export function RevenueKpiView() {
         const drafts = dashboard!.assignments.filter(
           a => a.status === 'DRAFT' && (kind !== 'ai' && kind !== 'apply' || a.unitType === 'STORE')
         );
-        for (const a of drafts) {
-          setActiveCardId(a.id);
-          if (kind === 'ai') {
-            const updated = await api.proposeRevenueKpiTarget(a.id, {
-              expectedVersion: a.version,
-              clientRequestId: newClientMessageId(),
-            });
-            mergeAssignmentInPlace(updated);
-          } else if (kind === 'publish') {
-            const prepared =
-              a.unitType === 'AREA'
-                ? await api.saveRevenueKpiAssignment({
-                    id: a.id,
-                    period,
-                    unitType: 'AREA',
-                    assigneeEmployeeId: a.assigneeEmployeeId,
-                    targetMode: 'ABSOLUTE_VND',
-                    reason: 'HR đồng bộ tổng mục tiêu các cửa hàng trước phát hành.',
-                    expectedVersion: a.version,
-                    clientRequestId: newClientMessageId(),
-                  })
-                : a;
-            const published = await api.publishRevenueKpiAssignment(prepared.id, {
-              expectedVersion: prepared.version,
-              clientRequestId: newClientMessageId(),
-            });
-            mergeAssignmentInPlace(published);
-          } else if (a.aiProposal?.suggestedGrowthPercent != null) {
-            const applied = await saveAiTarget(a, a.aiProposal.suggestedGrowthPercent, newClientMessageId());
-            mergeAssignmentInPlace(applied);
+        if (kind === 'ai') {
+          // Batch proposals in parallel chunks of 5 for speed without freezing/flickering UI
+          for (let i = 0; i < drafts.length; i += 5) {
+            const chunk = drafts.slice(i, i + 5);
+            const results = await Promise.all(
+              chunk.map(a =>
+                api.proposeRevenueKpiTarget(a.id, {
+                  expectedVersion: a.version,
+                  clientRequestId: newClientMessageId(),
+                })
+              )
+            );
+            setDashboard(prev =>
+              prev
+                ? {
+                    ...prev,
+                    assignments: prev.assignments.map(item => {
+                      const found = results.find(u => u.id === item.id);
+                      return found ?? item;
+                    }),
+                  }
+                : prev
+            );
+          }
+        } else {
+          for (const a of drafts) {
+            setActiveCardId(a.id);
+            if (kind === 'publish') {
+              const prepared =
+                a.unitType === 'AREA'
+                  ? await api.saveRevenueKpiAssignment({
+                      id: a.id,
+                      period,
+                      unitType: 'AREA',
+                      assigneeEmployeeId: a.assigneeEmployeeId,
+                      targetMode: 'ABSOLUTE_VND',
+                      reason: 'HR đồng bộ tổng mục tiêu các cửa hàng trước phát hành.',
+                      expectedVersion: a.version,
+                      clientRequestId: newClientMessageId(),
+                    })
+                  : a;
+              const published = await api.publishRevenueKpiAssignment(prepared.id, {
+                expectedVersion: prepared.version,
+                clientRequestId: newClientMessageId(),
+              });
+              mergeAssignmentInPlace(published);
+            } else if (a.aiProposal?.suggestedGrowthPercent != null) {
+              const applied = await saveAiTarget(a, a.aiProposal.suggestedGrowthPercent, newClientMessageId());
+              mergeAssignmentInPlace(applied);
+            }
           }
         }
       },
@@ -614,6 +647,7 @@ export function RevenueKpiView() {
     return (
       <article
         key={a.id}
+        id={`rk-card-${a.id}`}
         className={`rk-assignment rk-assignment-${a.unitType.toLowerCase()} ${isCardBusy ? 'rk-assignment-busy' : ''}`}
         aria-label={`KPI ${a.unitType === 'AREA' ? 'khu vực' : 'cửa hàng'} ${a.assigneeName}`}
       >
