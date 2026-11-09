@@ -9,6 +9,7 @@ export const performancePolicies=(period:string)=>requestJson<{items:Performance
 export const performanceTemplates=()=>requestJson<{items:TaskTemplate[]}>('/tasks/templates');
 export const performanceTasks=(period:string)=>requestJson<{items:TaskInstance[]}>('/tasks?period='+encodeURIComponent(period));
 export const performanceTask=(id:string)=>requestJson<TaskInstance>('/tasks/'+id);
+export const performanceEvaluation = (id: string) => requestJson<PerformanceEvaluation>('/performance-kpi/evaluations/' + encodeURIComponent(id));
 export const performanceExplain=(id:string)=>requestJson<ReturnType<typeof PerformanceExplainSchema.parse>>('/performance-kpi/evaluations/'+id+'/explain');
 export const performancePost=<T=unknown>(path:string,body:unknown)=>requestJson<T>(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
 export const performanceEvaluationAction=(id:string,action:string,body:unknown)=>performancePost<PerformanceEvaluation>('/performance-kpi/evaluations/'+id+'/'+action,body);

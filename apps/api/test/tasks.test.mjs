@@ -6,6 +6,7 @@ import { connectDB,disconnectDB } from '../dist/db.js';
 import { performanceFixture,cmd,ev } from './helpers/performance-kpi-fixture.mjs';
 import * as S from '../dist/services/task-instance.service.js';
 import { taskBreakdown } from '../dist/services/performance-kpi-scoring.service.js';
+import { notificationDto } from '../dist/services/notification.service.js';
 let f,sm,staff,ptch;
 before(async()=>{await connectDB();f=await performanceFixture();sm=await f.principal('sm');staff=await f.principal('staff');ptch=await f.principal('ptch');});after(disconnectDB);
 async function task(title='Kiểm kê cuối ca'){let t=await S.createTask(sm,cmd(0,{templateId:f.template.id,storeId:String(f.stores[0]._id),title,description:'Dữ liệu kiểm thử riêng.',dueAt:'2026-11-25T10:00:00.000Z',taskWeightPercent:30,isDemo:true}));return S.mutateTask(sm,t.id,'assign',cmd(t.version,{assigneeEmployeeId:staff.employeeId,reason:'Giao phần việc kiểm kê cụ thể.'}));}
@@ -31,4 +32,12 @@ test('extension changes due-month with audit, and accepted cancellation retains 
 });
 test('late/missing task reminders dedupe and never auto accept responsibility',async()=>{
  const {runPerformanceReminders,flushPerformanceNotices}=await import('../dist/services/performance-kpi-notification.service.js');const t=await task('Nhiệm vụ chưa phản hồi');await runPerformanceReminders(new Date('2026-11-26T12:00:00Z'));const first=await mongoose.connection.collection('notifications').countDocuments({dedupeKey:'task_overdue:'+t.id+':'+t.dueAt});await runPerformanceReminders(new Date('2026-11-27T12:00:00Z'));assert.equal(await mongoose.connection.collection('notifications').countDocuments({dedupeKey:'task_overdue:'+t.id+':'+t.dueAt}),first);const current=await S.getTask(staff,t.id);assert.equal(current.assignmentStatus,'PENDING_ACCEPTANCE');assert.equal(current.responsibilitySegments.length,0);const n=await mongoose.connection.collection('notifications').findOne({dedupeKey:'task_overdue:'+t.id+':'+t.dueAt});assert.equal(n.type,'system');assert.equal(n.performanceType,'task_overdue');
+ assert.equal(n.severity, 'URGENT');
+ assert.equal(n.actionRef, t.id);
+ assert.equal(n.title, 'Nhiệm vụ đã quá hạn');
+ const legacy = notificationDto({ ...n, title: 'Cập nhật nhiệm vụ', body: 'Có nội dung cần xem hoặc phản hồi.', severity: 'INFO', actionRef: null });
+ assert.equal(legacy.title, n.title);
+ assert.equal(legacy.body, n.body);
+ assert.equal(legacy.severity, 'URGENT');
+ assert.equal(legacy.actionRef, t.id);
 });
