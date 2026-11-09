@@ -184,11 +184,9 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
   useEffect(() => { let alive = true; setRevenueEnabled(false); if (['hr', 'am', 'sm'].includes(authorization?.profile ?? '')) void getRevenueKpiConfig().then(c => { if (alive) setRevenueEnabled(c.enabled); }).catch(() => {}); return () => { alive = false; }; }, [authorization?.profile, authorization?.securityVersion]);
   const canReadProjects = can('projects.read_assigned') || can('projects.read_managed') || can('projects.create') || can('reports.review');
   const canReadScoredWork = performanceEnabled && (can('task.read_self') || can('task.read_scope'));
-  const [showScoredWork, setShowScoredWork] = useState(false);
   const [workTarget, setWorkTarget] = useState<{ id: string; period: string } | null>(null);
   function openScoredWork(target: { id: string; period: string }) {
     setWorkTarget(target);
-    setShowScoredWork(true);
     setActiveView('projects');
   }
   const allowedViews: Record<ActiveCrmView, boolean> = { stores: can('stores.read'), sales: can('dashboard.read'), employees: can('employees.read_operational'), profile: can('profile.read_self'),
@@ -210,7 +208,6 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
           sessionStorage.removeItem('scored-work-notification');
           const [month, id] = period.split(':');
           if (/^20\d{2}-(0[1-9]|1[0-2])$/.test(month) && /^[a-f0-9]{24}$/i.test(id)) openScoredWork({ period: month, id });
-          else { setWorkTarget(null); setShowScoredWork(true); }
         }
       }
       setActiveView(notificationView);
@@ -524,15 +521,8 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
           ) : activeView === 'schedules' && allowedViews.schedules ? (
             <SchedulingView />
           ) : activeView === 'projects' && allowedViews.projects ? (
-            <>
-              {canReadProjects && canReadScoredWork && <nav className="pf-tabs" aria-label="Loại công việc">
-                <button type="button" role="tab" aria-selected={!showScoredWork} onClick={() => { setShowScoredWork(false); setWorkTarget(null); }}>Công việc thường</button>
-                <button type="button" role="tab" aria-selected={showScoredWork} onClick={() => setShowScoredWork(true)}>Công việc có thang điểm</button>
-              </nav>}
-              {canReadScoredWork && (showScoredWork || !canReadProjects)
-                ? <PerformanceKpiView work target={workTarget} key={workTarget ? workTarget.period + ':' + workTarget.id : 'scored-work'} />
-                : <ProjectListView onNotify={safeNotify} />}
-            </>
+            <ProjectListView onNotify={safeNotify} canReadProjects={canReadProjects} canReadScored={canReadScoredWork}
+              workTarget={workTarget} onTargetApplied={() => setWorkTarget(null)} />
           ) : activeView === 'kpi' && allowedViews.kpi ? (
             <KpiView onNotify={safeNotify} />
           ) : activeView === 'onboarding' && allowedViews.onboarding ? (

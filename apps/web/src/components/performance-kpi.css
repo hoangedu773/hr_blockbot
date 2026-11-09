@@ -17,5 +17,3 @@
 .pf-notification-severity[data-severity="ACTION_REQUIRED"] { border-color: #3788ed; background: #3788ed1a; }
 .pf-notification-severity[data-severity="URGENT"] { border-color: #df5757; background: #df57571a; }
 .pf-notification-target { margin-top: 10px; border-inline-start: 2px solid #8994a580; padding: 8px 12px; }
-
-.pf-dialog .pf-task-create { border: 0; margin: 0; padding: 0; min-width: 0; }
