@@ -27,7 +27,7 @@ function escapeRegex(str: string): string {
 }
 
 // Display groups use recorded titles only. They do not confer any capability.
-const titleGroup = z.enum(["am", "aom", "sam", "om", "sm", "ptch", "staff"]);
+const titleGroup = z.enum(["am", "aom", "sam", "om", "sm", "ptch", "staff", "kitchen", "bakery", "ops_support"]);
 const titlePatterns: Record<z.infer<typeof titleGroup>, string> = {
   am: String.raw`^\s*(?:AM[123]?|QUẢN LÝ KHU VỰC|AREA MANAGER)(?:\s*\([^)]*\))?\s*$`,
   aom: String.raw`^\s*(?:AOM|TRỢ LÝ OM|TRỢ LÝ QUẢN LÝ KHU VỰC|ASSISTANT AREA MANAGER)(?:\s*\([^)]*\))?\s*$`,
@@ -36,6 +36,9 @@ const titlePatterns: Record<z.infer<typeof titleGroup>, string> = {
   sm: String.raw`^\s*(?:SM[123]?|CỬA HÀNG TRƯỞNG|STORE MANAGER)(?:\s*\([^)]*\))?\s*$`,
   ptch: String.raw`^\s*(?:PTCH|PHỤ TRÁCH CỬA HÀNG)(?:\s*\([^)]*\))?\s*$`,
   staff: String.raw`^\s*(?:NV[123]?(?:\s|$)|NHÂN VIÊN(?:\s|$)|CAFE\s*[-–]\s*NHÂN VIÊN)`,
+  kitchen: String.raw`^\s*BẾP(?:\s*[-–]|\s|$)`,
+  bakery: String.raw`^\s*BÁNH\s*MÌ(?:\s*[-–]|\s|$)`,
+  ops_support: String.raw`^\s*(?:GIAO\s*HÀNG|BẢO\s*VỆ|OD|PHỤ\s*TRÁCH\s*DỰ\s*ÁN|CHUYÊN\s*VIÊN\s*NHÂN\s*SỰ)(?:\s|\(|$)`,
 };
 
 // V1 list/detail: queries, totals and projections share the same explicit scope.

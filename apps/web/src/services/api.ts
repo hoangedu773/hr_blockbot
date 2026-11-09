@@ -158,7 +158,7 @@ export function isEmployeeDetail(value: EmployeeDetail | EmployeeSummary): value
 // F1 - Employees & profile change approval (FR-003 / FR-004)
 // ---------------------------------------------------------------------------
 
-export type EmployeeTitleGroup = 'am' | 'aom' | 'sam' | 'om' | 'sm' | 'ptch' | 'staff';
+export type EmployeeTitleGroup = 'am' | 'aom' | 'sam' | 'om' | 'sm' | 'ptch' | 'staff' | 'kitchen' | 'bakery' | 'ops_support';
 
 export interface EmployeeListParams {
   jobTitleGroup?: EmployeeTitleGroup;

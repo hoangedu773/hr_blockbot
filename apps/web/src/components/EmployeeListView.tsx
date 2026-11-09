@@ -19,7 +19,10 @@ const titles: { value: EmployeeTitleGroup; label: string }[] = [
   { value: 'om', label: 'OM — Quản lý vùng' },
   { value: 'sm', label: 'SM — Cửa hàng trưởng' },
   { value: 'ptch', label: 'PTCH — Phụ trách cửa hàng' },
-  { value: 'staff', label: 'Nhân viên' },
+  { value: 'staff', label: 'Nhân viên cửa hàng (Cafe)' },
+  { value: 'kitchen', label: 'Khối Bếp (Bếp chính / Bếp nấu / Phụ bếp)' },
+  { value: 'bakery', label: 'Khối Bánh mì' },
+  { value: 'ops_support', label: 'Giao hàng / Bảo vệ / Hỗ trợ vận hành' },
 ];
 
 export const EmployeeListView: React.FC = () => {
