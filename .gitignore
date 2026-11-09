@@ -82,14 +82,12 @@ prompt/
 # Extracted data artifacts — 100% regenerable from the source Google Sheet via
 # scripts/extract_sheet_to_db.py + scripts/export_for_mongo.py, never pushed
 db/
-data/
+data/*
 # Exception: policy PDFs rebuilt from the Drive viewer by
 # scripts/seed/12-drive-pdf-rescue.py. They are not regenerable without network
 # access to the original Drive links, and the attachment route serves them at
 # /api/attachments/rescued_pdf/<file>, so Render needs them in the image.
-!data/
 !data/guta_rescued_pdf/
-!data/guta_rescued_pdf/**
 /dashboard/
 
 # Large installer binary (>100MB exceeds GitHub's hard file limit)
