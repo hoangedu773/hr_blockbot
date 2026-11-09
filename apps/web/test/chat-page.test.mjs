@@ -65,6 +65,8 @@ test('ChatPageView renders citations/attachments, confirms drafts honestly and r
           buildInstance.onResolve({ filter: /ThemeToggle/ }, () => ({ path: 'theme-toggle', namespace: 'stub' }));
           buildInstance.onResolve({ filter: /(?:services\/auth|[/\\]auth)$/ }, () => ({ path: 'auth-service', namespace: 'stub' }));
           buildInstance.onResolve({ filter: /(?:services\/api|[/\\]api)$/ }, () => ({ path: 'api-service', namespace: 'stub' }));
+          buildInstance.onResolve({ filter: /\.css$/ }, () => ({ path: 'css-stub', namespace: 'stub' }));
+          buildInstance.onLoad({ filter: /^css-stub$/, namespace: 'stub' }, () => ({ contents: '', loader: 'js' }));
 
           buildInstance.onLoad({ filter: /.*/, namespace: 'stub' }, (args) => {
             if (args.path === 'react') {

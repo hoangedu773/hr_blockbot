@@ -8,12 +8,13 @@ import { endpoint as endpoint } from "../lib/endpoint.js";
 
 const router = Router();
 
-const ALLOWED_CATEGORIES = ["pdf", "images"] as const;
+const ALLOWED_CATEGORIES = ["pdf", "images", "rescued_pdf"] as const;
 type Category = (typeof ALLOWED_CATEGORIES)[number];
 
 const ALLOWED_EXTENSIONS: Record<Category, string[]> = {
   pdf: [".pdf"],
   images: [".png", ".jpg", ".jpeg"],
+  rescued_pdf: [".pdf"],
 };
 
 const MIME_TYPES: Record<string, string> = {
@@ -56,6 +57,7 @@ const DATA_ROOT = resolveDataRoot();
 const CATEGORY_DIRS: Record<Category, string> = {
   pdf: path.resolve(DATA_ROOT, "guta_mau_bien_ban_cho_agent"),
   images: path.resolve(DATA_ROOT, "guta_bo_du_lieu_chatbot", "anh_tham_chieu"),
+  rescued_pdf: path.resolve(DATA_ROOT, "guta_rescued_pdf"),
 };
 
 router.get("/attachments/:category/:filename", authenticateToken, endpoint(async (req: Request, res: Response) => {
@@ -106,8 +108,9 @@ router.get("/attachments/:category/:filename", authenticateToken, endpoint(async
   // Trusted deployment configuration, never a request parameter. Also permits
   // hermetic tests without copying confidential GUTA documents into the repo.
   const configuredRoot = process.env.ATTACHMENTS_DATA_ROOT;
-  const baseDir = configuredRoot ? path.resolve(configuredRoot, validCategory === "pdf"
-    ? "guta_mau_bien_ban_cho_agent" : "guta_bo_du_lieu_chatbot/anh_tham_chieu") : CATEGORY_DIRS[validCategory];
+  const baseDir = configuredRoot ? path.resolve(configuredRoot, validCategory === "images"
+    ? "guta_bo_du_lieu_chatbot/anh_tham_chieu" : validCategory === "pdf"
+      ? "guta_mau_bien_ban_cho_agent" : "guta_rescued_pdf") : CATEGORY_DIRS[validCategory];
   const resolvedPath = path.resolve(baseDir, filename);
 
   // Strict boundary containment check

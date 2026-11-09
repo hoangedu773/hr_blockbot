@@ -45,6 +45,8 @@ export interface CandidateSuggestionReceipt {
 export interface DocumentReceipt {
   documentId: string;
   digest: string;
+  article?: string | null;
+  score?: number | null;
 }
 
 export interface ProjectReceipt {
@@ -965,7 +967,7 @@ export async function executeGatewayTool(token: string, body: unknown) {
   } else if (tool === "query_policy") {
     const rows = await approvedDocuments(user, args.query ?? "");
     documents = rows.map(({ document }) => documentReceipt(document));
-    result = rows.map(({ document, text }) => ({ documentId: String(document._id), title: document.title, version: document.version ?? "", text: text.slice(0, 5000) }));
+    result = rows.map(({ document, text }) => ({ documentId: String(document._id), title: String(document.title ?? ""), version: String(document.version ?? ""), text: text.slice(0, 5000) }));
   } else if (tool === "get_my_kpi") {
     if (!user.employeeId) throw new WorkflowError(403, "RBAC_DENIED", "Tài khoản chưa gắn hồ sơ nhân viên");
     const period = args.period ?? currentPeriod();
@@ -1063,7 +1065,7 @@ function revenueOpenIntent(message: string) {
   const reverse = text.match(/\b(1[0-2]|0?[1-9])(?:[/. -]|\s+năm\s+)(20\d{2})\b/);
   return reverse ? reverse[2] + '-' + reverse[1].padStart(2, '0') : null;
 }
-export async function revalidateChatAuthorization(user: AuthenticatedUser, requestId: string): Promise<{ current: AuthenticatedUser; row: ChatAuthorizationRequestDoc; citations: { document: string; version: string; score: number }[] }> {
+export async function revalidateChatAuthorization(user: AuthenticatedUser, requestId: string): Promise<{ current: AuthenticatedUser; row: ChatAuthorizationRequestDoc; citations: { document: string; version: string; score: number; article?: string }[]; attachments: { title: string; type: "pdf" | "image"; url: string; fileName: string }[] }> {
   const row = await receipts().findOne({ _id: requestId, userId: user.userId, securityVersion: user.securityVersion, status: "ACTIVE", expiresAt: { $gt: new Date() } });
   if (!row) throw new WorkflowError(403, "CHAT_REQUEST_UNAVAILABLE", "Request no longer valid");
   const sid = user.sid ?? row.sid;
@@ -1073,13 +1075,20 @@ export async function revalidateChatAuthorization(user: AuthenticatedUser, reque
     throw new WorkflowError(403, "CHAT_REQUEST_UNAVAILABLE", "Session family mismatch");
   }
   if (row.contextHash !== contextHash(current)) throw new WorkflowError(409, "CHAT_AUTHORIZATION_CHANGED", "Authority changed while generating a response");
-  const citations: { document: string; version: string; score: number }[] = [];
+  const citations: { document: string; version: string; score: number; article?: string }[] = [];
+  const attachments: { title: string; type: "pdf" | "image"; url: string; fileName: string }[] = [];
   for (const receipt of row.documents) {
     const document = await mongoose.connection.collection("policies").findOne({ _id: objectId(receipt.documentId) });
     if (!document || !documentAllowed(current, document) || documentReceipt(document).digest !== receipt.digest) {
       throw new WorkflowError(403, "DOCUMENT_ACCESS_CHANGED", "Document ACL changed during response");
     }
-    citations.push({ document: String(document.title), version: String(document.version ?? ""), score: 1 });
+    citations.push({ document: String(document.title), version: String(document.version ?? ""), score: receipt.score ?? 1, article: receipt.article ?? "" });
+    for (const attachment of document.attachments ?? []) {
+      if (attachment.category !== "pdf" && attachment.category !== "images") continue;
+      const url = `/api/attachments/${attachment.category}/${encodeURIComponent(attachment.filename)}`;
+      if (attachments.some((existing) => existing.url === url)) continue;
+      attachments.push({ title: String(document.title), type: attachment.category === "pdf" ? "pdf" : "image", url, fileName: String(attachment.filename) });
+    }
   }
   for (const receipt of row.projects) {
     const project = await visibleProject(current, receipt.projectId);
@@ -1159,7 +1168,7 @@ export async function revalidateChatAuthorization(user: AuthenticatedUser, reque
       throw new WorkflowError(409, "CHAT_RESOURCE_CHANGED", "Danh bạ nhân sự đã thay đổi trong khi trả lời. Vui lòng hỏi lại.");
     }
   }
-  return { current, row, citations };
+  return { current, row, citations, attachments };
 }
 
 export interface ProposalActionLike {
@@ -1245,10 +1254,10 @@ export async function authorizedChat(user: AuthenticatedUser, message: string, c
     const result: ChatResult = period === null
       ? { reply: "Bạn muốn xem trước kỳ nào? Hãy ghi rõ tháng, ví dụ 11/2026.", citations: [], attachments: [], proposedAction: null, abstain: false }
       : await chatWithAiService(message, {}, conversationId, authorization);
-    const { current, row, citations } = await revalidateChatAuthorization(user, authorization.requestId);
+    const { current, row, citations, attachments } = await revalidateChatAuthorization(user, authorization.requestId);
     const proposedAction = await reloadServerProposedAction(current, row);
     const reply = computeProposalReply(proposedAction, period, result.reply);
-    const response = { ...result, reply, citations, attachments: [], proposedAction };
+    const response = { ...result, reply, citations, attachments, proposedAction };
     if (onValidated) {
       const actionEvidence = proposalActionEvidence(proposedAction, row);
       await onValidated(response, {
@@ -1408,13 +1417,13 @@ export async function authorizedChatStream(
     if (callbacks.signal?.aborted) {
       throw new WorkflowError(499, 'CLIENT_CLOSED_REQUEST', 'Yêu cầu đã bị hủy');
     }
-    const { current, row, citations } = await revalidateChatAuthorization(user, authorization.requestId);
+    const { current, row, citations, attachments } = await revalidateChatAuthorization(user, authorization.requestId);
     if (callbacks.signal?.aborted) {
       throw new WorkflowError(499, 'CLIENT_CLOSED_REQUEST', 'Yêu cầu đã bị hủy');
     }
     const proposedAction = await reloadServerProposedAction(current, row);
     const reply = computeProposalReply(proposedAction, period, result.reply);
-    const response = { ...result, reply, citations, attachments: [], proposedAction };
+    const response = { ...result, reply, citations, attachments, proposedAction };
     if (callbacks.signal?.aborted) {
       throw new WorkflowError(499, 'CLIENT_CLOSED_REQUEST', 'Yêu cầu đã bị hủy');
     }

@@ -281,7 +281,7 @@ export type RevenueKpiAssignmentAction = z.infer<typeof RevenueKpiAssignmentActi
 
 // Decision payload (REST /chat/actions/:id/decision + Socket dùng chung executor).
 export const RevenueKpiAssignmentDecisionSchema = z.discriminatedUnion('approve', [
-  RevenueKpiAssignmentActionArgsSchema.pick({ expectedVersion: true, planDigest: true }).extend({ approve: z.literal(true), clientRequestId: z.string().uuid() }),
+  RevenueKpiAssignmentActionArgsSchema.pick({ expectedVersion: true, planDigest: true, reason: true, evidenceRef: true }).extend({ approve: z.literal(true), clientRequestId: z.string().uuid() }),
   z.object({ clientRequestId: z.string().uuid(), approve: z.literal(false) }).strict(),
 ]);
 export type RevenueKpiAssignmentDecision = z.infer<typeof RevenueKpiAssignmentDecisionSchema>;
