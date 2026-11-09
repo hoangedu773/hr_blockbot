@@ -1177,6 +1177,36 @@ test('16b. legacy /chat safety block returns a safe error and persists a failed 
 // ----------------------------------------------------------------------------
 // 17. Deterministic timeout path vs client abort
 // ----------------------------------------------------------------------------
+test('a missing AI stream endpoint falls back to the scoped JSON endpoint and saves the reply', async () => {
+  const paths = [];
+  let firstBody;
+  upstreamHandler = async (req, res) => {
+    paths.push(req.url);
+    let raw = '';
+    for await (const chunk of req) raw += chunk;
+    const body = JSON.parse(raw);
+    if (req.url.endsWith('/stream')) {
+      firstBody = body;
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ detail: 'Not Found' }));
+    }
+    assert.deepEqual(body, firstBody);
+    await executeGatewayTool(body.delegationToken, { requestId: body.requestId, tool: 'validate_context', args: {} });
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ reply: 'Xin chào từ dịch vụ tương thích.', abstain: false, proposedAction: { type: 'untrusted' } }));
+  };
+  const clientMessageId = randomUUID();
+  const response = await callPost('staff', '/chat/stream', { message: 'hi', clientMessageId });
+  assert.equal(response.status, 200);
+  const events = await collectSseEvents(response);
+  assert.equal(events.at(-1).event, 'done');
+  assert.deepEqual(paths, ['/api/v1/authorized-chat/stream', '/api/v1/authorized-chat']);
+  const saved = await Turn.findOne({ clientMessageId }).lean();
+  assert.equal(saved.status, 'COMPLETED');
+  assert.equal(saved.reply, 'Xin chào từ dịch vụ tương thích.');
+  assert.equal(saved.proposedAction ?? null, null);
+});
+
 test('17. deterministic timeout path maps to AI_SERVICE_TIMEOUT, while caller abort does not', async () => {
   upstreamHandler = async (req, res) => {
     await new Promise((r) => setTimeout(r, 200));
