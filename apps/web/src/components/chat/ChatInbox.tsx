@@ -216,7 +216,7 @@ export function useChatInbox({ userId, canReview, stores, onChanged }: {
         }
         const confirmation = /^(?:toi )?(?:dong y|xac nhan)(?: (duyet|tu choi))?$/.exec(command);
         const label = pending.decision === 'APPROVE' ? 'duyệt' : 'từ chối';
-        if (!pending.reason) {
+        if (pending.decision === 'REJECT' && !pending.reason) {
           if (confirmation) { say(`Bạn cho mình biết lý do ${label} hồ sơ trước nhé.`); return; }
           pending.reason = text;
           say(`Bạn sẽ ${label} hồ sơ của ${pending.row.payload.fullName}.\nLý do · ${text}\n\nNhắn “xác nhận” để thực hiện hoặc “hủy” để dừng.`);
@@ -251,7 +251,9 @@ export function useChatInbox({ userId, canReview, stores, onChanged }: {
         const row = current?.onboarding;
         if (!row || !canDecide(row)) { say('Hãy đọc một hồ sơ đang chờ bạn duyệt trước. Ví dụ, nhắn “hồ sơ tiếp nhận cần duyệt”, rồi chọn số hồ sơ.'); return; }
         review.current = { row, decision: decision[1] === 'tu choi' ? 'REJECT' : 'APPROVE' };
-        say(`Bạn cho mình biết lý do ${decision[1] === 'tu choi' ? 'từ chối' : 'duyệt'} hồ sơ của ${row.payload.fullName} nhé.`);
+        say(review.current.decision === 'REJECT'
+          ? `Bạn cho mình biết lý do từ chối hồ sơ của ${row.payload.fullName} nhé.`
+          : `Bạn sẽ duyệt hồ sơ của ${row.payload.fullName}.\n\nNhắn “xác nhận” để thực hiện hoặc “hủy” để dừng.`);
         return;
       }
       if (read) {

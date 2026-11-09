@@ -202,18 +202,45 @@ try {
   await replies.filter({ hasText: 'Bạn có 1 hồ sơ tiếp nhận chờ duyệt' }).waitFor();
   await askHrChat('đọc hồ sơ số 1');
   await replies.filter({ hasText: 'Bạn có thể nhắn “duyệt hồ sơ này”' }).last().waitFor();
+  await askHrChat('từ chối hồ sơ này');
+  await replies.filter({ hasText: 'Bạn cho mình biết lý do từ chối' }).waitFor();
+  await askHrChat('xác nhận');
+  await replies.filter({ hasText: 'Bạn cho mình biết lý do từ chối' }).nth(1).waitFor();
+  await askHrChat('hủy');
+  await replies.filter({ hasText: 'Đã hủy quyết định' }).waitFor();
   await askHrChat('duyệt hồ sơ này');
-  await replies.filter({ hasText: 'Bạn cho mình biết lý do duyệt' }).waitFor();
-  await askHrChat('Independent HR ordinary personnel review');
   await replies.filter({ hasText: 'Bạn sẽ duyệt hồ sơ' }).waitFor();
+  assert.doesNotMatch(await replies.last().textContent(), /lý do/i);
   await askHrChat('xác nhận từ chối');
   await replies.filter({ hasText: 'Quyết định đang chờ là duyệt' }).waitFor();
   assert.equal((await call(hr, '/onboarding/pending-review')).body.items.length, 1);
   await askHrChat('xác nhận');
   await replies.filter({ hasText: 'Đã duyệt hồ sơ' }).waitFor();
   assert.equal((await call(hr, '/onboarding/pending-review')).body.items.length, 0);
+  const reviewedInChat = await OnboardingRequestModel.findById(onboard._id).lean();
+  assert.equal(reviewedInChat.approvalReason, null);
+  assert.equal(reviewedInChat.history.find(entry => entry.type === 'HR_APPROVED').actor, String(fixture.actors.hr.user._id));
   assert.equal(hrChatRequests.length, 0);
   await hr.page.getByRole('button', { name: 'Quay lại CRM', exact: true }).click();
+  const webProposal = await call(sm, '/onboarding', {
+    clientRequestId: crypto.randomUUID(), fullName: 'Synthetic browser web approval',
+    phone: '0900000456', email: 'web-approval@example.com', storeId: String(fixture.stores[0]._id),
+    hiredAt: '2026-10-31T00:00:00+07:00', reason: 'Owned browser web approval flow',
+  });
+  assert.equal(webProposal.status, 201);
+  const webReviewPath = '/onboarding/' + webProposal.body.id + '/review';
+  assert.equal((await call(hr, webReviewPath, { expectedVersion: webProposal.body.version, decision: 'REJECT' })).status, 400);
+  await hr.page.locator('nav [data-section="onboarding"]').click();
+  await hr.page.locator('article').filter({ hasText: 'Synthetic browser web approval' }).getByRole('button', { name: 'Đối chiếu và lịch sử' }).click();
+  const webReview = hr.page.getByRole('dialog', { name: 'Đối chiếu đề nghị tiếp nhận' });
+  assert.equal(await webReview.getByLabel('Lý do từ chối').inputValue(), '');
+  assert.equal(await webReview.getByRole('button', { name: /Từ chối đề nghị/ }).isDisabled(), true);
+  await webReview.getByRole('button', { name: /Phê duyệt tiếp nhận/ }).click();
+  await webReview.waitFor({ state: 'hidden' });
+  const reviewedInWeb = await OnboardingRequestModel.findById(webProposal.body.id).lean();
+  assert.equal(reviewedInWeb.status, 'PENDING_ACTIVATION');
+  assert.equal(reviewedInWeb.approvalReason, null);
+  assert.equal((await call(hr, '/onboarding/' + webProposal.body.id)).body.auditIntegrity, 'VALID_LOCAL_CHAIN');
   await am.page.locator('nav [data-section="onboarding"]').click(); await am.page.getByRole('button', { name: 'Lịch sử quan hệ ban đầu', exact: true }).click();
   let dialog = am.page.getByRole('dialog', { name: 'Duyệt quan hệ quản lý ban đầu', exact: true }); await dialog.getByLabel('Lý do phê duyệt quan hệ', { exact: true }).fill('Actual independent upper manager verifies relation'); await dialog.getByRole('button', { name: 'Phê duyệt quan hệ ban đầu', exact: true }).click(); await dialog.waitFor({ state: 'hidden' });
   assert.equal(await ManagementRelationModel.countDocuments({ employeeId: onboard.employeeId, revokedAt: null }), 0);

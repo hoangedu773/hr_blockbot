@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import { randomBytes, randomUUID, createHash } from "node:crypto";
-import { OnboardingCreateSchema, OnboardingResubmitSchema, AuthorizationGrantSchema } from "@hr-blockbot/contracts";
+import { OnboardingCreateSchema, OnboardingResubmitSchema, AuthorizationGrantSchema, type OnboardingReview } from "@hr-blockbot/contracts";
 import { OnboardingRequestModel } from "../models/OnboardingRequest.js";
 import { UserModel, type IUser } from "../models/User.js";
 import { EmployeeModel } from "../models/Employee.js";
@@ -19,6 +19,7 @@ import { deliverableAccountEmail } from "./account-mail.service.js";
 
 export type ActivationDelivery = (invitation: { token: string; username: string; requestId: string; phone: string; email?: string; purpose?: "onboarding" | "reactivation" }) => Promise<void>;
 export interface OnboardingOptions { deliverActivation?: ActivationDelivery; failpoint?: (stage: string) => void }
+const approvalAuditNote = "HR phê duyệt tiếp nhận";
 const tokenHash = (value: string) => createHash("sha256").update(value).digest("hex");
 const termsHash = (row: any) => digest({ employeeKey: row.employeeKey, employeeId: row.employeeId, userId: row.userId, storeId: row.storeId, requestedBy: row.requestedBy, requesterEmployeeId: row.requesterEmployeeId,
   ...(row.creationFingerprint ? { creationFingerprint: row.creationFingerprint } : {}) });
@@ -167,25 +168,27 @@ export async function resubmitOnboarding(user: AuthenticatedUser, id: string, in
   const { expectedVersion, ...fields } = parsed.data;
   return advance(row, user.userId, "AMENDED_AND_RESUBMITTED", parsed.data.reason, { payload: { ...row.payload, ...fields }, status: "PENDING_HR_REVIEW", approvedBy: null, approvedAt: null, approvalReason: null });
 }
-export async function reviewOnboarding(user: AuthenticatedUser, id: string, body: { decision: string; reason: string; expectedVersion: number }, options: OnboardingOptions = {}) {
+export async function reviewOnboarding(user: AuthenticatedUser, id: string, body: OnboardingReview, options: OnboardingOptions = {}) {
   return withCrmWriter(() => reviewOnboardingOwned(user, id, body, options));
 }
-async function reviewOnboardingOwned(user: AuthenticatedUser, id: string, body: { decision: string; reason: string; expectedVersion: number }, options: OnboardingOptions) {
+async function reviewOnboardingOwned(user: AuthenticatedUser, id: string, body: OnboardingReview, options: OnboardingOptions) {
   let row: any = await OnboardingRequestModel.findById(objectId(id)).lean();
   if (!row) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy đề nghị.");
   await independentReview(user, row); await canonicalStore(row.storeId);
   if (row.status !== "PENDING_HR_REVIEW" || row.version !== body.expectedVersion) throw new WorkflowError(409, "ONBOARDING_VERSION_CONFLICT", "Đề nghị đã được xử lý hoặc chưa gửi HR.");
+  const approved = body.decision === "APPROVE";
   const email = deliverableAccountEmail(row.payload.email);
-  if (body.decision === "APPROVE" && email) {
+  if (approved && email) {
     const reserved = await OnboardingRequestModel.exists({ _id: { $ne: row._id }, "payload.email": email, status: "PROVISIONING" });
     if (reserved || await UserModel.exists({ email })) {
       throw new WorkflowError(409, "ACCOUNT_EMAIL_CONFLICT", "Email kích hoạt đã được dùng cho một tài khoản. Hãy kiểm tra lại đề nghị.");
     }
   }
-  row = await advance(row, user.userId, body.decision === "APPROVE" ? "HR_APPROVED" : "HR_REJECTED", body.reason,
-    { status: body.decision === "APPROVE" ? "PROVISIONING" : "REJECTED", approvedBy: body.decision === "APPROVE" ? user.userId : null,
-      approvedAt: body.decision === "APPROVE" ? new Date() : null, approvalReason: body.reason });
-  return body.decision === "APPROVE" ? resumeOnboardingOwned(user, String(row._id), options) : row;
+  const reason = body.reason || null;
+  row = await advance(row, user.userId, approved ? "HR_APPROVED" : "HR_REJECTED", reason ?? approvalAuditNote,
+    { status: approved ? "PROVISIONING" : "REJECTED", approvedBy: approved ? user.userId : null,
+      approvedAt: approved ? new Date() : null, approvalReason: reason });
+  return approved ? resumeOnboardingOwned(user, String(row._id), options) : row;
 }
 export async function resumeOnboarding(user: AuthenticatedUser, id: string, options: OnboardingOptions = {}) {
   return withCrmWriter(() => resumeOnboardingOwned(user, id, options));
@@ -204,7 +207,7 @@ async function resumeOnboardingOwned(user: AuthenticatedUser, id: string, option
       fullName: row.payload.fullName, phone: row.payload.phone, hiredAt: new Date(row.payload.hiredAt),
       departmentId: store.departmentId, storeId: store._id, store_raw: store.store_name, storeMappingRef: mappingRef,
       status: "inactive", profile_status: null, profileRevision: 1, userId: row.userId, provisioningRequestId: row._id,
-      profileHistory: [{ actorId: row.approvedBy, type: "ONBOARDING_PROVISIONED", at: new Date(), reason: row.approvalReason }],
+      profileHistory: [{ actorId: row.approvedBy, type: "ONBOARDING_PROVISIONED", at: new Date(), reason: row.approvalReason ?? approvalAuditNote }],
     } }, { upsert: true, runValidators: true });
     options.failpoint?.("after-employee");
     const scheduling = await mongoose.connection.collection<any>('authorization_controls').findOne({ _id: 'scheduling-v1', enabled: true, approvalRef: 'OWNER_SCHEDULING_20261103' });
