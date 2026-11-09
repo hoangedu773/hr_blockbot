@@ -6,7 +6,7 @@ import {createServer} from 'node:http';
 import mongoose from 'mongoose';
 import {createApp} from '../dist/app.js';
 import {connectDB,disconnectDB} from '../dist/db.js';
-import {authorizationV1Fixture} from './helpers/authorization-v1-fixture.mjs';
+import {performanceFixture,cmd} from './helpers/performance-kpi-fixture.mjs';
 import {F4_MODEL,F4_REVISION} from '@hr-blockbot/contracts';
 let fixture,server,worker,origin,analyze,calls=0;
 const key='synthetic-only-f4-key-at-least-32-characters';
@@ -25,7 +25,7 @@ function valid(body) {return {requestId:body.requestId,model:F4_MODEL,revision:F
 })};}
 function enable() {process.env.F4_MODE='PHOBERT';process.env.F4_SEMANTIC_WEIGHT='0.5';process.env.F4_SERVICE_KEY=key;}
 before(async()=>{
-  process.env.F4_MODE='OFF'; await connectDB();fixture=await authorizationV1Fixture();
+  process.env.F4_MODE='OFF'; await connectDB();fixture=await performanceFixture();
   for(const name of ['staff','ptch']) await mongoose.connection.collection('employees').updateOne({_id:fixture.actors[name].employee._id},{$set:{skills:['Kiểm kê']}});
   worker=createServer(async(req,res)=>{try{calls++;assert.equal(req.headers['x-f4-service-key'],key);let text='';for await(const part of req)text+=part;const input=JSON.parse(text);
     assert.deepEqual(Object.keys(input).sort(),['candidates','description','requestId','requiredSkills']);
@@ -116,4 +116,59 @@ test('simultaneous manager requests use request-bound IDs without mixing eligibl
   enable();analyze=async input=>{await new Promise(resolve=>setTimeout(resolve,25));return valid(input);};const p=await project();
   const [a,b]=await Promise.all([advice(p,'sm'),advice(p,'om')]);assert.equal(a.status,200);assert.equal(b.status,200);assert.equal(a.body.source,'PHOBERT');assert.equal(b.body.source,'PHOBERT');assert.equal(calls,2);
   assert.ok(!a.body.items.some(row=>row.employeeId===String(fixture.actors.staffB.employee._id)));assert.ok(!b.body.items.some(row=>row.employeeId===String(fixture.actors.staffB.employee._id)));
+});
+
+test('scored work preview and saved advice use PhoBERT without writing or crossing scopes', async () => {
+  enable(); analyze=valid;
+  const storeId=String(fixture.stores[0]._id), otherStore=String(fixture.stores[1]._id);
+  const input={storeId,description:'Đối chiếu số lượng hàng trong kho.',dueAt:'2026-11-25T10:00:00.000Z',requiredSkills:['Kiểm kê']};
+  const draftPath='/tasks/suggest-candidates';
+  assert.equal((await call('sm',draftPath,{...input,storeId:otherStore})).status,403);
+  assert.equal((await call('staff',draftPath,input)).status,403);
+  assert.equal((await call('sm',draftPath,{...input,assigneeEmployeeId:String(fixture.actors.staff.employee._id)})).status,400);
+  assert.equal(calls,0);
+  const tasks=mongoose.connection.collection('task_instances');
+  const count=await tasks.countDocuments();
+  const evals=await mongoose.connection.collection('evaluations').find().toArray();
+  const preview=await call('sm',draftPath,input);
+  assert.equal(preview.status,200,JSON.stringify(preview.body));
+  assert.equal(preview.body.source,'PHOBERT');
+  assert.deepEqual(new Set(preview.body.items.map(row=>row.employeeId)),new Set(['staff','ptch'].map(name=>String(fixture.actors[name].employee._id))));
+  assert.ok(preview.body.items.every(row=>row.kpi===null));
+  assert.equal(await tasks.countDocuments(),count);
+  const noSkills=await call('sm',draftPath,{...input,requiredSkills:[]});
+  assert.equal(noSkills.body.status,'INSUFFICIENT_DATA');
+  assert.equal(calls,1);
+  const create=extra=>call('sm','/tasks',cmd(0,{...input,templateId:fixture.template.id,title:'Kiểm kê theo rubric',taskWeightPercent:20,...extra}));
+  const saved=await create({});
+  assert.equal(saved.status,201,JSON.stringify(saved.body));
+  assert.deepEqual(saved.body.requiredSkills,input.requiredSkills);
+  const savedPath='/tasks/'+saved.body.id+'/suggest-candidates';
+  const persisted=await tasks.findOne({_id:saved.body.id});
+  const result=await call('sm',savedPath,{});
+  assert.equal(result.status,200,JSON.stringify(result.body));
+  assert.equal(result.body.source,'PHOBERT');
+  assert.equal(result.body.projectVersion,saved.body.version);
+  assert.equal((await call('staffB',savedPath,{})).status,403);
+  assert.deepEqual(await tasks.findOne({_id:saved.body.id}),persisted);
+  assert.equal(persisted.assigneeEmployeeId,null);
+
+  const old=await create({requiredSkills:undefined});
+  assert.equal(old.status,201,JSON.stringify(old.body));
+  const oldPath='/tasks/'+old.body.id+'/suggest-candidates';
+  assert.equal((await call('sm',oldPath,{})).body.status,'INSUFFICIENT_DATA');
+  assert.equal((await call('sm',oldPath,{requiredSkills:['Kiểm kê']})).body.source,'PHOBERT');
+  assert.equal((await tasks.findOne({_id:old.body.id})).requiredSkills,undefined);
+  assert.deepEqual(await mongoose.connection.collection('evaluations').find().toArray(),evals);
+  const fencedId=fixture.actors.ptch.employee._id;
+  const employees=mongoose.connection.collection('employees');
+  try {
+    analyze=async body=>{
+      await employees.updateOne({_id:fencedId},{$set:{lifecyclePendingRequestId:new mongoose.Types.ObjectId()}});
+      return valid(body);
+    };
+    assert.equal((await call('sm',savedPath,{})).status,409);
+  } finally {
+    await employees.updateOne({_id:fencedId},{$unset:{lifecyclePendingRequestId:''}});
+  }
 });

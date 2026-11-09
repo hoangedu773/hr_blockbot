@@ -1,3 +1,4 @@
+import { suggestDraftScoredWork, suggestSavedScoredWork } from '../services/f4-task-candidates.service.js';
 import { suggestTaskStructure } from '../services/performance-kpi-ai.service.js';
 import { Router } from 'express';
 import { z } from 'zod';
@@ -16,6 +17,12 @@ router.post('/tasks/templates/:id/reject',endpoint(async(req,res)=>{res.json(awa
 router.get('/tasks',endpoint(async(req,res)=>{const {period}=z.object({period:PerformanceMonth}).strict().parse(req.query);res.json({items:await T.listTasks(req.user!,period)});}));
 router.post('/tasks',endpoint(async(req,res)=>{res.status(201).json(await T.createTask(req.user!,req.body));}));
 router.post('/tasks/suggest-structure',endpoint(async(req,res)=>{res.json(await suggestTaskStructure(req.user!,req.body));}));
+router.post('/tasks/suggest-candidates',endpoint(async(req,res)=>{
+ res.set('Cache-Control','no-store').json(await suggestDraftScoredWork(req.user!,req.body));
+}));
+router.post('/tasks/:id/suggest-candidates',endpoint(async(req,res)=>{
+ res.set('Cache-Control','no-store').json(await suggestSavedScoredWork(req.user!,String(req.params.id),req.body));
+}));
 router.get('/tasks/:id',endpoint(async(req,res)=>{res.json(await T.getTask(req.user!,String(req.params.id)));}));
 for(const action of ['assign','accept','refuse','refusal-decision','progress','submit','evaluate','extend','handover','cancel'])router.post('/tasks/:id/'+action,endpoint(async(req,res)=>{res.json(await T.mutateTask(req.user!,String(req.params.id),action,req.body));}));
 export default router;

@@ -1,4 +1,4 @@
-import type { PerformanceDashboardSchema,PerformanceFramework,PerformancePolicy,PerformanceEvaluation,TaskInstance,TaskTemplate,PerformanceExplainSchema,TaskStructureSuggestionSchema,PerformanceAiSummarySchema } from '@hr-blockbot/contracts';
+import type { F4Suggestions, PerformanceDashboardSchema,PerformanceFramework,PerformancePolicy,PerformanceEvaluation,TaskInstance,TaskTemplate,PerformanceExplainSchema,TaskStructureSuggestionSchema,PerformanceAiSummarySchema } from '@hr-blockbot/contracts';
 import { requestJson } from './api';
 export type PerformanceCatalog={employees:{id:string;name:string;role:'STAFF'|'PTCH'|'SM';storeId:string;storeName:string}[];stores:{id:string;name:string}[]};
 export const performanceConfig=()=>requestJson<{enabled:boolean}>('/performance-kpi/config');
@@ -16,3 +16,8 @@ export const performanceEvaluationAction=(id:string,action:string,body:unknown)=
 export const performanceTaskAction=(id:string,action:string,body:unknown)=>performancePost<TaskInstance>('/tasks/'+id+'/'+action,body);
 export const performanceSuggest=(body:unknown)=>performancePost<ReturnType<typeof TaskStructureSuggestionSchema.parse>>('/tasks/suggest-structure',body);
 export const performanceSummary=(id:string,body:unknown)=>performancePost<ReturnType<typeof PerformanceAiSummarySchema.parse>>('/performance-kpi/evaluations/'+id+'/ai-summary',body);
+
+export const suggestDraftTaskCandidates = (body: { storeId: string; description: string; dueAt: string; requiredSkills: string[] }) =>
+  performancePost<F4Suggestions>('/tasks/suggest-candidates', body);
+export const suggestTaskCandidates = (id: string, requiredSkills?: string[]) =>
+  performancePost<F4Suggestions>('/tasks/' + encodeURIComponent(id) + '/suggest-candidates', { requiredSkills });
