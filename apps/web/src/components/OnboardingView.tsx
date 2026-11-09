@@ -3,7 +3,7 @@ import { useAuthorization } from '../context/useAuthorization';
 import { useAuth } from '../context/AuthContext';
 import { requestJson } from '../services/api';
 import { CrmDialog } from './ui/CrmDialog';
-import { WorkflowHistoryNavigation, WorkflowAuditNotice } from './WorkflowHistoryNavigation';
+import { WorkflowHistoryNavigation } from './WorkflowHistoryNavigation';
 import { InitialManagerPicker } from './InitialManagerPicker';
 type RequestRow = { id: string; version: number; auditIntegrity?: string; status: string; storeId: string; requestedBy: string; deliveryState: string;
   initialReporting?: { managerName: string; status: string; validFrom: string | null } | null;
@@ -82,12 +82,276 @@ export function OnboardingView({ chatMode, initialRequestId }: { chatMode?: 'rev
       {error && <p role="alert">{error}</p>}<button className="btn btn--primary" disabled={busy || !options.length || canChooseManager && managerReadyStore !== values.storeId}>{amending ? 'Gửi lại đề nghị đã chỉnh sửa' : 'Lưu đề nghị'}</button>
     </form></CrmDialog>}
     {selected && <CrmDialog title="Đối chiếu đề nghị tiếp nhận" busy={busy} onClose={() => { if (!busy) setSelected(null); }}>
-      <WorkflowAuditNotice integrity={selected.auditIntegrity} /><p style={{ overflowWrap: 'anywhere' }}>Mã yêu cầu: {selected.id}</p><dl><dt>Nhân viên</dt><dd>{selected.payload.fullName} · {selected.payload.employeeCode}</dd><dt>Liên hệ</dt><dd>{selected.payload.phone}</dd><dt>Email nhận link kích hoạt</dt><dd>{selected.payload.email || 'Chưa có email'}</dd><dt>Ngày vào làm</dt><dd>{new Date(selected.payload.hiredAt).toLocaleDateString('vi-VN')}</dd><dt>Trạng thái</dt><dd>{states[selected.status]}</dd></dl>
-      <p>Quản lý trực tiếp: {selected.initialReporting ? `${selected.initialReporting.managerName} · ${reportingStates[selected.initialReporting.status] ?? selected.initialReporting.status}` : 'Chưa có đề xuất'}</p>
-      {selected.history.map((entry, index) => <p key={index}>{new Date(entry.at).toLocaleString('vi-VN')} · {entry.type} · {entry.reason}</p>)}
-      {selected.auditIntegrity === 'VALID_LOCAL_CHAIN' && selected.status === 'PENDING_HR_REVIEW' && can('onboarding.review') && selected.requestedBy !== user?.id && <><label className="field">Lý do quyết định<textarea className="input" maxLength={2000} value={reason} disabled={busy} onChange={(event) => setReason(event.target.value)} /></label>
-        {['APPROVE', 'REJECT'].map((decision) => <button className="btn" key={decision} disabled={busy || !reason.trim()} onClick={() => void run(`/onboarding/${selected.id}/review`, { expectedVersion: selected.version, decision, reason: reason.trim() }, decision === 'APPROVE' ? 'Đã duyệt. Tài khoản staff chờ nhân viên kích hoạt.' : 'Đã từ chối và lưu lý do.')}>{decision === 'APPROVE' ? 'Phê duyệt tiếp nhận' : 'Từ chối đề nghị'}</button>)}</>}
-      {error && <p role="alert">{error}</p>}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '12px',
+        padding: '10px 14px',
+        background: selected.auditIntegrity === 'VALID_LOCAL_CHAIN' ? 'rgba(34, 197, 94, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+        border: `1px solid ${selected.auditIntegrity === 'VALID_LOCAL_CHAIN' ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`,
+        borderRadius: '8px',
+        marginBottom: '16px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+          <span>{selected.auditIntegrity === 'VALID_LOCAL_CHAIN' ? '🛡️' : '⚠️'}</span>
+          <span style={{ color: selected.auditIntegrity === 'VALID_LOCAL_CHAIN' ? '#4ade80' : '#f87171', fontWeight: 500 }}>
+            {selected.auditIntegrity === 'VALID_LOCAL_CHAIN' ? 'Chuỗi kiểm toán hợp lệ (Local Hash-chain Verified)' : 'Cảnh báo tính toàn vẹn bản ghi'}
+          </span>
+        </div>
+        <code style={{ fontSize: '11px', color: '#94a3b8', background: 'rgba(255,255,255,0.06)', padding: '2px 8px', borderRadius: '4px' }}>
+          Mã: {selected.id}
+        </code>
+      </div>
+
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '14px',
+        padding: '14px',
+        background: 'rgba(255, 255, 255, 0.03)',
+        borderRadius: '10px',
+        border: '1px solid rgba(255, 255, 255, 0.07)',
+        marginBottom: '16px'
+      }}>
+        <div style={{
+          width: '46px',
+          height: '46px',
+          borderRadius: '50%',
+          background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '18px',
+          fontWeight: 'bold',
+          color: '#fff',
+          flexShrink: 0
+        }}>
+          {selected.payload.fullName.charAt(0).toUpperCase()}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#f8fafc' }}>
+              {selected.payload.fullName}
+            </h3>
+            <span style={{
+              fontSize: '11px',
+              fontWeight: 600,
+              padding: '2px 8px',
+              borderRadius: '4px',
+              background: 'rgba(59, 130, 246, 0.15)',
+              color: '#60a5fa',
+              border: '1px solid rgba(59, 130, 246, 0.3)'
+            }}>
+              {selected.payload.employeeCode}
+            </span>
+          </div>
+          <p style={{ margin: '4px 0 0', fontSize: '12.5px', color: '#94a3b8' }}>
+            {stores.find(s => s.id === selected.storeId)?.name || 'Cửa hàng tiếp nhận'}
+          </p>
+        </div>
+        <div style={{
+          fontSize: '12px',
+          fontWeight: 600,
+          padding: '4px 10px',
+          borderRadius: '16px',
+          background: selected.status === 'PENDING_HR_REVIEW' ? 'rgba(245, 158, 11, 0.15)' : selected.status === 'APPROVED' || selected.status === 'ACTIVE' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(148, 163, 184, 0.15)',
+          color: selected.status === 'PENDING_HR_REVIEW' ? '#fbbf24' : selected.status === 'APPROVED' || selected.status === 'ACTIVE' ? '#4ade80' : '#cbd5e1',
+          border: `1px solid ${selected.status === 'PENDING_HR_REVIEW' ? 'rgba(245, 158, 11, 0.3)' : selected.status === 'APPROVED' || selected.status === 'ACTIVE' ? 'rgba(34, 197, 94, 0.3)' : 'rgba(148, 163, 184, 0.3)'}`,
+          whiteSpace: 'nowrap'
+        }}>
+          {states[selected.status] || selected.status}
+        </div>
+      </div>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '12px',
+        marginBottom: '16px'
+      }}>
+        <div style={{ padding: '10px 12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+          <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Số điện thoại</div>
+          <div style={{ fontSize: '14px', fontWeight: 500, color: '#f1f5f9', marginTop: '4px' }}>
+            📞 {selected.payload.phone}
+          </div>
+        </div>
+        <div style={{ padding: '10px 12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+          <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Email kích hoạt</div>
+          <div style={{ fontSize: '14px', fontWeight: 500, color: '#f1f5f9', marginTop: '4px', overflowWrap: 'anywhere' }}>
+            ✉️ {selected.payload.email || 'Chưa có email'}
+          </div>
+        </div>
+        <div style={{ padding: '10px 12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+          <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Ngày vào làm</div>
+          <div style={{ fontSize: '14px', fontWeight: 500, color: '#f1f5f9', marginTop: '4px' }}>
+            📅 {new Date(selected.payload.hiredAt).toLocaleDateString('vi-VN')}
+          </div>
+        </div>
+        <div style={{ padding: '10px 12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+          <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Kênh kích hoạt</div>
+          <div style={{ fontSize: '14px', fontWeight: 500, color: '#f1f5f9', marginTop: '4px' }}>
+            🔗 {selected.deliveryState === 'DELIVERED' ? 'Đã gửi lời mời' : selected.deliveryState === 'PENDING' ? 'Đang gửi' : 'Chờ kích hoạt'}
+          </div>
+        </div>
+      </div>
+
+      {selected.initialReporting && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          padding: '10px 14px',
+          background: 'rgba(99, 102, 241, 0.08)',
+          borderRadius: '8px',
+          border: '1px solid rgba(99, 102, 241, 0.2)',
+          marginBottom: '16px'
+        }}>
+          <span style={{ fontSize: '18px' }}>👤</span>
+          <div style={{ fontSize: '13px', lineHeight: 1.4 }}>
+            <span style={{ color: '#94a3b8' }}>Quản lý trực tiếp đề xuất: </span>
+            <strong style={{ color: '#e2e8f0' }}>{selected.initialReporting.managerName}</strong>
+            <span style={{ color: '#a5b4fc', marginLeft: '6px' }}>
+              ({reportingStates[selected.initialReporting.status] ?? selected.initialReporting.status})
+            </span>
+          </div>
+        </div>
+      )}
+
+      {selected.history && selected.history.length > 0 && (
+        <div style={{ marginBottom: '16px' }}>
+          <div style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Lịch sử xử lý hồ sơ
+          </div>
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            maxHeight: '140px',
+            overflowY: 'auto',
+            padding: '8px 12px',
+            background: 'rgba(0, 0, 0, 0.2)',
+            borderRadius: '8px',
+            border: '1px solid rgba(255, 255, 255, 0.05)'
+          }}>
+            {selected.history.map((entry, index) => (
+              <div key={index} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '12.5px', lineHeight: 1.4 }}>
+                <span style={{ color: '#64748b', fontSize: '11px', whiteSpace: 'nowrap', marginTop: '2px' }}>
+                  {new Date(entry.at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} · {new Date(entry.at).toLocaleDateString('vi-VN')}
+                </span>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  padding: '1px 6px',
+                  borderRadius: '4px',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  color: '#cbd5e1'
+                }}>
+                  {entry.type}
+                </span>
+                <span style={{ color: '#e2e8f0', flex: 1 }}>
+                  {entry.reason}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {selected.auditIntegrity === 'VALID_LOCAL_CHAIN' && selected.status === 'PENDING_HR_REVIEW' && can('onboarding.review') && selected.requestedBy !== user?.id ? (
+        <div style={{
+          marginTop: '16px',
+          paddingTop: '16px',
+          borderTop: '1px solid rgba(255, 255, 255, 0.1)'
+        }}>
+          <label className="field" style={{ marginBottom: '14px' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0' }}>Lý do quyết định (ghi chú kiểm duyệt)</span>
+            <textarea
+              className="input"
+              maxLength={2000}
+              value={reason}
+              disabled={busy}
+              placeholder="Nhập nhận xét hoặc lý do phê duyệt/từ chối tiếp nhận..."
+              style={{ minHeight: '70px', marginTop: '6px' }}
+              onChange={(event) => setReason(event.target.value)}
+            />
+          </label>
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn"
+              disabled={busy}
+              style={{
+                background: 'transparent',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                color: '#cbd5e1',
+                padding: '8px 16px',
+                borderRadius: '8px',
+                cursor: 'pointer'
+              }}
+              onClick={() => setSelected(null)}
+            >
+              Đóng
+            </button>
+            <button
+              type="button"
+              className="btn"
+              disabled={busy || !reason.trim()}
+              style={{
+                background: '#dc2626',
+                color: '#fff',
+                fontWeight: 600,
+                border: 'none',
+                padding: '8px 18px',
+                borderRadius: '8px',
+                cursor: busy || !reason.trim() ? 'not-allowed' : 'pointer',
+                opacity: busy || !reason.trim() ? 0.6 : 1
+              }}
+              onClick={() => void run(`/onboarding/${selected.id}/review`, { expectedVersion: selected.version, decision: 'REJECT', reason: reason.trim() }, 'Đã từ chối và lưu lý do.')}
+            >
+              ✕ Từ chối đề nghị
+            </button>
+            <button
+              type="button"
+              className="btn btn--primary"
+              disabled={busy || !reason.trim()}
+              style={{
+                background: '#16a34a',
+                color: '#fff',
+                fontWeight: 600,
+                border: 'none',
+                padding: '8px 20px',
+                borderRadius: '8px',
+                cursor: busy || !reason.trim() ? 'not-allowed' : 'pointer',
+                opacity: busy || !reason.trim() ? 0.6 : 1
+              }}
+              onClick={() => void run(`/onboarding/${selected.id}/review`, { expectedVersion: selected.version, decision: 'APPROVE', reason: reason.trim() }, 'Đã duyệt. Tài khoản staff chờ nhân viên kích hoạt.')}
+            >
+              ✓ Phê duyệt tiếp nhận
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px', paddingTop: '14px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+          <button
+            type="button"
+            className="btn"
+            disabled={busy}
+            style={{
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              color: '#f1f5f9',
+              padding: '8px 18px',
+              borderRadius: '8px',
+              cursor: 'pointer'
+            }}
+            onClick={() => setSelected(null)}
+          >
+            Đóng
+          </button>
+        </div>
+      )}
+      {error && <p role="alert" style={{ marginTop: '12px' }}>{error}</p>}
     </CrmDialog>}
   </section>;
 }

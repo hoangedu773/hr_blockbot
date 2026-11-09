@@ -4,7 +4,7 @@ import { useAuthorization } from '../context/useAuthorization';
 import { useAuth } from '../context/AuthContext';
 import { requestJson } from '../services/api';
 import { CrmDialog } from './ui/CrmDialog';
-import { WorkflowHistoryNavigation, WorkflowAuditNotice } from './WorkflowHistoryNavigation';
+import { WorkflowHistoryNavigation } from './WorkflowHistoryNavigation';
 type Row = { id: string; version: number; auditIntegrity?: string; status: string; delegatorUserId: string; recipientUserId: string; approvedByUserId: string | null; capabilities: AuthorizationCapability[]; scope: AuthorizationScope; validFrom: string; validUntil: string; history: { actorUserId: string; at: string; reason: string; to: string; hash: string }[] };
 type Recipient = { userId: string; fullName: string; profile: string };
 const allowed = ['projects.create', 'projects.assign', 'reports.review'] as const;
@@ -90,10 +90,131 @@ export function DelegationView() {
       </fieldset>
       <label className="field">Thời hạn hiệu lực (tối đa 14 ngày)<input className="input" type="datetime-local" required value={until} onChange={(event) => setUntil(event.target.value)} /></label><label className="field">Lý do ủy quyền (mục đích công việc)<textarea className="input" required maxLength={2000} placeholder="Ví dụ: Ủy quyền duyệt báo cáo và giao việc trong thời gian SM nghỉ phép..." value={reason} onChange={(event) => setReason(event.target.value)} /></label>{error && <p role="alert">{error}</p>}<button className="btn btn--primary" disabled={busy || !caps.length}>Gửi đề nghị ủy quyền</button>
     </form></CrmDialog>}
-    {selected && <CrmDialog title="Chi tiết và lịch sử ủy quyền" busy={busy} onClose={() => { if (!busy) setSelected(null); }}><WorkflowAuditNotice integrity={selected.auditIntegrity} /><p style={{ overflowWrap: 'anywhere' }}>Mã yêu cầu: {selected.id}</p><p>Người đề nghị: {selected.delegatorUserId} · Người nhận: {selected.recipientUserId}</p><p>Cửa hàng: {selected.scope.storeIds.map((id) => stores.find((store) => store.id === id)?.name || id).join(', ')}</p>{selected.history.map((entry, index) => <p key={index}>{new Date(entry.at).toLocaleString('vi-VN')} · {statusLabels[entry.to] || entry.to} · {entry.reason}</p>)}
-      <label className="field">Lý do quyết định<textarea className="input" value={reason} maxLength={2000} onChange={(event) => setReason(event.target.value)} /></label>
-      {selected.auditIntegrity === 'VALID_LOCAL_CHAIN' && selected.status === 'PENDING' && can('delegations.review') && ![selected.delegatorUserId, selected.recipientUserId].includes(user?.id || '') && ['APPROVE', 'REJECT'].map((decision) => <button className="btn" key={decision} disabled={busy || !reason.trim()} onClick={() => void run('/delegations/' + selected.id + '/review', { expectedVersion: selected.version, decision, reason })}>{decision === 'APPROVE' ? 'Duyệt ủy quyền' : 'Từ chối ủy quyền'}</button>)}
-      {selected.auditIntegrity === 'VALID_LOCAL_CHAIN' && ['PENDING', 'APPROVED'].includes(selected.status) && [selected.delegatorUserId, selected.approvedByUserId].includes(user?.id || '') && <button className="btn" disabled={busy || !reason.trim()} onClick={() => void run('/delegations/' + selected.id + '/revoke', { expectedVersion: selected.version, reason })}>Thu hồi ủy quyền</button>}{error && <p role="alert">{error}</p>}
+    {selected && <CrmDialog title="Chi tiết và lịch sử ủy quyền" busy={busy} onClose={() => { if (!busy) setSelected(null); }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '12px',
+        padding: '10px 14px',
+        background: selected.auditIntegrity === 'VALID_LOCAL_CHAIN' ? 'rgba(34, 197, 94, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+        border: `1px solid ${selected.auditIntegrity === 'VALID_LOCAL_CHAIN' ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`,
+        borderRadius: '8px',
+        marginBottom: '16px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+          <span>{selected.auditIntegrity === 'VALID_LOCAL_CHAIN' ? '🛡️' : '⚠️'}</span>
+          <span style={{ color: selected.auditIntegrity === 'VALID_LOCAL_CHAIN' ? '#4ade80' : '#f87171', fontWeight: 500 }}>
+            {selected.auditIntegrity === 'VALID_LOCAL_CHAIN' ? 'Chuỗi kiểm toán hợp lệ (Local Hash-chain Verified)' : 'Cảnh báo tính toàn vẹn bản ghi'}
+          </span>
+        </div>
+        <code style={{ fontSize: '11px', color: '#94a3b8', background: 'rgba(255,255,255,0.06)', padding: '2px 8px', borderRadius: '4px' }}>
+          Mã: {selected.id}
+        </code>
+      </div>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '12px',
+        marginBottom: '16px'
+      }}>
+        <div style={{ padding: '10px 12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+          <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Người đề nghị</div>
+          <div style={{ fontSize: '14px', fontWeight: 500, color: '#f1f5f9', marginTop: '4px' }}>
+            👤 {selected.delegatorUserId}
+          </div>
+        </div>
+        <div style={{ padding: '10px 12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+          <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Người nhận ủy quyền</div>
+          <div style={{ fontSize: '14px', fontWeight: 500, color: '#f1f5f9', marginTop: '4px' }}>
+            🤝 {selected.recipientUserId}
+          </div>
+        </div>
+        <div style={{ padding: '10px 12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+          <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cửa hàng áp dụng</div>
+          <div style={{ fontSize: '14px', fontWeight: 500, color: '#f1f5f9', marginTop: '4px' }}>
+            ☕ {selected.scope.storeIds.map((id) => stores.find((store) => store.id === id)?.name || id).join(', ')}
+          </div>
+        </div>
+        <div style={{ padding: '10px 12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+          <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Trạng thái</div>
+          <div style={{ fontSize: '14px', fontWeight: 600, color: selected.status === 'APPROVED' ? '#4ade80' : selected.status === 'PENDING' ? '#fbbf24' : '#f87171', marginTop: '4px' }}>
+            {statusLabels[selected.status] || selected.status}
+          </div>
+        </div>
+      </div>
+
+      {selected.history && selected.history.length > 0 && (
+        <div style={{ marginBottom: '16px' }}>
+          <div style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Lịch sử quyết định & xử lý
+          </div>
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            maxHeight: '140px',
+            overflowY: 'auto',
+            padding: '8px 12px',
+            background: 'rgba(0, 0, 0, 0.2)',
+            borderRadius: '8px',
+            border: '1px solid rgba(255, 255, 255, 0.05)'
+          }}>
+            {selected.history.map((entry, index) => (
+              <div key={index} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '12.5px', lineHeight: 1.4 }}>
+                <span style={{ color: '#64748b', fontSize: '11px', whiteSpace: 'nowrap', marginTop: '2px' }}>
+                  {new Date(entry.at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} · {new Date(entry.at).toLocaleDateString('vi-VN')}
+                </span>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  padding: '1px 6px',
+                  borderRadius: '4px',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  color: '#cbd5e1'
+                }}>
+                  {statusLabels[entry.to] || entry.to}
+                </span>
+                <span style={{ color: '#e2e8f0', flex: 1 }}>
+                  {entry.reason}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {selected.auditIntegrity === 'VALID_LOCAL_CHAIN' && selected.status === 'PENDING' && can('delegations.review') && ![selected.delegatorUserId, selected.recipientUserId].includes(user?.id || '') && (
+        <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
+          <label className="field" style={{ marginBottom: '12px' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0' }}>Lý do quyết định phê duyệt</span>
+            <textarea className="input" value={reason} maxLength={2000} placeholder="Nhập lý do phê duyệt hoặc từ chối..." style={{ minHeight: '60px', marginTop: '6px' }} onChange={(event) => setReason(event.target.value)} />
+          </label>
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <button className="btn" style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '8px' }} disabled={busy || !reason.trim()} onClick={() => void run('/delegations/' + selected.id + '/review', { expectedVersion: selected.version, decision: 'REJECT', reason })}>
+              ✕ Từ chối ủy quyền
+            </button>
+            <button className="btn btn--primary" style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '8px 18px', borderRadius: '8px' }} disabled={busy || !reason.trim()} onClick={() => void run('/delegations/' + selected.id + '/review', { expectedVersion: selected.version, decision: 'APPROVE', reason })}>
+              ✓ Duyệt ủy quyền
+            </button>
+          </div>
+        </div>
+      )}
+      {selected.auditIntegrity === 'VALID_LOCAL_CHAIN' && ['PENDING', 'APPROVED'].includes(selected.status) && [selected.delegatorUserId, selected.approvedByUserId].includes(user?.id || '') && (
+        <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
+          <label className="field" style={{ marginBottom: '12px' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0' }}>Lý do thu hồi ủy quyền</span>
+            <textarea className="input" value={reason} maxLength={2000} placeholder="Nhập lý do thu hồi..." style={{ minHeight: '60px', marginTop: '6px' }} onChange={(event) => setReason(event.target.value)} />
+          </label>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button className="btn" style={{ background: '#e11d48', color: '#fff', border: 'none', padding: '8px 18px', borderRadius: '8px' }} disabled={busy || !reason.trim()} onClick={() => void run('/delegations/' + selected.id + '/revoke', { expectedVersion: selected.version, reason })}>
+              Thu hồi ủy quyền
+            </button>
+          </div>
+        </div>
+      )}
+      {error && <p role="alert" style={{ marginTop: '12px' }}>{error}</p>}
     </CrmDialog>}
   </section>;
 }
