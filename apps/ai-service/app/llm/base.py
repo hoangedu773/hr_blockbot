@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, AsyncIterable, AsyncIterator, Literal
 
 
 @dataclass(frozen=True)
@@ -122,6 +122,10 @@ class ProviderInvalidConfig(ProviderError):
     retryable = False
 
 
+class ProviderSafetyBlocked(ProviderError):
+    code = "SAFETY_BLOCKED"
+    retryable = False
+
 class LLMUnavailable(Exception):
     """No provider in the chain could answer (config invalid count = 0)."""
 
@@ -131,6 +135,72 @@ class LLMUnavailable(Exception):
         super().__init__("No LLM provider available")
         self.errors = errors or []
 
+
+_MAX_SSE_LINE_BYTES = 64 * 1024
+_MAX_SSE_EVENT_BYTES = 128 * 1024
+
+
+async def aparse_sse_stream(byte_iterator: AsyncIterable[bytes]) -> AsyncIterator[str]:
+    """Parse bounded SSE events while preserving UTF-8 and network-chunk boundaries."""
+    line_buffer = bytearray()
+    event_data_lines: list[str] = []
+    event_size = 0
+
+    async for chunk in byte_iterator:
+        chunk_view = memoryview(chunk)
+        start = 0
+        while start < len(chunk):
+            newline = chunk.find(b"\n", start)
+            if newline < 0:
+                fragment_size = len(chunk) - start
+                if len(line_buffer) + fragment_size > _MAX_SSE_LINE_BYTES:
+                    raise ProviderError("SSE line buffer exceeded limit")
+                if event_size + len(line_buffer) + fragment_size > _MAX_SSE_EVENT_BYTES:
+                    raise ProviderError("SSE event buffer exceeded limit")
+                line_buffer.extend(chunk_view[start:])
+                break
+
+            fragment_size = newline - start
+            line_size = len(line_buffer) + fragment_size
+            if line_size > _MAX_SSE_LINE_BYTES:
+                raise ProviderError("SSE line buffer exceeded limit")
+            line_buffer.extend(chunk_view[start:newline])
+            if line_buffer.endswith(b"\r"):
+                line_buffer.pop()
+            try:
+                line = line_buffer.decode("utf-8", errors="strict")
+            except UnicodeDecodeError as exc:
+                raise ProviderError("malformed UTF-8 in provider stream") from exc
+            line_buffer.clear()
+
+            if not line:
+                event_size = 0
+                if event_data_lines:
+                    event_payload = "\n".join(event_data_lines)
+                    if event_payload.strip():
+                        yield event_payload
+                    event_data_lines = []
+                start = newline + 1
+                continue
+
+            if event_size + line_size + 1 > _MAX_SSE_EVENT_BYTES:
+                raise ProviderError("SSE event buffer exceeded limit")
+            event_size += line_size + 1
+            if not line.startswith(":") and ":" in line:
+                field, value = line.split(":", 1)
+                if value.startswith(" "):
+                    value = value[1:]
+                if field == "data":
+                    event_data_lines.append(value)
+            start = newline + 1
+
+    if line_buffer:
+        try:
+            bytes(line_buffer).decode("utf-8", errors="strict")
+        except UnicodeDecodeError as exc:
+            raise ProviderError("malformed UTF-8 at end of provider stream") from exc
+
+    # Do NOT dispatch incomplete frames missing empty-line delimiter at EOF.
 
 class LLMProvider(ABC):
     """ADR-012 interface: complete(messages, opts) + embed(texts, opts)."""
@@ -157,3 +227,13 @@ class LLMProvider(ABC):
     @abstractmethod
     def embed(self, texts: list[str], opts: dict[str, Any] | None = None) -> EmbeddingResult:
         """Return one vector per input text; raise ProviderError subclasses on failure."""
+
+    async def stream(
+        self,
+        messages: list[ChatMessage],
+        opts: CompletionOptions | None = None,
+    ) -> AsyncIterator[str]:
+        """Yield user-visible text deltas asynchronously; raise ProviderError on failure or non-terminal EOF."""
+        raise ProviderError(f"streaming not supported by provider {self.name}", provider_id=self.name)
+        if False:
+            yield ""

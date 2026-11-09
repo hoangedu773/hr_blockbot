@@ -36,12 +36,12 @@ async function board(urgent = false, sameTime = false) {
   const shift = await call('sm', `/scheduling/stores/${storeId}/shifts`, { expectedVersion: 0, definition: { code: 'V2-' + serial, name: 'Owned synthetic v2', active: true, intervals: [{ startMinute: start, endMinute: start + 120 }] } });
   assert.equal(shift.status, 200);
   let w = (await call('sm', `/scheduling/stores/${storeId}/weeks`, { weekStart: monday })).body;
-  // Keep the second assignment inside the same week, with a distinct future date unless testing identical hours.
-  const targetDate = sameTime ? date : datePlus(date, new Date(date + 'T00:00:00Z').getUTCDay() === 0 ? -1 : 1);
-  const assignments = [{ id: randomUUID(), employeeId: eid('staff'), date, shiftId: shift.body.id }, { id: randomUUID(), employeeId: eid('ptch'), date: targetDate, shiftId: shift.body.id }];
-  let r = await call('sm', `/scheduling/weeks/${w.id}/draft`, { expectedVersion: w.version, reason: 'Owned v2 calendar fixture', assignments }); assert.equal(r.status, 200, JSON.stringify(r.body)); w = r.body;
-  r = await call('sm', `/scheduling/weeks/${w.id}/publish`, { expectedVersion: w.version, reason: 'Owned v2 publication' }); assert.equal(r.status, 200); w = r.body;
-  return { id: w.id, week: w, source: w.published[0], target: w.published[1] };
+  // Urgent cover only needs its source; other fixtures retain a second assignment.
+   const targetDate = sameTime || urgent ? date : datePlus(date, new Date(date + 'T00:00:00Z').getUTCDay() === 0 ? -1 : 1);
+   const assignments = [{ id: randomUUID(), employeeId: eid('staff'), date, shiftId: shift.body.id }, ...(!urgent ? [{ id: randomUUID(), employeeId: eid('ptch'), date: targetDate, shiftId: shift.body.id }] : [])];
+   let r = await call('sm', `/scheduling/weeks/${w.id}/draft`, { expectedVersion: w.version, reason: 'Owned v2 calendar fixture', assignments }); assert.equal(r.status, 200, JSON.stringify(r.body)); w = r.body;
+   r = await call('sm', `/scheduling/weeks/${w.id}/publish`, { expectedVersion: w.version, reason: 'Owned v2 publication' }); assert.equal(r.status, 200); w = r.body;
+  return { id: w.id, week: w, source: w.published[0], target: w.published[1] ?? null };
 }
 const reload = async b => { const w = await OperationalWeekModel.findById(b.id).lean(); verifySchedule(w); return { ...w, id: String(w._id) }; };
 async function request(b, extra = {}) {

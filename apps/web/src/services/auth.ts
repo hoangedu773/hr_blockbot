@@ -14,7 +14,9 @@ import { LoginResponseSchema, MeResponseSchema, RefreshResponseSchema } from '@h
  */
 const FALLBACK_API_BASE = 'http://localhost:3001/api';
 
-export const API_BASE = import.meta.env.VITE_API_BASE ?? FALLBACK_API_BASE;
+const ENV: Record<string, string | undefined> | undefined = import.meta.env;
+
+export const API_BASE = ENV?.VITE_API_BASE ?? FALLBACK_API_BASE;
 
 /**
  * In-memory Access Token storage ONLY.
@@ -229,6 +231,33 @@ export function logout(): Promise<void> {
  *     + Nếu refresh thành công -> retry lại request ban đầu một lần.
  *     + Nếu refresh thất bại -> xóa sạch state và điều hướng về trang đăng nhập.
  */
+// ponytail: giới hạn đến response headers; nếu body thường có thể treo, chuyển deadline vào lớp đọc body.
+export const API_DEADLINE_MS = 25_000;
+
+export class ApiTimeoutError extends Error {
+  readonly status = 0;
+  readonly outcomeKnown: boolean;
+  readonly code: string;
+
+  constructor(target?: boolean | RequestInit | Request) {
+    let isMutation = false;
+    if (typeof target === 'boolean') {
+      isMutation = target;
+    } else if (target && typeof target === 'object') {
+      const method = ('method' in target && target.method ? target.method : 'GET').toUpperCase();
+      isMutation = method !== 'GET' && method !== 'HEAD';
+    }
+    super(
+      isMutation
+        ? 'Hết thời gian chờ. Kết quả thao tác chưa được xác nhận — vui lòng kiểm tra lại trước khi thử lần nữa.'
+        : 'Máy chủ không phản hồi đúng thời hạn. Vui lòng thử lại.'
+    );
+    this.name = 'ApiTimeoutError';
+    this.outcomeKnown = !isMutation;
+    this.code = isMutation ? 'TIMEOUT_OUTCOME_UNKNOWN' : 'TIMEOUT';
+  }
+}
+
 export async function apiFetch(
   input: string | URL | Request,
   init?: RequestInit,
@@ -236,19 +265,55 @@ export async function apiFetch(
 ): Promise<Response> {
   const revision = authRevision;
   const requestToken = inMemoryAccessToken;
-  const headers = new Headers(init?.headers);
+  const headers = new Headers(
+    init?.headers ?? (typeof input === 'object' && 'headers' in input ? input.headers : undefined)
+  );
 
   if (inMemoryAccessToken && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${inMemoryAccessToken}`);
   }
 
+  const method = (
+    init?.method ??
+    (typeof input === 'object' && 'method' in input && input.method ? input.method : 'GET')
+  ).toUpperCase();
+  const isMutation = method !== 'GET' && method !== 'HEAD';
+
+  const callerSignal =
+    init?.signal ??
+    (typeof input === 'object' && 'signal' in input ? input.signal : undefined);
+
+  const timeoutController = new AbortController();
+  let timer: number | undefined;
+
+  if (!callerSignal?.aborted) {
+    timer = setTimeout(() => {
+      timeoutController.abort(new DOMException('The operation timed out.', 'TimeoutError'));
+    }, API_DEADLINE_MS);
+  }
+
+  const signal = callerSignal
+    ? AbortSignal.any([callerSignal, timeoutController.signal])
+    : timeoutController.signal;
+
   const config: RequestInit = {
     ...init,
     headers,
     credentials: 'include',
+    signal,
   };
 
-  const response = await fetch(input, config);
+  let response: Response;
+  try {
+    response = await fetch(input, config);
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'TimeoutError' && callerSignal?.aborted !== true) {
+      throw new ApiTimeoutError(isMutation);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (response.status === 401 && revision === authRevision) {
     const urlStr =
@@ -276,8 +341,10 @@ export async function apiFetch(
       ? inMemoryAccessToken
       : await refreshAccessToken();
     if (revision !== authRevision) return response;
+    if (callerSignal?.aborted) return response;
+
     if (newToken) {
-      const retryHeaders = new Headers(init?.headers);
+      const retryHeaders = new Headers(headers);
       retryHeaders.set('Authorization', `Bearer ${newToken}`);
       return apiFetch(input, { ...init, headers: retryHeaders }, true);
     } else {

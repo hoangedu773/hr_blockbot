@@ -21,33 +21,14 @@ import {
 import { authenticateToken } from "../middlewares/auth.middleware.js";
 import { loadAccount, resolvePrincipal, securityVersion, securityVersionFilter, PrincipalUnavailableError } from "../services/principal.service.js";
 import { authorizationSummary } from "../services/authorization-summary.service.js";
+import {
+  registerLoginAttempt,
+  clearLoginAttempts,
+} from "../services/login-attempt-limiter.js";
 
 const router = Router();
-
-// P1-4: login had no rate limit (unlimited password guessing) and returned early for
-// unknown accounts (timing oracle for user enumeration). Both are handled here.
-// In-memory is a deliberate limit of this single-instance deployment (ADR-010).
-const LOGIN_MAX_ATTEMPTS = 5;
-const LOGIN_WINDOW_MS = 5 * 60 * 1000;
-const loginAttempts = new Map<string, { count: number; resetAt: number }>();
-
 function loginAttemptKey(req: Request, username: string): string {
   return `${req.ip || "unknown"}|${username.toLowerCase()}`;
-}
-
-function registerLoginAttempt(key: string): boolean {
-  const now = Date.now();
-  const entry = loginAttempts.get(key);
-  if (!entry || entry.resetAt <= now) {
-    loginAttempts.set(key, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
-    return false;
-  }
-  entry.count += 1;
-  return entry.count > LOGIN_MAX_ATTEMPTS;
-}
-
-function clearLoginAttempts(key: string): void {
-  loginAttempts.delete(key);
 }
 
 // A throwaway hash so the "user not found" branch costs the same as a wrong password.

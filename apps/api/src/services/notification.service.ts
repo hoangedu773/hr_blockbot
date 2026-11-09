@@ -1,17 +1,19 @@
 import mongoose from "mongoose";
-import { NotificationItemSchema, NotificationNewPayloadSchema, type NotificationItem } from "@hr-blockbot/contracts";
+import { NotificationItemSchema, NotificationNewPayloadSchema, type NotificationItem, type NotificationType } from "@hr-blockbot/contracts";
 import { NotificationModel } from "../models/Notification.js";
 import { getIO } from "../socket.js";
 
 export interface NotifyInput {
   userId: string;
   employeeId?: string | null;
-  type: import('@hr-blockbot/contracts').NotificationType;
+  type: NotificationType;
   title: string;
   body: string;
   dedupeKey: string;
   entityKind?: string | null;
   entityId?: string | null;
+  severity?: 'INFO' | 'ACTION_REQUIRED' | 'URGENT';
+  actionRef?: string | null;
 }
 
 /** Idempotent in-app notification. A replay with the same dedupeKey never emits twice. */
@@ -32,6 +34,8 @@ export async function notifyUser(input: NotifyInput): Promise<{ created: boolean
         title: input.title.slice(0, 200), body: input.body.slice(0, 1000),
         channel: "in_app", dedupeKey: input.dedupeKey,
         entityKind: input.entityKind ?? null, entityId: input.entityId ?? null,
+        severity: input.severity ?? 'INFO',
+        actionRef: input.actionRef ?? null,
         readAt: null, createdAt: now,
       },
     },
@@ -52,6 +56,7 @@ export function notificationDto(row: any): NotificationItem {
   return NotificationItemSchema.parse({
     id: String(row._id), type: row.performanceType ?? row.revenueType ?? row.type, title: row.title, body: row.body,
     channel: "in_app", entityKind: row.entityKind ?? null, entityId: row.entityId ?? null,
+    severity: row.severity ?? "INFO", actionRef: row.actionRef ?? null,
     readAt: row.readAt ? new Date(row.readAt).toISOString() : null,
     createdAt: new Date(row.createdAt).toISOString(),
   });

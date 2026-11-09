@@ -302,6 +302,9 @@ Một lượt trả lời = `chat:accepted` → N × `chat:chunk` → `chat:done
   cũ, **không** stream lại từ đầu, không gọi tool lần hai.
 - **Thứ tự ghi trước khi phát:** message được commit vào `conversations` **trước** khi emit `chat:done`
   (`design/conversations-storage.md §2.5`).
+- **Redaction `chat:error` khi `chat:send` lỗi:** chỉ `WorkflowError` 4xx được trả đúng `code`/`message` an toàn;
+  mọi lỗi khác chỉ trả `code: 'AI_SERVICE_UNAVAILABLE'` với thông điệp chung, không lộ message hạ tầng
+  (owner: `apps/api/src/socket.ts`, guard bởi `apps/api/test/socket-error-redaction.test.mjs`).
 
 
 ### 4.3 Ba ràng buộc hành vi

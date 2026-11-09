@@ -3,12 +3,8 @@
 `app.authorization_gateway:app` remains the sole V1 entrypoint. No AgentLoop,
 ToolRuntime, legacy corpus or chatbot writes are enabled.
 
-- `JEV_V1_MODE=OFF` (default): original four scoped tool reads/checks, no analysis
-  call and no analysis metadata. Browser-supplied mode/identity is not a flag.
-- `SHADOW`: observational metadata only. Before an eligible analysis, the API
-  verifies the current request-bound principal via `validate_context`. The
-  original four reads/checks still follow; final Node principal/ACL/resource
-  validation and receipt closure are unchanged.
+- `JEV_V1_MODE=OFF` (default): scoped reads run with bounded concurrency and no analysis metadata. Browser-supplied mode/identity is not a flag.
+- `SHADOW`: observational metadata only. An eligible synthetic analysis runs after a request-bound `validate_context` preflight and before the scoped reads. A separate `validate_context` barrier follows the read batch; Node's final principal/ACL/resource validation and receipt closure remain required.
 - `ADVISORY` and unknown modes are unsupported; they cannot activate analysis.
 
 ## Mock-only boundary

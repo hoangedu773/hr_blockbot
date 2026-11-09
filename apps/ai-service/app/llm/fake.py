@@ -17,6 +17,8 @@ import hashlib
 import json
 import math
 import re
+from typing import Any, AsyncIterator, Iterator
+
 from app.config import settings
 from app.llm.base import (
     ChatMessage,
@@ -91,6 +93,34 @@ class FakeProvider(LLMProvider):
             model=self.config.model,
             provider_id=self.config.id,
         )
+
+    async def stream(
+        self,
+        messages: list[ChatMessage],
+        opts: CompletionOptions | None = None,
+    ) -> AsyncIterator[str]:
+        self.calls.append(list(messages))
+        if self._scripted:
+            item = self._scripted.pop(0)
+            if isinstance(item, Exception):
+                raise item
+            if isinstance(item, list):
+                for delta in item:
+                    yield str(delta)
+                return
+            if isinstance(item, CompletionResult):
+                text = item.text
+            else:
+                text = str(item)
+            words = re.findall(r"\S+\s*", text) or [text]
+            for word in words:
+                yield word
+            return
+
+        full_text = _echo_evidence(messages)
+        words = re.findall(r"\S+\s*", full_text) or [full_text]
+        for word in words:
+            yield word
 
 
 def _echo_evidence(messages: list[ChatMessage]) -> str:

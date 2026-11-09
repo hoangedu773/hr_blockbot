@@ -44,3 +44,26 @@ export const TaskInstanceSchema = z.object({ id:PerformanceId, templateId:Perfor
 export type TaskInstance = z.infer<typeof TaskInstanceSchema>;
 export type TaskTemplate = z.infer<typeof TaskTemplateSchema>;
 export type TaskEvaluation = z.infer<typeof TaskEvaluationSchema>;
+
+export const TaskSuitabilityRatingSchema = z.enum(['strong', 'possible', 'not_recommended']);
+export type TaskSuitabilityRating = z.infer<typeof TaskSuitabilityRatingSchema>;
+
+export const TaskSuitabilityCandidateSchema = z.object({
+  employeeId: PerformanceId,
+  name: z.string(),
+  jobTitle: z.string(),
+  suitability: TaskSuitabilityRatingSchema,
+  reasons: z.array(z.string()),
+  workloadOpen: z.number().int().nonnegative(),
+  constraints: z.array(z.string()),
+}).strict();
+export type TaskSuitabilityCandidate = z.infer<typeof TaskSuitabilityCandidateSchema>;
+
+export const TaskSuitabilitySchema = z.object({
+  taskRef: z.string(),
+  candidates: z.array(TaskSuitabilityCandidateSchema),
+  generatedAt: z.string(),
+  deterministic: z.literal(true),
+  advisory: z.literal(true),
+}).strict();
+export type TaskSuitability = z.infer<typeof TaskSuitabilitySchema>;

@@ -95,11 +95,75 @@ describe('Account login and session lifecycle (isolated browser fixtures)', () =
         state.logoutCount += 1;
         return route.fulfill({ status: 204 });
       }
-      if (url.pathname === '/api/chat') {
+      if (url.pathname.startsWith('/api/chat/conversations')) {
+        return route.fulfill({
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': request.headers().origin || `http://127.0.0.1:${server.address()?.port}`,
+            'Access-Control-Allow-Credentials': 'true',
+          },
+          json: { items: [], hasMore: false },
+        });
+      }
+      if (url.pathname === '/api/chat/stream') {
         state.chatCount += 1;
         assert.equal(request.headers().authorization, state.refreshed ? 'Bearer test-refreshed-token' : 'Bearer test-login-token');
-        if (options.expireChat && !state.refreshed) return route.fulfill({ status: 401, json: { error: { code: 'UNAUTHENTICATED' } } });
-        return route.fulfill({ status: 200, json: { reply: 'Phản hồi từ API theo phiên đăng nhập.', citations: [] } });
+        if (options.expireChat && !state.refreshed) {
+          return route.fulfill({
+            status: 401,
+            headers: {
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': request.headers().origin || `http://127.0.0.1:${server.address()?.port}`,
+              'Access-Control-Allow-Credentials': 'true',
+            },
+            json: { error: { code: 'UNAUTHENTICATED', message: 'Token expired' } },
+          });
+        }
+        const data = request.postDataJSON();
+        const clientMessageId = data.clientMessageId;
+        assert.ok(clientMessageId);
+        const convId = data.conversationId || '11111111-1111-4111-8111-111111111111';
+        const replyText = 'Phản hồi từ API theo phiên đăng nhập.';
+
+          const sseBody = [
+            `event: accepted\ndata: ${JSON.stringify({
+              clientMessageId,
+              messageId: clientMessageId,
+              conversationId: convId,
+              acceptedAt: new Date().toISOString(),
+            })}\n\n`,
+            `event: chunk\ndata: ${JSON.stringify({
+              clientMessageId,
+              messageId: clientMessageId,
+              kind: 'text',
+              delta: replyText,
+              seq: 0,
+            })}\n\n`,
+            `event: done\ndata: ${JSON.stringify({
+              conversationId: convId,
+              turn: {
+                id: clientMessageId,
+                userMessage: data.message || '',
+                createdAt: new Date().toISOString(),
+                status: 'COMPLETED',
+                reply: replyText,
+                replyHidden: false,
+                citations: [],
+                proposedAction: null,
+                attachments: [],
+              },
+            })}\n\n`,
+          ].join('');
+          return route.fulfill({
+            status: 200,
+            headers: {
+              'Content-Type': 'text/event-stream',
+              'Access-Control-Allow-Origin': request.headers().origin || `http://127.0.0.1:${server.address()?.port}`,
+              'Access-Control-Allow-Credentials': 'true',
+            },
+            body: sseBody,
+          });
       }
       return route.fulfill({ status: 404, json: {} });
     });
@@ -127,7 +191,8 @@ describe('Account login and session lifecycle (isolated browser fixtures)', () =
     if (!await page.locator('.guta-chat').count()) {
       await page.locator('nav a.crm-copilot').click();
     }
-    await page.getByPlaceholder('Hỏi AI về ca trực, nhân sự, tiền két...').waitFor();
+    const input = page.getByPlaceholder('Hỏi AI về ca trực, nhân sự, tiền két...').or(page.getByRole('textbox', { name: 'Tin nhắn cho Guta AI' }));
+    await input.waitFor();
   }
 
   it('sai mật khẩu giữ nguyên form, hiển thị lỗi và cho phép thử lại', async () => {
@@ -160,9 +225,11 @@ describe('Account login and session lifecycle (isolated browser fixtures)', () =
     assert.equal(await page.locator('.guta-chat-header-title span').innerText(), 'staff');
     await page.locator('.theme-toggle--chat').getByRole('button', { name: 'Chế độ sáng', exact: true }).click();
     assert.equal(await page.evaluate(() => document.documentElement.classList.contains('light')), true);
-    await page.getByPlaceholder('Hỏi AI về ca trực, nhân sự, tiền két...').fill('Hồ sơ của tôi');
-    await page.getByRole('button', { name: 'Gửi', exact: true }).click();
-    await page.getByText('Phản hồi từ API theo phiên đăng nhập.', { exact: true }).waitFor();
+    const chatInput = page.getByPlaceholder('Hỏi AI về ca trực, nhân sự, tiền két...').or(page.getByRole('textbox', { name: 'Tin nhắn cho Guta AI' }));
+    await chatInput.fill('Hồ sơ của tôi');
+    const sendBtn = page.getByRole('button', { name: 'Gửi', exact: true }).or(page.locator('button.chat-send'));
+    await sendBtn.click();
+    await page.getByText('Phản hồi từ API theo phiên đăng nhập.').first().waitFor();
     assert.equal(state.chatCount, 1);
     assert.deepEqual(errors, []);
   });
@@ -187,9 +254,11 @@ describe('Account login and session lifecycle (isolated browser fixtures)', () =
     const { page, state, errors } = await fixture({ expireChat: true });
     await signIn(page);
     await openChat(page);
-    await page.getByPlaceholder('Hỏi AI về ca trực, nhân sự, tiền két...').fill('Hồ sơ của tôi');
-    await page.getByRole('button', { name: 'Gửi', exact: true }).click();
-    await page.getByText('Phản hồi từ API theo phiên đăng nhập.', { exact: true }).waitFor();
+    const chatInput = page.getByPlaceholder('Hỏi AI về ca trực, nhân sự, tiền két...').or(page.getByRole('textbox', { name: 'Tin nhắn cho Guta AI' }));
+    await chatInput.fill('Hồ sơ của tôi');
+    const sendBtn = page.getByRole('button', { name: 'Gửi', exact: true }).or(page.locator('button.chat-send'));
+    await sendBtn.click();
+    await page.getByText('Phản hồi từ API theo phiên đăng nhập.').first().waitFor();
     assert.equal(state.chatCount, 2);
     assert.equal(state.refreshCount, 1); // no startup refresh for an anonymous boot; one 401 retry
     assert.deepEqual(errors, []);
@@ -207,12 +276,14 @@ describe('Account login and session lifecycle (isolated browser fixtures)', () =
       return route.fulfill({ status: 200, json: { accessToken: 'test-refreshed-token' } });
     });
     await openChat(page);
-    await page.getByPlaceholder('Hỏi AI về ca trực, nhân sự, tiền két...').fill('Hồ sơ của tôi');
-    await page.getByRole('button', { name: 'Gửi', exact: true }).click();
+    const chatInput = page.getByPlaceholder('Hỏi AI về ca trực, nhân sự, tiền két...').or(page.getByRole('textbox', { name: 'Tin nhắn cho Guta AI' }));
+    await chatInput.fill('Hồ sơ của tôi');
+    const sendBtn = page.getByRole('button', { name: 'Gửi', exact: true }).or(page.locator('button.chat-send'));
+    await sendBtn.click();
     await pause.started.promise;
     await page.keyboard.press('Escape');
     const logoutFinished = page.waitForResponse((response) => response.url().endsWith('/api/auth/logout'));
-    await page.getByRole('button', { name: 'Đăng Xuất Phiên' }).click();
+    await page.getByRole('button', { name: 'Đăng Xuất Phiên' }).first().click();
     await page.getByRole('button', { name: 'Get Started' }).waitFor();
     pause.release.resolve();
     await logoutFinished;

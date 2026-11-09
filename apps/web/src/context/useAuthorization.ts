@@ -8,9 +8,12 @@ export function useAuthorization() {
   const { user, accessToken } = useAuth();
   const [summary, setSummary] = useState<AuthorizationSummary | null>(user?.authorization ?? null);
   useEffect(() => {
-    let current = true;
+    let current = true, sequence = 0;
     setSummary(user?.authorization ?? null);
-    const refresh = () => { void fetchMe().then((me) => { if (current) setSummary(me.authorization ?? null); }).catch(() => { if (current) setSummary(null); }); };
+    const refresh = () => {
+      const request = ++sequence;
+      void fetchMe().then((me) => { if (current && request === sequence) setSummary(me.authorization ?? null); }).catch(() => { if (current && request === sequence) setSummary(null); });
+    };
     if (accessToken) refresh();
     window.addEventListener('focus', refresh);
     return () => { current = false; window.removeEventListener('focus', refresh); };

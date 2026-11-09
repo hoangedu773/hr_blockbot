@@ -5,6 +5,7 @@ import { ProjectModel } from "../models/Project.js";
 import { ReportModel } from "../models/Report.js";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
 import { endpoint as endpoint } from "../lib/endpoint.js";
+import { pagingMeta } from "../lib/paging.js";
 import {
   WorkflowError, visibleProject, assertProjectWrite, assertProjectManagement, objectId,
   reportDto, referenceMatch, versionFilter, conflict, historyEntry, assertExecutionAllowed,
@@ -61,7 +62,7 @@ router.get("/reports", authenticateToken, endpoint(async (req, res) => {
   const { page, limit } = paging.data;
   res.json({
     items: items.slice((page - 1) * limit, page * limit),
-    paging: { page, limit, totalItems: items.length, totalPages: Math.max(1, Math.ceil(items.length / limit)), hasNext: page * limit < items.length, hasPrev: page > 1 },
+    paging: pagingMeta({ page, limit, totalItems: items.length }),
   });
 }));
 

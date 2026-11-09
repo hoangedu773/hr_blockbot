@@ -1,4 +1,9 @@
-import { RevenueKpiOpenActionSchema, RevenueKpiOpenPreviewSchema } from './revenue-kpi.js';
+import {
+  RevenueKpiChatActionSchema,
+  RevenueKpiOpenActionSchema,
+  RevenueKpiOpenPreviewSchema,
+} from './revenue-kpi.js';
+import { PerformanceKpiChatActionSchema } from './performance-kpi.js';
 import { z } from "zod";
 import { AuthorizationSummarySchema } from "./authorization.js";
 import { F4CandidateSchema } from "./f4.js";
@@ -6,6 +11,8 @@ export * from "./authorization.js";
 export * from "./f4.js";
 export * from "./kpi.js";
 export * from "./scheduling.js";
+export * from "./revenue-kpi.js";
+export * from "./performance-kpi.js";
 
 // ============================================================================
 // 1. Core Auth & RBAC Schemas
@@ -827,13 +834,18 @@ export type ChatRequest = z.infer<typeof ChatRequestSchema>;
 export const ChatConversationSummarySchema = z.object({ id: z.string().uuid(), title: z.string().max(100), updatedAt: z.string().datetime() });
 export const ChatConversationListSchema = z.object({ items: z.array(ChatConversationSummarySchema).max(30), nextCursor: z.string().max(300).nullable() });
 export const PerformanceChatCardSchema = z.object({evaluationId:z.string().regex(/^[a-f0-9]{24}$/),period:z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/),status:z.string(),score:z.number().min(0).max(100).nullable(),canReconsider:z.boolean(),canAppeal:z.boolean()}).strict();
+export const ChatActionSchema = z.discriminatedUnion('type', [
+  ...RevenueKpiChatActionSchema.options,
+  ...PerformanceKpiChatActionSchema.options,
+]);
+export type ChatAction = z.infer<typeof ChatActionSchema>;
 export const ChatHistoryTurnSchema = z.object({
   performanceKpi: PerformanceChatCardSchema.optional(),
   id: z.string().uuid(), userMessage: z.string().max(2000), createdAt: z.string().datetime(),
   status: z.enum(['QUEUED', 'PENDING', 'COMPLETED', 'FAILED', 'INTERRUPTED']),
   reply: z.string().max(64000).nullable(), replyHidden: z.boolean(),
   citations: z.array(z.object({ document: z.string(), version: z.string().optional(), article: z.string().optional(), score: z.number().finite().optional() })),
-  attachments: z.array(z.unknown()).max(0), proposedAction: RevenueKpiOpenActionSchema.nullable(),
+  attachments: z.array(z.unknown()).max(0), proposedAction: ChatActionSchema.nullable(),
 });
 export const ChatHistoryPageSchema = z.object({ conversation: ChatConversationSummarySchema, items: z.array(ChatHistoryTurnSchema).max(30), nextCursor: z.string().max(300).nullable() });
 export const ChatHistorySendSchema = z.object({ conversationId: z.string().uuid(), turn: ChatHistoryTurnSchema });
@@ -1062,6 +1074,7 @@ export const NotificationNewPayloadSchema = z.object({
   type: z.enum([
     "performance_kpi_opened","performance_kpi_score_ready","performance_kpi_reconsideration_requested","performance_kpi_reconsideration_responded","performance_kpi_appeal_requested","performance_kpi_appeal_decided","performance_kpi_finalized","performance_kpi_corrected","task_assigned","task_accepted","task_refused","task_due_soon","task_overdue","task_submitted","task_evaluated","task_handover",
   'revenue_kpi_assigned', 'revenue_kpi_accepted', 'revenue_kpi_refused', 'revenue_kpi_adjusted', 'revenue_kpi_result_ready', 'revenue_kpi_reason_required', 'revenue_kpi_closed',
+  'revenue_kpi_adjustment_requested', 'revenue_kpi_adjustment_verified', 'revenue_kpi_adjustment_decided', 'revenue_kpi_acceptance_overdue', 'revenue_kpi_period_closing',
     "deadline_3d",
     "deadline_1d",
     "deadline_overdue",
@@ -1194,6 +1207,4 @@ export const DashboardOverviewSchema = z.object({
 export type DashboardOverview = z.infer<typeof DashboardOverviewSchema>;
 export * from './sm-appointments.js';
 export * from './sales-report.js';
-export * from './revenue-kpi.js';
 export * from './tasks.js';
-export * from './performance-kpi.js';

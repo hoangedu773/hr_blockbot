@@ -8,6 +8,7 @@ store/area targets, assignee consent, independent AM/HR adjustments, determinist
 POS results, reasons, confirmation/close and append-only corrections. No payroll
 or compensation. Default flag REVENUE_KPI_ENABLED=false. Explicit test-only grants
 bind existing source grants in revenue_kpi_grants so old Main API remains compatible.
+The chat assignment confirmation claims a pending proposal once; lease renewal is reserved for recovery of an earlier confirmed or failed action. Repeated terminal decisions replay the stored result.
 
 ## Scope
 

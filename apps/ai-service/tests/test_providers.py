@@ -5,6 +5,7 @@ All HTTP calls go through httpx.MockTransport: no network, no API key needed.
 
 from __future__ import annotations
 
+import asyncio
 import sys
 from pathlib import Path
 
@@ -30,6 +31,7 @@ from app.llm.chain import ProviderChain, ProviderChainCache, build_chain
 from app.llm.fake import FakeProvider, hashing_embed
 from app.llm.gemini import GeminiProvider
 from app.llm.openai_compatible import OpenAICompatibleProvider
+from app.llm.base import ProviderSafetyBlocked
 
 
 def _client(handler) -> httpx.Client:
@@ -207,6 +209,29 @@ def test_gemini_completion_and_function_call_parsing():
     assert result.tool_calls[0].name == "search_policy"
     assert result.tool_calls[0].arguments == {"query": "lương"}
 
+@pytest.mark.parametrize("body", [
+    {"promptFeedback": {"blockReason": "SAFETY"}},
+    {"candidates": [{"finishReason": "IMAGE_SAFETY", "content": {"parts": []}}]},
+    {"candidates": [{"finishReason": "RECITATION", "content": {"parts": []}}]},
+])
+def test_gemini_complete_raises_for_safety_responses(body):
+    provider = GeminiProvider(
+        ProviderConfig(id="gemini-safe", type="gemini", model="gemini-test", api_key="g-key"),
+        client=_client(lambda request: httpx.Response(200, json=body)),
+    )
+    with pytest.raises(ProviderSafetyBlocked):
+        provider.complete([ChatMessage("user", "synthetic")])
+
+
+def test_gemini_http_safety_error_is_typed_without_provider_body_leak():
+    provider = GeminiProvider(
+        ProviderConfig(id="gemini-safe", type="gemini", model="gemini-test", api_key="g-key"),
+        client=_client(lambda request: httpx.Response(400, json={"error": {"status": "SAFETY", "message": "private-sentinel"}})),
+    )
+    with pytest.raises(ProviderSafetyBlocked) as error:
+        provider.complete([ChatMessage("user", "synthetic")])
+    assert "private-sentinel" not in str(error.value)
+
 
 def test_gemini_embedding_batch_parsing():
     def handler(request: httpx.Request) -> httpx.Response:
@@ -232,11 +257,43 @@ class _AlwaysFails(LLMProvider):
     def embed(self, texts, opts=None):
         raise ProviderRateLimited("nope", provider_id=self.name)
 
+    async def stream(self, messages, opts=None):
+        raise ProviderRateLimited("nope", provider_id=self.name)
+        if False:
+            yield ""
+
 
 def test_provider_chain_falls_back_to_next_priority():
     chain = ProviderChain([_AlwaysFails("primary"), FakeProvider()])
     result = chain.complete([ChatMessage("user", "xin chào")])
     assert result.provider_id == "fake"
+
+
+def test_provider_chain_does_not_fail_over_on_safety_block():
+    class SafetyProvider(LLMProvider):
+        def __init__(self):
+            super().__init__(ProviderConfig(id="safety", type="fake", model="m"))
+
+        def complete(self, messages, opts=None):
+            raise ProviderSafetyBlocked("safe fixed message", provider_id=self.name)
+
+        def embed(self, texts, opts=None):
+            raise AssertionError("unused")
+
+    class CountedFallback(FakeProvider):
+        def __init__(self):
+            super().__init__()
+            self.calls = 0
+
+        def complete(self, messages, opts=None):
+            self.calls += 1
+            return super().complete(messages, opts)
+
+    fallback = CountedFallback()
+    chain = ProviderChain([SafetyProvider(), fallback])
+    with pytest.raises(ProviderSafetyBlocked):
+        chain.complete([ChatMessage("user", "synthetic")])
+    assert fallback.calls == 0
 
 
 def test_provider_chain_raises_unavailable_when_all_fail():
@@ -282,3 +339,25 @@ def test_provider_cache_uses_config_version_and_respects_ttl():
     expired.get(payload)
     expired.get(payload)
     assert expired.builds == 2
+
+
+def test_provider_chain_stream_falls_back_to_next_priority():
+    async def _run():
+        chain = ProviderChain([_AlwaysFails("primary"), FakeProvider(scripted=[["xin ", "chào"]])])
+        deltas = []
+        async for item in chain.stream([ChatMessage("user", "test")]):
+            deltas.append(item)
+        assert "".join(deltas) == "xin chào"
+
+    asyncio.run(_run())
+
+
+def test_provider_chain_stream_raises_unavailable_when_all_fail():
+    async def _run():
+        chain = ProviderChain([_AlwaysFails("a"), _AlwaysFails("b")])
+        with pytest.raises(LLMUnavailable) as excinfo:
+            async for _ in chain.stream([ChatMessage("user", "x")]):
+                pass
+        assert [error["providerId"] for error in excinfo.value.errors] == ["a", "b"]
+
+    asyncio.run(_run())

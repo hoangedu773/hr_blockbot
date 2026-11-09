@@ -6,6 +6,7 @@ import {
 import { authenticateToken } from "../middlewares/auth.middleware.js";
 import { ProjectModel } from "../models/Project.js";
 import { endpoint as endpoint } from "../lib/endpoint.js";
+import { pagingMeta } from "../lib/paging.js";
 import { WorkflowError, projectReadScope, visibleProject, projectDtos, assertProjectManagement } from "../services/project-workflow.service.js";
 import { allowedStoreIds, hasCapability } from "../services/authorization-scope.service.js";
 import { respondToAssignment, reviewAssignment, confirmHandover, assignmentMessage, effectiveAssignment } from "../services/assignment.service.js";
@@ -93,7 +94,7 @@ router.get("/assignment/notifications", endpoint(async (req, res) => {
     .map((item: any) => ({ id: item.id, projectId: String(project._id), projectTitle: project.title, message: item.message, at: item.at,
       read: (project.notificationReads ?? []).includes(req.user!.userId + ":" + item.id) }))).sort((a, b) => b.at.localeCompare(a.at));
   res.json({ items: items.slice((page - 1) * limit, page * limit), totalItems: items.length, unreadCount: items.filter((item) => !item.read).length,
-    paging: { page, limit, totalItems: items.length, totalPages: Math.max(1, Math.ceil(items.length / limit)), hasNext: page * limit < items.length, hasPrev: page > 1 } });
+    paging: pagingMeta({ page, limit, totalItems: items.length }) });
 }));
 router.post("/assignment/notifications/:projectId/:noticeId/read", endpoint(async (req, res) => {
   const project = await visibleProject(req.user!, req.params.projectId);

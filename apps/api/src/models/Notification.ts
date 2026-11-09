@@ -4,6 +4,8 @@ export interface INotification extends Document {
   userId: mongoose.Types.ObjectId;
   employeeId: mongoose.Types.ObjectId | null;
   type: string;
+  severity: "INFO" | "ACTION_REQUIRED" | "URGENT";
+  actionRef: string | null;
   performanceType?: string | null;
   revenueType?: string | null;
   title: string;
@@ -24,11 +26,18 @@ const NotificationSchema = new Schema<INotification>(
       type: String,
       enum: [
         'revenue_kpi_assigned', 'revenue_kpi_accepted', 'revenue_kpi_refused', 'revenue_kpi_adjusted', 'revenue_kpi_result_ready', 'revenue_kpi_reason_required', 'revenue_kpi_closed',
+        'revenue_kpi_adjustment_requested', 'revenue_kpi_adjustment_verified', 'revenue_kpi_adjustment_decided', 'revenue_kpi_acceptance_overdue', 'revenue_kpi_period_closing',
         "deadline_3d", "deadline_1d", "deadline_overdue", "report_submitted",
         "report_approved", "report_rejected", "kpi_published", "kpi_review_digest", "system",
       ],
       required: true,
     },
+    severity: {
+      type: String,
+      enum: ["INFO", "ACTION_REQUIRED", "URGENT"],
+      default: "INFO",
+    },
+    actionRef: { type: String, default: null, maxlength: 120 },
     performanceType: { type: String, default: null },
     revenueType: { type: String, default: null },
     title: { type: String, required: true, maxlength: 200 },

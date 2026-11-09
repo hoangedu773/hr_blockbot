@@ -14,6 +14,7 @@ import { EmployeeModel } from "../models/Employee.js";
 import { authenticateToken } from "../middlewares/auth.middleware.js";
 import { departmentIdMatch } from "../lib/department-scope.js";
 import { endpoint as endpoint } from "../lib/endpoint.js";
+import { pagingMeta } from "../lib/paging.js";
 import { WorkflowError, objectId } from "../services/project-workflow.service.js";
 import { hasCapability, requireCapability, employeeScopeQuery, resourceScope, AuthorizationDeniedError } from "../services/authorization-scope.service.js";
 import { canActOnEmployee, employeeDepartmentScope, employeeDto, saveProfile, toProfileChangeRequest } from "../services/employee-profile.service.js";
@@ -52,7 +53,7 @@ router.get("/employees", authenticateToken, endpoint(async (req, res) => {
   ]);
   // Store directory never exposes phone, hiring date, personal notes, workload or banking.
   const items = rows.map((row: any) => EmployeeSummarySchema.parse({ ...employeeDto(user, row), status: employeeStatus(row), activeLoad: null }));
-  res.json(PaginatedEmployeesResponseSchema.parse({ items, paging: { page, limit, totalItems, totalPages: Math.max(1, Math.ceil(totalItems / limit)), hasNext: page * limit < totalItems, hasPrev: page > 1 } }));
+  res.json(PaginatedEmployeesResponseSchema.parse({ items, paging: pagingMeta({ page, limit, totalItems }) }));
 }));
 router.get("/employees/:id", authenticateToken, endpoint(async (req, res) => {
   const user = req.user!, employee: any = await EmployeeModel.findById(objectId(req.params.id)).lean();
@@ -71,7 +72,7 @@ router.get("/directory", authenticateToken, endpoint(async (req, res) => {
   const query = { $and: [scope, { status: "active" }, ...(q ? [employeeSearch(q)] : [])] };
   const [rows, totalItems] = await Promise.all([EmployeeModel.find(query).select("fullName full_name employeeCode employee_code job_title storeId").sort({ fullName: 1, _id: 1 }).skip((page - 1) * limit).limit(limit).lean(), EmployeeModel.countDocuments(query)]);
   res.json({ items: rows.map((row: any) => ({ employeeId: String(row._id), employeeCode: row.employeeCode || row.employee_code || "", fullName: row.fullName || row.full_name || "", jobTitle: row.job_title ?? null, storeId: String(row.storeId) })),
-    paging: { page, limit, totalItems, totalPages: Math.max(1, Math.ceil(totalItems / limit)), hasNext: page * limit < totalItems, hasPrev: page > 1 } });
+    paging: pagingMeta({ page, limit, totalItems }) });
 }));
 
 // --- Profile change requests (P1-8) -------------------------------------------
@@ -235,7 +236,7 @@ router.get("/change-requests", authenticateToken, endpoint(async (req, res) => {
     .map((item: any) => ({ employeeId: String(employee._id), employeeName: String(employee.fullName || employee.full_name || ""), request: toProfileChangeRequest(item) })))
     .sort((a, b) => b.request.requestedAt.localeCompare(a.request.requestedAt));
   const { page, limit } = paging;
-  res.json({ items: all.slice((page - 1) * limit, page * limit), paging: { page, limit, totalItems: all.length, totalPages: Math.max(1, Math.ceil(all.length / limit)), hasNext: page * limit < all.length, hasPrev: page > 1 } });
+  res.json({ items: all.slice((page - 1) * limit, page * limit), paging: pagingMeta({ page, limit, totalItems: all.length }) });
 }));
 
 export default router;

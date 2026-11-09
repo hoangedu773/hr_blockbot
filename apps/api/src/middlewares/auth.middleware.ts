@@ -62,6 +62,8 @@ export interface AuthenticatedUser {
   authorization?: AuthorizationState | null;
   canonical?: CanonicalAuthorizationContext;
   effectiveDelegations?: EffectiveDelegatedGrant[];
+  /** Server-only session family id (refresh_sessions.familyId) bound to current access token. */
+  sid?: string | null;
 }
 
 declare global {

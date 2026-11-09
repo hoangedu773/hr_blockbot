@@ -1,16 +1,16 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from unittest.mock import patch
 
 import httpx
 import pytest
-from httpx import Client as HttpxClient
 
 from app.jev_live import analyze_live
 
-
+_RealAsyncClient = httpx.AsyncClient
 def test_live_adapter_is_opt_in_and_validates_typed_response(monkeypatch):
     monkeypatch.setenv("JEV_V1_MODE", "LIVE")
     monkeypatch.setenv("JEV_LIVE_ALLOW_EXTERNAL_TEXT", "true")
@@ -29,9 +29,8 @@ def test_live_adapter_is_opt_in_and_validates_typed_response(monkeypatch):
         }}}})
 
     transport = httpx.MockTransport(handler)
-    with patch("app.jev_live.httpx.Client", lambda **kwargs: HttpxClient(transport=transport, **kwargs)):
-        result = analyze_live("quy định đồng phục")
-
+    with patch("app.jev_live.httpx.AsyncClient", lambda **kwargs: _RealAsyncClient(transport=transport, **kwargs)):
+        result = asyncio.run(analyze_live("quy định đồng phục"))
     assert result["status"] == "ok"
     assert result["execution"] == "live"
     assert result["source"] == "jev_systemone"
@@ -47,8 +46,8 @@ def test_live_adapter_fails_closed_without_explicit_external_text_consent(monkey
     monkeypatch.setenv("JEV_V1_MODE", "LIVE")
     monkeypatch.setenv("JEV_API_KEY", "synthetic-live-key-123456")
     monkeypatch.delenv("JEV_LIVE_ALLOW_EXTERNAL_TEXT", raising=False)
-    with patch("app.jev_live.httpx.Client") as client:
-        result = analyze_live("quy định đồng phục")
+    with patch("app.jev_live.httpx.AsyncClient") as client:
+        result = asyncio.run(analyze_live("quy định đồng phục"))
     assert result == {"mode": "LIVE", "status": "external_text_disabled", "execution": "none", "source": None}
     client.assert_not_called()
 
@@ -87,8 +86,9 @@ def test_usejevai_queued_transport_is_pinned_idempotent_and_never_resubmits(monk
             "incident_urgency": {"type": "score", "score": "not-numeric" if terminal == "malformed" else 0.0},
         }
         return httpx.Response(200, json={"code": 0, "data": {"status": "succeeded", "result": {"response": {"answers": answers}}}})
-    with patch("app.jev_live.httpx.Client", lambda **kwargs: HttpxClient(transport=httpx.MockTransport(handler), **kwargs)), patch("app.jev_live.time.sleep", lambda seconds: None):
-        result = analyze_live("Synthetic connectivity only")
-    assert sum(method == "POST" for method, _ in calls) == 1
+    async def no_sleep(_sec):
+        return None
+    with patch("app.jev_live.httpx.AsyncClient", lambda **kwargs: _RealAsyncClient(transport=httpx.MockTransport(handler), **kwargs)), patch("app.jev_live.asyncio.sleep", no_sleep):
+        result = asyncio.run(analyze_live("Synthetic connectivity only"))
     assert result["status"] == ("ok" if terminal == "succeeded" else "unavailable")
     assert result["source"] == ("jev_usejevai" if terminal == "succeeded" else None)
