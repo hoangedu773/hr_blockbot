@@ -412,7 +412,7 @@ export async function streamChatWithAiService(
     }
 
     const aiServiceUrl = (process.env.AI_SERVICE_URL || "http://localhost:8000").replace(/\/+$/, "");
-    const response = await fetch(`${aiServiceUrl}/api/v1/authorized-chat/stream`, {
+    const request = {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -429,7 +429,16 @@ export async function streamChatWithAiService(
         },
       }),
       signal: controller.signal,
-    });
+    };
+    let response = await fetch(`${aiServiceUrl}/api/v1/authorized-chat/stream`, request);
+    const legacyEndpoint = response.status === 404;
+    if (legacyEndpoint) {
+      // Older AI deployments expose the same scoped chat as a single response.
+      await response.body?.cancel();
+      response = await fetch(`${aiServiceUrl}/api/v1/authorized-chat`, {
+        ...request, headers: { ...headers, Accept: "application/json" },
+      });
+    }
 
     if (!response.ok) {
       if (response.status === 429 && activeProviders[0]?.apiKey) {
@@ -446,8 +455,15 @@ export async function streamChatWithAiService(
             errCode = errBody.code;
           }
         }
+        const detail = errBody.detail;
+        if (detail && typeof detail === "object" && "code" in detail &&
+          (detail.code === "SAFETY_BLOCKED" || detail.code === "SAFETY")) errCode = "SAFETY_BLOCKED";
       } catch {}
       throw new WorkflowError(response.status >= 500 ? 503 : response.status, errCode, "AI service error");
+    }
+
+    if (legacyEndpoint) {
+      return parseStreamChatResult(await response.json(), activeProviders, conversationId);
     }
 
     const contentType = response.headers.get("content-type") || "";
@@ -497,31 +513,7 @@ export async function streamChatWithAiService(
           parsedJson && typeof parsedJson === "object" && "result" in parsedJson
             ? (parsedJson as { result: unknown }).result
             : parsedJson;
-        extractAndMarkRateLimitedKeys(rawResult, activeProviders);
-        const streamResult =
-          rawResult && typeof rawResult === "object"
-            ? {
-                ...(rawResult as Record<string, unknown>),
-                citations: [],
-                proposedAction: null,
-                proposed_action: null,
-                attachments: [],
-              }
-            : rawResult;
-        const data = chatResultSchema.parse(streamResult);
-        finalResult = {
-          reply: data.reply,
-          intent: data.intent,
-          intentId: data.intentId,
-          citations: data.citations,
-          proposedAction: data.proposedAction ?? data.proposed_action ?? null,
-          abstain: data.abstain,
-          degraded: data.degraded,
-          decisionSource: data.decisionSource,
-          ...(data.decisionAnalysis ? { decisionAnalysis: data.decisionAnalysis } : {}),
-          conversationId: data.conversationId ?? conversationId,
-          attachments: data.attachments ?? [],
-        };
+        finalResult = parseStreamChatResult(rawResult, activeProviders, conversationId);
         receivedDone = true;
         break;
       } else if (sseEvent.event === "error") {
@@ -565,4 +557,18 @@ export async function streamChatWithAiService(
   } finally {
     for (const cleanup of cleanupFns) cleanup();
   }
+}
+
+function parseStreamChatResult(rawResult: unknown, providers: ActiveProviderConfig[], conversationId?: string): ChatResult {
+  extractAndMarkRateLimitedKeys(rawResult, providers);
+  const data = chatResultSchema.parse(rawResult && typeof rawResult === "object"
+    ? { ...rawResult, citations: [], proposedAction: null, proposed_action: null, attachments: [] }
+    : rawResult);
+  return {
+    reply: data.reply, intent: data.intent, intentId: data.intentId,
+    abstain: data.abstain, degraded: data.degraded, decisionSource: data.decisionSource,
+    ...(data.decisionAnalysis ? { decisionAnalysis: data.decisionAnalysis } : {}),
+    conversationId: data.conversationId ?? conversationId,
+    citations: [], proposedAction: null, attachments: [],
+  };
 }

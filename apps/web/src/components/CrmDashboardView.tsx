@@ -1,4 +1,4 @@
-import { PerformanceKpiView } from './PerformanceKpiView';
+import { EmployeeKpiWorkspace } from './EmployeeKpiWorkspace';
 import { performanceConfig } from '../services/performance-kpi-api';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -18,7 +18,6 @@ import { useAuthorization } from '../context/useAuthorization';
 import { OnboardingWorkspace } from './OnboardingWorkspace';
 import { DelegationView } from './DelegationView';
 import { EmployeeLifecycleView } from './EmployeeLifecycleView';
-import { KpiView } from './KpiView';
 import { SchedulingView } from './SchedulingView';
 import { SalesReportView } from './SalesReportView';
 import { RevenueKpiView } from './RevenueKpiView';
@@ -87,7 +86,6 @@ const CRM_HTML = `
           <button type="button" data-section="profile" class="crm-nav-item">Hồ sơ của tôi</button>
           <button type="button" data-section="schedules" class="crm-nav-item">Lịch làm &amp; phân ca</button>
           <button type="button" data-section="projects" class="crm-nav-item">Công việc & nghiệm thu</button>
-          <button type="button" data-section="kpi" class="crm-nav-item">KPI &amp; đánh giá</button>
           <button type="button" data-section="performanceKpi" class="crm-nav-item">KPI hiệu suất</button>
           <button type="button" data-section="revenueKpi" class="crm-nav-item">KPI doanh thu</button>
           <button type="button" data-section="onboarding" class="crm-nav-item">Tiếp nhận nhân viên</button>
@@ -189,11 +187,13 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
   }
   const canReadOnboarding = can('onboarding.propose') || can('onboarding.draft') || can('onboarding.review');
   const canReadReporting = can('onboarding.reporting_propose') || can('onboarding.reporting_review');
+  const canReadLegacyKpi = can('kpi.read_self') || can('kpi.read_department');
+  const canReadPerformanceKpi = performanceEnabled && (can('performance_kpi.read_self') || can('performance_kpi.read_scope'));
   const allowedViews: Record<ActiveCrmView, boolean> = { stores: can('stores.read'), sales: can('dashboard.read'), employees: can('employees.read_operational'), profile: can('profile.read_self'),
-    performanceKpi: performanceEnabled && (can('performance_kpi.read_self') || can('performance_kpi.read_scope')),
+    performanceKpi: canReadPerformanceKpi || canReadLegacyKpi,
     revenueKpi: revenueEnabled && ['hr', 'am', 'sm'].includes(authorization?.profile ?? '') && (can('revenue_kpi.read_scope') || can('revenue_kpi.read_self')),
     schedules: can('schedules.read_self') || can('schedules.read_store'), projects: canReadProjects || canReadScoredWork,
-    kpi: can('kpi.read_self') || can('kpi.read_department') || can('kpi.manage'),
+    kpi: canReadLegacyKpi,
     settings: can('provider_settings.manage'), accounts: can('accounts.manage'), onboarding: canReadOnboarding || canReadReporting,
     delegations: can('authorization.inspect_self') || can('delegations.request') || can('delegations.review') || !!authorization?.delegations.length,
     lifecycle: can('employees.lifecycle_request') || can('employees.lifecycle_review') || can('employees.transfer_confirm') };
@@ -508,8 +508,9 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
         )}
       {customViewPortalEl &&
         createPortal(
-          activeView === 'performanceKpi' && allowedViews.performanceKpi ? (
-            <PerformanceKpiView onOpenWork={canReadScoredWork ? openScoredWork : undefined} />
+          (activeView === 'performanceKpi' || activeView === 'kpi') && allowedViews[activeView] ? (
+            <EmployeeKpiWorkspace key={activeView} performance={canReadPerformanceKpi} legacy={canReadLegacyKpi}
+              historyFirst={activeView === 'kpi'} onOpenWork={canReadScoredWork ? openScoredWork : undefined} onNotify={safeNotify} />
           ) : activeView === 'revenueKpi' && allowedViews.revenueKpi ? (
             <RevenueKpiView />
           ) : activeView === 'sales' && allowedViews.sales ? (
@@ -523,8 +524,6 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
           ) : activeView === 'projects' && allowedViews.projects ? (
             <ProjectListView onNotify={safeNotify} canReadProjects={canReadProjects} canReadScored={canReadScoredWork}
               workTarget={workTarget} onTargetApplied={() => setWorkTarget(null)} />
-          ) : activeView === 'kpi' && allowedViews.kpi ? (
-            <KpiView onNotify={safeNotify} />
           ) : activeView === 'onboarding' && allowedViews.onboarding ? (
             <OnboardingWorkspace canReadOnboarding={canReadOnboarding} canReadReporting={canReadReporting} />
           ) : activeView === 'delegations' && allowedViews.delegations ? (

@@ -14,7 +14,7 @@ const groups: Record<NotificationGroup, { label: string; view?: ActiveCrmView }>
   work: { label: 'Công việc & nghiệm thu', view: 'projects' },
   revenue: { label: 'KPI doanh thu', view: 'revenueKpi' },
   performance: { label: 'KPI hiệu suất & công việc', view: 'performanceKpi' },
-  evaluation: { label: 'KPI & đánh giá', view: 'kpi' },
+  evaluation: { label: 'Lịch sử KPI hiệu suất', view: 'kpi' },
   onboarding: { label: 'Tiếp nhận nhân viên', view: 'onboarding' },
   other: { label: 'Khác' },
 };
