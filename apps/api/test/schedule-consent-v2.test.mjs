@@ -228,3 +228,84 @@ test('shared registration board scopes reads, permits only self-submission and l
   assert.equal((await act('sm', pending.body, 'APPROVE')).body.error.code, 'SCHEDULE_WEEK_PUBLISHED');
   assert.equal((await reload({ id: row.id })).registrations.find(r => r.id === added.body.id).status, 'CANCELLED');
 });
+
+// Sếp yêu cầu: "SM/AM đều được duyệt". Trước test này, chỉ SM được chứng minh;
+// AM duyệt được nhờ `managedByStore` là transitive (am -> sm -> staff/ptch) trong
+// authorization-scope.service.ts:43-58, nhưng chưa có bằng chứng chạy thật.
+async function farBoard() {
+  serial += 1;
+  const base = datePlus(new Date().toISOString().slice(0, 10), 200 + serial * 7);
+  const monday = datePlus(base, -((new Date(base + 'T00:00:00Z').getUTCDay() + 6) % 7));
+  const storeId = String(f.stores[0]._id);
+  const shift = await call('sm', `/scheduling/stores/${storeId}/shifts`, { expectedVersion: 0,
+    definition: { code: 'FAR-' + serial, name: 'Owned far-future shift', active: true, intervals: [{ startMinute: 480, endMinute: 600 }] } });
+  assert.equal(shift.status, 200, JSON.stringify(shift.body));
+  let w = (await call('sm', `/scheduling/stores/${storeId}/weeks`, { weekStart: monday })).body;
+  const assignments = [
+    { id: randomUUID(), employeeId: eid('staff'), date: monday, shiftId: shift.body.id },
+    { id: randomUUID(), employeeId: eid('ptch'), date: datePlus(monday, 1), shiftId: shift.body.id },
+  ];
+  let r = await call('sm', `/scheduling/weeks/${w.id}/draft`, { expectedVersion: w.version, reason: 'Owned far calendar fixture', assignments });
+  assert.equal(r.status, 200, JSON.stringify(r.body)); w = r.body;
+  r = await call('sm', `/scheduling/weeks/${w.id}/publish`, { expectedVersion: w.version, reason: 'Owned far publication' });
+  assert.equal(r.status, 200, JSON.stringify(r.body)); w = r.body;
+  return { id: w.id, week: w, source: w.published[0], target: w.published[1] ?? null };
+}
+
+test('AM reviews a manager-arranged change for the same store as SM does', async () => {
+  const b = await farBoard(), r = await request(b, { arrangement: 'MANAGER', receiverEmployeeId: null });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  const id = r.body.request.id;
+  assert.equal(r.body.request.status, 'PENDING_MANAGER');
+
+  // AM nằm ngoài chuỗi báo cáo trực tiếp của staff (am -> sm -> staff) nhưng
+  // managedByStore duyệt DFS nên phải duyệt được y như SM.
+  const selected = await action(b, id, 'am', 'SELECT', { receiverEmployeeId: eid('ptch') });
+  assert.equal(selected.status, 200, JSON.stringify(selected.body));
+  assert.equal(selected.body.request.status, 'PENDING_RECEIVER');
+
+  // Người nhận xác nhận sau khi AM chọn — quyền duyệt không thay đổi hành vi consent.
+  const accepted = await action(b, id, 'ptch', 'ACCEPT');
+  assert.equal(accepted.status, 200, JSON.stringify(accepted.body));
+  assert.equal(accepted.body.request.completionMode, 'MANAGER');
+  const saved = await reload(b);
+  assert.equal(saved.published[0].employeeId, eid('ptch'), 'AM selection + receiver consent must move the published shift');
+});
+
+test('AM can reject a manager-arranged change without touching the published schedule', async () => {
+  const b = await farBoard(), r = await request(b, { arrangement: 'MANAGER', receiverEmployeeId: null });
+  const id = r.body.request.id, before = JSON.stringify((await reload(b)).published);
+  const rejected = await action(b, id, 'am', 'REJECT');
+  assert.equal(rejected.status, 200, JSON.stringify(rejected.body));
+  assert.equal(rejected.body.request.status, 'REJECTED');
+  assert.equal(JSON.stringify((await reload(b)).published), before);
+});
+
+// Sếp yêu cầu: staff A đăng ký ca trên tuần chưa công bố thì staff B cùng cửa hàng
+// phải thấy để né lịch nhau. `ptch` và `staff` cùng stores[0] trong fixture.
+test('a same-store colleague sees the registration so both can avoid clashing shifts', async () => {
+  const b = await farBoard(), weekStart = datePlus(b.week.weekStart, 7), storeId = b.week.storeId;
+  const shift = await call('sm', `/scheduling/stores/${storeId}/shifts`, { expectedVersion: 0,
+    definition: { code: 'VIS-' + (++serial), name: 'Owned visibility shift', active: true, intervals: [{ startMinute: 600, endMinute: 720 }] } });
+  assert.equal(shift.status, 200, JSON.stringify(shift.body));
+  const slot = { date: weekStart, shiftId: shift.body.id, shiftVersion: shift.body.version };
+  const submitted = await call('staff', '/scheduling/registrations', { weekStart, clientRequestId: randomUUID(), slot });
+  assert.equal(submitted.status, 200, JSON.stringify(submitted.body));
+
+  const colleague = await call('ptch', '/scheduling/registrations/me?weekStart=' + weekStart);
+  assert.equal(colleague.status, 200);
+  const seen = colleague.body.items.find(item => item.id === submitted.body.id);
+  assert.ok(seen, 'đồng nghiệp cùng cửa hàng phải thấy đăng ký của staff');
+  assert.match(seen.employeeName, /staff/i);
+  assert.equal(seen.isOwn, false);
+  assert.equal(seen.canManage, false);
+  assert.equal(seen.slot.date, weekStart);
+  assert.equal(seen.slot.shiftCode, shift.body.code);
+  // Không lộ dữ liệu định danh nội bộ.
+  assert.doesNotMatch(JSON.stringify(seen), /employeeId|employeeCode|requesterUserId|reviewer/);
+
+  // Đồng nghiệp khác cửa hàng đọc bảng của cửa hàng mình nên không thấy đăng ký này.
+  const otherStore = await call('staffB', '/scheduling/registrations/me?weekStart=' + weekStart);
+  assert.equal(otherStore.status, 200);
+  assert.equal(otherStore.body.items.some(item => item.id === submitted.body.id), false);
+});
