@@ -17,7 +17,7 @@ import { authorizationV1Fixture, testGrant, SELF_CAPS } from "./helpers/authoriz
 let fixture, server, base, legacyToken, unmappedToken, blankToken, stringDeptToken, stringEmployee, projectA, projectB, rawProject, rawReport, reviewableRaw, ownProject;
 before(async () => {
   await connectDB(); fixture = await authorizationV1Fixture();
-  for (const [actor, jobTitle] of [['sm', 'SM'], ['staff', 'CAFE - Nhân viên bán hàng'], ['om', 'R&D (TEST).*'], ['staffB', 'OUTSIDE ONLY']]) {
+  for (const [actor, jobTitle] of [['sm', 'SM'], ['staff', 'CAFE - Nhân viên bán hàng'], ['om', 'R&D (TEST).*'], ['am', 'AM2'], ['aom', 'AOM'], ['sam', 'SAM'], ['staffB', 'OUTSIDE ONLY']]) {
     await EmployeeModel.updateOne({ _id: fixture.actors[actor].employee._id }, { $set: { job_title: jobTitle } });
   }
   for (const [name, isGlobalAdmin] of [["legacy", true], ["unmapped", false], ["blank", false]]) {
@@ -81,6 +81,18 @@ test('job-title filter is case-insensitive literal search with scoped pagination
   const literal = await request('sm', '/employees?jobTitle=' + encodeURIComponent('.*'));
   assert.equal(literal.status, 200); assert.equal(literal.body.paging.totalItems, 1);
   assert.equal(literal.body.items[0].employeeId, String(fixture.actors.om.employee._id));
+});
+
+test('title groups distinguish AM grades from AOM and SAM without changing store scope', async () => {
+  for (const group of ['am', 'aom', 'sam']) {
+    const response = await request('sm', '/employees?jobTitleGroup=' + group + '&status=active');
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.body.items.map((row) => row.employeeId), [String(fixture.actors[group].employee._id)]);
+  }
+  const foreign = await request('sm', '/employees?jobTitleGroup=am&storeId=' + fixture.stores[1]._id);
+  assert.equal(foreign.status, 200);
+  assert.deepEqual(foreign.body.items, []);
+  assert.equal((await request('sm', '/employees?jobTitleGroup=unknown')).status, 400);
 });
 
 test('title filter and foreign store ID never expand scope or confer access', async () => {

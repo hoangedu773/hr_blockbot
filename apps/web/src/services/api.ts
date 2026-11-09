@@ -158,7 +158,10 @@ export function isEmployeeDetail(value: EmployeeDetail | EmployeeSummary): value
 // F1 - Employees & profile change approval (FR-003 / FR-004)
 // ---------------------------------------------------------------------------
 
+export type EmployeeTitleGroup = 'am' | 'aom' | 'sam' | 'om' | 'sm' | 'ptch' | 'staff';
+
 export interface EmployeeListParams {
+  jobTitleGroup?: EmployeeTitleGroup;
   jobTitle?: string;
   departmentId?: string;
   storeId?: string;
@@ -180,6 +183,7 @@ export async function fetchEmployees(params?: EmployeeListParams): Promise<Pagin
   if (params?.storeId) query.set('storeId', params.storeId);
   if (params?.level) query.set('level', params.level);
   if (params?.jobTitle) query.set('jobTitle', params.jobTitle);
+  if (params?.jobTitleGroup) query.set('jobTitleGroup', params.jobTitleGroup);
   if (params?.status) query.set('status', params.status);
   if (params?.q) query.set('q', params.q);
   if (params?.page) query.set('page', String(params.page));

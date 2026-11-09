@@ -26,15 +26,28 @@ function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// Display groups use recorded titles only. They do not confer any capability.
+const titleGroup = z.enum(["am", "aom", "sam", "om", "sm", "ptch", "staff"]);
+const titlePatterns: Record<z.infer<typeof titleGroup>, string> = {
+  am: String.raw`^\s*(?:AM[123]?|QUẢN LÝ KHU VỰC|AREA MANAGER)(?:\s*\([^)]*\))?\s*$`,
+  aom: String.raw`^\s*(?:AOM|TRỢ LÝ OM|TRỢ LÝ QUẢN LÝ KHU VỰC|ASSISTANT AREA MANAGER)(?:\s*\([^)]*\))?\s*$`,
+  sam: String.raw`^\s*(?:SAM|QUẢN LÝ KHU VỰC CẤP CAO|SENIOR AREA MANAGER)(?:\s*\([^)]*\))?\s*$`,
+  om: String.raw`^\s*(?:OM|QUẢN LÝ VÙNG|TRƯỞNG PHÒNG VẬN HÀNH)(?:\s*\([^)]*\))?\s*$`,
+  sm: String.raw`^\s*(?:SM[123]?|CỬA HÀNG TRƯỞNG|STORE MANAGER)(?:\s*\([^)]*\))?\s*$`,
+  ptch: String.raw`^\s*(?:PTCH|PHỤ TRÁCH CỬA HÀNG)(?:\s*\([^)]*\))?\s*$`,
+  staff: String.raw`^\s*(?:NV[123]?(?:\s|$)|NHÂN VIÊN(?:\s|$)|CAFE\s*[-–]\s*NHÂN VIÊN)`,
+};
+
 // V1 list/detail: queries, totals and projections share the same explicit scope.
 router.get("/employees", authenticateToken, endpoint(async (req, res) => {
   const user = req.user!;
   const cap = "employees.read_operational";
-  const parsed = PaginationQuerySchema.extend({ q: z.string().trim().max(50).optional(), jobTitle: z.string().trim().max(100).optional(), storeId: z.string().regex(/^[a-f0-9]{24}$/i).optional(), departmentId: z.string().trim().min(1).max(200).optional(), level: EmployeeLevelSchema.optional(), status: z.enum(["active", "inactive", "UNKNOWN"]).optional() }).safeParse(req.query);
+  const parsed = PaginationQuerySchema.extend({ q: z.string().trim().max(50).optional(), jobTitle: z.string().trim().max(100).optional(), jobTitleGroup: titleGroup.optional(), storeId: z.string().regex(/^[a-f0-9]{24}$/i).optional(), departmentId: z.string().trim().min(1).max(200).optional(), level: EmployeeLevelSchema.optional(), status: z.enum(["active", "inactive", "UNKNOWN"]).optional() }).safeParse(req.query);
   if (!parsed.success) throw new WorkflowError(400, "VALIDATION_FAILED", "Phân trang không hợp lệ.");
   const clauses: Record<string, any>[] = [employeeScopeQuery(user, cap)];
   const q = typeof req.query.q === "string" ? req.query.q.trim().slice(0, 200) : "";
   if (q) clauses.push(employeeSearch(q));
+  if (parsed.data.jobTitleGroup) clauses.push({ job_title: { $regex: titlePatterns[parsed.data.jobTitleGroup], $options: "i" } });
   if (parsed.data.jobTitle) clauses.push({ job_title: { $regex: escapeRegex(parsed.data.jobTitle), $options: "i" } });
   if (parsed.data.storeId) clauses.push({ storeId: objectId(parsed.data.storeId) });
   if (req.query.status !== undefined) {
