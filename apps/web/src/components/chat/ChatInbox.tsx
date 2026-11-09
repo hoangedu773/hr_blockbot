@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { OnboardingReviewSchema, type NotificationInboxItem, type NotificationSeverity } from '@hr-blockbot/contracts';
 import { ApiError, fetchNotificationInbox, markNotificationRead, readAssignmentNotice, requestJson } from '../../services/api';
 
 type ListPrompt =
   | { kind: 'notifications'; text: string }
   | { kind: 'pending'; text: string };
-export type InboxPrompt = ListPrompt | { kind: 'detail'; id: string };
 
 type OnboardingRow = {
   id: string;
@@ -40,7 +39,7 @@ function normalize(text: string) {
     .trim().replace(/[.!?]+$/g, '').replace(/\s+/g, ' ');
 }
 
-export function inboxIntent(text: string): ListPrompt | null {
+function inboxIntent(text: string): ListPrompt | null {
   const command = normalize(text)
     .replace(/^cho (?:toi|minh) biet /, '')
     .replace(/\b(?:tbao|thong thao)\b/g, 'thong bao');
@@ -93,25 +92,20 @@ async function allPending(signal: AbortSignal) {
   return [];
 }
 
-export function ChatInbox({ start, userId, canReview, stores, onExit, onChanged, renderComposer }: {
-  start: InboxPrompt;
+export function useChatInbox({ userId, canReview, stores, onChanged }: {
   userId?: string;
   canReview?: boolean;
   stores: readonly { id: string; name: string }[];
-  onExit: () => void;
   onChanged: () => void;
-  renderComposer: (onSend: (text: string) => void, busy: boolean) => ReactNode;
 }) {
-  const [turns, setTurns] = useState<Turn[]>(() => start.kind === 'detail' ? [] : [{ sender: 'user', text: start.text }]);
-  const [busy, setBusy] = useState(true);
-  const inFlight = useRef(true);
+  const [busy, setBusy] = useState(false);
   const controller = useRef<AbortController>();
   const items = useRef<Item[]>([]);
   const selected = useRef<Selection>();
   const review = useRef<Review>();
-  const end = useRef<HTMLDivElement>(null);
+  const emit = useRef<(turn: Turn) => void>();
 
-  const say = (text: string) => setTurns(previous => [...previous, { sender: 'assistant', text }]);
+  const say = (text: string) => emit.current?.({ sender: 'assistant', text });
   const storeName = (id: string) => stores.find(store => store.id === id)?.name ?? 'Cửa hàng trong hồ sơ';
   const canDecide = (row: OnboardingRow) => canReview && row.requestedBy !== userId
     && row.auditIntegrity === 'VALID_LOCAL_CHAIN' && row.status === 'PENDING_HR_REVIEW';
@@ -190,42 +184,36 @@ export function ChatInbox({ start, userId, canReview, stores, onExit, onChanged,
     say(lines.join('\n'));
   }
 
-  useEffect(() => {
-    const request = new AbortController();
-    controller.current = request;
-    const task = start.kind === 'detail' ? showDetail(undefined, request.signal, start.id) : showList(start, request.signal);
-    void task.catch(() => {
-      if (!request.signal.aborted) say('Mình chưa tải được dữ liệu. Bạn có thể hỏi lại hoặc quay về hội thoại.');
-    }).finally(() => {
-      if (!request.signal.aborted) { inFlight.current = false; setBusy(false); }
-    });
-    return () => request.abort();
-  }, [start]);
-  useEffect(() => {
-    if (busy) return;
-    const lastReply = end.current?.previousElementSibling;
-    const body = end.current?.closest('.guta-chat-body');
-    if (lastReply && body && lastReply.clientHeight > body.clientHeight) lastReply.scrollIntoView({ block: 'start' });
-    else end.current?.scrollIntoView({ block: 'end' });
-  }, [turns, busy]);
+  function reset() {
+    controller.current?.abort();
+    controller.current = undefined;
+    emit.current = undefined;
+    items.current = [];
+    selected.current = undefined;
+    review.current = undefined;
+    setBusy(false);
+  }
+  useEffect(() => () => controller.current?.abort(), []);
 
-  async function send(text: string) {
-    const signal = controller.current?.signal;
-    if (inFlight.current || !signal || signal.aborted) return;
+  function send(text: string, append: (turn: Turn) => void) {
     const command = normalize(text);
-    if (/^(?:quay lai(?: hoi thoai)?|thoat)$/.test(command)) { onExit(); return; }
-    setTurns(previous => [...previous, { sender: 'user', text }]);
-    if (/^(?:huy|dung lai|thoi)$/.test(command)) {
-      if (!review.current) { onExit(); return; }
-      review.current = undefined;
-      say('Đã hủy quyết định. Hồ sơ vẫn giữ nguyên trạng thái.');
-      return;
-    }
-    inFlight.current = true;
-    setBusy(true);
-    try {
+    const cancel = /^(?:huy|dung lai|thoi)$/.test(command);
+    const list = !/\b(?:nay|do)\b/.test(command) && inboxIntent(text);
+    const decision = /^(?:(?:toi|minh) (?:muon |se )?)?(duyet|phe duyet|tu choi)(?: (?:ho so|de nghi)(?: tiep nhan)?(?: (?:nay|do))?| (?:muc|cai) (?:nay|do))?$/.exec(command);
+    const read = /^(?:danh dau |chuyen sang )?da doc(?: (?:thong bao|muc)(?: nay| do)?)?$/.test(command);
+    const number = itemNumber(command);
+    const hasContext = items.current.length > 0 || selected.current;
+    if (!review.current && !list && !(hasContext && (decision || read || number !== undefined))) return false;
+    if (controller.current) return true;
+    append({ sender: 'user', text });
+    run(append, async signal => {
       const pending = review.current;
       if (pending) {
+        if (cancel) {
+          review.current = undefined;
+          say('Đã hủy quyết định. Hồ sơ vẫn giữ nguyên trạng thái.');
+          return;
+        }
         const confirmation = /^(?:toi )?(?:dong y|xac nhan)(?: (duyet|tu choi))?$/.exec(command);
         const label = pending.decision === 'APPROVE' ? 'duyệt' : 'từ chối';
         if (!pending.reason) {
@@ -257,10 +245,8 @@ export function ChatInbox({ start, userId, canReview, stores, onExit, onChanged,
         return;
       }
 
-      const list = inboxIntent(text);
-      if (list && !/\b(?:nay|do)\b/.test(command)) { await showList(list, signal); return; }
+      if (list) { await showList(list, signal); return; }
       const current = selected.current;
-      const decision = /^(?:(?:toi|minh) (?:muon |se )?)?(duyet|phe duyet|tu choi)(?: (?:ho so|de nghi)(?: tiep nhan)?(?: (?:nay|do))?| (?:muc|cai) (?:nay|do))?$/.exec(command);
       if (decision) {
         const row = current?.onboarding;
         if (!row || !canDecide(row)) { say('Hãy đọc một hồ sơ đang chờ bạn duyệt trước. Ví dụ, nhắn “hồ sơ tiếp nhận cần duyệt”, rồi chọn số hồ sơ.'); return; }
@@ -268,7 +254,7 @@ export function ChatInbox({ start, userId, canReview, stores, onExit, onChanged,
         say(`Bạn cho mình biết lý do ${decision[1] === 'tu choi' ? 'từ chối' : 'duyệt'} hồ sơ của ${row.payload.fullName} nhé.`);
         return;
       }
-      if (/^(?:danh dau |chuyen sang )?da doc(?: (?:thong bao|muc)(?: nay| do)?)?$/.test(command)) {
+      if (read) {
         const notice = current?.notice;
         if (!notice) { say('Bạn chọn đọc một thông báo trước nhé.'); return; }
         if (!notice.read) {
@@ -281,15 +267,29 @@ export function ChatInbox({ start, userId, canReview, stores, onExit, onChanged,
         say(`Đã đánh dấu đã đọc thông báo “${notice.title}”.`);
         return;
       }
-      const number = itemNumber(command);
       if (number !== undefined) {
         const item = items.current[number - 1];
         if (item) await showDetail(item, signal);
         else say('Mục này chưa có trong danh sách vừa hiện. Bạn chọn lại số giúp mình nhé.');
         return;
       }
-      say('Bạn có thể nhắn “đọc mục 2”, “xem thông báo của tôi” hoặc “hồ sơ tiếp nhận cần duyệt”.');
-    } catch (error) {
+    });
+    return true;
+  }
+
+  function openDetail(id: string, append: (turn: Turn) => void) {
+    if (controller.current) return;
+    review.current = undefined;
+    run(append, signal => showDetail(undefined, signal, id));
+  }
+
+  function run(append: (turn: Turn) => void, task: (signal: AbortSignal) => Promise<void>) {
+    const request = new AbortController();
+    const { signal } = request;
+    controller.current = request;
+    emit.current = append;
+    setBusy(true);
+    void task(signal).catch(error => {
       if (signal.aborted) return;
       if (error instanceof ApiError && [403, 404, 409].includes(error.status)) {
         selected.current = undefined;
@@ -297,25 +297,14 @@ export function ChatInbox({ start, userId, canReview, stores, onExit, onChanged,
       } else {
         say('Chưa nhận được kết quả. Bạn hãy đọc lại mục đó để kiểm tra trạng thái trước khi thử lại.');
       }
-    } finally {
-      if (!signal.aborted) { inFlight.current = false; setBusy(false); }
-    }
+    }).finally(() => {
+      if (!signal.aborted) {
+        controller.current = undefined;
+        emit.current = undefined;
+        setBusy(false);
+      }
+    });
   }
 
-  return <>
-    <div className="guta-chat-body" role="log" aria-label="Thông báo và hồ sơ trong chat">
-      <div className="guta-chat-width">
-        {turns.map((turn, index) => <article className="guta-chat-message" data-sender={turn.sender} key={index}>
-          <strong>{turn.sender === 'user' ? 'Bạn' : 'Guta AI'}</strong>
-          <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{turn.text}</p>
-        </article>)}
-        {busy && <p role="status">Đang xử lý…</p>}
-        <div ref={end} />
-      </div>
-    </div>
-    <div className="guta-chat-bottom">
-      <div className="guta-chat-width"><button type="button" className="btn" disabled={busy} onClick={onExit}>Quay lại hội thoại</button></div>
-      {renderComposer(text => void send(text), busy)}
-    </div>
-  </>;
+  return { busy, send, openDetail, reset };
 }
