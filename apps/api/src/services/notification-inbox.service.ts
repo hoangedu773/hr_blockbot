@@ -12,17 +12,18 @@ function position(item: InboxCursor) {
 export async function listNotificationInbox(user: AuthenticatedUser, options: {
   group?: NotificationGroup;
   unreadOnly: boolean;
+  actionOnly?: boolean;
   limit: number;
   cursor?: InboxCursor;
 }) {
-  const { group, cursor, unreadOnly, limit } = options;
+  const { group, cursor, unreadOnly, actionOnly, limit } = options;
   const [standalone, assignments] = await Promise.all([
     listNotifications(user.userId, {
-      group, unreadOnly, limit, before: cursor?.createdAt,
+      group, unreadOnly, actionOnly, limit, before: cursor?.createdAt,
       beforeId: cursor?.source === 'notification' ? cursor.id : undefined,
       includeBefore: cursor?.source === 'assignment',
     }),
-    !group || group === 'work' ? listScopedAssignmentNotices(user) : [],
+    !actionOnly && (!group || group === 'work') ? listScopedAssignmentNotices(user) : [],
   ]);
   const notices: NotificationInboxItem[] = standalone.items.map(({ readAt, ...item }) => ({
     ...item, read: readAt !== null, source: 'notification',

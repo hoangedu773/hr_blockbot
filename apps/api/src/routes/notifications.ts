@@ -12,13 +12,14 @@ const inboxQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(30),
   group: NotificationGroupSchema.optional(),
   unread: z.enum(['true', 'false']).optional(),
+  action: z.enum(['true', 'false']).optional(),
   before: z.string().datetime().optional(),
   beforeId: z.string().max(36).optional(),
   beforeSource: z.enum(['notification', 'assignment']).optional(),
 }).strict();
 
 router.get("/notifications/inbox", authenticateToken, endpoint(async (req, res) => {
-  const { limit, group, unread, before, beforeId, beforeSource } = inboxQuery.parse(req.query);
+  const { limit, group, unread, action, before, beforeId, beforeSource } = inboxQuery.parse(req.query);
   const hasCursor = before !== undefined || beforeId !== undefined || beforeSource !== undefined;
   const validId = beforeSource === 'notification'
     ? /^[a-f0-9]{24}$/.test(beforeId ?? '')
@@ -28,7 +29,7 @@ router.get("/notifications/inbox", authenticateToken, endpoint(async (req, res) 
   }
   res.setHeader("Cache-Control", "private, no-store");
   res.json(await listNotificationInbox(req.user!, {
-    limit, group, unreadOnly: unread === 'true',
+    limit, group, unreadOnly: unread === 'true', actionOnly: action === 'true',
     cursor: before && beforeId && beforeSource ? { createdAt: new Date(before).toISOString(), id: beforeId, source: beforeSource } : undefined,
   }));
 }));

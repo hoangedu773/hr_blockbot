@@ -715,12 +715,14 @@ export async function fetchNotificationInbox(options: {
   limit: number;
   group?: NotificationGroup;
   unreadOnly?: boolean;
+  actionOnly?: boolean;
   cursor?: Pick<NotificationInboxItem, 'createdAt' | 'id' | 'source'>;
   signal?: AbortSignal;
 }) {
   const query = new URLSearchParams({ limit: String(options.limit) });
   if (options.group) query.set('group', options.group);
   if (options.unreadOnly) query.set('unread', 'true');
+  if (options.actionOnly) query.set('action', 'true');
   if (options.cursor) {
     query.set('before', options.cursor.createdAt);
     query.set('beforeId', options.cursor.id);
