@@ -109,7 +109,7 @@ test('ChatPageView renders citations/attachments, confirms drafts honestly and r
                 contents: `
                   const C = window.ChatContracts;
                   export default C;
-                  export const ChatConversationListSchema = C.ChatConversationListSchema; export const PerformanceDashboardSchema = C.PerformanceDashboardSchema; export const PerformancePolicyRulesSchema = C.PerformancePolicyRulesSchema;
+                  export const ChatConversationListSchema = C.ChatConversationListSchema; export const PerformanceDashboardSchema = C.PerformanceDashboardSchema; export const PerformancePolicyRulesSchema = C.PerformancePolicyRulesSchema; export const AccountEmailSchema = C.AccountEmailSchema; export const OnboardingCreateSchema = C.OnboardingCreateSchema;
                   export const ChatHistoryPageSchema = C.ChatHistoryPageSchema;
                   export const ChatHistorySendSchema = C.ChatHistorySendSchema;
                   export const RevenueKpiOpenActionSchema = C.RevenueKpiOpenActionSchema;

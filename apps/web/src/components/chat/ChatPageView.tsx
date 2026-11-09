@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { BrandMark } from '../BrandMark';
 import { ThemeToggle } from '../ThemeToggle';
 import { OnboardingView } from '../OnboardingView';
+import { ChatOnboarding, isOnboardingRequest } from './ChatOnboarding';
 import { PerformanceKpiView } from '../PerformanceKpiView';
 import '../../styles/crm-work.css';
 import { apiFetch, API_BASE } from '../../services/auth';
@@ -27,12 +28,14 @@ interface ChatComposerProps {
   isTyping: boolean;
   onSend: (text: string) => void;
   inputRef?: React.RefObject<HTMLTextAreaElement>;
+  onboarding?: boolean;
 }
 
 export const ChatComposer: React.FC<ChatComposerProps> = ({
   isTyping,
   onSend,
   inputRef: externalRef,
+  onboarding,
 }) => {
   const [input, setInput] = useState('');
   const internalRef = useRef<HTMLTextAreaElement>(null);
@@ -67,7 +70,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           maxLength={2000}
           value={input}
           onChange={(event) => setInput(event.target.value)}
-          placeholder="Hỏi AI về ca trực, nhân sự, tiền két..."
+          placeholder={onboarding ? 'Nhập câu trả lời để tiếp nhận nhân viên…' : 'Hỏi AI về ca trực, nhân sự, tiền két...'}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault();
@@ -80,7 +83,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         </button>
       </form>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px', padding: '0 4px', gap: '8px', flexWrap: 'wrap' }}>
-        <p className="guta-chat-note" style={{ margin: 0, textAlign: 'left' }}>AI có thể nhầm lẫn. Kiểm tra nguồn trước khi quyết định.</p>
+        <p className="guta-chat-note" style={{ margin: 0, textAlign: 'left' }}>{onboarding ? 'Gõ “hủy” để dừng. Hồ sơ chỉ được gửi khi bạn xác nhận.' : 'AI có thể nhầm lẫn. Kiểm tra nguồn trước khi quyết định.'}</p>
       </div>
     </div>
   );
@@ -169,11 +172,15 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   const canProposeOnboarding = user?.authorization?.capabilities?.includes('onboarding.propose');
   const canReviewOnboarding = user?.authorization?.capabilities?.includes('onboarding.review');
   const onboardingSequence = useRef(0);
-  const [onboarding, setOnboarding] = useState<{ mode: 'create' | 'review'; id?: string; key: number } | null>(null);
+  const [onboarding, setOnboarding] = useState<{ id?: string; key: number } | null>(null);
+  const [intakePrompt, setIntakePrompt] = useState<string | null>(null);
   const [kpiAction, setKpiAction] = useState<{ id: string; period: string; kind: string } | null>(null);
   useEffect(() => {
     if (!onboardingNotification) return;
-    if (canReviewOnboarding) setOnboarding({ mode: 'review', id: onboardingNotification.id, key: ++onboardingSequence.current });
+    if (canReviewOnboarding) {
+      setIntakePrompt(null);
+      setOnboarding({ id: onboardingNotification.id, key: ++onboardingSequence.current });
+    }
     onOnboardingNotificationOpened?.();
   }, [onboardingNotification, canReviewOnboarding, onOnboardingNotificationOpened]);
   const quickReplies = ROLE_PROMPTS[roleKey(user?.authorization?.profile)];
@@ -227,6 +234,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'auto' }); }, [messages, isTyping]);
 
   const newChat = (focus = true) => {
+    setIntakePrompt(null);
     cancelPending();
     historySequence.current++;
     turns.current.clear(); setSelectedConversation(undefined); setMessageCursor(null); setHistoryError(''); setHistoryLoading(false);
@@ -279,6 +287,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     finally { if (seq === historySequence.current && owner.current === userId && !silent) setHistoryLoading(false); }
   };
   const openConversation = (id: string) => {
+    setIntakePrompt(null);
     cancelPending();
     historySequence.current++;
     turns.current.clear();
@@ -330,9 +339,23 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     if (!text || text.length > 2000 || pending.current || isTyping) return;
     const command = text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/đ/g, 'd');
     const reviewIntake = /^(?:(?:toi muon|hay|cho toi)\s+)?(?:duyet (?:ho so|de nghi) tiep nhan|(?:xem (?:danh sach )?)?(?:ho so|de nghi) tiep nhan(?: nao)?(?: dang)? cho (?:duyet|xu ly))[.!?]*$/.test(command);
-    const createIntake = /^(?:(?:toi muon|hay|cho toi)\s+)?(?:tiep nhan nhan vien moi|tao (?:de nghi |ho so )?tiep nhan(?: nhan vien(?: moi)?)?)[.!?]*$/.test(command);
-    if (reviewIntake && canReviewOnboarding || createIntake && canProposeOnboarding) {
-      setOnboarding({ mode: reviewIntake ? 'review' : 'create', key: ++onboardingSequence.current });
+    if (reviewIntake && canReviewOnboarding) {
+      setOnboarding({ key: ++onboardingSequence.current });
+      setSidebarOpen(false);
+      return;
+    }
+    if (isOnboardingRequest(text)) {
+      if (!canProposeOnboarding) {
+        void send('Bạn chưa được cấp quyền tiếp nhận nhân viên mới. Vui lòng liên hệ quản lý.');
+        return;
+      }
+      historySequence.current++;
+      setIntakePrompt(text);
+      setSidebarOpen(false);
+      return;
+    }
+    if (reviewIntake && canReviewOnboarding) {
+      setOnboarding({ key: ++onboardingSequence.current });
       setSidebarOpen(false);
       return;
     }
@@ -467,7 +490,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
         <nav aria-label="Câu hỏi nhanh">
           <p className="guta-chat-sidebar-label">Hỏi nhanh</p>
           {quickReplies.map((item) => (
-            <button type="button" key={item.label} disabled={isTyping} onClick={() => send(item.prompt)}>
+            <button type="button" key={item.label} disabled={isTyping || !!intakePrompt} onClick={() => send(item.prompt)}>
               {item.label}
             </button>
           ))}
@@ -518,11 +541,15 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
             <p>Bạn vẫn xem được dữ liệu CRM; phần trả lời AI cần backend.</p>
           </div>
         )}
-        {onboarding ? (
+        {intakePrompt ? (
+          <ChatOnboarding prompt={intakePrompt} onExit={() => setIntakePrompt(null)}
+            stores={user?.authorization?.stores.filter(store => store.capabilities.includes('onboarding.propose')) ?? []}
+            renderComposer={(onSend, busy) => <ChatComposer onSend={onSend} isTyping={busy} onboarding />} />
+        ) : onboarding ? (
           <div className="guta-chat-body" aria-label="Thao tác tiếp nhận trong chat">
             <div className="guta-chat-width">
               <button type="button" className="btn" onClick={() => setOnboarding(null)}>Quay lại hội thoại</button>
-              <OnboardingView key={onboarding.key} chatMode={onboarding.mode} initialRequestId={onboarding.id} />
+              <OnboardingView key={onboarding.key} chatMode="review" initialRequestId={onboarding.id} />
             </div>
           </div>
         ) : kpiAction ? (
