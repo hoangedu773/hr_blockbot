@@ -31,6 +31,7 @@ let api, web, browser, fixture, origin, apiOrigin, failAt;
 const contexts = [], errors = [], httpErrors = [], invitations = new Map();
 let NEW_CODE;
 const NEW_PASSWORD = 'CoreBrowserRecipient@2026', TITLE = 'Core browser transfer with real handover';
+const NEW_PHONE = '0900000123';
 const localDate = (date) => new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 async function login(name, password = fixture.password) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } }); contexts.push(context);
@@ -107,7 +108,7 @@ try {
   assert.equal(await sm.page.getByRole('dialog').count(), 0);
   for (const [question, value] of [
     [/tên đầy đủ là gì/, 'Synthetic browser new hire'],
-    [/Cho mình số điện thoại/, '0900000123'],
+    [/Cho mình số điện thoại/, NEW_PHONE],
     [/email nào/, 'khong-phai-email'],
     [/Thông tin chưa hợp lệ.*email nào/, 'new-core@example.com'],
     [/vào làm ngày nào/, '31/10/2026'],
@@ -197,7 +198,7 @@ try {
   await hr.page.getByRole('row').filter({ hasText: 'Synthetic unknown UI row' }).getByText('Chưa xác minh', { exact: true }).waitFor();
   assert.equal((await EmployeeModel.collection.findOne({ _id: raw.insertedId })).status, undefined);
   await hr.page.getByPlaceholder('Tìm theo tên, mã NV...').fill(NEW_CODE); await hr.page.getByRole('button', { name: 'Synthetic browser new hire', exact: true }).click();
-  dialog = hr.page.getByRole('dialog', { name: 'Chi tiết nhân sự', exact: true }); await dialog.getByText('owned-contact', { exact: true }).waitFor();
+  dialog = hr.page.getByRole('dialog', { name: 'Chi tiết nhân sự', exact: true }); await dialog.getByText(NEW_PHONE, { exact: true }).waitFor();
   await dialog.getByRole('button', { name: 'Chỉnh sửa thông tin thường', exact: true }).click();
   dialog = hr.page.getByRole('dialog', { name: 'Sửa thông tin thường', exact: true }); await dialog.getByLabel('Điện thoại', { exact: true }).fill('verified-core-phone'); await dialog.getByRole('button', { name: 'Lưu thông tin thường', exact: true }).click(); await dialog.waitFor({ state: 'hidden' });
   await hr.page.getByRole('button', { name: 'Synthetic browser new hire', exact: true }).click(); dialog = hr.page.getByRole('dialog', { name: 'Chi tiết nhân sự', exact: true });
