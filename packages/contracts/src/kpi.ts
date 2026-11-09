@@ -136,7 +136,7 @@ export type NotificationType = z.infer<typeof NotificationTypeSchema>;
 export const NotificationSeveritySchema = z.enum(['INFO', 'ACTION_REQUIRED', 'URGENT']);
 export type NotificationSeverity = z.infer<typeof NotificationSeveritySchema>;
 
-export const NotificationGroupSchema = z.enum(['schedule', 'work', 'revenue', 'performance', 'evaluation', 'other']);
+export const NotificationGroupSchema = z.enum(['schedule', 'work', 'revenue', 'performance', 'evaluation', 'onboarding', 'other']);
 export type NotificationGroup = z.infer<typeof NotificationGroupSchema>;
 export const notificationEntityKinds: Record<Exclude<NotificationGroup, 'other'>, readonly string[]> = {
   schedule: ['schedule'],
@@ -144,6 +144,7 @@ export const notificationEntityKinds: Record<Exclude<NotificationGroup, 'other'>
   revenue: ['revenue_kpi'],
   performance: ['performance_kpi', 'task'],
   evaluation: ['evaluation'],
+  onboarding: ['onboarding'],
 };
 
 export const NotificationItemSchema = z.object({

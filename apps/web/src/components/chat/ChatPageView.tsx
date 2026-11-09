@@ -3,6 +3,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { BrandMark } from '../BrandMark';
 import { ThemeToggle } from '../ThemeToggle';
+import { OnboardingView } from '../OnboardingView';
+import '../../styles/crm-work.css';
 import { apiFetch, API_BASE } from '../../services/auth';
 import { newClientMessageId } from '../../services/api';
 import { streamChat } from '../../services/chat-stream';
@@ -16,6 +18,8 @@ interface ChatPageViewProps {
   onSwitchTab: (tab: 'crm' | 'chat') => void;
   onLogout: () => void;
   notificationButton?: React.ReactNode;
+  onboardingNotification?: { id: string } | null;
+  onOnboardingNotificationOpened?: () => void;
 }
 
 interface ChatComposerProps {
@@ -158,9 +162,18 @@ function isServiceFault(error: unknown): boolean {
 
 
 
-export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogout, notificationButton }) => {
+export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogout, notificationButton, onboardingNotification, onOnboardingNotificationOpened }) => {
   const { user } = useAuth();
   const profileLabel = user?.authorization?.profile || 'Chưa cấp profile';
+  const canProposeOnboarding = user?.authorization?.capabilities.includes('onboarding.propose');
+  const canReviewOnboarding = user?.authorization?.capabilities.includes('onboarding.review');
+  const onboardingSequence = useRef(0);
+  const [onboarding, setOnboarding] = useState<{ mode: 'create' | 'review'; id?: string; key: number } | null>(null);
+  useEffect(() => {
+    if (!onboardingNotification) return;
+    if (canReviewOnboarding) setOnboarding({ mode: 'review', id: onboardingNotification.id, key: ++onboardingSequence.current });
+    onOnboardingNotificationOpened?.();
+  }, [onboardingNotification, canReviewOnboarding, onOnboardingNotificationOpened]);
   const quickReplies = ROLE_PROMPTS[roleKey(user?.authorization?.profile)];
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -313,6 +326,14 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   const send = async (prompt: string) => {
     const text = prompt.trim();
     if (!text || text.length > 2000 || pending.current || isTyping) return;
+    const command = text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/đ/g, 'd');
+    const reviewIntake = /^(?:(?:toi muon|hay|cho toi)\s+)?(?:duyet (?:ho so|de nghi) tiep nhan|(?:xem (?:danh sach )?)?(?:ho so|de nghi) tiep nhan(?: nao)?(?: dang)? cho (?:duyet|xu ly))[.!?]*$/.test(command);
+    const createIntake = /^(?:(?:toi muon|hay|cho toi)\s+)?(?:tiep nhan nhan vien moi|tao (?:de nghi |ho so )?tiep nhan(?: nhan vien(?: moi)?)?)[.!?]*$/.test(command);
+    if (reviewIntake && canReviewOnboarding || createIntake && canProposeOnboarding) {
+      setOnboarding({ mode: reviewIntake ? 'review' : 'create', key: ++onboardingSequence.current });
+      setSidebarOpen(false);
+      return;
+    }
     historySequence.current++;
     const controller = new AbortController();
     const clientMessageId = newClientMessageId();
@@ -495,7 +516,14 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
             <p>Bạn vẫn xem được dữ liệu CRM; phần trả lời AI cần backend.</p>
           </div>
         )}
-        {messages.length === 0 ? (
+        {onboarding ? (
+          <div className="guta-chat-body" aria-label="Thao tác tiếp nhận trong chat">
+            <div className="guta-chat-width">
+              <button type="button" className="btn" onClick={() => setOnboarding(null)}>Quay lại hội thoại</button>
+              <OnboardingView key={onboarding.key} chatMode={onboarding.mode} initialRequestId={onboarding.id} />
+            </div>
+          </div>
+        ) : messages.length === 0 ? (
           <section className="guta-chat-empty" aria-label="Bắt đầu hội thoại">
             <div className="guta-chat-width">
               <div className="guta-chat-hero">

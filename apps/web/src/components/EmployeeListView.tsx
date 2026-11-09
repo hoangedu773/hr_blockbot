@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import type { EmployeeSummary, EmployeeManagement, PaginationMeta } from '@hr-blockbot/contracts';
-import { ApiError, fetchDepartments, fetchEmployees, fetchEmployeeById, fetchPersonnelManagement, type CrmDepartment, type EmployeeTitleGroup } from '../services/api';
+import { ApiError, fetchDepartments, fetchEmployees, fetchEmployeeById, fetchPersonnelManagement, requestJson, type CrmDepartment, type EmployeeTitleGroup } from '../services/api';
 import { Select } from './ui/Select';
 import { CrmDialog } from './ui/CrmDialog';
 import '../styles/crm-work.css';
@@ -11,6 +11,7 @@ import { EmployeeHrHistory } from './EmployeeHrHistory';
 import { SmAppointments, isSmPositionCandidate } from './SmAppointments';
 import { ScopedManagerList } from './ScopedManagerList';
 import { employeeLocationLabel } from '../services/employee-display';
+import { InitialManagerPicker } from './InitialManagerPicker';
 
 const titles: { value: EmployeeTitleGroup; label: string }[] = [
   { value: 'am', label: 'AM — Quản lý khu vực' },
@@ -25,7 +26,11 @@ const titles: { value: EmployeeTitleGroup; label: string }[] = [
   { value: 'ops_support', label: 'Giao hàng / Bảo vệ / Hỗ trợ vận hành' },
 ];
 
-export const EmployeeListView: React.FC = () => {
+export interface EmployeeListViewProps {
+  onNavigateOnboarding?: () => void;
+}
+
+export const EmployeeListView: React.FC<EmployeeListViewProps> = ({ onNavigateOnboarding }) => {
   const { can } = useAuthorization();
   const canReadManagers = can('stores.read');
   const [view, setView] = useState<'employees' | 'managers'>('employees');
@@ -37,11 +42,11 @@ export const EmployeeListView: React.FC = () => {
       <button type="button" aria-pressed={view==='managers'} onClick={() => openManagers()}>Quản lý theo phạm vi</button>
     </nav>}
     {canReadManagers && view==='managers' ? <ScopedManagerList key={managerRole} initialRole={managerRole} />
-      : <OutletEmployees onOpenManagers={canReadManagers ? openManagers : undefined} />}
+      : <OutletEmployees onOpenManagers={canReadManagers ? openManagers : undefined} onNavigateOnboarding={onNavigateOnboarding} />}
   </>;
 };
 
-function OutletEmployees({ onOpenManagers }: { onOpenManagers?: (role?: string) => void }) {
+function OutletEmployees({ onOpenManagers, onNavigateOnboarding }: { onOpenManagers?: (role?: string) => void; onNavigateOnboarding?: () => void }) {
   const { can, stores } = useAuthorization();
   const canMetadata = can('projects.create');
   const [storeId, setStoreId] = useState('');
@@ -64,6 +69,61 @@ function OutletEmployees({ onOpenManagers }: { onOpenManagers?: (role?: string) 
   const [detailError, setDetailError] = useState('');
   const [detailLoading, setDetailLoading] = useState(false);
   const detailRequest = useRef(0);
+
+  // Thêm nhân sự mới (Onboarding intake)
+  const [showAdd, setShowAdd] = useState(false);
+  const [addBusy, setAddBusy] = useState(false);
+  const [addError, setAddError] = useState('');
+  const [addMessage, setAddMessage] = useState('');
+  const [addStoreId, setAddStoreId] = useState('');
+  const [addFullName, setAddFullName] = useState('');
+  const [addPhone, setAddPhone] = useState('');
+  const [addEmail, setAddEmail] = useState('');
+  const [addHiredAt, setAddHiredAt] = useState(() => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }));
+  const [addReason, setAddReason] = useState('Tiếp nhận nhân sự mới điểm bán');
+  const [addManagerId, setAddManagerId] = useState('');
+  const [addManagerReadyStore, setAddManagerReadyStore] = useState('');
+
+  const availableStores = stores.filter((store) =>
+    store.capabilities.includes('onboarding.propose') ||
+    store.capabilities.includes('onboarding.draft') ||
+    store.capabilities.includes('employees.read_operational') ||
+    store.capabilities.includes('stores.read')
+  );
+
+  const submitAddEmployee = async (event: FormEvent) => {
+    event.preventDefault();
+    if (addBusy || !addStoreId || !addFullName.trim() || !addPhone.trim()) return;
+    setAddBusy(true); setAddError('');
+    try {
+      const clientRequestId = crypto.randomUUID();
+      const hiredAt = new Date(addHiredAt + 'T00:00:00+07:00').toISOString();
+      const payload = {
+        clientRequestId,
+        fullName: addFullName.trim(),
+        phone: addPhone.trim(),
+        email: addEmail.trim() || undefined,
+        hiredAt,
+        storeId: addStoreId,
+        reason: addReason.trim() || 'Tiếp nhận nhân sự mới điểm bán',
+        ...(addManagerId ? { initialManagerEmployeeId: addManagerId } : {})
+      };
+      const saved = await requestJson<{ id: string; payload?: { employeeCode?: string } }>('/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const code = saved.payload?.employeeCode ? ` (Mã NV: ${saved.payload.employeeCode})` : '';
+      setAddMessage(`Đã gửi đề nghị tiếp nhận nhân viên mới${code} thành công! Hồ sơ đã được chuyển tiếp đến bộ phận HR.`);
+      setShowAdd(false);
+      setAddFullName(''); setAddPhone(''); setAddEmail('');
+      await load();
+    } catch (failure) {
+      setAddError(failure instanceof Error ? failure.message : 'Không gửi được đề nghị tiếp nhận nhân viên.');
+    } finally {
+      setAddBusy(false);
+    }
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => { setQuery(search); setTitleQuery(jobTitle); setPage(1); }, search || jobTitle ? 250 : 0);
@@ -103,7 +163,29 @@ function OutletEmployees({ onOpenManagers }: { onOpenManagers?: (role?: string) 
   };
   const clear = () => { setSearch(''); setQuery(''); setJobTitle(''); setTitleQuery(''); setTitleGroup(''); setStatus(''); setDepartment(''); setStoreId(''); setPage(1); };
   return <section className="crm-workspace" aria-label="Danh mục nhân sự">
-    <header className="crm-work-heading"><div><p className="crm-work-eyebrow">DỮ LIỆU NHÂN SỰ</p><h2>Danh Sách Nhân Sự Điểm Bán</h2><p>Tra cứu theo cửa hàng công tác đã xác minh trong phạm vi được cấp.</p></div><button type="button" className="btn" onClick={() => void load()} disabled={loading}>Làm Mới</button></header>
+    <header className="crm-work-heading">
+      <div>
+        <p className="crm-work-eyebrow">DỮ LIỆU NHÂN SỰ</p>
+        <h2>Danh Sách Nhân Sự Điểm Bán</h2>
+        <p>Tra cứu theo cửa hàng công tác đã xác minh trong phạm vi được cấp.</p>
+      </div>
+      <div className="crm-work-actions">
+        <button type="button" className="btn" onClick={() => void load()} disabled={loading}>Làm Mới</button>
+        <button type="button" className="btn btn--primary" onClick={() => {
+          setShowAdd(true);
+          setAddStoreId(storeId || availableStores[0]?.id || '');
+          setAddError('');
+          setAddManagerId('');
+          setAddManagerReadyStore('');
+        }}>+ Thêm Nhân Viên</button>
+      </div>
+    </header>
+    {addMessage && (
+      <div role="status" className="banner banner--success" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>{addMessage}</span>
+        <button type="button" className="btn" onClick={() => setAddMessage('')}>Đóng</button>
+      </div>
+    )}
     <PersonnelAdmin departments={departments} editingEmployeeId={editingEmployee} onDismissEdit={() => setEditingEmployee(null)} onChanged={() => { void load(); if (canMetadata) void fetchDepartments().then(setDepartments).catch(() => {}); }} />
     <div className="crm-work-toolbar">
       <label className="field"><span className="field__label">Tìm nhân sự</span><input className="input" type="search" maxLength={50} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm theo tên, mã NV..." /></label>
@@ -134,6 +216,66 @@ function OutletEmployees({ onOpenManagers }: { onOpenManagers?: (role?: string) 
       {detailLoading ? <p role="status">Đang tải hồ sơ…</p> : detailError ? <div role="alert" className="banner banner--error">{detailError}<button className="btn" type="button" onClick={() => void details(selected)}>Thử lại</button></div> : <dl className="crm-work-detail"><dt>Họ tên</dt><dd>{selected.fullName}</dd><dt>Chức danh</dt><dd>{selected.jobTitle || 'Chưa cập nhật'}</dd><dt>Phòng ban / điểm bán</dt><dd>{employeeLocationLabel(selected)}</dd><dt>Kỹ năng</dt><dd>{selected.skills.join(', ') || 'Chưa cập nhật'}</dd><dt>Trạng thái</dt><dd>{selected.status === 'active' ? 'Hoạt động' : selected.status === 'inactive' ? 'Tạm dừng' : 'Chưa xác minh'}</dd></dl>}
       {!detailLoading && !detailError && can('employees.read_hr') && 'profileVersion' in selected && <><dl><dt>Mã nhân viên</dt><dd>{selected.employeeCode}</dd><dt>Điện thoại</dt><dd>{selected.phone || 'Chưa có'}</dd><dt>Ngày vào làm</dt><dd>{selected.hiredAt ? new Date(selected.hiredAt).toLocaleDateString('vi-VN') : 'Chưa có'}</dd></dl><EmployeeHrHistory employeeId={selected.employeeId} /></>}
       {!detailLoading && !detailError && isSmPositionCandidate(selected.jobTitle) && <SmAppointments key={selected.employeeId} employeeId={selected.employeeId} />}
+    </CrmDialog>}
+    {showAdd && <CrmDialog title="Tiếp nhận & Thêm nhân viên mới" busy={addBusy} onClose={() => { if (!addBusy) setShowAdd(false); }}>
+      <form className="crm-work-form" onSubmit={submitAddEmployee}>
+        <p style={{ fontSize: '13px', color: 'var(--text-secondary, #aaa)', marginBottom: '8px' }}>
+          Nhân viên mới sẽ được cấp mã định danh <code>GT-CH...</code> và khởi tạo hồ sơ tiếp nhận vào hệ thống Guta.
+        </p>
+        <label className="field">
+          <span>Cửa hàng tiếp nhận</span>
+          <select className="input" required value={addStoreId} disabled={addBusy} onChange={(event) => {
+            setAddStoreId(event.target.value);
+            setAddManagerId('');
+            setAddManagerReadyStore('');
+          }}>
+            <option value="">Chọn cửa hàng tiếp nhận</option>
+            {availableStores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </label>
+        {addStoreId && (
+          <InitialManagerPicker
+            key={addStoreId}
+            storeId={addStoreId}
+            value={addManagerId}
+            onChange={setAddManagerId}
+            onReady={setAddManagerReadyStore}
+            busy={addBusy}
+          />
+        )}
+        <label className="field">
+          <span>Họ và tên nhân viên</span>
+          <input className="input" required maxLength={200} disabled={addBusy} placeholder="Ví dụ: Nguyễn Văn An" value={addFullName} onChange={(e) => setAddFullName(e.target.value)} />
+        </label>
+        <label className="field">
+          <span>Số điện thoại liên hệ</span>
+          <input className="input" required type="tel" maxLength={30} disabled={addBusy} placeholder="Ví dụ: 0901234567" value={addPhone} onChange={(e) => setAddPhone(e.target.value)} />
+        </label>
+        <label className="field">
+          <span>Email nhận link kích hoạt tài khoản</span>
+          <input className="input" type="email" maxLength={254} disabled={addBusy} placeholder="Ví dụ: nvan@guta.vn" value={addEmail} onChange={(e) => setAddEmail(e.target.value)} />
+        </label>
+        <label className="field">
+          <span>Ngày vào làm</span>
+          <input className="input" required type="date" disabled={addBusy} value={addHiredAt} onChange={(e) => setAddHiredAt(e.target.value)} />
+        </label>
+        <label className="field">
+          <span>Lý do tiếp nhận / Ghi chú</span>
+          <textarea className="input" maxLength={2000} disabled={addBusy} placeholder="Nhập lý do tiếp nhận nhân viên mới..." value={addReason} onChange={(e) => setAddReason(e.target.value)} />
+        </label>
+        {addError && <p role="alert" style={{ color: 'var(--destructive, #ef4444)', fontSize: '13px' }}>{addError}</p>}
+        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '12px' }}>
+          {onNavigateOnboarding && (
+            <button type="button" className="btn" disabled={addBusy} onClick={() => { setShowAdd(false); onNavigateOnboarding(); }}>
+              Đi đến mục Tiếp nhận (HR)
+            </button>
+          )}
+          <button type="button" className="btn" disabled={addBusy} onClick={() => setShowAdd(false)}>Hủy</button>
+          <button type="submit" className="btn btn--primary" disabled={addBusy || !addStoreId || !addFullName.trim() || !addPhone.trim() || (addManagerReadyStore !== '' && addManagerReadyStore !== addStoreId)}>
+            {addBusy ? 'Đang lưu…' : 'Xác nhận thêm nhân viên'}
+          </button>
+        </div>
+      </form>
     </CrmDialog>}
   </section>;
 }

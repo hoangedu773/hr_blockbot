@@ -515,7 +515,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
           ) : activeView === 'sales' && allowedViews.sales ? (
             <SalesReportView />
           ) : activeView === 'employees' && allowedViews.employees ? (
-            <EmployeeListView />
+            <EmployeeListView onNavigateOnboarding={() => setActiveView('onboarding')} />
           ) : activeView === 'profile' && allowedViews.profile ? (
             <EmployeeProfileView onLogout={onLogout} onNotify={safeNotify} onChangePassword={onChangePassword} onLinkGoogle={onLinkGoogle} />
           ) : activeView === 'schedules' && allowedViews.schedules ? (

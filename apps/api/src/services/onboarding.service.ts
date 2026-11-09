@@ -2,11 +2,12 @@ import mongoose from "mongoose";
 import { randomBytes, randomUUID, createHash } from "node:crypto";
 import { OnboardingCreateSchema, OnboardingResubmitSchema, AuthorizationGrantSchema } from "@hr-blockbot/contracts";
 import { OnboardingRequestModel } from "../models/OnboardingRequest.js";
-import { UserModel } from "../models/User.js";
+import { UserModel, type IUser } from "../models/User.js";
 import { EmployeeModel } from "../models/Employee.js";
 import { StoreModel } from "../models/Store.js";
 import type { AuthenticatedUser } from "../middlewares/auth.middleware.js";
-import { requireCapability, resourceScope, employeeScopeQuery } from "./authorization-scope.service.js";
+import { AuthorizationDeniedError, requireCapability, resourceScope, employeeScopeQuery, allowedStoreIds } from "./authorization-scope.service.js";
+import { notifyUser } from "./notification.service.js";
 import { WorkflowError, objectId } from "./project-workflow.service.js";
 import { hashPassword } from "./auth.service.js";
 import { resolvePrincipal, securityVersion } from "./principal.service.js";
@@ -67,6 +68,26 @@ async function independentReview(user: AuthenticatedUser, row: any) {
     requiresIndependentApproval: true, requesterUserId: String(row.requestedBy), subjectEmployeeId: String(row.employeeId) });
   if (String(row.requesterEmployeeId) === user.employeeId) throw new WorkflowError(403, "SELF_APPROVAL", "Không tự phê duyệt đề nghị do mình lập.");
 }
+export async function notifyOnboardingReviewers(row: any) {
+  if (row.status !== "PENDING_HR_REVIEW") return;
+  const reviewers = UserModel.find({ status: "active", "authorization.profile": "hr", _id: { $ne: row.requestedBy } })
+    .select("_id role securityVersion").lean<Pick<IUser, "_id" | "role" | "securityVersion">[]>().cursor();
+  for await (const reviewer of reviewers) {
+    try {
+      const user = await resolvePrincipal({ sub: String(reviewer._id), role: reviewer.role, securityVersion: securityVersion(reviewer) });
+      await independentReview(user, row);
+    } catch (error) {
+      if (error instanceof AuthorizationDeniedError || error instanceof WorkflowError && [401, 403].includes(error.status)) continue;
+      console.error("[Onboarding] Could not verify a review recipient");
+      continue;
+    }
+    try {
+      await notifyUser({ userId: String(reviewer._id), type: "system", title: "Hồ sơ tiếp nhận chờ duyệt",
+        body: "Có đề nghị tiếp nhận nhân viên cần HR xem xét.", severity: "ACTION_REQUIRED",
+        entityKind: "onboarding", entityId: String(row._id), dedupeKey: `onboarding-review:${row._id}:${row.version}` });
+    } catch { console.error("[Onboarding] Could not deliver a review notification"); }
+  }
+}
 export async function assertApprovalCurrent(row: any) {
   verifyHistory(row);
   const reviewer: any = await UserModel.findById(row.approvedBy);
@@ -117,7 +138,6 @@ async function onboardingScope(user: AuthenticatedUser) {
   let scope: any = own;
   try { const employeeQuery = employeeScopeQuery(user, "onboarding.review");
     // onboarding rows have canonical storeId, not a personnel mapping; use the granted store set.
-    const { allowedStoreIds } = await import("./authorization-scope.service.js");
     scope = { $or: [own, { storeId: { $in: allowedStoreIds(user, "onboarding.review").map(objectId) } }] };
   } catch (error) {
     requireCapability(user, user.authorization?.profile === "hr" ? "onboarding.draft" : "onboarding.propose");
@@ -125,6 +145,14 @@ async function onboardingScope(user: AuthenticatedUser) {
   return scope;
 }
 export async function pageOnboarding(user: AuthenticatedUser, query: unknown = {}) { return workflowPage(OnboardingRequestModel, await onboardingScope(user), query, onboardingDto); }
+export async function pagePendingOnboarding(user: AuthenticatedUser, query: unknown) {
+  requireCapability(user, "onboarding.review");
+  return workflowPage(OnboardingRequestModel, {
+    storeId: { $in: allowedStoreIds(user, "onboarding.review").map(objectId) },
+    status: "PENDING_HR_REVIEW", requestedBy: { $ne: objectId(user.userId) },
+    ...(user.employeeId ? { requesterEmployeeId: { $ne: objectId(user.employeeId) } } : {}),
+  }, query, onboardingDto);
+}
 export async function listOnboarding(user: AuthenticatedUser) { return (await pageOnboarding(user)).items; }
 export async function getOnboarding(user: AuthenticatedUser, id: string) { return workflowDetail(OnboardingRequestModel, await onboardingScope(user), id, (row) => ({ ...onboardingDto(row), auditIntegrity: historyIntegrity(row, verifyHistory) })); }
 export async function resubmitOnboarding(user: AuthenticatedUser, id: string, input: unknown) {
