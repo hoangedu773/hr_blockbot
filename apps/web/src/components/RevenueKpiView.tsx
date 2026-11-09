@@ -17,7 +17,7 @@ const defaults = (): Values => ({ reason: '', evidenceRef: '', amount: '', growt
 const initialMonth = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit' }).format(new Date()).slice(0, 7);
 export function RevenueKpiView() {
   const { can, summary } = useAuthorization();
-  const [employeeId, setEmployeeId] = useState<string | null>(null);
+  const [employeeId, setEmployeeId] = useState<string | null>(null), [identityError, setIdentityError] = useState('');
   const [period, setPeriod] = useState(initialMonth), [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [periods, setPeriods] = useState<string[]>([]), [missing, setMissing] = useState(false), [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState(''), [reload, setReload] = useState(0);
   const [openProposal, setOpenProposal] = useState<RevenueKpiOpenAction | null>(null);
@@ -28,7 +28,7 @@ export function RevenueKpiView() {
   const hr = can('revenue_kpi.assign'), am = can('revenue_kpi.verify_adjustment');
   const authority = JSON.stringify(summary);
   useEffect(() => { let alive = true; setNotices([]); const load = () => { void fetchNotifications(30, 'revenue_kpi').then(r => { if (alive) { setNotices(r.items); setUnread(r.unread); } }).catch(() => {}); }; load(); const timer = setInterval(load, 30000); return () => { alive = false; clearInterval(timer); }; }, [authority, reload]);
-  useEffect(() => { let live = true; setEmployeeId(null); void fetchMe().then(me => { if (live) setEmployeeId(me.employeeId ?? null); }).catch(() => {}); return () => { live = false; }; }, [authority]);
+  useEffect(() => { let live = true; setEmployeeId(null); setIdentityError(''); void fetchMe().then(me => { if (live) setEmployeeId(me.employeeId ?? null); }).catch(() => { if (live) setIdentityError('Không xác định được tài khoản của bạn; các thao tác của người phụ trách tạm ẩn. Tải lại trang để thử lại.'); }); return () => { live = false; }; }, [authority]);
   useEffect(() => {
     let live = true; setLoading(true); setDashboard(null); setError(''); setMissing(false); setModal(null);
     if (!['hr', 'am', 'sm'].includes(summary?.profile ?? '')) { setLoading(false); setError('Bạn chưa có quyền KPI doanh thu.'); return; }
@@ -102,7 +102,7 @@ export function RevenueKpiView() {
     <header><div><p className="rk-eyebrow">MỤC TIÊU VẬN HÀNH</p><h1 id="rk-title">KPI doanh thu</h1><p>Mục tiêu theo cửa hàng và khu vực · HR xem xét, người nhận xác nhận.</p></div>
       <label>Kỳ tháng<input aria-label="Kỳ KPI doanh thu" type="month" value={period} onChange={e => setPeriod(e.target.value)} /></label></header>
     {periods.length > 0 && <nav aria-label="Các kỳ KPI">{periods.map(p => <button key={p} type="button" aria-pressed={p === period} onClick={() => setPeriod(p)}>{p.slice(5)}/{p.slice(0, 4)}</button>)}</nav>}
-    {notice && <p role="status" className="rk-notice">{notice}</p>}{error && !modal && <p role="alert" className="rk-error">{error}</p>}
+    {notice && <p role="status" className="rk-notice">{notice}</p>}{error && !modal && <p role="alert" className="rk-error">{error}</p>}{identityError && <p role="alert" className="rk-error">{identityError}</p>}
     <details className="rk-flags"><summary>Thông báo KPI doanh thu · {unread} chưa đọc</summary>{!notices.length && <p>Chưa có thông báo gần đây.</p>}{notices.map(n => <article key={n.id}><p><strong>{n.title}</strong> · {date(n.createdAt)}</p><p>{n.body}</p>{!n.readAt && <button type="button" onClick={() => void markNotificationRead(n.id).then(() => { setNotices(old => old.map(item => item.id === n.id ? { ...item, readAt: new Date().toISOString() } : item)); setUnread(n => Math.max(0, n - 1)); }).catch(() => setError('Chưa đánh dấu được thông báo.'))}>Đánh dấu đã đọc</button>}</article>)}{notices.length >= 30 && <button type="button" onClick={() => void fetchNotifications(30, 'revenue_kpi', notices[notices.length - 1].createdAt).then(r => setNotices(old => [...old, ...r.items.filter(n => !old.some(item => item.id === n.id))]))}>Xem thông báo cũ</button>}</details>
         {hr && openProposal?.preview.period === period && <RevenueKpiOpenCard key={openProposal.actionId} initial={openProposal} onExecuted={() => setReload(n => n + 1)} />}
     {loading ? <p role="status">Đang tải KPI doanh thu…</p> : missing ? <div className="rk-empty"><h2>Chưa có kỳ KPI này</h2><p>{hr ? 'Tạo kỳ, đặt mức tăng và ngưỡng đánh giá trước khi giao mục tiêu.' : 'HR chưa giao mục tiêu cho bạn trong kỳ này.'}</p>{hr && <button type="button" onClick={() => open('create')}>Tạo kỳ KPI</button>}</div> : dashboard && <>

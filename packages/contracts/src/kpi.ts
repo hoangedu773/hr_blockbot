@@ -127,10 +127,14 @@ export type KpiDashboard = z.infer<typeof KpiDashboardSchema>;
 export const NotificationTypeSchema = z.enum([
   "performance_kpi_opened","performance_kpi_score_ready","performance_kpi_reconsideration_requested","performance_kpi_reconsideration_responded","performance_kpi_appeal_requested","performance_kpi_appeal_decided","performance_kpi_finalized","performance_kpi_corrected","task_assigned","task_accepted","task_refused","task_due_soon","task_overdue","task_submitted","task_evaluated","task_handover",
   'revenue_kpi_assigned', 'revenue_kpi_accepted', 'revenue_kpi_refused', 'revenue_kpi_adjusted', 'revenue_kpi_result_ready', 'revenue_kpi_reason_required', 'revenue_kpi_closed',
+  'revenue_kpi_adjustment_requested', 'revenue_kpi_adjustment_verified', 'revenue_kpi_adjustment_decided', 'revenue_kpi_acceptance_overdue', 'revenue_kpi_period_closing',
   "deadline_3d", "deadline_1d", "deadline_overdue", "report_submitted",
   "report_approved", "report_rejected", "kpi_published", "kpi_review_digest", "system",
 ]);
 export type NotificationType = z.infer<typeof NotificationTypeSchema>;
+
+export const NotificationSeveritySchema = z.enum(['INFO', 'ACTION_REQUIRED', 'URGENT']);
+export type NotificationSeverity = z.infer<typeof NotificationSeveritySchema>;
 
 export const NotificationItemSchema = z.object({
   id: z.string().min(1),
@@ -140,6 +144,8 @@ export const NotificationItemSchema = z.object({
   channel: z.literal("in_app"),
   entityKind: z.string().max(40).nullable(),
   entityId: z.string().max(80).nullable(),
+  severity: NotificationSeveritySchema.default('INFO'),
+  actionRef: z.string().max(120).nullable().default(null),
   readAt: z.string().nullable(),
   createdAt: z.string(),
 }).strict();
