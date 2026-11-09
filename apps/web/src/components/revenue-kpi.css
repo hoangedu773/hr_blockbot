@@ -556,6 +556,10 @@
   margin-top: 6px;
 }
 
+.rk-ai button {
+  margin-top: 10px;
+}
+
 /* Area Sub-table */
 .rk-table {
   overflow: auto;

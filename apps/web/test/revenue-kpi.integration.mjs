@@ -51,7 +51,25 @@ try {
   const storeCard = page => page.locator('.rk-assignment').filter({ has: page.getByText('CỬA HÀNG · SM', { exact: true }) });
   const areaCard = page => page.locator('.rk-assignment').filter({ has: page.getByText('KHU VỰC · AM', { exact: true }) });
   await action(hr, storeCard(hr).getByRole('button', { name: 'Đề xuất AI', exact: true })); assert.match(await storeCard(hr).innerText(), /Đang dùng phân tích dự phòng/);
+  const storeDraft = await Assignment.findOne({ unitType: 'STORE' }).lean();
+  const areaDraft = await Assignment.findOne({ unitType: 'AREA' }).lean();
+  const applyProposal = storeCard(hr).getByRole('button', { name: 'Áp dụng đề xuất', exact: true });
+  await applyProposal.click();
+  await hr.getByRole('dialog', { name: 'Áp dụng đề xuất cho cửa hàng' }).getByRole('button', { name: 'Hủy', exact: true }).click();
+  assert.equal((await Assignment.findById(storeDraft._id).lean()).version, storeDraft.version);
+  await action(hr, applyProposal);
+  await storeCard(hr).getByText('Mục tiêu nháp đã khớp mức đề xuất.').waitFor();
+  const updatedDraft = await Assignment.findById(storeDraft._id).lean();
+  assert.equal(updatedDraft.status, 'DRAFT');
+  assert.equal(updatedDraft.growthPercent, storeDraft.aiProposal.suggestedGrowthPercent);
+  assert.notEqual(updatedDraft.targetVnd, storeDraft.targetVnd);
+  assert.equal((await Assignment.findById(areaDraft._id).lean()).version, areaDraft.version);
+  await storeCard(hr).getByRole('button', { name: 'Sửa mục tiêu', exact: true }).click();
+  await hr.getByLabel('Mức tăng KPI').fill('2');
+  await hr.getByLabel('Lý do KPI doanh thu').fill('HR điều chỉnh mục tiêu sau khi xem đề xuất.');
+  await confirm(hr);
   await action(hr, hr.getByRole('button', { name: 'Phát hành bản nháp', exact: true }));
+  assert.equal((await Assignment.findById(areaDraft._id).lean()).targetVnd, 102000);
   for (const p of [sm, am]) { await p.reload({ waitUntil: 'networkidle' }); await p.locator('[data-section="revenueKpi"]').click(); await p.getByLabel('Kỳ KPI doanh thu', { exact: true }).fill('2026-10'); await settle(p); }
   await sm.getByRole('button', { name: 'Từ chối', exact: true }).click(); await sm.getByLabel('Lý do KPI doanh thu').fill('a'); await sm.locator('.rk-dialog').getByRole('button', { name: 'Xác nhận', exact: true }).click(); assert.equal(await sm.locator('.rk-dialog[open]').count(), 1);
   await sm.getByLabel('Lý do KPI doanh thu').fill('Cần xem xét mục tiêu do sửa chữa.'); await confirm(sm);

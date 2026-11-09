@@ -15,6 +15,12 @@ type Modal = { kind: string; a?: Assignment; r?: Result };
 type Values = { reason: string; evidenceRef: string; amount: string; growth: string; mode: string; action: string; storeId: string; employeeId: string; unitType: string; force: boolean; allowDemo: boolean; threshold: string; days: string; waive: boolean; from: string };
 const defaults = (): Values => ({ reason: '', evidenceRef: '', amount: '', growth: '3', mode: 'GROWTH_PERCENT', action: 'ADJUST', storeId: '', employeeId: '', unitType: 'STORE', force: false, allowDemo: false, threshold: '30', days: '3', waive: false, from: '' });
 const initialMonth = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit' }).format(new Date()).slice(0, 7);
+const saveAiTarget = (a: Assignment, growthPercent: number, clientRequestId: string) =>
+  api.saveRevenueKpiAssignment({
+    id: a.id, expectedVersion: a.version, clientRequestId, period: a.period, unitType: 'STORE',
+    storeId: a.storeId, assigneeEmployeeId: a.assigneeEmployeeId, targetMode: 'GROWTH_PERCENT',
+    growthPercent, reason: 'HR áp dụng đề xuất tham khảo sau xem xét.',
+  });
 export function RevenueKpiView() {
   const { can, summary } = useAuthorization();
   const [employeeId, setEmployeeId] = useState<string | null>(null), [identityError, setIdentityError] = useState('');
@@ -74,8 +80,10 @@ export function RevenueKpiView() {
       if (kind === 'confirm') return api.confirmRevenueKpiResult(r!.id, cmd(r!.version, values.waive ? { waiveReason: reason } : {}));
       if (kind === 'correct') return api.correctRevenueKpiResult(r!.id, cmd(r!.version, { reason }));
       if (kind === 'ai') return api.proposeRevenueKpiTarget(a!.id, cmd(a!.version));
+      if (kind === 'apply-ai' && a?.aiProposal?.suggestedGrowthPercent != null)
+        return saveAiTarget(a, a.aiProposal.suggestedGrowthPercent, cmd(a.version).clientRequestId);
       if (kind === 'responsibility') return api.changeRevenueKpiResponsibility(a!.id, cmd(a!.version, { assigneeEmployeeId: values.employeeId, from: new Date(values.from + '+07:00').toISOString(), reason }));
-    }, 'Đã lưu thay đổi KPI doanh thu.');
+    }, kind === 'apply-ai' ? 'Đã áp dụng đề xuất cho bản nháp cửa hàng. Bạn có thể chỉnh sửa trước khi phát hành.' : 'Đã lưu thay đổi KPI doanh thu.');
   };
   const bulk = (kind: 'ai' | 'apply' | 'publish') => run(async () => {
     const drafts = dashboard!.assignments.filter(a => a.status === 'DRAFT' && (kind !== 'ai' && kind !== 'apply' || a.unitType === 'STORE'));
@@ -85,8 +93,7 @@ export function RevenueKpiView() {
         const prepared = a.unitType === 'AREA' ? await api.saveRevenueKpiAssignment({ id: a.id, period, unitType: 'AREA', assigneeEmployeeId: a.assigneeEmployeeId, targetMode: 'ABSOLUTE_VND', reason: 'HR đồng bộ tổng mục tiêu các cửa hàng trước phát hành.', expectedVersion: a.version, clientRequestId: newClientMessageId() }) : a;
         await api.publishRevenueKpiAssignment(prepared.id, { expectedVersion: prepared.version, clientRequestId: newClientMessageId() });
       }
-      else if (a.aiProposal?.suggestedGrowthPercent != null) await api.saveRevenueKpiAssignment({ id: a.id, expectedVersion: a.version, clientRequestId: newClientMessageId(), period, unitType: 'STORE', storeId: a.storeId!, assigneeEmployeeId: a.assigneeEmployeeId,
-        targetMode: 'GROWTH_PERCENT', growthPercent: a.aiProposal.suggestedGrowthPercent, reason: 'HR áp dụng đề xuất tham khảo sau xem xét.' });
+      else if (a.aiProposal?.suggestedGrowthPercent != null) await saveAiTarget(a, a.aiProposal.suggestedGrowthPercent, newClientMessageId());
     }
   }, kind === 'apply' ? 'Đã áp dụng đề xuất vào bản nháp. Cần kiểm tra và phát hành riêng.' : kind === 'ai' ? 'Đã lấy đề xuất cho các cửa hàng đủ dữ liệu.' : 'Đã phát hành các bản nháp đủ điều kiện.');
   const v = (key: keyof Values, value: string | boolean) => setValues(x => ({ ...x, [key]: value }));
@@ -124,7 +131,16 @@ export function RevenueKpiView() {
           {a.refusal && <p className="rk-note"><strong>Lý do từ chối:</strong> {a.refusal.reason}</p>}
           {a.adjustment && <div className="rk-note"><p><strong>Điều chỉnh:</strong> {a.adjustment.reason}</p><p>Bằng chứng/tham chiếu: {a.adjustment.evidenceRef}</p>{a.adjustment.amNote && <p>AM xác minh: {a.adjustment.amNote}</p>}{a.adjustment.hrDecision && <p>HR: {a.adjustment.hrDecision.reason}</p>}</div>}
           {result?.missReason && <p className="rk-note"><strong>Giải trình:</strong> {result.missReason.text}{result.missReason.reviewNote ? ` · HR xem xét: ${result.missReason.reviewNote}` : ''}</p>}
-          {a.aiProposal && <div className="rk-ai"><strong>Đề xuất tham khảo; HR quyết định</strong><p>{a.aiProposal.suggestedGrowthPercent == null ? 'Chưa đủ dữ liệu để đề xuất.' : `Tăng ${percentage(a.aiProposal.suggestedGrowthPercent)} · Khoảng ${percentage(a.aiProposal.rangeMinPercent)} – ${percentage(a.aiProposal.rangeMaxPercent)}`}</p><p>{a.aiProposal.rationale}</p><small>{a.aiProposal.degraded ? 'Đang dùng phân tích dự phòng' : 'Đề xuất AI'} · {a.aiProposal.dataMonths}/3 tháng dữ liệu</small></div>}
+          {a.aiProposal && <div className="rk-ai">
+            <strong>Đề xuất tham khảo, HR quyết định</strong>
+            <p>{a.aiProposal.suggestedGrowthPercent == null ? 'Chưa đủ dữ liệu để đề xuất.' : `Mức đề xuất ${percentage(a.aiProposal.suggestedGrowthPercent)} · Khoảng ${percentage(a.aiProposal.rangeMinPercent)} đến ${percentage(a.aiProposal.rangeMaxPercent)}`}</p>
+            <p>{a.aiProposal.rationale}</p>
+            <small>{a.aiProposal.degraded ? 'Đang dùng phân tích dự phòng' : 'Đề xuất AI'} · {a.aiProposal.dataMonths}/3 tháng dữ liệu</small>
+            {hr && isOpen && a.unitType === 'STORE' && a.status === 'DRAFT' && a.aiProposal.suggestedGrowthPercent != null &&
+              (a.growthPercent === a.aiProposal.suggestedGrowthPercent
+                ? <small>Mục tiêu nháp đã khớp mức đề xuất.</small>
+                : <button type="button" disabled={busy} onClick={() => open('apply-ai', a)}>Áp dụng đề xuất</button>)}
+          </div>}
           {a.unitType === 'AREA' && <div className="rk-table"><table><thead><tr><th>Cửa hàng đã giao</th><th>Mục tiêu</th><th>Doanh thu</th><th>Hoàn thành</th></tr></thead><tbody>{a.stores.map(s => { const r = result?.stores.find(r => r.storeId === s.storeId); return <tr key={s.storeId}><td>{s.storeName}</td><td>{money(s.targetVnd)}</td><td>{money(r?.actualRevenueVnd)}</td><td>{percentage(r?.achievementPercent)} {r?.achieved === true ? '· Đạt' : r?.achieved === false ? '· Chưa đạt' : ''}</td></tr>; })}</tbody></table></div>}
           <div className="rk-actions">
             {hr && isOpen && a.status === 'DRAFT' && <>{ask('edit', a)}{a.unitType === 'STORE' && ask('ai', a)}{ask('publish', a)}</>}
@@ -145,7 +161,7 @@ export function RevenueKpiView() {
     </>}
     <dialog ref={dialog} className="rk-dialog" aria-labelledby="rk-dialog-title" onCancel={e => { e.preventDefault(); close(); }}>
       {modal && <form onSubmit={e => { e.preventDefault(); if (modal.kind === 'bulk-apply' || modal.kind === 'bulk-publish') void bulk(modal.kind === 'bulk-apply' ? 'apply' : 'publish'); else void submit(); }}>
-        <div className="rk-dialog-head"><h2 id="rk-dialog-title">{({ create: 'Tạo kỳ KPI doanh thu', compute: 'Tính kết quả doanh thu', close: 'Chốt kỳ KPI', draft: 'Thêm mục tiêu', edit: 'Sửa mục tiêu nháp', publish: 'Phát hành mục tiêu', accept: 'Chấp nhận KPI', refuse: 'Từ chối KPI', decision: 'HR xử lý mục tiêu', request: 'Yêu cầu điều chỉnh', verify: 'AM xác minh', adjustment: 'HR quyết định điều chỉnh', reason: 'Giải trình kết quả', review: 'Xem xét giải trình', confirm: 'Xác nhận kết quả', correct: 'Điều chỉnh sau chốt', responsibility: 'Cập nhật SM phụ trách', ai: 'Lấy đề xuất AI', 'bulk-apply': 'Áp dụng đề xuất vào bản nháp', 'bulk-publish': 'Phát hành các bản nháp' } as Record<string, string>)[modal.kind]}</h2><button type="button" disabled={busy} onClick={close} aria-label="Đóng hộp thoại KPI">×</button></div>
+        <div className="rk-dialog-head"><h2 id="rk-dialog-title">{({ create: 'Tạo kỳ KPI doanh thu', compute: 'Tính kết quả doanh thu', close: 'Chốt kỳ KPI', draft: 'Thêm mục tiêu', edit: 'Sửa mục tiêu nháp', publish: 'Phát hành mục tiêu', accept: 'Chấp nhận KPI', refuse: 'Từ chối KPI', decision: 'HR xử lý mục tiêu', request: 'Yêu cầu điều chỉnh', verify: 'AM xác minh', adjustment: 'HR quyết định điều chỉnh', reason: 'Giải trình kết quả', review: 'Xem xét giải trình', confirm: 'Xác nhận kết quả', correct: 'Điều chỉnh sau chốt', responsibility: 'Cập nhật SM phụ trách', ai: 'Lấy đề xuất AI', 'apply-ai': 'Áp dụng đề xuất cho cửa hàng', 'bulk-apply': 'Áp dụng đề xuất vào bản nháp', 'bulk-publish': 'Phát hành các bản nháp' } as Record<string, string>)[modal.kind]}</h2><button type="button" disabled={busy} onClick={close} aria-label="Đóng hộp thoại KPI">×</button></div>
         {selected && <p>{selected.unitType === 'STORE' ? selected.stores[0].storeName : `Khu vực ${selected.assigneeName}`} · {money(selected.targetVnd)}</p>}
         {['draft', 'edit'].includes(modal.kind) && <>
           <label>Loại mục tiêu<select aria-label="Loại mục tiêu" value={values.unitType} disabled={modal.kind === 'edit'} onChange={e => { v('unitType', e.target.value); v('employeeId', ''); }}><option value="STORE">Cửa hàng · SM</option><option value="AREA">Khu vực · AM</option></select></label>
@@ -167,6 +183,7 @@ export function RevenueKpiView() {
         {modal.kind === 'responsibility' && <><label>SM phụ trách mới<select required value={values.employeeId} onChange={e => v('employeeId', e.target.value)}>{dashboard?.candidates.filter(c => c.role === 'SM' && c.storeIds.includes(selected!.storeId!)).map(c => <option key={c.employeeId} value={c.employeeId}>{c.name}</option>)}</select></label><label>Thời điểm bắt đầu (giờ Việt Nam)<input type="datetime-local" required value={values.from} onChange={e => v('from', e.target.value)} /></label><p>Mục tiêu cửa hàng giữ nguyên; người mới cần xác nhận lại. Lịch sử người phụ trách cũ được lưu.</p></>}
         {['draft', 'edit', 'refuse', 'decision', 'request', 'verify', 'adjustment', 'reason', 'review', 'correct', 'responsibility'].includes(modal.kind) || modal.kind === 'confirm' && values.waive ? <label>{modal.kind === 'reason' ? 'Lý do chưa đạt' : 'Lý do / ghi chú'}<textarea aria-label="Lý do KPI doanh thu" minLength={5} maxLength={2000} required value={values.reason} onChange={e => v('reason', e.target.value)} /></label> : null}
         {['ai', 'bulk-apply'].includes(modal.kind) && <p>Đề xuất tham khảo; HR quyết định. Lấy đề xuất không tự thay mục tiêu. Áp dụng chỉ sửa bản nháp, phát hành là bước riêng.</p>}
+        {modal.kind === 'apply-ai' && <p>Áp dụng mức {percentage(selected?.aiProposal?.suggestedGrowthPercent)} so với tháng gốc cho bản nháp của cửa hàng này. Bạn có thể chỉnh sửa trước khi phát hành.</p>}
         {modal.kind === 'bulk-publish' && <p>Phát hành tất cả bản nháp đủ điều kiện. Mỗi SM/AM sẽ nhận yêu cầu xác nhận KPI của mình.</p>}
         {modal.kind === 'compute' && <p>Tính từ doanh thu POS của kỳ. Thiếu dữ liệu sẽ chưa kết luận; không tự xác nhận hoặc chốt kết quả.</p>}
         {modal.kind === 'close' && <p>Chỉ chốt khi đã hết tháng, mọi KPI không hủy đã xác nhận đầy đủ. Sau chốt, thay đổi cần tạo bản điều chỉnh có lý do.</p>}
