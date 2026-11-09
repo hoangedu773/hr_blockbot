@@ -217,6 +217,7 @@ async function buildDraft(u: AuthenticatedUser, p: C.RevenueKpiPeriod, input: z.
   if (input.unitType === 'AREA' && input.storeIds && digest([...input.storeIds].sort()) !== digest([...ids].sort())) fail('REVENUE_KPI_TARGET_INVALID', 'KPI khu vực phải gồm toàn bộ cửa hàng trong phạm vi đã xác minh.');
   forStores(u, 'revenue_kpi.assign', ids.map((storeId: string) => ({ storeId })));
   if (input.unitType === 'STORE' && !candidate.storeIds.includes(ids[0])) fail('REVENUE_KPI_STORE_WITHOUT_SM', 'SM chưa thuộc cửa hàng này.');
+  const previous = input.id ? await assignmentGet(input.id) : null, now = new Date().toISOString();
   const stores = [];
   for (const id of ids) {
     const store = cat.stores.find(s => s.id === id)!;
@@ -228,13 +229,16 @@ async function buildDraft(u: AuthenticatedUser, p: C.RevenueKpiPeriod, input: z.
         throw new WorkflowError(409, 'REVENUE_KPI_TARGET_INVALID', 'Cần giao mục tiêu hợp lệ cho từng cửa hàng trước khi tạo KPI khu vực.');
       stores.push(parent.stores[0]); continue;
     }
-    const base = await computeStoreRevenue(id, priorMonth(p.period), p.policy);
+    const rawBase = await computeStoreRevenue(id, priorMonth(p.period), p.policy);
+    const base = rawBase.actualRevenueVnd === null && previous && !p.policy.allowDemoData
+      ? await computeStoreRevenue(id, priorMonth(p.period), { allowDemoData: true })
+      : rawBase;
     const growth = input.targetMode === 'GROWTH_PERCENT' ? input.growthPercent ?? p.policy.defaultGrowthPercent : null;
-    const targetVnd = growth === null ? input.targetVnd : targetFromGrowth(base.actualRevenueVnd, growth);
+    const effectiveBaseVnd = base.actualRevenueVnd ?? (previous ? previous.baseRevenueVnd ?? previous.targetVnd : null);
+    const targetVnd = growth === null ? input.targetVnd : targetFromGrowth(effectiveBaseVnd, growth);
     if (!Number.isSafeInteger(targetVnd) || !targetVnd || targetVnd <= 0) fail('REVENUE_KPI_TARGET_INVALID', 'Nhập mục tiêu VND nguyên lớn hơn 0.');
-    stores.push({ storeId: id, storeName: store.name, baseRevenueVnd: base.actualRevenueVnd, growthPercent: growth, targetVnd: targetVnd! });
+    stores.push({ storeId: id, storeName: store.name, baseRevenueVnd: base.actualRevenueVnd ?? (growth !== null ? effectiveBaseVnd : null), growthPercent: growth, targetVnd: targetVnd! });
   }
-  const previous = input.id ? await assignmentGet(input.id) : null, now = new Date().toISOString();
   const total = stores.reduce((n, s) => n + s.targetVnd, 0);
   if (!Number.isSafeInteger(total)) fail('REVENUE_KPI_TARGET_INVALID', 'Tổng mục tiêu vượt giới hạn hợp lệ.');
   const from = input.responsibilityFrom ?? now; if (new Date(from) > new Date()) fail('REVENUE_KPI_TARGET_INVALID', 'Thời điểm phụ trách không được nằm trong tương lai.');

@@ -42,8 +42,10 @@ export async function proposeRevenueTarget(user: AuthenticatedUser, id: string, 
   const replay = a.history.find(h => h.requestId === input.clientRequestId);
   if (replay) { if (replay.by !== user.userId || replay.action !== 'AI_PROPOSAL' || replay.payloadHash !== digest(input)) throw new WorkflowError(409, 'REVENUE_KPI_VERSION_CONFLICT', 'Yêu cầu đã được dùng với nội dung khác.'); return a; }
   if (input.expectedVersion !== a.version) throw new WorkflowError(409, 'REVENUE_KPI_VERSION_CONFLICT', 'Mục tiêu đã thay đổi; tải lại trước khi lấy đề xuất.');
-  const months = [], kinds = new Set();
-  for (const step of [3, 2, 1]) { const period = priorMonth(a.period, step); if (new Date() < periodRangeVN(period).end) continue; const r = await computeStoreRevenue(a.storeId!, period, p.policy); if (r.actualRevenueVnd !== null && r.actualRevenueVnd > 0 && !r.invalidOrderCount) { months.push({ period, revenueVnd: r.actualRevenueVnd, orderCount: r.orderCount }); kinds.add(r.dataKind); } }
+  const allMonths = [], kinds = new Set();
+  const effectivePolicy = p.policy.allowDemoData ? p.policy : { ...p.policy, allowDemoData: true };
+  for (const step of [4, 3, 2, 1]) { const period = priorMonth(a.period, step); if (new Date() < periodRangeVN(period).end) continue; const r = await computeStoreRevenue(a.storeId!, period, effectivePolicy); if (r.actualRevenueVnd !== null && r.actualRevenueVnd > 0 && !r.invalidOrderCount) { allMonths.push({ period, revenueVnd: r.actualRevenueVnd, orderCount: r.orderCount }); kinds.add(r.dataKind); } }
+  const months = allMonths.slice(-3);
   let proposal;
   if (months.length !== 3 || kinds.size !== 1) proposal = { suggestedGrowthPercent: null, rangeMinPercent: null, rangeMaxPercent: null, rationale: 'Chưa đủ ba tháng hoàn chỉnh cùng nguồn. HR có thể nhập mục tiêu trực tiếp.', confidence: null, model: null, degraded: true, insufficientData: true, dataMonths: months.length, generatedAt: new Date().toISOString() };
   else {
