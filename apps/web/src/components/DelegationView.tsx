@@ -54,8 +54,40 @@ export function DelegationView() {
     {form && <CrmDialog title="Đề nghị ủy quyền có thời hạn" busy={busy} onClose={() => { if (!busy) setForm(false); }}><form className="crm-work-form" onSubmit={submit}>
       <label className="field">Quyền hạn gốc của bạn (Grant gốc)<select className="input" required value={sourceId} onChange={(event) => { setSourceId(event.target.value); setCaps([]); setStoreId(''); }}>{sources.map((grant) => <option key={grant.id} value={grant.id}>{grant.capabilities.filter((capability) => allowed.some((value) => value === capability)).map((c) => capabilityShortLabels[c] || c).join(', ')} · Mã: {grant.id.slice(0, 8)}</option>)}</select></label>
       <label className="field">Cửa hàng áp dụng<select className="input" required value={storeId} onChange={(event) => setStoreId(event.target.value)}><option value="">Chọn cửa hàng</option>{options.map((store) => <option value={store.id} key={store.id}>{store.name}</option>)}</select></label>
-      <label className="field">Người nhận ủy quyền (đủ điều kiện)<select className="input" required value={recipient} onChange={(event) => setRecipient(event.target.value)}><option value="">Chọn người nhận</option>{recipients.map((person) => <option value={person.userId} key={person.userId}>{person.fullName} · {formatProfile(person.profile)}</option>)}</select></label>
-      <fieldset><legend>Chọn quyền hạn chuyển giao (thuộc phạm vi quyền gốc)</legend>{allowed.filter((capability) => source?.capabilities.includes(capability)).map((capability) => <label className="field" key={capability}><input type="checkbox" checked={caps.includes(capability)} onChange={(event) => setCaps(event.target.checked ? [...caps, capability] : caps.filter((value) => value !== capability))} />{capabilityLabels[capability] || capability}</label>)}</fieldset>
+      <label className="field">Người nhận ủy quyền (đủ điều kiện)<select className="input" required value={recipient} onChange={(event) => setRecipient(event.target.value)}><option value="">Chọn người nhận</option>{recipients.map((person) => <option value={person.userId} key={person.userId}>{person.fullName} · {formatProfile(person.profile)}</option>)}</select>
+        {storeId && !recipients.length && <span style={{ fontSize: '12px', color: '#f59e0b', marginTop: '4px' }}>Cửa hàng này hiện chưa có nhân sự cấp phó (PTCH) để nhận ủy quyền. Bạn có thể thêm nhân sự tại mục "Tiếp nhận nhân viên".</span>}
+      </label>
+      <fieldset style={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', padding: '12px 14px', margin: '10px 0' }}>
+        <legend style={{ padding: '0 8px', fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary, #aaa)' }}>
+          Chọn quyền hạn chuyển giao (thuộc phạm vi quyền gốc)
+        </legend>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '6px' }}>
+          {allowed.filter((capability) => source?.capabilities.includes(capability)).map((capability) => (
+            <label
+              key={capability}
+              style={{
+                display: 'flex',
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: '12px',
+                cursor: 'pointer',
+                fontSize: '13.5px',
+                lineHeight: 1.4,
+                padding: '4px 0',
+                userSelect: 'none'
+              }}
+            >
+              <input
+                type="checkbox"
+                style={{ width: '18px', height: '18px', margin: 0, cursor: 'pointer', accentColor: '#3b82f6', flexShrink: 0 }}
+                checked={caps.includes(capability)}
+                onChange={(event) => setCaps(event.target.checked ? [...caps, capability] : caps.filter((value) => value !== capability))}
+              />
+              <span>{capabilityLabels[capability] || capability}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
       <label className="field">Thời hạn hiệu lực (tối đa 14 ngày)<input className="input" type="datetime-local" required value={until} onChange={(event) => setUntil(event.target.value)} /></label><label className="field">Lý do ủy quyền (mục đích công việc)<textarea className="input" required maxLength={2000} placeholder="Ví dụ: Ủy quyền duyệt báo cáo và giao việc trong thời gian SM nghỉ phép..." value={reason} onChange={(event) => setReason(event.target.value)} /></label>{error && <p role="alert">{error}</p>}<button className="btn btn--primary" disabled={busy || !caps.length}>Gửi đề nghị ủy quyền</button>
     </form></CrmDialog>}
     {selected && <CrmDialog title="Chi tiết và lịch sử ủy quyền" busy={busy} onClose={() => { if (!busy) setSelected(null); }}><WorkflowAuditNotice integrity={selected.auditIntegrity} /><p style={{ overflowWrap: 'anywhere' }}>Mã yêu cầu: {selected.id}</p><p>Người đề nghị: {selected.delegatorUserId} · Người nhận: {selected.recipientUserId}</p><p>Cửa hàng: {selected.scope.storeIds.map((id) => stores.find((store) => store.id === id)?.name || id).join(', ')}</p>{selected.history.map((entry, index) => <p key={index}>{new Date(entry.at).toLocaleString('vi-VN')} · {statusLabels[entry.to] || entry.to} · {entry.reason}</p>)}
