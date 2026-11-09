@@ -122,10 +122,7 @@ function Inbox({ onChanged, onClose, onNavigate }: {
               {canShowDetail && <button type="button" className="btn" aria-expanded={expanded} onClick={() => setSelected(expanded ? undefined : item.id)}>
                 {expanded ? 'Thu gọn chi tiết' : isTask ? 'Xem nhiệm vụ' : 'Xem bản đánh giá'}
               </button>}
-              {category.view && <button type="button" className="btn" disabled={saving} onClick={() => {
-                if (isTask) sessionStorage.setItem('scored-work-notification', '');
-                onNavigate(category.view!);
-              }}>
+              {category.view && <button type="button" className="btn" disabled={saving} onClick={() => onNavigate(category.view!)}>
                 Mở mục {category.label}
               </button>}
               {!item.read && <button type="button" className="btn" disabled={saving || loading} onClick={() => void markRead(item)}>Đánh dấu đã đọc</button>}

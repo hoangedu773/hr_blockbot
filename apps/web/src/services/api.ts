@@ -316,7 +316,7 @@ export interface ProjectListParams {
   mine?: boolean;
 }
 
-export async function fetchProjects(params?: ProjectListParams): Promise<PaginatedProjectsResponse> {
+function projectListQuery(params?: ProjectListParams) {
   const query = new URLSearchParams();
   for (const key of ['storeId', 'assigneeId', 'dueFrom', 'dueTo'] as const) if (params?.[key]) query.set(key, params[key]!);
   if (params?.status) query.set('status', params.status);
@@ -328,12 +328,32 @@ export async function fetchProjects(params?: ProjectListParams): Promise<Paginat
   if (params?.page) query.set('page', String(params.page));
   if (params?.limit) query.set('limit', String(params.limit));
 
-  const qs = query.toString();
+  return query;
+}
+
+export async function fetchProjects(params?: ProjectListParams): Promise<PaginatedProjectsResponse> {
+  const qs = projectListQuery(params).toString();
   const json = await requestJson<PaginatedProjectsResponse>(`/projects${qs ? `?${qs}` : ''}`);
   if (!Array.isArray(json.items) || !json.paging) {
     throw new ApiError('Phản hồi danh sách đề tài sai hợp đồng (thiếu items/paging)', 500, 'INVALID_RESPONSE');
   }
   return json;
+}
+
+export type ScoredWorkRow = Pick<import('@hr-blockbot/contracts').TaskInstance,
+  'id' | 'title' | 'storeId' | 'assigneeEmployeeId' | 'status' | 'assignmentStatus' | 'progressPercent' | 'dueAt' | 'extendedDueAt' | 'kpiPeriod'
+> & { assigneeName: string | null };
+export type WorkListResponse = {
+  items: ({ type: 'regular'; project: Project } | { type: 'scored'; task: ScoredWorkRow })[];
+  paging: PaginatedProjectsResponse['paging'];
+};
+export type WorkType = 'all' | 'regular' | 'scored';
+
+export async function fetchWorkList(params: ProjectListParams & { workType: WorkType; period: string }): Promise<WorkListResponse> {
+  const query = projectListQuery(params);
+  query.set('workType', params.workType);
+  if (params.period) query.set('period', params.period);
+  return requestJson<WorkListResponse>('/work-list?' + query);
 }
 
 export async function fetchProjectById(projectId: string): Promise<Project> {

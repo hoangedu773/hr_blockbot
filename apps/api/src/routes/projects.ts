@@ -5,7 +5,7 @@ import { endpoint } from "../lib/endpoint.js";
 import { pagingMeta } from "../lib/paging.js";
 import {
   ProjectCreateSchema, ProjectUpdateSchema, ProjectAssignSchema, ProjectTransitionSchema,
-  ProjectProgressSchema, PaginationQuerySchema, ProjectStatusSchema, PaginatedProjectsResponseSchema,
+  ProjectProgressSchema, PaginationQuerySchema, ProjectStatusSchema, PaginatedProjectsResponseSchema, PerformanceMonth,
 } from "@hr-blockbot/contracts";
 import { ProjectModel, assertStateTransitionAllowed } from "../models/Project.js";
 import { EmployeeModel } from "../models/Employee.js";
@@ -17,9 +17,11 @@ import {
 } from "../services/project-workflow.service.js";
 import { auditedUpdate, auditEntry, verifyProjectAudit, assertAssignmentConsistency } from "../services/project-audit.service.js";
 import { notice, managers, ownAssignment } from "../services/assignment.service.js";
-import { requireCapability, resourceScope, allowedStoreIds, employeeScopeQuery, managedEmployeeIds } from "../services/authorization-scope.service.js";
+import { requireCapability, resourceScope, allowedStoreIds, employeeScopeQuery, managedEmployeeIds, hasCapability } from "../services/authorization-scope.service.js";
 import { withCrmWriter, assertEmployeeReceivesWork } from "../services/crm-writer.service.js";
 import { resolvePrincipal } from "../services/principal.service.js";
+import { performanceEnabled } from "../services/performance-kpi-common.service.js";
+import { listScoredWork } from "../services/task-instance.service.js";
 
 const router = Router();
 const filtersSchema = PaginationQuerySchema.extend({
@@ -58,16 +60,13 @@ router.get("/departments", authenticateToken, endpoint(async (req, res) => {
   res.json({ items: [...items.values()].sort((a, b) => a.name.localeCompare(b.name, "vi")) });
 }));
 
-router.get("/projects", authenticateToken, endpoint(async (req, res) => {
-  const parsed = filtersSchema.safeParse(req.query);
-  if (!parsed.success) throw new WorkflowError(400, "VALIDATION_FAILED", "Bộ lọc hoặc phân trang công việc không hợp lệ.");
-  const { page, limit, status, overdue, mine, q, departmentId, assignmentView } = parsed.data;
-  const user = req.user!;
+function projectQuery(user: NonNullable<Express.Request["user"]>, filters: z.infer<typeof filtersSchema>) {
+  const { status, overdue, mine, q, departmentId, assignmentView } = filters;
   const clauses: Record<string, unknown>[] = [projectReadScope(user)];
-  if (parsed.data.storeId) clauses.push({ storeId: objectId(parsed.data.storeId) });
-  if (parsed.data.assigneeId) clauses.push({ assigneeId: referenceMatch(parsed.data.assigneeId) });
-  if (parsed.data.dueFrom && parsed.data.dueTo && Date.parse(parsed.data.dueFrom) > Date.parse(parsed.data.dueTo)) throw new WorkflowError(400, "VALIDATION_FAILED", "Khoảng hạn không hợp lệ.");
-  if (parsed.data.dueFrom || parsed.data.dueTo) clauses.push({ dueDate: { ...(parsed.data.dueFrom ? { $gte: new Date(parsed.data.dueFrom) } : {}), ...(parsed.data.dueTo ? { $lte: new Date(parsed.data.dueTo) } : {}) } });
+  if (filters.storeId) clauses.push({ storeId: objectId(filters.storeId) });
+  if (filters.assigneeId) clauses.push({ assigneeId: referenceMatch(filters.assigneeId) });
+  if (filters.dueFrom && filters.dueTo && Date.parse(filters.dueFrom) > Date.parse(filters.dueTo)) throw new WorkflowError(400, "VALIDATION_FAILED", "Khoảng hạn không hợp lệ.");
+  if (filters.dueFrom || filters.dueTo) clauses.push({ dueDate: { ...(filters.dueFrom ? { $gte: new Date(filters.dueFrom) } : {}), ...(filters.dueTo ? { $lte: new Date(filters.dueTo) } : {}) } });
   if (status) clauses.push({ status });
   if (assignmentView === "AWAITING_ACCEPTANCE") clauses.push({ status: "ASSIGNED", $or: [{ assignmentStatus: "PENDING_ACCEPTANCE" }, { assignmentStatus: null }] });
   if (assignmentView === "PENDING_REQUESTS") clauses.push({ "assignmentRequests.status": "PENDING", status: { $ne: "COMPLETED" } });
@@ -79,7 +78,73 @@ router.get("/projects", authenticateToken, endpoint(async (req, res) => {
     const escaped = q.replace(/[.*+?^$(){}|[\]\\]/g, "\\$&");
     clauses.push({ $or: [{ title: { $regex: escaped, $options: "i" } }, { description: { $regex: escaped, $options: "i" } }] });
   }
-  const query = { $and: clauses };
+  return { $and: clauses };
+}
+
+const workListFilters = filtersSchema.extend({
+  workType: z.enum(["all", "regular", "scored"]).default("all"),
+  period: PerformanceMonth.optional(),
+});
+
+// Preserve each source's native ordering. Alternate the two sources until one
+// runs out, so a single page always contains both types when both have rows.
+function scoredPrefix(rows: number, regularTotal: number, scoredTotal: number) {
+  return Math.min(scoredTotal, Math.max(Math.ceil(rows / 2), rows - regularTotal));
+}
+
+router.get("/work-list", authenticateToken, endpoint(async (req, res) => {
+  const filters = workListFilters.parse(req.query), user = req.user!;
+  if (filters.dueFrom && filters.dueTo && Date.parse(filters.dueFrom) > Date.parse(filters.dueTo))
+    throw new WorkflowError(400, "VALIDATION_FAILED", "Khoảng hạn không hợp lệ.");
+
+  const mayReadScored = performanceEnabled() && (hasCapability(user, "task.read_self") || hasCapability(user, "task.read_scope"));
+  let query: ReturnType<typeof projectQuery> | undefined;
+  if (filters.workType !== "scored") {
+    try { query = projectQuery(user, filters); }
+    catch (error) {
+      if (!mayReadScored || !(error instanceof WorkflowError && error.status === 403)) throw error;
+    }
+  }
+  if (!query && !mayReadScored) throw new WorkflowError(403, "RBAC_DENIED", "Bạn chưa có quyền xem công việc.");
+  const [regularTotal, tasks] = await Promise.all([
+    query ? ProjectModel.countDocuments(query) : 0,
+    mayReadScored && filters.workType !== "regular" ? listScoredWork(user, filters) : [],
+  ]);
+  const total = regularTotal + tasks.length;
+  const { page, limit } = filters;
+  const start = Math.min(total, (page - 1) * limit);
+  const end = Math.min(total, start + limit);
+  const taskStart = scoredPrefix(start, regularTotal, tasks.length);
+  const taskEnd = scoredPrefix(end, regularTotal, tasks.length);
+  const taskPage = tasks.slice(taskStart, taskEnd);
+  const regularLength = end - taskEnd - (start - taskStart);
+  const regularPage = query && regularLength ? await ProjectModel.find(query)
+    .select("-reports -assignmentAudit -responsibilities").sort({ createdAt: -1, _id: -1 })
+    .skip(start - taskStart).limit(regularLength).lean() : [];
+  const assignees = [...new Set(taskPage.flatMap(t => t.assigneeEmployeeId ? [t.assigneeEmployeeId] : []))];
+  const names = assignees.length ? await EmployeeModel.find({ _id: { $in: assignees } }).select("fullName full_name").lean() : [];
+  const namesById = new Map(names.map(row => [String(row._id), row.fullName || row.full_name || ""]));
+  const regular = await projectDtos(regularPage);
+  const items = [];
+  let taskIndex = 0, regularIndex = 0;
+  for (let position = start; position < end; position++) {
+    const nextTask = scoredPrefix(position + 1, regularTotal, tasks.length) > taskStart + taskIndex;
+    if (nextTask) {
+      const task = taskPage[taskIndex++];
+      if (task) items.push({ type: "scored", task: { ...task, assigneeName: namesById.get(task.assigneeEmployeeId ?? "") ?? null } });
+    } else {
+      const project = regular[regularIndex++];
+      if (project) items.push({ type: "regular", project });
+    }
+  }
+  res.json({ items, paging: pagingMeta({ page, limit, totalItems: total }) });
+}));
+
+router.get("/projects", authenticateToken, endpoint(async (req, res) => {
+  const parsed = filtersSchema.safeParse(req.query);
+  if (!parsed.success) throw new WorkflowError(400, "VALIDATION_FAILED", "Bộ lọc hoặc phân trang công việc không hợp lệ.");
+  const { page, limit } = parsed.data;
+  const query = projectQuery(req.user!, parsed.data);
   const [totalItems, projects] = await Promise.all([
     ProjectModel.countDocuments(query),
     ProjectModel.find(query).select("-reports -assignmentAudit -responsibilities").sort({ createdAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean(),
