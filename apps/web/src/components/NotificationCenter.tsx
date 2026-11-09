@@ -13,7 +13,7 @@ const groups: Record<NotificationGroup, { label: string; view?: ActiveCrmView }>
   schedule: { label: 'Lịch làm & phân ca', view: 'schedules' },
   work: { label: 'Công việc & nghiệm thu', view: 'projects' },
   revenue: { label: 'KPI doanh thu', view: 'revenueKpi' },
-  performance: { label: 'KPI hiệu suất & nhiệm vụ', view: 'performanceKpi' },
+  performance: { label: 'KPI hiệu suất & công việc', view: 'performanceKpi' },
   evaluation: { label: 'KPI & đánh giá', view: 'kpi' },
   other: { label: 'Khác' },
 };
@@ -104,9 +104,9 @@ function Inbox({ onChanged, onClose, onNavigate }: {
       {!loading && !error && !items.length && <p>{unreadOnly ? 'Bạn đã đọc hết thông báo trong nhóm này.' : 'Chưa có thông báo trong nhóm này.'}</p>}
       <ul className="notification-inbox-list">
         {items.map(item => {
-          const category = groupFor(item);
-          const entityId = item.entityId;
           const isTask = item.entityKind === 'task';
+          const category = isTask ? groups.work : groupFor(item);
+          const entityId = item.entityId;
           const canShowDetail = (isTask || item.entityKind === 'performance_kpi') && !!entityId && /^[a-f0-9]{24}$/i.test(entityId);
           const expanded = selected === item.id;
           return <li key={item.source + ':' + item.id} data-unread={!item.read}>
@@ -122,12 +122,18 @@ function Inbox({ onChanged, onClose, onNavigate }: {
               {canShowDetail && <button type="button" className="btn" aria-expanded={expanded} onClick={() => setSelected(expanded ? undefined : item.id)}>
                 {expanded ? 'Thu gọn chi tiết' : isTask ? 'Xem nhiệm vụ' : 'Xem bản đánh giá'}
               </button>}
-              {category.view && <button type="button" className="btn" disabled={saving} onClick={() => onNavigate(category.view!)}>
+              {category.view && <button type="button" className="btn" disabled={saving} onClick={() => {
+                if (isTask) sessionStorage.setItem('scored-work-notification', '');
+                onNavigate(category.view!);
+              }}>
                 Mở mục {category.label}
               </button>}
               {!item.read && <button type="button" className="btn" disabled={saving || loading} onClick={() => void markRead(item)}>Đánh dấu đã đọc</button>}
             </div>
-            {canShowDetail && expanded && <PerformanceNotificationTarget id={entityId} isTask={isTask} />}
+            {canShowDetail && expanded && <PerformanceNotificationTarget id={entityId} isTask={isTask} onOpenWork={isTask ? (period,id) => {
+              sessionStorage.setItem('scored-work-notification', period+':'+id);
+              onNavigate('projects');
+            } : undefined} />}
           </li>;
         })}
       </ul>
