@@ -152,9 +152,35 @@ try {
   const reporting = await OnboardingReportingModel.findOne({ onboardingId: onboard._id }).lean();
   assert.equal(String(reporting.managerEmployeeId), String(fixture.actors.sm.employee._id));
   assert.equal((await call(sm, `/initial-reporting/${reporting._id}/approve`, { expectedVersion: 1, reason: 'Self approval forbidden' })).status, 403);
+  const notices = mongoose.connection.collection('notifications');
+  const notice = (userId, title, severity, dedupeKey) => ({
+    userId, title, severity, dedupeKey, type: 'system', body: 'Synthetic notice', channel: 'in_app', readAt: null, createdAt: new Date(),
+  });
+  await notices.insertMany([
+    ...Array.from({ length: 31 }, (_, index) => notice(fixture.actors.hr.user._id, 'Thông báo tham khảo', 'INFO', 'browser-info-' + index)),
+    { ...notice(fixture.actors.hr.user._id, 'Cập nhật nhiệm vụ', 'INFO', 'browser-legacy-action'), performanceType: 'task_refused', entityKind: 'task' },
+    { ...notice(fixture.actors.hr.user._id, 'Cập nhật KPI hiệu suất', 'URGENT', 'browser-legacy-info'), performanceType: 'performance_kpi_finalized', entityKind: 'performance_kpi' },
+    notice(fixture.actors.hr2.user._id, 'Thông báo riêng của HR khác', 'URGENT', 'browser-private'),
+  ]);
+  const actionPage = await call(hr, '/notifications/inbox?action=true&limit=1');
+  assert.equal(actionPage.status, 200);
+  const first = actionPage.body.items[0];
+  assert.equal(first.title, 'Nhiệm vụ bị từ chối');
+  const cursor = new URLSearchParams({ action: 'true', limit: '1', before: first.createdAt, beforeId: first.id, beforeSource: first.source });
+  assert.equal((await call(hr, '/notifications/inbox?' + cursor)).body.items[0].title, 'Hồ sơ tiếp nhận chờ duyệt');
+  const hrChatRequests = [];
+  hr.page.on('request', request => {
+    if (request.method() === 'POST' && /\/api\/chat(?:\/stream)?$/.test(request.url())) hrChatRequests.push(request.url());
+  });
   await hr.page.getByRole('link', { name: 'Chat', exact: true }).click();
-  await hr.page.getByRole('button', { name: /^Thông báo/ }).click();
-  await hr.page.getByRole('button', { name: 'Mở hồ sơ trong chat', exact: true }).click();
+  await hr.page.getByLabel('Tin nhắn cho Guta AI').fill('tôi có thông báo gì cần xử lí k');
+  await hr.page.getByRole('button', { name: 'Gửi', exact: true }).click();
+  const chatNotices = hr.page.getByRole('region', { name: 'Danh sách thông báo của bạn' });
+  await chatNotices.getByText('Hồ sơ tiếp nhận chờ duyệt', { exact: true }).waitFor();
+  await chatNotices.getByText('Nhiệm vụ bị từ chối', { exact: true }).waitFor();
+  assert.equal(await chatNotices.getByText(/Thông báo tham khảo|Đã công bố kết quả KPI|Thông báo riêng của HR khác/).count(), 0);
+  assert.equal(hrChatRequests.length, 0);
+  await chatNotices.getByRole('button', { name: 'Mở hồ sơ trong chat', exact: true }).click();
   let dialog = hr.page.getByRole('dialog', { name: 'Đối chiếu đề nghị tiếp nhận', exact: true }); await dialog.getByLabel('Lý do quyết định', { exact: true }).fill('Independent HR ordinary personnel review'); await dialog.getByRole('button', { name: 'Phê duyệt tiếp nhận', exact: true }).click(); await dialog.waitFor({ state: 'hidden' });
   assert.equal((await call(hr, '/onboarding/pending-review')).body.items.length, 0);
   await hr.page.getByRole('button', { name: 'Quay lại CRM', exact: true }).click();
