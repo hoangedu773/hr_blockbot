@@ -1,5 +1,5 @@
 import { withPerformanceModuleGrants } from './performance-kpi-grants.service.js';
-import { AuthorizationStateSchema } from "@hr-blockbot/contracts";
+import { AuthorizationStateSchema, type AuthorizationState } from "@hr-blockbot/contracts";
 import { UserModel } from "../models/User.js";
 import { EmployeeModel } from "../models/Employee.js";
 import type { TokenClaims } from "./auth.service.js";
@@ -9,6 +9,25 @@ import mongoose from "mongoose";
 import { RefreshSessionModel } from "../models/RefreshSession.js";
 import { legacyApprovalBindsUser } from "./legacy-import-approval.service.js";
 import { withRevenueModuleGrants } from './revenue-kpi-grants.service.js';
+
+export function withLifecycleRoleGrants(authorization: AuthorizationState): AuthorizationState {
+  if (!["sm", "am"].includes(authorization.profile)) return authorization;
+  const grants = authorization.grants.map((grant) => {
+    if (grant.scope.kind !== "organization" || !String(grant.approvalRef ?? "").startsWith("OWNER_")) return grant;
+    const caps = new Set(grant.capabilities);
+    if (authorization.profile === "sm" && (caps.has("onboarding.propose") || caps.has("employees.transfer_confirm"))) {
+      caps.add("employees.lifecycle_request");
+      caps.add("employees.read_operational");
+    }
+    if (authorization.profile === "am" && (caps.has("employees.transfer_confirm") || caps.has("projects.assign"))) {
+      caps.add("employees.transfer");
+      caps.add("employees.lifecycle_request");
+      caps.add("employees.read_operational");
+    }
+    return caps.size === grant.capabilities.length ? grant : { ...grant, capabilities: [...caps] as typeof grant.capabilities };
+  });
+  return { ...authorization, grants };
+}
 
 export type PrincipalUnavailableReason = "UNAVAILABLE" | "ACCOUNT_MISSING" | "ACCOUNT_STATUS_UNREVIEWED" |
   "ACCOUNT_NOT_ACTIVE" | "PROVISIONING_NOT_ACTIVE" | "EMPLOYEE_LINK_MISSING" | "EMPLOYEE_STATUS_UNREVIEWED" |
@@ -79,7 +98,7 @@ export async function resolvePrincipal(claims: TokenClaims, options: { delegatio
     level: employee?.level ?? null, skills: Array.isArray(employee?.skills) ? employee.skills : [],
     mustChangePassword: user.mustChangePassword === true, isGlobalAdmin: user.isGlobalAdmin === true,
     securityVersion: version, accountActive: true, employeeActive: !!employee,
-    authorization: parsed.success ? await withPerformanceModuleGrants(String(user._id), await withRevenueModuleGrants(String(user._id), parsed.data)) : null,
+    authorization: parsed.success ? await withPerformanceModuleGrants(String(user._id), await withRevenueModuleGrants(String(user._id), withLifecycleRoleGrants(parsed.data))) : null,
     canonical: parsed.success && !user.mustChangePassword ? await resolveCanonicalContext(employee) : { verifiedStores: [], managedByStore: {}, ownStoreId: null },
     sid: claims.sid ?? null,
   };

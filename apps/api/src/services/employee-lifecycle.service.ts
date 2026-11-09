@@ -18,8 +18,10 @@ import type { OnboardingOptions } from "./onboarding.service.js";
 import { accountAuditHead } from "./account-security.service.js";
 import { workflowPage, workflowDetail, historyIntegrity } from "./workflow-page.service.js";
 import { withCrmWriter } from "./crm-writer.service.js";
+import { assertStaffingLink, linkStaffingTransfer, refreshStaffingFulfilment } from "./staffing-request.service.js";
+import { notifyStoreCapable, notifyUserSafe } from "./personnel-notification.service.js";
 const Id = z.string().regex(/^[a-f0-9]{24}$/i).transform((id) => id.toLowerCase());
-export const LifecycleCreateSchema = z.object({ employeeId: Id, kind: z.enum(["TRANSFER", "EXIT", "REACTIVATE"]), targetStoreId: Id.optional(), effectiveAt: z.string().datetime({ offset: true }), reason: z.string().trim().min(1).max(2000), expectedProfileVersion: z.number().int().nonnegative() }).strict();
+export const LifecycleCreateSchema = z.object({ employeeId: Id, kind: z.enum(["TRANSFER", "EXIT", "REACTIVATE"]), targetStoreId: Id.optional(), effectiveAt: z.string().datetime({ offset: true }), reason: z.string().trim().min(1).max(2000), expectedProfileVersion: z.number().int().nonnegative().optional(), staffingRequestId: Id.optional() }).strict();
 export const LifecycleDecisionSchema = z.object({ decision: z.enum(["APPROVE", "REJECT"]), expectedVersion: z.number().int().positive(), reason: z.string().trim().min(1).max(2000) }).strict();
 const tokenHash = (value: string) => createHash("sha256").update(value).digest("hex");
 const termsHash = (row: any) => digest({ employeeId: row.employeeId, kind: row.kind, sourceStoreId: row.sourceStoreId, targetStoreId: row.targetStoreId ?? null, effectiveAt: row.effectiveAt, snapshot: row.snapshot, requestedBy: row.requestedBy, requesterEmployeeId: row.requesterEmployeeId });
@@ -78,14 +80,37 @@ async function currentTransferConfirmations(row: any): Promise<boolean> {
 }
 export function lifecycleDto(row: any) {
   return { id: String(row._id), employeeId: String(row.employeeId), kind: row.kind, sourceStoreId: String(row.sourceStoreId), targetStoreId: row.targetStoreId ? String(row.targetStoreId) : null,
-    status: row.status, effectiveAt: row.effectiveAt, version: row.version, requestedBy: String(row.requestedBy), approvedBy: row.approvedBy ? String(row.approvedBy) : null,
-    confirmations: row.confirmations ?? [], deliveryState: row.deliveryState, history: Array.isArray(row.history) ? row.history : [] };
+    status: row.status, effectiveAt: row.effectiveAt, reason: row.reason ?? row.history?.[0]?.reason ?? "", version: row.version, requestedBy: String(row.requestedBy), approvedBy: row.approvedBy ? String(row.approvedBy) : null,
+    confirmations: row.confirmations ?? [], deliveryState: row.deliveryState, history: Array.isArray(row.history) ? row.history : [], staffingRequestId: row.staffingRequestId ? String(row.staffingRequestId) : null, createdAt: row.createdAt ?? null };
+}
+const KIND_LABEL: Record<string, string> = { TRANSFER: "điều chuyển cửa hàng", EXIT: "nghỉ việc", REACTIVATE: "tái kích hoạt" };
+/** Display names only (no sensitive fields); authorization already applied by the caller's scope. */
+async function withNames<T extends { employeeId: string; requestedBy: string; sourceStoreId: string; targetStoreId: string | null; confirmations: any[] }>(items: T[]) {
+  if (!items.length) return items;
+  const employeeIds = [...new Set(items.map((item) => item.employeeId))];
+  const userIds = [...new Set(items.flatMap((item) => [item.requestedBy, ...item.confirmations.map((entry: any) => String(entry.managerUserId))]))].filter((id) => /^[a-f0-9]{24}$/i.test(id));
+  const storeIds = [...new Set(items.flatMap((item) => [item.sourceStoreId, item.targetStoreId]).filter((id): id is string => !!id))];
+  const users: any[] = userIds.length ? await UserModel.find({ _id: { $in: userIds.map(objectId) } }).select("employeeId").lean() : [];
+  const allEmployeeIds = [...new Set([...employeeIds, ...users.map((user) => String(user.employeeId ?? "")).filter(Boolean)])];
+  const [employees, stores] = await Promise.all([
+    EmployeeModel.find({ _id: { $in: allEmployeeIds.map(objectId) } }).select("fullName employeeCode jobTitle job_title").lean(),
+    mongoose.connection.collection("stores").find({ _id: { $in: storeIds.map(objectId) } }, { projection: { store_name: 1 } }).toArray(),
+  ]);
+  const person = new Map((employees as any[]).map((row) => [String(row._id), row]));
+  const userPerson = new Map(users.map((user) => [String(user._id), person.get(String(user.employeeId))]));
+  const store = new Map(stores.map((row: any) => [String(row._id), String(row.store_name ?? "")]));
+  return items.map((item) => {
+    const employee: any = person.get(item.employeeId);
+    return { ...item, employeeName: employee?.fullName ?? null, employeeCode: employee?.employeeCode ?? null, employeeJobTitle: employee?.jobTitle ?? employee?.job_title ?? null,
+      requesterName: (userPerson.get(item.requestedBy) as any)?.fullName ?? null, sourceStoreName: store.get(item.sourceStoreId) ?? null, targetStoreName: item.targetStoreId ? store.get(item.targetStoreId) ?? null : null,
+      confirmations: item.confirmations.map((entry: any) => ({ ...entry, managerName: (userPerson.get(String(entry.managerUserId)) as any)?.fullName ?? null })) };
+  });
 }
 export async function createLifecycle(actor: AuthenticatedUser, input: unknown) {
   const parsed = LifecycleCreateSchema.safeParse(input); if (!parsed.success) throw new WorkflowError(400, "VALIDATION_FAILED", "Yêu cầu nhân sự không hợp lệ.");
   const body = parsed.data, employee: any = await EmployeeModel.findById(body.employeeId).lean();
   if (!employee?.storeMappingRef || !employee.storeId) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Hồ sơ chưa có mapping canonical.");
-  if ((employee.profileRevision ?? 0) !== body.expectedProfileVersion) throw new WorkflowError(409, "PROFILE_VERSION_CONFLICT", "Hồ sơ đã thay đổi.");
+  if (body.expectedProfileVersion !== undefined && (employee.profileRevision ?? 0) !== body.expectedProfileVersion) throw new WorkflowError(409, "PROFILE_VERSION_CONFLICT", "Hồ sơ đã thay đổi.");
   if (body.kind === "REACTIVATE" ? employee.status !== "inactive" : employee.status !== "active") throw new WorkflowError(409, "LIFECYCLE_STATE_CONFLICT", "Trạng thái hồ sơ không phù hợp.");
   if (body.kind === "TRANSFER" ? !body.targetStoreId || body.targetStoreId === String(employee.storeId) : !!body.targetStoreId) throw new WorkflowError(400, "INVALID_TRANSFER_TARGET", "Chỉ điều chuyển mới cần cửa hàng đích khác cửa hàng nguồn.");
   const user: any = employee.userId ? await UserModel.findById(employee.userId).lean() : await UserModel.findOne({ employeeId: employee._id }).lean();
@@ -94,28 +119,51 @@ export async function createLifecycle(actor: AuthenticatedUser, input: unknown) 
     effectiveAt: new Date(body.effectiveAt), requestedBy: objectId(actor.userId), requesterEmployeeId: objectId(actor.employeeId!), reason: body.reason,
     snapshot: { status: employee.status, storeId: String(employee.storeId), storeMappingRef: employee.storeMappingRef, profileRevision: employee.profileRevision ?? null, userId: user ? String(user._id) : null, userSecurityVersion: user ? securityVersion(user) : null }, status: "PENDING_REVIEW", confirmations: [], version: 1 };
   authorize(actor, row); await store(row.sourceStoreId); if (row.targetStoreId) await store(row.targetStoreId);
+  if (body.staffingRequestId) {
+    if (body.kind !== "TRANSFER") throw new WorkflowError(400, "VALIDATION_FAILED", "Chỉ điều chuyển mới gắn với yêu cầu bổ sung nhân sự.");
+    await assertStaffingLink(actor, body.staffingRequestId, body.targetStoreId!); row.staffingRequestId = objectId(body.staffingRequestId);
+  }
   const indexes = await RequestModel.collection.indexes(); if (!indexes.some((index: any) => index.unique && index.key.openKey)) throw new WorkflowError(503, "LIFECYCLE_INDEX_REQUIRED", "Chưa có unique index chống yêu cầu trùng.");
-  try { return await RequestModel.create({ ...row, history: [history(null, actor.userId, row, body.reason, "REQUESTED")] }); }
+  let created: any;
+  try { created = await RequestModel.create({ ...row, history: [history(null, actor.userId, row, body.reason, "REQUESTED")] }); }
   catch (error: any) { if (error.code === 11000) throw new WorkflowError(409, "LIFECYCLE_REQUEST_EXISTS", "Đã có yêu cầu nhân sự đang chờ cho hồ sơ này."); throw error; }
+  const id = String(created._id);
+  if (body.staffingRequestId) await linkStaffingTransfer(actor, body.staffingRequestId, id);
+  void notifyStoreCapable("employees.lifecycle_review", String(row.sourceStoreId), { title: `Đề nghị ${KIND_LABEL[row.kind]} chờ HR duyệt`, body: `${employee.fullName ?? "Nhân viên"} · ${row.reason}`.slice(0, 900), dedupeKey: `lifecycle:${id}:requested`, entityId: id }, { excludeUserIds: [actor.userId], profiles: ["hr"] });
+  return created;
 }
 export async function reviewLifecycle(actor: AuthenticatedUser, id: string, input: unknown, options: OnboardingOptions = {}) {
   const parsed = LifecycleDecisionSchema.safeParse(input); if (!parsed.success) throw new WorkflowError(400, "VALIDATION_FAILED", "Cần quyết định, lý do và phiên bản.");
   let row: any = await RequestModel.findById(objectId(id)).lean(); if (!row) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy yêu cầu.");
   authorize(actor, row, true); if (row.status !== "PENDING_REVIEW" || row.version !== parsed.data.expectedVersion) throw new WorkflowError(409, "LIFECYCLE_VERSION_CONFLICT", "Yêu cầu đã thay đổi.");
-  if (parsed.data.decision === "REJECT") return advance(row, actor.userId, { status: "REJECTED", openKey: undefined }, parsed.data.reason, "HR_REJECTED");
+  if (parsed.data.decision === "REJECT") {
+    const rejected = await advance(row, actor.userId, { status: "REJECTED", openKey: undefined }, parsed.data.reason, "HR_REJECTED");
+    void notifyUserSafe(String(row.requestedBy), { title: `HR từ chối đề nghị ${KIND_LABEL[row.kind]}`, body: parsed.data.reason, dedupeKey: `lifecycle:${id}:rejected`, entityId: String(id) });
+    return rejected;
+  }
   row = await advance(row, actor.userId, { status: "APPROVED", approvedBy: objectId(actor.userId), approvedAt: new Date() }, parsed.data.reason, "HR_APPROVED");
+  void notifyUserSafe(String(row.requestedBy), { title: `HR đã duyệt đề nghị ${KIND_LABEL[row.kind]}`, body: row.kind === "TRANSFER" ? "Đang chờ SM cửa hàng nguồn và đích xác nhận." : parsed.data.reason, dedupeKey: `lifecycle:${id}:approved`, entityId: String(id) });
+  if (row.kind === "TRANSFER") for (const storeId of [String(row.sourceStoreId), String(row.targetStoreId)])
+    void notifyStoreCapable("employees.transfer_confirm", storeId, { title: "Điều chuyển nhân sự chờ cửa hàng xác nhận", body: "HR đã duyệt đề nghị điều chuyển. Vui lòng mở Điều chuyển & trạng thái để đồng ý.", dedupeKey: `lifecycle:${id}:confirm:${storeId}`, entityId: String(id) }, { excludeUserIds: [String(row.requestedBy)], profiles: ["sm"], requireManaged: true });
   return resumeLifecycle(actor, String(row._id), options);
 }
-export async function confirmLifecycle(actor: AuthenticatedUser, id: string, storeId: string, expectedVersion: number, reason: string) {
+export async function confirmLifecycle(actor: AuthenticatedUser, id: string, storeId: string, expectedVersion: number, reason: string, options: OnboardingOptions = {}) {
   const row: any = await RequestModel.findById(objectId(id)).lean(); if (!row) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy yêu cầu.");
   verify(row);
-  if (row.kind !== "TRANSFER" || ![String(row.sourceStoreId), String(row.targetStoreId)].includes(storeId) || !["PENDING_REVIEW", "APPROVED", "PENDING_CONFIRMATIONS"].includes(row.status) || row.version !== expectedVersion) throw new WorkflowError(409, "LIFECYCLE_VERSION_CONFLICT", "Không còn chờ xác nhận cửa hàng này.");
+  if (row.kind !== "TRANSFER" || ![String(row.sourceStoreId), String(row.targetStoreId)].includes(storeId)) throw new WorkflowError(409, "LIFECYCLE_VERSION_CONFLICT", "Không còn chờ xác nhận cửa hàng này.");
   const source = storeId === String(row.sourceStoreId);
   requireCapability(actor, "employees.transfer_confirm", { ...resourceScope(actor, { storeId, storeMappingRef: "verified", employeeId: source ? row.employeeId : undefined }), requiresIndependentApproval: true, requesterUserId: String(row.requestedBy), subjectEmployeeId: String(row.employeeId) });
   if (!actor.canonical?.managedByStore[storeId]?.length || source && !actor.canonical.managedByStore[storeId].includes(String(row.employeeId))) throw new WorkflowError(403, "VERIFIED_MANAGER_REQUIRED", "Cần quản lý thực tế của cửa hàng liên quan.");
+  if (row.status === "PENDING_REVIEW") throw new WorkflowError(409, "HR_APPROVAL_REQUIRED", "Cần HR duyệt đề nghị điều chuyển trước khi cửa hàng xác nhận.");
+  if (!["APPROVED", "PENDING_CONFIRMATIONS"].includes(row.status) || row.version !== expectedVersion) throw new WorkflowError(409, "LIFECYCLE_VERSION_CONFLICT", "Không còn chờ xác nhận cửa hàng này.");
   if (row.confirmations.some((entry: any) => entry.storeId === storeId)) throw new WorkflowError(409, "ALREADY_CONFIRMED", "Bên quản lý cửa hàng đã xác nhận.");
   const confirmation = { storeId, managerUserId: actor.userId, managerEmployeeId: actor.employeeId, at: new Date().toISOString(), reason };
-  return advance(row, actor.userId, { confirmations: [...row.confirmations, confirmation] }, reason, "STORE_MANAGER_CONFIRMED");
+  const confirmed = await advance(row, actor.userId, { confirmations: [...row.confirmations, confirmation] }, reason, "STORE_MANAGER_CONFIRMED");
+  if (confirmed.confirmations.length < 2) return confirmed;
+  // Both stores agreed after HR approval: continue as the approving HR, rechecked
+  // against current grants. Unmet conditions (date, CRM handover) keep it waiting.
+  try { const reviewer = await currentApproval(confirmed); return await resumeLifecycle(reviewer, id, options); }
+  catch { return (await RequestModel.findById(confirmed._id).lean()) ?? confirmed; }
 }
 async function hasActiveWorkObligations(employeeId: string): Promise<boolean> {
   const [hasProject, hasTask] = await Promise.all([
@@ -192,6 +240,8 @@ async function finish(row: any, options: OnboardingOptions) {
   const done = await advance(row, reviewer.userId, { status: "COMPLETED", openKey: undefined, recoveryTokenHash: undefined, recoveryExpiresAt: undefined, recoveryPasswordHash: undefined }, "Đã áp dụng theo phê duyệt và ngày hiệu lực; không đổi KPI hoặc lịch sử nhiệm vụ", "COMPLETED");
   options.failpoint?.("lifecycle-after-decision");
   await EmployeeModel.updateOne({ _id: row.employeeId, lifecyclePendingRequestId: id }, { $unset: { lifecyclePendingRequestId: "" } });
+  if (row.staffingRequestId) await refreshStaffingFulfilment(String(row.staffingRequestId), reviewer.userId);
+  void notifyUserSafe(String(row.requestedBy), { title: `Đã hoàn tất ${KIND_LABEL[row.kind]}`, body: "Hồ sơ nhân sự đã được cập nhật theo phê duyệt.", dedupeKey: `lifecycle:${id}:completed`, entityId: id });
   return done;
 }
 export async function resumeLifecycle(actor: AuthenticatedUser, id: string, options: OnboardingOptions = {}) {
@@ -254,6 +304,28 @@ function lifecycleScope(actor: AuthenticatedUser) {
     }),
   ] };
 }
-export async function pageLifecycle(actor: AuthenticatedUser, query: unknown = {}) { return workflowPage(RequestModel, lifecycleScope(actor), query, lifecycleDto); }
+const IN_PROGRESS = ["APPROVED", "PENDING_CONFIRMATIONS", "PENDING_EFFECTIVE", "PENDING_HANDOVER", "PENDING_ACTIVATION", "ACTIVATING", "APPLYING"];
+function lifecycleGroup(actor: AuthenticatedUser, group: unknown): any {
+  switch (group) {
+    case "pending_review": return { status: "PENDING_REVIEW" };
+    case "in_progress": return { status: { $in: IN_PROGRESS } };
+    case "closed": return { status: { $in: ["COMPLETED", "REJECTED"] } };
+    case "mine": return { requestedBy: objectId(actor.userId) };
+    case "awaiting_me": {
+      // Transfers HR already approved where one of MY verified stores has not agreed yet.
+      const clauses = allowedStoreIds(actor, "employees.transfer_confirm").flatMap((id) => {
+        const managed = actor.canonical?.managedByStore[id] ?? [];
+        return managed.length ? [{ sourceStoreId: objectId(id), employeeId: { $in: managed.map(objectId) }, "confirmations.storeId": { $ne: id } }, { targetStoreId: objectId(id), "confirmations.storeId": { $ne: id } }] : [];
+      });
+      return { kind: "TRANSFER", status: { $in: ["APPROVED", "PENDING_CONFIRMATIONS"] }, requestedBy: { $ne: objectId(actor.userId) }, $or: clauses.length ? clauses : [{ _id: { $in: [] } }] };
+    }
+    default: return null;
+  }
+}
+export async function pageLifecycle(actor: AuthenticatedUser, query: any = {}) {
+  const scope = lifecycleScope(actor), group = lifecycleGroup(actor, query?.group);
+  const page = await workflowPage(RequestModel, group ? { $and: [scope, group] } : scope, query, lifecycleDto);
+  return { ...page, items: await withNames(page.items) };
+}
 export async function listLifecycle(actor: AuthenticatedUser) { return (await pageLifecycle(actor)).items; }
-export async function getLifecycle(actor: AuthenticatedUser, id: string) { return workflowDetail(RequestModel, lifecycleScope(actor), id, (row) => ({ ...lifecycleDto(row), auditIntegrity: historyIntegrity(row, verify) })); }
+export async function getLifecycle(actor: AuthenticatedUser, id: string) { const row = await workflowDetail(RequestModel, lifecycleScope(actor), id, (value) => ({ ...lifecycleDto(value), auditIntegrity: historyIntegrity(value, verify) })); return (await withNames([row]))[0]; }

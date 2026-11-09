@@ -11,6 +11,7 @@ const schema = new Schema({
   recoveryTokenHash: { type: String }, recoveryExpiresAt: { type: Date }, recoveryPasswordHash: { type: String },
   deliveryState: { type: String, default: "NOT_CONFIGURED", enum: ["NOT_CONFIGURED", "PENDING", "DELIVERED", "FAILED"] },
   history: { type: [Schema.Types.Mixed], default: [] },
+  staffingRequestId: { type: Schema.Types.ObjectId, default: null },
 }, { collection: "employee_lifecycle_requests", strict: "throw", timestamps: true });
 schema.index({ openKey: 1 }, { unique: true, partialFilterExpression: { openKey: { $type: "string" } } });
 schema.index({ recoveryTokenHash: 1 }, { unique: true, partialFilterExpression: { recoveryTokenHash: { $type: "string" } } });

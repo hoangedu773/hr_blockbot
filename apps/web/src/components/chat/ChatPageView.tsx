@@ -14,6 +14,18 @@ import {
   buildWorkflowTrace,
   type MessageWorkflowTrace,
 } from './ChatWorkflowStream';
+import { EmployeeLifecycleView } from '../EmployeeLifecycleView';
+import {
+  ChatLifecycle,
+  isStaffingProposalRequest,
+  isLifecycleExitRequest,
+  isLifecycleReactivateRequest,
+  isTransferConfirmRequest,
+  isStaffingViewRequest,
+  isTransferProposalRequest,
+  isLifecycleReviewRequest,
+  type ChatLifecycleMode,
+} from './ChatLifecycle';
 import { PerformanceKpiView } from '../PerformanceKpiView';
 import '../../styles/crm-work.css';
 import { apiFetch, API_BASE } from '../../services/auth';
@@ -39,6 +51,7 @@ interface ChatComposerProps {
   onSend: (text: string) => void;
   inputRef?: React.RefObject<HTMLTextAreaElement>;
   onboarding?: boolean;
+  composerPlaceholder?: string;
 }
 
 export const ChatComposer: React.FC<ChatComposerProps> = ({
@@ -46,6 +59,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   onSend,
   inputRef: externalRef,
   onboarding,
+  composerPlaceholder,
 }) => {
   const [input, setInput] = useState('');
   const internalRef = useRef<HTMLTextAreaElement>(null);
@@ -80,7 +94,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           maxLength={2000}
           value={input}
           onChange={(event) => setInput(event.target.value)}
-          placeholder={onboarding ? 'Nhập câu trả lời để tiếp nhận nhân viên…' : 'Hỏi AI về ca trực, nhân sự, tiền két...'}
+          placeholder={composerPlaceholder || (onboarding ? 'Nhập câu trả lời để tiếp nhận nhân viên…' : 'Hỏi AI về ca trực, nhân sự, tiền két...')}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault();
@@ -196,13 +210,39 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   const profileLabel = user?.authorization?.profile || 'Chưa cấp profile';
   const canProposeOnboarding = user?.authorization?.capabilities?.includes('onboarding.propose');
   const canReviewOnboarding = user?.authorization?.capabilities?.includes('onboarding.review');
+  const canProposeLifecycle = user?.authorization?.capabilities?.includes('employees.lifecycle_request');
+  const canTransfer = user?.authorization?.capabilities?.includes('employees.transfer');
+  const canReviewLifecycle = user?.authorization?.capabilities?.includes('employees.lifecycle_review');
+  const canConfirmTransfer = user?.authorization?.stores?.some((s) => s.capabilities.includes('employees.transfer_confirm'));
+  const isSmUser = user?.authorization?.profile === 'sm' || user?.authorization?.stores?.some((s) => s.capabilities.includes('onboarding.propose') || s.capabilities.includes('employees.lifecycle_request'));
+  const isAmUser = user?.authorization?.profile === 'am' || canTransfer;
+  const isHrUser = user?.authorization?.profile === 'hr' || canReviewLifecycle;
+
   const [intakePrompt, setIntakePrompt] = useState<string | null>(null);
+  const [lifecyclePrompt, setLifecyclePrompt] = useState<{ prompt: string; mode: ChatLifecycleMode } | null>(null);
+  const [lifecycleCrm, setLifecycleCrm] = useState<{ id?: string; mode: 'review' | 'awaiting_me'; key: number } | null>(null);
   const [kpiAction, setKpiAction] = useState<{ id: string; period: string; kind: string } | null>(null);
+
   const quickReplies = [
     { label: 'Thông báo nào cần xử lý?', prompt: 'Thông báo nào cần xử lý?' },
     ...ROLE_PROMPTS[roleKey(user?.authorization?.profile)],
     ...(canProposeOnboarding ? [{ label: 'Tiếp nhận nhân viên mới', prompt: 'Tiếp nhận nhân viên mới' }] : []),
     ...(canReviewOnboarding ? [{ label: 'Hồ sơ tiếp nhận nào chờ duyệt?', prompt: 'Hồ sơ tiếp nhận nào chờ duyệt?' }] : []),
+    ...(isSmUser
+      ? [
+          { label: 'Xin bổ sung nhân sự', prompt: 'Xin bổ sung nhân sự' },
+          { label: 'Đề xuất cho nhân viên nghỉ việc', prompt: 'Đề xuất cho nhân viên nghỉ việc' },
+          { label: 'Đề xuất tái kích hoạt nhân viên', prompt: 'Đề xuất tái kích hoạt nhân viên' },
+        ]
+      : []),
+    ...(canConfirmTransfer ? [{ label: 'Xác nhận điều chuyển nhân sự', prompt: 'Xác nhận điều chuyển nhân sự' }] : []),
+    ...(isAmUser
+      ? [
+          { label: 'Xem yêu cầu bổ sung nhân sự từ SM', prompt: 'Xem yêu cầu bổ sung nhân sự từ SM' },
+          { label: 'Điều chuyển nhân viên giữa 2 cửa hàng', prompt: 'Điều chuyển nhân viên giữa 2 cửa hàng' },
+        ]
+      : []),
+    ...(isHrUser ? [{ label: 'Duyệt yêu cầu nhân sự', prompt: 'Duyệt yêu cầu nhân sự' }] : []),
     ...(user?.authorization?.capabilities?.some(cap => cap === 'revenue_kpi.read_self' || cap === 'revenue_kpi.read_scope')
       ? [{ label: 'KPI doanh thu tháng này', prompt: 'KPI doanh thu tháng này' }] : []),
     ...(user?.authorization?.capabilities?.some(cap => cap === 'task.respond' || cap === 'task.manage' || cap === 'performance_kpi.read_self' || cap === 'performance_kpi.read_scope')
@@ -312,6 +352,8 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
 
   const newChat = (focus = true) => {
     setIntakePrompt(null);
+    setLifecyclePrompt(null);
+    setLifecycleCrm(null);
     inbox.reset();
     revenue.reset();
     workPerf.reset();
@@ -372,6 +414,8 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   };
   const openConversation = (id: string) => {
     setIntakePrompt(null);
+    setLifecyclePrompt(null);
+    setLifecycleCrm(null);
     inbox.reset();
     revenue.reset();
     workPerf.reset();
@@ -429,6 +473,8 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     if (canReviewOnboarding) {
       historySequence.current++;
       setIntakePrompt(null);
+      setLifecyclePrompt(null);
+      setLifecycleCrm(null);
       setKpiAction(null);
       setServiceUnavailable(false);
       revenue.reset();
@@ -446,6 +492,48 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     streamStartMsRef.current = Date.now();
     chunkCountRef.current = 0;
     lastPromptTextRef.current = text;
+    if (isLifecycleReviewRequest(text) && isHrUser) {
+      historySequence.current++;
+      setLifecyclePrompt({ prompt: text, mode: 'HR_REVIEW' });
+      setSidebarOpen(false);
+      return;
+    }
+    if (isTransferConfirmRequest(text) && canConfirmTransfer) {
+      historySequence.current++;
+      setLifecyclePrompt({ prompt: text, mode: 'TRANSFER_CONFIRM' });
+      setSidebarOpen(false);
+      return;
+    }
+    if (isStaffingViewRequest(text) && isAmUser) {
+      historySequence.current++;
+      setLifecyclePrompt({ prompt: text, mode: 'STAFFING_VIEW' });
+      setSidebarOpen(false);
+      return;
+    }
+    if (isStaffingProposalRequest(text) && isSmUser) {
+      historySequence.current++;
+      setLifecyclePrompt({ prompt: text, mode: 'STAFFING_PROPOSAL' });
+      setSidebarOpen(false);
+      return;
+    }
+    if (isTransferProposalRequest(text) && canTransfer) {
+      historySequence.current++;
+      setLifecyclePrompt({ prompt: text, mode: 'TRANSFER_PROPOSAL' });
+      setSidebarOpen(false);
+      return;
+    }
+    if (isLifecycleExitRequest(text) && canProposeLifecycle) {
+      historySequence.current++;
+      setLifecyclePrompt({ prompt: text, mode: 'EXIT_PROPOSAL' });
+      setSidebarOpen(false);
+      return;
+    }
+    if (isLifecycleReactivateRequest(text) && canProposeLifecycle) {
+      historySequence.current++;
+      setLifecyclePrompt({ prompt: text, mode: 'REACTIVATE_PROPOSAL' });
+      setSidebarOpen(false);
+      return;
+    }
     const append = appendInline(lastMessageId, text);
     const flow = lastFlow.current === 'inbox' && inbox.send(text, append) ? 'inbox'
       : lastFlow.current === 'workPerf' && workPerf.send(text, append, true) ? 'workPerf'
@@ -681,9 +769,6 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
           </div>)}
           {listCursor && <button type="button" onClick={() => void loadConversations(listCursor)}>Hội thoại cũ hơn</button>}
         </nav>
-        {/* One nav, not two. The role quick replies already render in the centre
-            column where the user is looking; repeating them here made the
-            sidebar a second, competing menu. */}
         <footer>
           <button className="chat-back-crm" type="button" onClick={() => onSwitchTab('crm')}>Quay lại Vận Hành (CRM)</button>
           <button type="button" aria-label="Đăng Xuất Phiên" onClick={onLogout}>Đăng xuất</button>
@@ -752,6 +837,27 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
           <ChatOnboarding prompt={intakePrompt} onExit={() => setIntakePrompt(null)}
             stores={user?.authorization?.stores.filter(store => store.capabilities.includes('onboarding.propose')) ?? []}
             renderComposer={(onSend, busy) => <ChatComposer onSend={onSend} isTyping={busy} onboarding />} />
+        ) : lifecyclePrompt ? (
+          <ChatLifecycle
+            initialPrompt={lifecyclePrompt.prompt}
+            mode={lifecyclePrompt.mode}
+            stores={user?.authorization?.stores ?? []}
+            onExit={() => setLifecyclePrompt(null)}
+            onOpenLifecycleCrm={(id) => {
+              setLifecyclePrompt(null);
+              setLifecycleCrm({ id, mode: 'review', key: Date.now() });
+            }}
+            renderComposer={(onSend, busy, placeholder) => (
+              <ChatComposer onSend={onSend} isTyping={busy} composerPlaceholder={placeholder} />
+            )}
+          />
+        ) : lifecycleCrm ? (
+          <div className="guta-chat-body" aria-label="Xử lý hồ sơ nhân sự trong chat">
+            <div className="guta-chat-width">
+              <button type="button" className="btn" onClick={() => setLifecycleCrm(null)}>Quay lại hội thoại</button>
+              <EmployeeLifecycleView key={lifecycleCrm.key} chatMode={lifecycleCrm.mode} initialRequestId={lifecycleCrm.id} />
+            </div>
+          </div>
         ) : kpiAction ? (
           <div className="guta-chat-body" aria-label="Đánh giá hiệu suất trong chat">
             <div className="guta-chat-width">
@@ -941,10 +1047,6 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
                     </article>
                   );
                 })}
-                {inlineBusy && <p role="status">Đang xử lý…</p>}
-                {workflowMode && activeStreamingTrace && isTyping && !isStreaming && (
-                  <WorkflowTracePanel trace={activeStreamingTrace} defaultExpanded />
-                )}
                 {/* ponytail: CSS keyframes step carousel; add SSE streaming stage events when backend supports event-driven progress */}
                 {isTyping && !isStreaming && (
                   <div className="guta-chat-status" role="status">
@@ -968,28 +1070,13 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
                     </div>
                   </div>
                 )}
+                {isTyping && workflowMode && activeStreamingTrace && (
+                  <WorkflowTracePanel trace={activeStreamingTrace} defaultExpanded />
+                )}
                 <div ref={endRef} />
               </div>
             </div>
-            <div className="guta-chat-bottom">
-              {workflowMode && (
-                <div className="guta-workflow-quickbar guta-chat-width" aria-label="Gợi ý chạy nhanh các luồng">
-                  <span className="guta-workflow-quickbar-label">⚡ Chạy thử luồng:</span>
-                  {WORKFLOW_SUGGESTIONS.map((item) => (
-                    <button
-                      type="button"
-                      key={item.label}
-                      className="guta-workflow-quickbar-chip"
-                      disabled={isTyping || historyLoading || inlineBusy}
-                      onClick={() => void send(item.prompt)}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {composer}
-            </div>
+            <div className="guta-chat-bottom">{composer}</div>
           </>
         )}
       </main>

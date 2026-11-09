@@ -80,11 +80,13 @@ test('transfer needs source+destination managers and independent HR, preserves r
   const request = await call('hr', '/employee-lifecycle', input); assert.equal(request.status, 201);
   let row = request.body;
   assert.equal((await call('smB', `/employee-lifecycle/${row.id}/confirm-store`, { storeId: String(fixture.stores[0]._id), expectedVersion: row.version, reason: 'Wrong source manager' })).status, 403);
-  row = (await call('sm', `/employee-lifecycle/${row.id}/confirm-store`, { storeId: String(fixture.stores[0]._id), expectedVersion: row.version, reason: 'Source manager confirms handover arrangement' })).body;
+  assert.equal((await call('sm', `/employee-lifecycle/${row.id}/confirm-store`, { storeId: String(fixture.stores[0]._id), expectedVersion: row.version, reason: 'Cannot confirm before HR approves' })).status, 409);
   const pending = await call('hr2', `/employee-lifecycle/${row.id}/review`, review(row)); assert.equal(pending.status, 200); assert.equal(pending.body.status, 'PENDING_CONFIRMATIONS'); row = pending.body;
+  row = (await call('sm', `/employee-lifecycle/${row.id}/confirm-store`, { storeId: String(fixture.stores[0]._id), expectedVersion: row.version, reason: 'Source manager confirms handover arrangement' })).body;
   assert.equal(String((await EmployeeModel.findById(input.employeeId)).storeId), String(fixture.stores[0]._id));
-  row = (await call('smB', `/employee-lifecycle/${row.id}/confirm-store`, { storeId: String(fixture.stores[1]._id), expectedVersion: row.version, reason: 'Destination manager confirms' })).body;
   const project = await ProjectModel.create({ title: 'Existing pending task must be handled by CRM', storeId: fixture.stores[0]._id, storeMappingRef: 'fixture-work', departmentId: fixture.departmentId, assigneeId: fixture.actors.staff.employee._id, createdBy: fixture.actors.sm.employee._id, status: 'ASSIGNED', version: 1 });
+  row = (await call('smB', `/employee-lifecycle/${row.id}/confirm-store`, { storeId: String(fixture.stores[1]._id), expectedVersion: row.version, reason: 'Destination manager confirms' })).body;
+  assert.equal(row.status, 'PENDING_HANDOVER');
   const wait = await call('hr2', `/employee-lifecycle/${row.id}/resume`, {}); assert.equal(wait.status, 200); assert.equal(wait.body.status, 'PENDING_HANDOVER');
   assert.equal(String((await ProjectModel.findById(project._id)).assigneeId), input.employeeId);
   // Isolated prerequisite fixture: actual CRM consent/handover is tested independently, not auto-applied by HR.
@@ -125,4 +127,31 @@ test('SM can propose single-store exit for managed employee, AM can propose mult
   const transferReq = await call('am', '/employee-lifecycle', await proposal('sm', 'TRANSFER', { targetStoreId: String(fixture.stores[1]._id) })); assert.equal(transferReq.status, 201);
   assert.equal((await call('am', `/employee-lifecycle/${transferReq.body.id}/review`, review(transferReq.body))).status, 403);
   assert.equal((await call('hr', `/employee-lifecycle/${transferReq.body.id}/review`, review(transferReq.body, 'REJECT'))).status, 200);
+});
+test('SM staffing request -> AM transfer proposal -> HR approval -> 2 stores confirm automatically completes transfer and fulfils staffing request', async () => {
+  await UserModel.updateOne({ _id: fixture.actors.smB.user._id }, { $addToSet: { 'authorization.grants.1.capabilities': 'employees.lifecycle_request' } });
+  const transferEmp = await EmployeeModel.create({ employeeCode: 'LIFECYCLE-STAFF-TRANSFER', fullName: 'Staff for SM-AM-HR transfer flow', storeId: fixture.stores[0]._id, storeMappingRef: 'fixture-confirmed', departmentId: fixture.departmentId, status: 'active', level: 'Junior' });
+  await ManagementRelationModel.create({ managerEmployeeId: fixture.actors.sm.employee._id, employeeId: transferEmp._id, storeId: fixture.stores[0]._id, approvalRef: 'fixture-sm-transfer-emp', validFrom: new Date(Date.now() - 60000), validUntil: null, version: 1 });
+  const staffing = await call('smB', '/staffing-requests', { storeId: String(fixture.stores[1]._id), quantity: 1, jobTitle: 'Barista', neededBy: new Date(Date.now() + 3600000).toISOString(), reason: 'Need 1 barista for evening shift' });
+  assert.equal(staffing.status, 201, JSON.stringify(staffing.body));
+  assert.equal(staffing.body.status, 'PENDING_AM');
+  assert.equal((await call('hr', `/staffing-requests/${staffing.body.id}/decision`, { decision: 'ACCEPT', expectedVersion: 1, reason: 'HR is not AM coordinator' })).status, 403);
+  const transfer = await call('am', '/employee-lifecycle', { employeeId: String(transferEmp._id), kind: 'TRANSFER', targetStoreId: String(fixture.stores[1]._id), staffingRequestId: staffing.body.id, effectiveAt: new Date().toISOString(), expectedProfileVersion: 0, reason: 'AM coordinates transfer for SM staffing request' });
+  assert.equal(transfer.status, 201, JSON.stringify(transfer.body));
+  const updatedStaffing = await call('am', `/staffing-requests/${staffing.body.id}`);
+  assert.equal(updatedStaffing.body.status, 'IN_PROGRESS');
+  assert.equal(updatedStaffing.body.progress.linked, 1);
+  const hrApproved = await call('hr', `/employee-lifecycle/${transfer.body.id}/review`, review(transfer.body, 'APPROVE'));
+  assert.equal(hrApproved.status, 200);
+  assert.equal(hrApproved.body.status, 'PENDING_CONFIRMATIONS');
+  const sourceOk = await call('sm', `/employee-lifecycle/${transfer.body.id}/confirm-store`, { storeId: String(fixture.stores[0]._id), expectedVersion: hrApproved.body.version, reason: 'Source SM agrees to release employee' });
+  assert.equal(sourceOk.status, 200);
+  assert.equal(sourceOk.body.status, 'PENDING_CONFIRMATIONS');
+  const targetOk = await call('smB', `/employee-lifecycle/${transfer.body.id}/confirm-store`, { storeId: String(fixture.stores[1]._id), expectedVersion: sourceOk.body.version, reason: 'Destination SM agrees to receive employee' });
+  assert.equal(targetOk.status, 200, JSON.stringify(targetOk.body));
+  assert.equal(targetOk.body.status, 'COMPLETED');
+  assert.equal(String((await EmployeeModel.findById(transferEmp._id)).storeId), String(fixture.stores[1]._id));
+  const fulfilled = await call('smB', `/staffing-requests/${staffing.body.id}`);
+  assert.equal(fulfilled.body.status, 'FULFILLED');
+  assert.equal(fulfilled.body.progress.completed, 1);
 });

@@ -5,6 +5,7 @@ import { authenticateToken } from "../middlewares/auth.middleware.js";
 import { endpoint as endpoint } from "../lib/endpoint.js";
 import { WorkflowError } from "../services/project-workflow.service.js";
 import { createLifecycle, reviewLifecycle, confirmLifecycle, resumeLifecycle, activateLifecycle, pageLifecycle, getLifecycle, lifecycleDto } from "../services/employee-lifecycle.service.js";
+import { createStaffing, decideStaffing, cancelStaffing, pageStaffing, getStaffing } from "../services/staffing-request.service.js";
 const router = Router();
 router.use("/employee-lifecycle", authenticateToken, (_req, res, next) => { res.setHeader("Cache-Control", "private, no-store"); next(); });
 router.get("/employee-lifecycle", endpoint(async (req, res) => { res.json(await pageLifecycle(req.user!, req.query)); }));
@@ -14,8 +15,14 @@ router.post("/employee-lifecycle/:id/review", endpoint(async (req, res) => { res
 router.post("/employee-lifecycle/:id/confirm-store", endpoint(async (req, res) => {
   const parsed = z.object({ storeId: z.string().regex(/^[a-f0-9]{24}$/i).transform((id) => id.toLowerCase()), expectedVersion: z.number().int().positive(), reason: z.string().trim().min(1).max(2000) }).strict().safeParse(req.body);
   if (!parsed.success) throw new WorkflowError(400, "VALIDATION_FAILED", "Cần cửa hàng canonical, lý do và phiên bản.");
-  res.json(lifecycleDto(await confirmLifecycle(req.user!, req.params.id, parsed.data.storeId, parsed.data.expectedVersion, parsed.data.reason)));
+  res.json(lifecycleDto(await confirmLifecycle(req.user!, req.params.id, parsed.data.storeId, parsed.data.expectedVersion, parsed.data.reason, req.app.locals.onboardingOptions)));
 }));
+router.use("/staffing-requests", authenticateToken, (_req, res, next) => { res.setHeader("Cache-Control", "private, no-store"); next(); });
+router.get("/staffing-requests", endpoint(async (req, res) => { res.json(await pageStaffing(req.user!, req.query)); }));
+router.get("/staffing-requests/:id", endpoint(async (req, res) => { res.json(await getStaffing(req.user!, req.params.id)); }));
+router.post("/staffing-requests", endpoint(async (req, res) => { res.status(201).json(await createStaffing(req.user!, req.body)); }));
+router.post("/staffing-requests/:id/decision", endpoint(async (req, res) => { res.json(await decideStaffing(req.user!, req.params.id, req.body)); }));
+router.post("/staffing-requests/:id/cancel", endpoint(async (req, res) => { res.json(await cancelStaffing(req.user!, req.params.id, req.body)); }));
 router.post("/employee-lifecycle/:id/resume", endpoint(async (req, res) => { res.json(lifecycleDto(await resumeLifecycle(req.user!, req.params.id, req.app.locals.onboardingOptions))); }));
 router.post("/auth/reactivate", endpoint(async (req, res) => {
   const parsed = ActivationRequestSchema.safeParse(req.body); if (!parsed.success) throw new WorkflowError(400, "VALIDATION_FAILED", "Lời mời/mật khẩu không hợp lệ.");
