@@ -458,7 +458,14 @@ export async function streamChatWithAiService(
         const detail = errBody.detail;
         if (detail && typeof detail === "object" && "code" in detail &&
           (detail.code === "SAFETY_BLOCKED" || detail.code === "SAFETY")) errCode = "SAFETY_BLOCKED";
-      } catch {}
+      } catch (parseError) {
+        // Body không phải JSON hợp lệ — vẫn ném WorkflowError bên dưới, nhưng giữ
+        // dấu vết để phân biệt "AI service trả lỗi có cấu trúc" với "body hỏng".
+        console.warn("[ai-client] failed to parse AI error body", {
+          status: response.status,
+          error: parseError instanceof Error ? parseError.name : typeof parseError,
+        });
+      }
       throw new WorkflowError(response.status >= 500 ? 503 : response.status, errCode, "AI service error");
     }
 
