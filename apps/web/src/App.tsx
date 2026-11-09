@@ -5,6 +5,8 @@ import { ToastContainer, type ToastMessage, type NotifyFn } from './components/T
 import { BrandMark } from './components/BrandMark';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { ActivationView } from './components/ActivationView';
+import { NotificationCenter } from './components/NotificationCenter';
+import type { ActiveCrmView } from './components/CrmDashboardView';
 const FolioLandingView = React.lazy(() =>
   import('./components/FolioLandingView').then((m) => ({ default: m.FolioLandingView }))
 );
@@ -26,6 +28,12 @@ export const AppContent: React.FC = () => {
   // where the shift and roster decisions live; chat is a secondary tool reached
   // from the sidebar.
   const [activeTab, setActiveTab] = useState<'crm' | 'chat'>('crm');
+  const [notificationView, setNotificationView] = useState<ActiveCrmView | null>(null);
+  const clearNotificationView = useCallback(() => setNotificationView(null), []);
+  const openNotificationView = useCallback((view: ActiveCrmView) => {
+    setNotificationView(view);
+    setActiveTab('crm');
+  }, []);
   const [activationToken, setActivationToken] = useState(() => {
     const parameters = new URLSearchParams(window.location.hash.slice(1));
     const token = parameters.get('legacy-import') || parameters.get('activate') || parameters.get('reactivate') || parameters.get('recover');
@@ -96,12 +104,14 @@ export const AppContent: React.FC = () => {
 
   const handleLogin = async (credentials: LoginRequest) => {
     await login(credentials);
+    setNotificationView(null);
     setActiveTab('crm');
     addToast('Bạn đã đăng nhập vào Guta Workspace.', 'success', 'Đăng nhập thành công');
   };
 
   const handleLogout = useCallback(async () => {
     setActiveTab('crm');
+    setNotificationView(null);
     await logout();
     addToast('Đã đăng xuất phiên làm việc an toàn.', 'info');
   }, [logout, addToast]);
@@ -150,13 +160,15 @@ export const AppContent: React.FC = () => {
     );
   }
 
+  const notificationButton = !user.mustChangePassword && <NotificationCenter onNavigate={openNotificationView} />;
+
   // 2. Authenticated: Render 21st CRM Dashboard (Exact 21st Design)
   return (
     <>
       <DemoErrorBoundary>
         <React.Suspense fallback={<div className="guta-view-loading" role="status" aria-label="Đang tải không gian làm việc..." />}>
           {activeTab === 'chat' ? (
-            <ChatPageView onSwitchTab={handleSwitchTab} onLogout={handleLogout} />
+            <ChatPageView onSwitchTab={handleSwitchTab} onLogout={handleLogout} notificationButton={notificationButton} />
           ) : (
             <CrmDashboardView
               userName={('username' in user && typeof user.username === 'string' && user.username) || (user.role === 'Admin' ? 'Quản trị viên' : 'Nhân viên')}
@@ -166,6 +178,9 @@ export const AppContent: React.FC = () => {
               onTelegramAlert={handleSendTelegramAlert}
               onSwitchTab={handleSwitchTab}
               onNotify={addToast}
+              notificationButton={notificationButton}
+              notificationView={notificationView}
+              onNotificationViewApplied={clearNotificationView}
             />
           )}
         </React.Suspense>

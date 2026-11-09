@@ -1,4 +1,4 @@
-import { F4SuggestionsSchema } from '@hr-blockbot/contracts';
+import { F4SuggestionsSchema, NotificationInboxSchema, type NotificationGroup, type NotificationInboxItem } from '@hr-blockbot/contracts';
 import type {
   AdminUser,
   AssignmentNotice, AssignmentAudit,
@@ -686,6 +686,23 @@ export async function overrideKpi(id: string, expectedVersion: number, finalScor
 }
 export async function fetchNotifications(limit = 30, entityKind?: 'schedule' | 'revenue_kpi' | 'performance_kpi' | 'task', before?: string): Promise<{ items: NotificationItem[]; unread: number }> {
   return requestJson(`/notifications?limit=${limit}${entityKind ? '&entityKind=' + entityKind : ''}${before ? '&before=' + encodeURIComponent(before) : ''}`);
+}
+export async function fetchNotificationInbox(options: {
+  limit: number;
+  group?: NotificationGroup;
+  unreadOnly?: boolean;
+  cursor?: Pick<NotificationInboxItem, 'createdAt' | 'id' | 'source'>;
+  signal?: AbortSignal;
+}) {
+  const query = new URLSearchParams({ limit: String(options.limit) });
+  if (options.group) query.set('group', options.group);
+  if (options.unreadOnly) query.set('unread', 'true');
+  if (options.cursor) {
+    query.set('before', options.cursor.createdAt);
+    query.set('beforeId', options.cursor.id);
+    query.set('beforeSource', options.cursor.source);
+  }
+  return NotificationInboxSchema.parse(await requestJson('/notifications/inbox?' + query, { signal: options.signal }));
 }
 export async function markNotificationRead(id: string): Promise<void> {
   await requestJson(`/notifications/${encodeURIComponent(id)}/read`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });

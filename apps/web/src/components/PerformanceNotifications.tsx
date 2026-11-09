@@ -4,13 +4,13 @@ import { fetchNotifications, markNotificationRead } from '../services/api';
 import { performanceEvaluation, performanceTask } from '../services/performance-kpi-api';
 import { performanceDate, performanceLabels } from './TaskDetailView';
 
-const severityLabels = {
+export const notificationSeverityLabels = {
   INFO: 'Thông tin',
   ACTION_REQUIRED: 'Cần xử lý',
   URGENT: 'Khẩn cấp',
 };
 
-function NotificationTarget({ id, isTask }: { id: string; isTask: boolean }) {
+export function PerformanceNotificationTarget({ id, isTask }: { id: string; isTask: boolean }) {
   const [detail, setDetail] = useState<{ title: string; period: string; status: string; due?: string; description?: string }>();
   const [failed, setFailed] = useState(false);
 
@@ -82,7 +82,7 @@ export function PerformanceNotifications({ reload }: { reload: number }) {
     <label className="pf-notification-filter">Mức độ
       <select value={filter} onChange={event => setFilter(event.target.value as typeof filter)}>
         <option value="ALL">Tất cả</option>
-        {Object.entries(severityLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+        {Object.entries(notificationSeverityLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
       </select>
     </label>
     {loading && <p role="status">Đang tải thông báo…</p>}
@@ -96,7 +96,7 @@ export function PerformanceNotifications({ reload }: { reload: number }) {
         const expanded = selected === item.id;
         return <li key={item.id}>
           <div className="pf-notification-meta">
-            <span className="pf-notification-severity" data-severity={item.severity}>{severityLabels[item.severity]}</span>
+            <span className="pf-notification-severity" data-severity={item.severity}>{notificationSeverityLabels[item.severity]}</span>
             <span>{isTask ? 'Nhiệm vụ' : 'KPI hiệu suất'}</span>
             <time dateTime={item.createdAt}>{performanceDate(item.createdAt)}</time>
             <span>{item.readAt ? 'Đã đọc' : 'Chưa đọc'}</span>
@@ -111,7 +111,7 @@ export function PerformanceNotifications({ reload }: { reload: number }) {
               {marking === item.id ? 'Đang đánh dấu…' : 'Đánh dấu đã đọc'}
             </button>}
           </div>
-          {hasTarget && expanded && <NotificationTarget key={item.id} id={entityId} isTask={isTask} />}
+          {hasTarget && expanded && <PerformanceNotificationTarget key={item.id} id={entityId} isTask={isTask} />}
         </li>;
       })}
     </ul>

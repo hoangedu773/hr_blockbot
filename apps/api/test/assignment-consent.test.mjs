@@ -149,8 +149,25 @@ test('accepted-not-started change rejection keeps responsibility, notifies, allo
   const inbox = await call('old', '/assignment/notifications');
   assert.ok(inbox.body.items.some((item) => item.message.includes('Quản lý đã xem xét')));
   const item = inbox.body.items[0];
+  const notices = mongoose.connection.collection('notifications');
+  const { insertedId } = await notices.insertOne({
+    userId: actors.old.user._id, type: 'system', title: 'Nhắc việc kiểm thử',
+    body: 'Thông báo cùng thời điểm với sự kiện phân công.', entityKind: 'project',
+    entityId: item.projectId, dedupeKey: 'inbox-test:' + item.id, createdAt: new Date(item.at), readAt: null,
+  });
+  const unified = await call('old', '/notifications/inbox?group=work');
+  assert.equal(unified.status, 200);
+  assert.ok(unified.body.items.some(n => n.source === 'assignment' && n.id === item.id && n.body === item.message));
+  assert.ok(unified.body.items.some(n => n.source === 'notification' && n.id === String(insertedId)));
+  const cursor = new URLSearchParams({ group: 'work', before: item.at, beforeId: item.id, beforeSource: 'assignment' });
+  const next = await call('old', '/notifications/inbox?' + cursor);
+  assert.equal(next.status, 200);
+  assert.ok(next.body.items.some(n => n.id === String(insertedId)), 'Same-time standalone notice remains on the next page');
+  assert.ok(!next.body.items.some(n => n.id === item.id));
+  assert.ok(!(await call('peer', '/notifications/inbox')).body.items.some(n => n.id === item.id || n.id === String(insertedId)));
   assert.equal((await call('old', `/assignment/notifications/${item.projectId}/${item.id}/read`, {})).status, 204);
   assert.equal((await call('old', '/assignment/notifications')).body.items.find((entry) => entry.id === item.id).read, true);
+  assert.ok(!(await call('old', '/notifications/inbox?group=work&unread=true')).body.items.some(n => n.id === item.id));
 });
 
 test('in-progress transfer freezes a progress snapshot and switches responsibility only after both confirmations', async () => {

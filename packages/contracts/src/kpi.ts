@@ -136,6 +136,16 @@ export type NotificationType = z.infer<typeof NotificationTypeSchema>;
 export const NotificationSeveritySchema = z.enum(['INFO', 'ACTION_REQUIRED', 'URGENT']);
 export type NotificationSeverity = z.infer<typeof NotificationSeveritySchema>;
 
+export const NotificationGroupSchema = z.enum(['schedule', 'work', 'revenue', 'performance', 'evaluation', 'other']);
+export type NotificationGroup = z.infer<typeof NotificationGroupSchema>;
+export const notificationEntityKinds: Record<Exclude<NotificationGroup, 'other'>, readonly string[]> = {
+  schedule: ['schedule'],
+  work: ['project', 'report'],
+  revenue: ['revenue_kpi'],
+  performance: ['performance_kpi', 'task'],
+  evaluation: ['evaluation'],
+};
+
 export const NotificationItemSchema = z.object({
   id: z.string().min(1),
   type: NotificationTypeSchema,
@@ -156,3 +166,12 @@ export const NotificationListSchema = z.object({
   unread: z.number().int().nonnegative(),
 }).strict();
 export type NotificationList = z.infer<typeof NotificationListSchema>;
+
+export const NotificationInboxItemSchema = NotificationItemSchema.omit({ readAt: true }).extend({
+  source: z.enum(['notification', 'assignment']),
+  read: z.boolean(),
+  body: z.string().min(1).max(4000),
+});
+export type NotificationInboxItem = z.infer<typeof NotificationInboxItemSchema>;
+
+export const NotificationInboxSchema = NotificationListSchema.extend({ items: z.array(NotificationInboxItemSchema) });
