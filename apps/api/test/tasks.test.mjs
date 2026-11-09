@@ -41,3 +41,42 @@ test('late/missing task reminders dedupe and never auto accept responsibility',a
  assert.equal(legacy.severity, 'URGENT');
  assert.equal(legacy.actionRef, t.id);
 });
+
+test('manager template proposals need independent scoped HR and cannot bypass published template rules', async () => {
+ const T = await import('../dist/services/task-template.service.js');
+ const hr = await f.principal('hr');
+ const storeId = String(f.stores[0]._id), otherStore = String(f.stores[1]._id);
+ const input = cmd(0, { storeId, content: f.template.content, reason: 'Đề xuất mẫu kiểm kê cho cửa hàng.' });
+ await assert.rejects(T.proposeTaskTemplate(staff, input), e => e.status === 403);
+ await assert.rejects(T.proposeTaskTemplate(sm, { ...input, storeId: otherStore }), e => e.status === 403);
+ const draft = await T.proposeTaskTemplate(sm, input);
+ assert.equal(draft.status, 'DRAFT');
+ assert.equal(draft.proposalStoreId, storeId);
+ assert.equal(draft.approvedBy, null);
+ assert.notEqual(draft.content.code, f.template.content.code);
+ assert.equal(draft.history[0].action, 'TEMPLATE_PROPOSED');
+ assert.deepEqual(await T.proposeTaskTemplate(sm, input), draft);
+ assert.ok((await T.listTaskTemplates(hr)).some(t => t.id === draft.id));
+ assert.ok((await T.listTaskTemplates(sm)).some(t => t.id === draft.id));
+ assert.ok(!(await T.listTaskTemplates(await f.principal('am'))).some(t => t.id === draft.id));
+ const publish = cmd(draft.version, { reason: 'HR đã đối chiếu phạm vi và thang chấm.', evidenceRefs: ev });
+ await assert.rejects(T.publishTaskTemplate(sm, draft.id, publish), e => e.status === 403);
+ const create = cmd(0, { templateId: draft.id, storeId, title: 'Công việc kiểm kê theo mẫu mới', description: 'Đối chiếu thực tế.', dueAt: '2026-11-25T10:00:00.000Z', taskWeightPercent: 20 });
+ await assert.rejects(S.createTask(sm, create), e => e.code === 'PERFORMANCE_KPI_FRAMEWORK_NOT_PUBLISHED');
+ const published = await T.publishTaskTemplate(hr, draft.id, publish);
+ assert.equal(published.status, 'PUBLISHED');
+ assert.equal(published.approvedBy, hr.userId);
+ assert.equal(published.history.length, 2);
+ const work = await S.createTask(sm, create);
+ assert.deepEqual(work.templateSnapshot, published.content);
+ assert.equal(work.status, 'DRAFT');
+
+ const rejectDraft = await T.proposeTaskTemplate(sm, cmd(0, { storeId, content: input.content, reason: input.reason }));
+ const rejection = cmd(rejectDraft.version, { reason: 'Tiêu chí chưa phù hợp với công việc.', evidenceRefs: ev });
+ const rejected = await T.rejectTaskTemplateProposal(hr, rejectDraft.id, rejection);
+ assert.equal(rejected.status, 'ARCHIVED');
+ assert.equal(rejected.approvedBy, null);
+ assert.deepEqual(await T.rejectTaskTemplateProposal(hr, rejectDraft.id, rejection), rejected);
+ await assert.rejects(T.publishTaskTemplate(hr, rejectDraft.id, publish), e => e.status === 409);
+ assert.equal((await T.listTaskTemplates(sm)).find(t => t.id === rejectDraft.id).history.at(-1).reason, rejection.reason);
+});
