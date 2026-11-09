@@ -315,6 +315,13 @@ test('completed chatbot conversation with profile evidence conceals assistant re
   assert.equal(historyRestored.body.items[0].replyHidden, false);
   assert.equal(historyRestored.body.items[0].reply, 'Allowed scoped answer');
 });
+test('default KPI period rolls over at midnight in Vietnam, including New Year', () => {
+  assert.equal(currentPeriod(new Date('2026-10-31T16:59:59.999Z')), '2026-10');
+  assert.equal(currentPeriod(new Date('2026-10-31T17:00:00.000Z')), '2026-11');
+  assert.equal(currentPeriod(new Date('2026-12-31T16:59:59.999Z')), '2026-12');
+  assert.equal(currentPeriod(new Date('2026-12-31T17:00:00.000Z')), '2027-01');
+});
+
 test('completed chatbot conversation with legacyEvaluations conceals assistant reply in history after kpi.read_self capability revoked without securityVersion increment', async () => {
   await UserModel.updateOne(
     { _id: fixture.actors.staff.user._id },
