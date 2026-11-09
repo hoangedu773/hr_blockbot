@@ -102,7 +102,7 @@ const defaults = (): Values => ({
   employeeId: '',
   unitType: 'STORE',
   force: false,
-  allowDemo: false,
+  allowDemo: true,
   threshold: '30',
   days: '3',
   waive: false,
@@ -550,11 +550,11 @@ export function RevenueKpiView() {
     );
   };
 
-  const bulk = (kind: 'ai' | 'apply' | 'publish') =>
+  const bulk = (kind: 'ai' | 'apply' | 'publish' | 'diversify') =>
     run(
       async () => {
         const drafts = dashboard!.assignments.filter(
-          a => a.status === 'DRAFT' && (kind !== 'ai' && kind !== 'apply' || a.unitType === 'STORE')
+          a => a.status === 'DRAFT' && (kind === 'publish' || a.unitType === 'STORE')
         );
         if (kind === 'ai') {
           // Batch proposals in parallel chunks of 5 for speed without freezing/flickering UI
@@ -574,6 +574,86 @@ export function RevenueKpiView() {
                     ...prev,
                     assignments: prev.assignments.map(item => {
                       const found = results.find(u => u.id === item.id);
+                      return found ?? item;
+                    }),
+                  }
+                : prev
+            );
+          }
+        } else if (kind === 'diversify') {
+          const VARIED_GROWTH = [
+            11, 8, 5.5, 12.5, 6, 14, 8.5, 4.5, 10, 12,
+            6.5, 9, 5, 13, 4, 9.5, 7.5, 15, 3.5, 10.5,
+          ];
+          const computeTierTargetVnd = (name: string, idx: number) => {
+            const lower = name.toLowerCase();
+            if (lower.includes('quận 1 ') || lower.includes('quận 3') || lower.includes('quận 10') || lower.includes('phú nhuận')) {
+              return 28_000_000 + (idx % 9) * 1_850_000;
+            }
+            if (lower.includes('bình thạnh') || lower.includes('tân bình') || lower.includes('quận 5') || lower.includes('quận 7')) {
+              return 21_000_000 + (idx % 8) * 1_450_000;
+            }
+            return 16_500_000 + (idx % 7) * 1_250_000;
+          };
+
+          for (let i = 0; i < drafts.length; i += 5) {
+            const chunk = drafts.slice(i, i + 5);
+            const updatedStoreRows = await Promise.all(
+              chunk.map((a, offset) => {
+                const idx = i + offset;
+                const growthPercent = VARIED_GROWTH[idx % VARIED_GROWTH.length];
+                const hasBase = a.baseRevenueVnd != null && a.baseRevenueVnd > 0;
+                const storeName = a.stores[0]?.storeName ?? '';
+                return api.saveRevenueKpiAssignment({
+                  id: a.id,
+                  expectedVersion: a.version,
+                  clientRequestId: newClientMessageId(),
+                  period: a.period,
+                  unitType: 'STORE',
+                  storeId: a.storeId,
+                  assigneeEmployeeId: a.assigneeEmployeeId,
+                  targetMode: hasBase ? 'GROWTH_PERCENT' : 'ABSOLUTE_VND',
+                  ...(hasBase ? { growthPercent } : { targetVnd: computeTierTargetVnd(storeName, idx) }),
+                  reason: 'HR phân bổ mức tăng trưởng và mục tiêu đa dạng theo phân tầng chi nhánh.',
+                });
+              })
+            );
+            setDashboard(prev =>
+              prev
+                ? {
+                    ...prev,
+                    assignments: prev.assignments.map(item => {
+                      const found = updatedStoreRows.find(u => u.id === item.id);
+                      return found ?? item;
+                    }),
+                  }
+                : prev
+            );
+          }
+
+          const areaDrafts = dashboard!.assignments.filter(a => a.status === 'DRAFT' && a.unitType === 'AREA');
+          for (let i = 0; i < areaDrafts.length; i += 5) {
+            const chunk = areaDrafts.slice(i, i + 5);
+            const updatedAreaRows = await Promise.all(
+              chunk.map(a =>
+                api.saveRevenueKpiAssignment({
+                  id: a.id,
+                  expectedVersion: a.version,
+                  clientRequestId: newClientMessageId(),
+                  period: a.period,
+                  unitType: 'AREA',
+                  assigneeEmployeeId: a.assigneeEmployeeId,
+                  targetMode: 'ABSOLUTE_VND',
+                  reason: 'Đồng bộ tổng mục tiêu khu vực AM sau khi phân bổ đa dạng.',
+                })
+              )
+            );
+            setDashboard(prev =>
+              prev
+                ? {
+                    ...prev,
+                    assignments: prev.assignments.map(item => {
+                      const found = updatedAreaRows.find(u => u.id === item.id);
                       return found ?? item;
                     }),
                   }
@@ -613,6 +693,8 @@ export function RevenueKpiView() {
         ? 'Đã áp dụng đề xuất vào bản nháp. Cần kiểm tra và phát hành riêng.'
         : kind === 'ai'
         ? 'Đã lấy đề xuất cho các cửa hàng đủ dữ liệu.'
+        : kind === 'diversify'
+        ? 'Đã phân bổ % tăng trưởng đa dạng (+3.5% đến +15%) và đồng bộ khu vực.'
         : 'Đã phát hành các bản nháp đủ điều kiện.'
     );
 
@@ -1457,6 +1539,15 @@ export function RevenueKpiView() {
                           title="Áp dụng mức tăng đề xuất của AI vào tất cả bản nháp"
                         >
                           Áp dụng đề xuất đã xem
+                        </button>
+                        <button
+                          type="button"
+                          className="rk-btn rk-btn-subtle"
+                          disabled={busy || !dashboard.assignments.some(a => a.status === 'DRAFT' && a.unitType === 'STORE')}
+                          onClick={() => void bulk('diversify')}
+                          title="Phân bổ mức tăng trưởng đa dạng (+3.5% đến +15%) theo phân tầng chi nhánh cho các bản nháp"
+                        >
+                          ⚡ Phân bổ % đa dạng
                         </button>
                       </>
                     )}
