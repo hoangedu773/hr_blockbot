@@ -7,6 +7,7 @@ import { ChatOnboarding, isOnboardingRequest } from './ChatOnboarding';
 import { useChatInbox } from './ChatInbox';
 import { useRevenueKpiChat } from './useRevenueKpiChat';
 import { useWorkAndPerformanceChat } from './useWorkAndPerformanceChat';
+import { useScheduleChat } from './useScheduleChat';
 import { PerformanceKpiView } from '../PerformanceKpiView';
 import '../../styles/crm-work.css';
 import { apiFetch, API_BASE } from '../../services/auth';
@@ -203,6 +204,8 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
           { label: 'Công việc có thang điểm', prompt: 'Danh sách công việc có thang điểm tháng này' },
           { label: 'KPI hiệu suất của tôi', prompt: 'KPI hiệu suất của tôi tháng này' },
         ] : []),
+    ...(user?.authorization?.capabilities?.some(cap => cap === 'schedules.read_self' || cap === 'schedules.read_store')
+      ? [{ label: 'Bảng đăng ký ca tuần sau', prompt: 'Bảng đăng ký ca tuần sau' }] : []),
   ];
   const [messages, setMessages] = useState<Message[]>([]);
   const [inlineMessages, setInlineMessages] = useState<InlineMessage[]>([]);
@@ -216,8 +219,9 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     onChanged: onNotificationsChanged,
     onOpenKpiAction: target => setKpiAction(target),
   });
-  const inlineBusy = inbox.busy || revenue.busy || workPerf.busy;
-  const lastFlow = useRef<'inbox' | 'revenue' | 'workPerf'>();
+  const schedule = useScheduleChat({ grants: user?.authorization?.capabilities ?? [], onChanged: onNotificationsChanged });
+  const inlineBusy = inbox.busy || revenue.busy || workPerf.busy || schedule.busy;
+  const lastFlow = useRef<'inbox' | 'revenue' | 'workPerf' | 'schedule'>();
   const displayMessages = interleaveMessages(messages, inlineMessages);
   const lastMessageId = messages[messages.length - 1]?.id;
   const [isTyping, setIsTyping] = useState(false);
@@ -285,6 +289,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     inbox.reset();
     revenue.reset();
     workPerf.reset();
+    schedule.reset();
     lastFlow.current = undefined;
     setInlineMessages([]);
     cancelPending();
@@ -343,6 +348,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     inbox.reset();
     revenue.reset();
     workPerf.reset();
+    schedule.reset();
     lastFlow.current = undefined;
     setInlineMessages([]);
     cancelPending();
@@ -400,6 +406,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
       setServiceUnavailable(false);
       revenue.reset();
       workPerf.reset();
+      schedule.reset();
       lastFlow.current = 'inbox';
       inbox.openDetail(onboardingNotification.id, appendInline(lastMessageId));
     }
@@ -412,8 +419,10 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     const append = appendInline(lastMessageId);
     const flow = lastFlow.current === 'inbox' && inbox.send(text, append) ? 'inbox'
       : lastFlow.current === 'workPerf' && workPerf.send(text, append, true) ? 'workPerf'
+      : lastFlow.current === 'schedule' && schedule.send(text, append, true) ? 'schedule'
       : revenue.send(text, append, lastFlow.current === 'revenue') ? 'revenue'
       : lastFlow.current !== 'workPerf' && workPerf.send(text, append, false) ? 'workPerf'
+      : schedule.send(text, append, false) ? 'schedule'
       : lastFlow.current !== 'inbox' && inbox.send(text, append) ? 'inbox' : undefined;
     if (flow) {
       lastFlow.current = flow;

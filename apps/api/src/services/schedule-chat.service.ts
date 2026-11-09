@@ -133,6 +133,20 @@ export async function previewScheduleChangeDecision(u: AuthenticatedUser, args: 
   return actionDto(await storeAction(u, id, 'schedule.change_decision', { ...args }, preview));
 }
 
+/** Đọc lại đề xuất lịch đã tạo cho chat turn hoặc GET /chat/actions/:id. */
+export async function getChatScheduleAction(u: AuthenticatedUser, actionId: string) {
+  const row = await actionRows().findOne({ _id: actionId, ownerId: u.userId });
+  if (!row || !String(row.type ?? '').startsWith('schedule.')) {
+    throw new WorkflowError(404, 'REVENUE_KPI_ACTION_NOT_FOUND', 'Không tìm thấy đề xuất lịch.');
+  }
+  const fresh = await resolvePrincipal({ sub: u.userId, role: u.role, securityVersion: u.securityVersion ?? 0 });
+  const authorityHash = digest({ authorization: fresh.authorization, employeeId: fresh.employeeId, delegations: fresh.effectiveDelegations ?? [] });
+  if (row.authorityHash !== authorityHash) {
+    throw new WorkflowError(403, 'CHAT_AUTHORIZATION_CHANGED', 'Quyền đã thay đổi. Tải lại trước khi xác nhận.');
+  }
+  return actionDto(row);
+}
+
 /** Thực thi proposal đã xác nhận. Không tự quyết định gì — gọi service thật. */
 export async function decideChatScheduleAction(u: AuthenticatedUser, actionId: string, raw: unknown) {
   const row = await actionRows().findOne({ _id: actionId, ownerId: u.userId });

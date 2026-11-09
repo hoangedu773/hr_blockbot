@@ -20,6 +20,7 @@ export function ScheduleRegistrationPanel({ storeId, days, today, hours, blocked
 }) {
   const weekStart = days[0];
   const [data, setData] = useState<ScheduleRegistrations | null>(null);
+  const [noHomeStore, setNoHomeStore] = useState(false);
   const [error, setError] = useState(''), [saveError, setSaveError] = useState(''), [busy, setBusy] = useState(false), [loading, setLoading] = useState(true);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [date, setDate] = useState(''), [shiftId, setShiftId] = useState(''), [reason, setReason] = useState(''), [employeeId, setEmployeeId] = useState('');
@@ -30,8 +31,17 @@ export function ScheduleRegistrationPanel({ storeId, days, today, hours, blocked
     try {
       const path = storeId ? '/scheduling/stores/' + storeId + '/registrations' : '/scheduling/registrations/me';
       const result = await requestJson<ScheduleRegistrations>(path + '?weekStart=' + weekStart);
-      if (current === sequence.current) { setData(result); setError(''); }
-    } catch (e) { if (current === sequence.current) setError(e instanceof Error ? e.message : 'Chưa tải được bảng đăng ký.'); }
+      if (current === sequence.current) { setData(result); setNoHomeStore(false); setError(''); }
+    } catch (e) {
+      if (current === sequence.current) {
+        const msg = e instanceof Error ? e.message : 'Chưa tải được bảng đăng ký.';
+        if (!storeId && /cửa hàng công tác/i.test(msg)) {
+          setData(null); setNoHomeStore(true); setError('');
+        } else {
+          setError(msg);
+        }
+      }
+    }
     finally { if (current === sequence.current) setLoading(false); }
   }, [storeId, weekStart]);
   useEffect(() => {
@@ -92,6 +102,7 @@ export function ScheduleRegistrationPanel({ storeId, days, today, hours, blocked
     </div>
     {data && !data.published && !data.shifts.length && <p>Cửa hàng chưa có ca đang dùng để đăng ký.</p>}
     {storeId && blocked && <p>Lưu hoặc bỏ chỉnh sửa lịch nháp trước khi xử lý đăng ký.</p>}
+    {noHomeStore && <p>Tài khoản quản lý theo khu vực — mở tab “Lịch tuần cửa hàng” để xem và duyệt bảng đăng ký ca của từng chi nhánh.</p>}
     {error && <p className="banner banner--error" role="alert">{error}</p>}
     {loading && <p role="status">Đang tải bảng đăng ký…</p>}
     {data && !error && (data.items.length ? <div className="schedule-grid-scroll"><table className="schedule-grid">

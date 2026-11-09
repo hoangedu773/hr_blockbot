@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import { Router } from "express";
 import { decideRevenueKpiOpenAction, getRevenueKpiOpenAction, decideChatAction, getRevenueKpiAssignmentAction, getRevenueKpiResultAction, decideChatKpiResultAction, RevenueKpiPlanChangedError, RevenueKpiAssignmentPlanChangedError, RevenueKpiResultPlanChangedError } from '../services/revenue-kpi.service.js';
 import { getChatRevenueCreatePeriodAction, getChatRevenueSaveAssignmentAction, decideChatRevenueCreatePeriod, decideChatRevenueSaveAssignment } from '../services/chat-authorization.service.js';
-import { decideChatScheduleAction } from '../services/schedule-chat.service.js';
+import { decideChatScheduleAction, getChatScheduleAction } from '../services/schedule-chat.service.js';
 import { getChatPerformanceKpiAction, decideChatPerformanceKpiAction, previewPerformanceKpiTaskAction, previewPerformanceKpiEvaluationAction, PerformanceKpiTaskPlanChangedError, PerformanceKpiEvaluationPlanChangedError } from '../services/performance-kpi-action.service.js';
 import { z } from "zod";
 import { ChatRequestSchema, RevenueKpiOpenActionIdSchema, RevenueKpiCreatePeriodActionSchema, RevenueKpiSaveAssignmentActionSchema, PerformanceKpiChatActionSchema, ScheduleChatActionSchema } from "@hr-blockbot/contracts";
@@ -34,7 +34,7 @@ type ChatKpiActionDispatchRow = {
 // Server-owned dispatch: read the action row's persisted `type` directly from
 // storage to select the executor/loader without triggering feature-flag checks
 // (e.g. 503 REVENUE_KPI_DISABLED) across different action domains.
-export async function getChatKpiAction(user: AuthenticatedUser, id: string): Promise<RevenueKpiChatAction | PerformanceKpiChatAction> {
+export async function getChatKpiAction(user: AuthenticatedUser, id: string): Promise<RevenueKpiChatAction | PerformanceKpiChatAction | ScheduleChatAction> {
   const parsedId = RevenueKpiOpenActionIdSchema.safeParse(id);
   if (!parsedId.success) throw new WorkflowError(400, 'VALIDATION_FAILED', 'Message/conversation identifier is invalid');
   const actionId = parsedId.data;
@@ -61,6 +61,9 @@ export async function getChatKpiAction(user: AuthenticatedUser, id: string): Pro
   }
   if (actionType === 'revenue_kpi.save_assignment') {
     return getChatRevenueSaveAssignmentAction(user, actionId);
+  }
+  if (actionType.startsWith('schedule.')) {
+    return ScheduleChatActionSchema.parse(await getChatScheduleAction(user, actionId));
   }
   throw new WorkflowError(404, 'REVENUE_KPI_ACTION_NOT_FOUND', 'Không tìm thấy đề xuất KPI.');
 }
@@ -117,7 +120,11 @@ function publicChatKpiAction(action: object): Record<string, unknown> {
 
 router.get('/chat/actions/:id', authenticateToken, endpoint(async (req, res) => {
   const action = await getChatKpiAction(req.user!, String(req.params.id));
-  const schema = action.type.startsWith('performance_kpi') ? PerformanceKpiChatActionSchema : RevenueKpiChatActionSchema;
+  const schema = action.type.startsWith('performance_kpi')
+    ? PerformanceKpiChatActionSchema
+    : action.type.startsWith('schedule.')
+      ? ScheduleChatActionSchema
+      : RevenueKpiChatActionSchema;
   res.set('Cache-Control', 'private, no-store').json(schema.parse(publicChatKpiAction(action)));
 }));
 router.post('/chat/actions/performance/preview', authenticateToken, endpoint(async (req, res) => {

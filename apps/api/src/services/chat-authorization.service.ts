@@ -133,7 +133,7 @@ export interface ChatAuthorizationRequestDoc {
 
 const receipts = () => mongoose.connection.collection<ChatAuthorizationRequestDoc>("chat_authorization_requests");
 const contextHash = (user: AuthenticatedUser) => digest({ authorization: user.authorization, canonical: user.canonical, delegations: user.effectiveDelegations ?? [], employeeId: user.employeeId });
-import { decideChatScheduleAction, listMyRegistrations, previewScheduleChange, previewScheduleChangeDecision, previewScheduleRegistration } from './schedule-chat.service.js';
+import { decideChatScheduleAction, getChatScheduleAction, listMyRegistrations, previewScheduleChange, previewScheduleChangeDecision, previewScheduleRegistration } from './schedule-chat.service.js';
 
 export const GatewayToolRequestSchema = z.object({ requestId: z.string().uuid(), tool: z.enum(["get_my_profile", "list_projects", "get_project_status", "query_policy", "directory", "submit_report", "get_my_kpi", "get_department_kpi", "get_upcoming_deadlines", "get_my_schedule", "preview_revenue_period_open", "get_my_revenue_kpi", "list_my_pending_actions", "get_revenue_kpi_detail", "get_my_tasks", "preview_revenue_assignment_action", "get_revenue_kpi_result", "preview_revenue_kpi_assign_action", "preview_performance_kpi_action", "suggest_suitable_candidates", "list_my_registrations", "preview_schedule_registration", "preview_schedule_change", "preview_schedule_change_decision", "validate_context"]),
   args: z.object({ projectId: z.string().regex(/^[a-f0-9]{24}$/i).optional(), taskRef: z.string().regex(/^[a-f0-9]{24}$/i).optional(), query: z.string().max(2000).optional(), period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(), from: z.union([ScheduleDateSchema, z.string().datetime()]).optional(), to: ScheduleDateSchema.optional(),
@@ -990,18 +990,30 @@ export async function executeGatewayTool(token: string, body: unknown) {
     result = await listMyRegistrations(user, String(args.weekStart ?? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())));
   } else if (tool === "preview_schedule_registration") {
     if (!args.weekStart || !args.slot) throw new WorkflowError(400, "VALIDATION_FAILED", "weekStart và slot là bắt buộc");
-    return { result: await previewScheduleRegistration(user, { weekStart: args.weekStart, slot: args.slot }, requestId), proposalOnly: true };
+    const proposal = await previewScheduleRegistration(user, { weekStart: args.weekStart, slot: args.slot }, requestId);
+    const bound = await receipts().updateOne({ _id: requestId, status: "ACTIVE", expiresAt: { $gt: new Date() } },
+      { $set: { revenueOpenActionId: proposal.actionId } });
+    if (!bound.matchedCount) throw new WorkflowError(403, "CHAT_REQUEST_UNAVAILABLE", "Yêu cầu chat đã hết hạn.");
+    return { result: proposal, proposalOnly: true };
   } else if (tool === "preview_schedule_change") {
     if (!args.weekId || !args.scheduleAssignmentId || !args.arrangement || !args.changeKind || !args.reason)
       throw new WorkflowError(400, "VALIDATION_FAILED", "weekId, assignmentId, arrangement, kind và reason là bắt buộc");
-    return { result: await previewScheduleChange(user, {
+    const proposal = await previewScheduleChange(user, {
       weekId: args.weekId, assignmentId: args.scheduleAssignmentId, receiverEmployeeId: args.assigneeEmployeeId ?? null,
       arrangement: args.arrangement, targetAssignmentId: args.targetAssignmentId, kind: args.changeKind, reason: args.reason,
-    }, requestId), proposalOnly: true };
+    }, requestId);
+    const bound = await receipts().updateOne({ _id: requestId, status: "ACTIVE", expiresAt: { $gt: new Date() } },
+      { $set: { revenueOpenActionId: proposal.actionId } });
+    if (!bound.matchedCount) throw new WorkflowError(403, "CHAT_REQUEST_UNAVAILABLE", "Yêu cầu chat đã hết hạn.");
+    return { result: proposal, proposalOnly: true };
   } else if (tool === "preview_schedule_change_decision") {
     if (!args.weekId || !args.changeId || !args.scheduleAction)
       throw new WorkflowError(400, "VALIDATION_FAILED", "weekId, changeId và action là bắt buộc");
-    return { result: await previewScheduleChangeDecision(user, { weekId: args.weekId, changeId: args.changeId, action: args.scheduleAction }, requestId), proposalOnly: true };
+    const proposal = await previewScheduleChangeDecision(user, { weekId: args.weekId, changeId: args.changeId, action: args.scheduleAction }, requestId);
+    const bound = await receipts().updateOne({ _id: requestId, status: "ACTIVE", expiresAt: { $gt: new Date() } },
+      { $set: { revenueOpenActionId: proposal.actionId } });
+    if (!bound.matchedCount) throw new WorkflowError(403, "CHAT_REQUEST_UNAVAILABLE", "Yêu cầu chat đã hết hạn.");
+    return { result: proposal, proposalOnly: true };
   } else if (tool === "list_projects") {
     const rows: any[] = await ProjectModel.find(projectReadScope(user)).select("title status progress assigneeId version").sort({ updatedAt: -1, _id: -1 }).limit(20).lean();
     projects = rows.map((row) => ({ projectId: String(row._id), version: row.version ?? 1 }));
@@ -1298,7 +1310,7 @@ export async function reloadServerProposedAction(current: AuthenticatedUser, row
       return await getRevenueKpiOpenAction(current, row.revenueOpenActionId);
     } catch (error: unknown) {
       const err = error as { status?: number; code?: string } | null;
-      if (err?.status === 404 || err?.code === 'REVENUE_KPI_ACTION_NOT_FOUND') {
+      if (err?.status === 404 || err?.code === 'REVENUE_KPI_ACTION_NOT_FOUND' || err?.code === 'REVENUE_KPI_DISABLED') {
         const p5 = await p5Actions().findOne({ _id: row.revenueOpenActionId, ownerId: current.userId });
         if (p5?.type === 'revenue_kpi.mutate_assignment') {
           return await getRevenueKpiAssignmentAction(current, row.revenueOpenActionId);
@@ -1308,6 +1320,8 @@ export async function reloadServerProposedAction(current: AuthenticatedUser, row
           return await getChatRevenueCreatePeriodAction(current, row.revenueOpenActionId);
         } else if (p5?.type === 'performance_kpi.task_action' || p5?.type === 'performance_kpi.evaluation_action') {
           return await getChatPerformanceKpiAction(current, row.revenueOpenActionId);
+        } else if (typeof p5?.type === 'string' && p5.type.startsWith('schedule.')) {
+          return await getChatScheduleAction(current, row.revenueOpenActionId);
         }
       }
       throw error;
@@ -1322,7 +1336,10 @@ export function computeProposalReply(proposedAction: any, period: string | null 
     : proposedAction?.type === "revenue_kpi.create_period" ? "Đây là bản xem trước tạo kỳ KPI doanh thu. Kiểm tra policy rồi xác nhận nếu muốn thực hiện."
     : proposedAction?.type === "revenue_kpi.save_assignment" ? "Đây là bản xem trước giao KPI doanh thu. Kiểm tra danh sách rồi xác nhận nếu muốn thực hiện."
     : proposedAction?.type === "performance_kpi.task_action" ? "Đây là bản xem trước thao tác nhiệm vụ KPI hiệu suất. Kiểm tra nội dung rồi xác nhận nếu muốn thực hiện."
-    : proposedAction?.type === "performance_kpi.evaluation_action" ? "Đây là bản xem trước thao tác đánh giá KPI hiệu suất. Kiểm tra nội dung rồi xác nhận nếu muốn thực hiện." : null;
+    : proposedAction?.type === "performance_kpi.evaluation_action" ? "Đây là bản xem trước thao tác đánh giá KPI hiệu suất. Kiểm tra nội dung rồi xác nhận nếu muốn thực hiện."
+    : proposedAction?.type === "schedule.registration" ? "Đây là bản xem trước đăng ký ca làm việc. Kiểm tra thông tin rồi xác nhận nếu muốn gửi đăng ký."
+    : proposedAction?.type === "schedule.change" ? "Đây là bản xem trước yêu cầu đổi / nhận ca thay. Kiểm tra thông tin rồi xác nhận nếu muốn gửi."
+    : proposedAction?.type === "schedule.change_decision" ? "Đây là bản xem trước xử lý yêu cầu đổi ca. Kiểm tra thông tin rồi xác nhận nếu muốn thực hiện." : null;
   return proposalReply ?? (period ? "Chưa lập được bản xem trước KPI doanh thu. Hãy kiểm tra quyền và kỳ đã tạo trên Web." : defaultReply);
 }
 

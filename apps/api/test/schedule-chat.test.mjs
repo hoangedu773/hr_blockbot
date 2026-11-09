@@ -9,7 +9,7 @@ import { UserModel } from '../dist/models/User.js';
 import { OperationalWeekModel } from '../dist/models/OperationalSchedule.js';
 import { authorizationV1Fixture } from './helpers/authorization-v1-fixture.mjs';
 import { datePlus, verifySchedule } from '../dist/services/scheduling.service.js';
-import { beginAuthorizedChat, executeGatewayTool } from '../dist/services/chat-authorization.service.js';
+import { beginAuthorizedChat, executeGatewayTool, revalidateChatAuthorization, reloadServerProposedAction } from '../dist/services/chat-authorization.service.js';
 import { decideChatScheduleAction } from '../dist/services/schedule-chat.service.js';
 import { resolvePrincipal } from '../dist/services/principal.service.js';
 
@@ -132,4 +132,28 @@ test('preview_schedule_change_decision rejects an unknown change', async () => {
     requestId: session.requestId, tool: 'preview_schedule_change_decision',
     args: { weekId: ctx.week.id, changeId: randomUUID(), scheduleAction: 'APPROVE' },
   }), (error) => error.code === 'RESOURCE_NOT_FOUND');
+});
+
+test('reloadServerProposedAction and GET /chat/actions/:id resolve schedule.registration proposals', async () => {
+  const ctx = await unpublishedWeekWithShift();
+  const user = await resolvePrincipal({ sub: String(f.actors.staff.user._id), role: 'Employee', securityVersion: 0 });
+  const session = await beginAuthorizedChat(user);
+  const preview = await executeGatewayTool(session.delegationToken, {
+    requestId: session.requestId, tool: 'preview_schedule_registration',
+    args: { weekStart: ctx.weekStart, slot: { date: ctx.weekStart, shiftId: ctx.shift.id, shiftVersion: ctx.shift.version } },
+  });
+  const { current, row } = await revalidateChatAuthorization(user, session.requestId);
+  const reloaded = await reloadServerProposedAction(current, row);
+  assert.ok(reloaded);
+  assert.equal(reloaded.type, 'schedule.registration');
+  assert.equal(reloaded.actionId, preview.result.actionId);
+
+  const getRes = await call('staff', `/chat/actions/${preview.result.actionId}`);
+  assert.equal(getRes.status, 200, JSON.stringify(getRes.body));
+  assert.equal(getRes.body.type, 'schedule.registration');
+
+  const decideRes = await call('staff', `/chat/actions/${preview.result.actionId}/decision`, { approve: true });
+  assert.equal(decideRes.status, 200, JSON.stringify(decideRes.body));
+  assert.equal(decideRes.body.status, 'EXECUTED');
+  assert.equal(decideRes.body.executed, true);
 });

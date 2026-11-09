@@ -103,12 +103,19 @@ export type ScheduleRegistrations = {
 // ── Chat actions cho luồng lịch ───────────────────────────────────────────────
 // Ba loại dưới đây theo đúng pattern revenue KPI: server dựng preview, người dùng
 // xác nhận, server mới ghi. Model không bao giờ tự chọn shiftId/assignmentId.
+const ScheduleChatActionStatusFields = {
+  status: z.enum(['PENDING', 'EXECUTED', 'CANCELLED']).optional(),
+  executed: z.boolean().optional(),
+  result: z.unknown().optional(),
+};
+
 export const ScheduleRegistrationChatActionSchema = z.object({
   type: z.literal('schedule.registration'), actionId: z.string().uuid(),
   args: z.object({ weekStart: ScheduleDateSchema, slot: RegistrationSlotSchema }).strict(),
   preview: z.object({ date: ScheduleDateSchema, shiftCode: z.string(), shiftName: z.string(),
     storeName: z.string(), weekStart: ScheduleDateSchema, published: z.boolean() }).strict(),
   expiresAt: z.string().datetime(),
+  ...ScheduleChatActionStatusFields,
 }).strict();
 
 export const ScheduleChangeChatActionSchema = z.object({
@@ -121,6 +128,7 @@ export const ScheduleChangeChatActionSchema = z.object({
   preview: z.object({ weekId: z.string(), sourceDate: ScheduleDateSchema, sourceShift: z.string(),
     receiverName: z.string().nullable(), kind: z.string(), arrangement: z.string() }).strict(),
   expiresAt: z.string().datetime(),
+  ...ScheduleChatActionStatusFields,
 }).strict();
 
 export const ScheduleChangeDecisionChatActionSchema = z.object({
@@ -130,6 +138,7 @@ export const ScheduleChangeDecisionChatActionSchema = z.object({
   preview: z.object({ requesterName: z.string(), receiverName: z.string().nullable(),
     status: z.string(), sourceDate: ScheduleDateSchema }).strict(),
   expiresAt: z.string().datetime(),
+  ...ScheduleChatActionStatusFields,
 }).strict();
 
 export const ScheduleChatActionSchema = z.discriminatedUnion('type', [

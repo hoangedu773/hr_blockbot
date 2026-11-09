@@ -35,7 +35,9 @@ export const ScheduleActionCard: React.FC<ScheduleActionCardProps> = ({ initial,
   const [action, setAction] = useState<ScheduleChatAction>(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [closed, setClosed] = useState<'EXECUTED' | 'CANCELLED' | null>(null);
+  const [closed, setClosed] = useState<'EXECUTED' | 'CANCELLED' | null>(
+    initial.status === 'EXECUTED' || initial.status === 'CANCELLED' ? initial.status : null
+  );
   const pending = closed === null;
   const labels = copy[action.type];
 
