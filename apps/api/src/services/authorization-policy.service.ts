@@ -38,14 +38,14 @@ export const AUTHORIZATION_POLICY: Readonly<Record<AuthorizationCapability, Rule
   "employees.read_operational": operational(["hr", ...managers, "aom", "ptch"]), "employees.read_sensitive": denied(),
   "employees.read_hr": operational(["hr"]), "directory.read_store": operational(workers),
   "employees.create": operational(["hr"]), "employees.update_other": operational(["hr"]), "employees.review": operational(["hr"]),
-  "employees.lifecycle_request": operational(["hr"]), "employees.lifecycle_review": operational(["hr"]),
+  "employees.lifecycle_request": operational(["hr", "am", "sm"]), "employees.lifecycle_review": operational(["hr"]),
   "employees.transfer_confirm": operational(managers),
   "onboarding.propose": operational(["sm"]), "onboarding.draft": operational(["hr"]), "onboarding.review": operational(["hr"]),
   "onboarding.reporting_propose": operational(["sm"]), "onboarding.reporting_review": operational(),
   "schedules.read_self": schedulingSelf(), "schedule_changes.request": schedulingSelf(), "schedule_changes.respond": schedulingSelf(),
   "schedules.read_store": schedulingOperational(["hr", ...managers, "aom", "ptch"]),
   "schedules.manage": schedulingOperational(), "schedules.publish": schedulingOperational(), "shifts.manage": schedulingOperational(), "schedule_changes.review": schedulingOperational(),
-  "employees.transfer": operational(["hr"]), "departments.read": pending(["system_admin", "hr", ...managers]),
+  "employees.transfer": operational(["hr", "am"]), "departments.read": pending(["system_admin", "hr", ...managers]),
   "departments.configure": pending(["system_admin"]), "stores.read": operational(workers.filter((profile) => profile !== "staff")), "stores.configure": pending(["system_admin"]),
   "dashboard.read": operational(["hr", ...managers, "aom", "ptch"]), "projects.read_assigned": assigned(), "projects.read_managed": operational(),
   "projects.create": operational(managers, true), "projects.assign": operational(managers, true), "assignment.respond": assigned(), "assignment.review": operational(),
@@ -122,7 +122,7 @@ export function evaluateAuthorization(principal: AuthorizationPrincipal, capabil
     resource.conflictUserIds?.includes(principal.userId))) return deny("SELF_APPROVAL_DENIED");
   for (const grant of state.grants) {
     if (!activeWindow(grant, now) || grant.scope.kind !== policy.scope || !grant.capabilities.includes(capability)) continue;
-    if (["projects.read_managed", "projects.create", "projects.assign", "reports.review", "assignment.review", "assignment.escalation_review", "employees.transfer_confirm", "delegations.review"].includes(capability) && resource.employeeId && resource.reportingVerified !== true) continue;
+    if ((["projects.read_managed", "projects.create", "projects.assign", "reports.review", "assignment.review", "assignment.escalation_review", "employees.transfer_confirm", "delegations.review"].includes(capability) || state.profile !== "hr" && ["employees.lifecycle_request", "employees.transfer"].includes(capability)) && resource.employeeId && resource.reportingVerified !== true) continue;
     if (scopeAllows(grant.scope, principal, resource)) return { allowed: true, reason: "EXPLICIT_GRANT", grantId: grant.id };
   }
   return deny("SCOPE_OR_VALIDITY_DENIED");

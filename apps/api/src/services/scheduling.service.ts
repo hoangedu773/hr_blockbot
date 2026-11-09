@@ -155,12 +155,12 @@ export async function createWeek(user: AuthenticatedUser, storeId: string, weekS
   });
 }
 
-async function checkOverlaps(row: any, assignments: ScheduleAssignment[]) {
+async function checkOverlaps(row: any, assignments: ScheduleAssignment[], publishedOnly = false) {
   const others: any[] = await Week.find({ _id: { $ne: row._id }, weekStart: { $gte: datePlus(row.weekStart, -7), $lte: datePlus(row.weekStart, 7) },
     $or: [{ 'draft.employeeId': { $in: assignments.map((a) => a.employeeId) } }, { 'published.employeeId': { $in: assignments.map((a) => a.employeeId) } }] }).limit(1001).lean();
   if (others.length > 1000) fail('SCHEDULE_READ_LIMIT', 'Chưa kiểm tra hết lịch liên quan.');
   others.forEach(verifySchedule);
-  const external = others.flatMap((w) => [...w.draft, ...w.published]);
+  const external = others.flatMap((w) => publishedOnly ? w.published : w.publishedAt ? w.published : w.draft);
   for (let index = 0; index < assignments.length; index++) {
     const a = assignments[index];
     for (const b of [...assignments.slice(index + 1), ...external]) {
@@ -362,7 +362,7 @@ async function consentAssignments(row: any, r: ScheduleChange) {
   const assignments = row.published.map((a: ScheduleAssignment) => a.id === r.source.id ? replace(a, receiver.person)
     : r.target && a.id === r.target.id ? replace(a, requester.person) : a);
   // No employee gains a general publish grant: only these fixed consented IDs/persons can change.
-  await checkOverlaps(row, assignments);
+  await checkOverlaps(row, assignments, true);
   return assignments;
 }
 function independentReviewer(actor: AuthenticatedUser, row: any, r: ScheduleChange) {

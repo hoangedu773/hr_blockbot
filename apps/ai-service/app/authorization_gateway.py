@@ -461,6 +461,9 @@ async def _prepare_chat(request: AuthorizedChatRequest, key: str) -> dict | Prep
                         needs_assignment_id = True
                 if not TASKS_INTENT.search(request.message) and not DETAIL_INTENT.search(request.message):
                     calls.append(("get_my_revenue_kpi", {"period": period} if period else {}))
+        elif TASKS_INTENT.search(request.message):
+            period = requested_kpi_period(request.message)
+            calls.append(("get_my_tasks", {"period": period} if period else {}))
         _SKIPPED = object()
 
         async def _fetch_tool(tool: str, args: dict[str, Any], sem: asyncio.Semaphore) -> tuple[str, Any]:
