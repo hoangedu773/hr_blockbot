@@ -105,9 +105,15 @@ export async function openRevenuePlan(period: string): Promise<Plan> {
   const path = '/revenue-kpi/periods/' + encodeURIComponent(period);
   const preview = RevenueKpiOpenPreviewSchema.parse(await requestJson(path + '/open-preview'));
   const blockers = preview.items.filter(item => item.status === 'BLOCKED');
+  const hasMissingBase = blockers.some(item => item.code === 'REVENUE_KPI_TARGET_INVALID');
   return {
-    summary: [`Kỳ ${period} · ${preview.summary.create} bản nháp dự kiến tạo · ${preview.summary.skipped} đã có · ${preview.summary.blocked} còn vướng.`,
-      ...blockers.map(item => `• ${item.label} · ${item.message ?? item.fixHint ?? 'Cần kiểm tra'}`)].join('\n'),
+    summary: [
+      `Kỳ ${period} · ${preview.summary.create} bản nháp dự kiến tạo · ${preview.summary.skipped} đã có · ${preview.summary.blocked} còn vướng.`,
+      ...blockers.map(item => `• ${item.label} · ${item.message ?? item.fixHint ?? 'Cần kiểm tra'}`),
+      ...(hasMissingBase
+        ? [`\n💡 Gợi ý: Bạn có thể nhắn “khởi tạo mục tiêu cơ sở kỳ ${period}” (hoặc “dùng dữ liệu demo kỳ ${period}”) để tự động tạo chỉ tiêu phân tầng cho các chi nhánh thiếu doanh thu tháng gốc.`]
+        : []),
+    ].join('\n'),
     execute: async () => {
       const proposal = RevenueKpiOpenActionSchema.parse(await requestJson(path + '/open-proposal', post({})));
       if (proposal.preview.planDigest !== preview.planDigest || proposal.preview.version !== preview.version) throw new Error('Kế hoạch vừa thay đổi. Hãy yêu cầu xem trước lại.');
@@ -120,14 +126,142 @@ export async function openRevenuePlan(period: string): Promise<Plan> {
   };
 }
 
+export async function seedBaselinePlan(period: string): Promise<Plan> {
+  const path = '/revenue-kpi/periods/' + encodeURIComponent(period);
+  const preview = RevenueKpiOpenPreviewSchema.parse(await requestJson(path + '/open-preview'));
+  const blockedTargets = preview.items.filter(
+    item => item.status === 'BLOCKED' && item.code === 'REVENUE_KPI_TARGET_INVALID' && item.assigneeEmployeeId != null
+  );
+  if (!blockedTargets.length) {
+    throw new Error(`Kỳ ${period} hiện không có chi nhánh nào bị thiếu doanh thu tháng gốc.`);
+  }
+  const storeRows = blockedTargets.filter(item => item.unitType === 'STORE' && item.storeId);
+  const areaRows = blockedTargets.filter(item => item.unitType === 'AREA');
+  const computeTierTargetVnd = (label: string, idx: number) => {
+    const lower = label.toLowerCase();
+    if (lower.includes('quận 1 ') || lower.includes('quận 3') || lower.includes('quận 10') || lower.includes('phú nhuận')) {
+      return 28_000_000 + (idx % 9) * 1_850_000;
+    }
+    if (lower.includes('bình thạnh') || lower.includes('tân bình') || lower.includes('quận 5') || lower.includes('quận 7')) {
+      return 21_000_000 + (idx % 8) * 1_450_000;
+    }
+    return 16_500_000 + (idx % 7) * 1_250_000;
+  };
+  return {
+    summary: `Khởi tạo mục tiêu cơ sở phân tầng (16.500.000 ₫ – 42.800.000 ₫) cho ${storeRows.length} cửa hàng và ${areaRows.length} khu vực thiếu doanh thu tháng gốc kỳ ${period}.`,
+    execute: async signal => {
+      for (let i = 0; i < storeRows.length; i += 6) {
+        if (signal.aborted) break;
+        const chunk = storeRows.slice(i, i + 6);
+        await Promise.all(
+          chunk.map((item, offset) =>
+            api.saveRevenueKpiAssignment({
+              ...command(0),
+              period,
+              unitType: 'STORE',
+              storeId: item.storeId!,
+              assigneeEmployeeId: item.assigneeEmployeeId!,
+              targetMode: 'ABSOLUTE_VND',
+              targetVnd: computeTierTargetVnd(item.label, i + offset),
+              reason: 'Khởi tạo mục tiêu cơ sở tự động theo phân tầng khu vực từ hội thoại.',
+            })
+          )
+        );
+      }
+      for (let i = 0; i < areaRows.length; i += 6) {
+        if (signal.aborted) break;
+        const chunk = areaRows.slice(i, i + 6);
+        await Promise.all(
+          chunk.map(item =>
+            api.saveRevenueKpiAssignment({
+              ...command(0),
+              period,
+              unitType: 'AREA',
+              assigneeEmployeeId: item.assigneeEmployeeId!,
+              targetMode: 'ABSOLUTE_VND',
+              reason: 'Tổng hợp mục tiêu cơ sở khu vực AM tự động từ hội thoại.',
+            })
+          )
+        );
+      }
+      return `Đã khởi tạo ${storeRows.length} mục tiêu cửa hàng và ${areaRows.length} mục tiêu khu vực kỳ ${period}. Bạn có thể nhắn “mở kỳ ${period}” hoặc “xem KPI kỳ ${period}”.`;
+    },
+  };
+}
+
+export function diversifyRevenuePlan(d: RevenueKpiDashboard): Plan {
+  const storeDrafts = d.assignments.filter(a => a.status === 'DRAFT' && a.unitType === 'STORE');
+  const areaDrafts = d.assignments.filter(a => a.status === 'DRAFT' && a.unitType === 'AREA');
+  if (!storeDrafts.length) throw new Error(`Kỳ ${d.period.period} không có bản nháp cửa hàng nào để phân bổ.`);
+  const VARIED_GROWTH = [11, 8, 5.5, 12.5, 6, 14, 8.5, 4.5, 10, 12, 6.5, 9, 5, 13, 4, 9.5, 7.5, 15, 3.5, 10.5];
+  const computeTierTargetVnd = (name: string, idx: number) => {
+    const lower = name.toLowerCase();
+    if (lower.includes('quận 1 ') || lower.includes('quận 3') || lower.includes('quận 10') || lower.includes('phú nhuận')) {
+      return 28_000_000 + (idx % 9) * 1_850_000;
+    }
+    if (lower.includes('bình thạnh') || lower.includes('tân bình') || lower.includes('quận 5') || lower.includes('quận 7')) {
+      return 21_000_000 + (idx % 8) * 1_450_000;
+    }
+    return 16_500_000 + (idx % 7) * 1_250_000;
+  };
+  return {
+    summary: `Phân bổ mức tăng trưởng đa dạng (+3.5% đến +15%) cho ${storeDrafts.length} bản nháp cửa hàng và đồng bộ ${areaDrafts.length} khu vực kỳ ${d.period.period}.`,
+    execute: async signal => {
+      for (let i = 0; i < storeDrafts.length; i += 5) {
+        if (signal.aborted) break;
+        const chunk = storeDrafts.slice(i, i + 5);
+        await Promise.all(
+          chunk.map((a, offset) => {
+            const idx = i + offset;
+            const growthPercent = VARIED_GROWTH[idx % VARIED_GROWTH.length];
+            const hasBase = a.baseRevenueVnd != null && a.baseRevenueVnd > 0;
+            const storeName = a.stores[0]?.storeName ?? '';
+            return api.saveRevenueKpiAssignment({
+              ...command(a.version),
+              id: a.id,
+              period: a.period,
+              unitType: 'STORE',
+              storeId: a.storeId,
+              assigneeEmployeeId: a.assigneeEmployeeId,
+              targetMode: hasBase ? 'GROWTH_PERCENT' : 'ABSOLUTE_VND',
+              ...(hasBase ? { growthPercent } : { targetVnd: computeTierTargetVnd(storeName, idx) }),
+              reason: 'HR phân bổ mức tăng trưởng và mục tiêu đa dạng từ hội thoại.',
+            });
+          })
+        );
+      }
+      for (let i = 0; i < areaDrafts.length; i += 5) {
+        if (signal.aborted) break;
+        const chunk = areaDrafts.slice(i, i + 5);
+        await Promise.all(
+          chunk.map(a =>
+            api.saveRevenueKpiAssignment({
+              ...command(a.version),
+              id: a.id,
+              period: a.period,
+              unitType: 'AREA',
+              assigneeEmployeeId: a.assigneeEmployeeId,
+              targetMode: 'ABSOLUTE_VND',
+              reason: 'Đồng bộ tổng mục tiêu khu vực AM sau khi phân bổ đa dạng.',
+            })
+          )
+        );
+      }
+      return `Đã phân bổ % tăng trưởng đa dạng cho ${storeDrafts.length} cửa hàng và đồng bộ ${areaDrafts.length} khu vực kỳ ${d.period.period}.`;
+    },
+  };
+}
+
 export function* createRevenuePlan(period: string): Step<Plan> {
   let policy;
   while (!policy) {
-    const reply = revenueText(yield 'Dùng cấu hình mặc định hay tùy chỉnh? Mặc định là tăng 3%, ngưỡng cửa hàng chưa đạt 30%, hạn nhận 3 ngày làm việc, dùng POS thật. Bạn có thể nhắn “mặc định” hoặc “tăng 5%, ngưỡng 25%, hạn 4 ngày, dùng dữ liệu demo”.');
+    const reply = revenueText(yield 'Dùng cấu hình mặc định hay tùy chỉnh? Mặc định là tăng 3%, ngưỡng cửa hàng chưa đạt 30%, hạn nhận 3 ngày làm việc, cho phép POS demo. Bạn có thể nhắn “mặc định” hoặc “tăng 5%, ngưỡng 25%, hạn 4 ngày, dùng dữ liệu demo”.');
     const growth = reply.match(/tang\s*(-?\d+(?:[.,]\d+)?)\s*%/);
     const threshold = reply.match(/nguong\s*(\d+(?:[.,]\d+)?)\s*%/);
     const days = reply.match(/han\s*(\d+)\s*ngay/);
-    const allowDemoData = /(?:dung|cho phep) (?:du lieu |pos )?demo/.test(reply) && !/khong (?:dung|cho phep)/.test(reply);
+    const explicitDemo = /(?:dung|cho phep) (?:du lieu |pos )?demo/.test(reply);
+    const forbidDemo = /khong (?:dung|cho phep).*(?:demo)?|\bpos that\b/.test(reply);
+    const allowDemoData = !forbidDemo && (explicitDemo || /mac dinh/.test(reply));
     if (!/mac dinh/.test(reply) && !growth && !threshold && !days && !allowDemoData) continue;
     const parsed = RevenueKpiPolicySchema.safeParse({
       defaultGrowthPercent: growth ? Number(growth[1].replace(',', '.')) : undefined,

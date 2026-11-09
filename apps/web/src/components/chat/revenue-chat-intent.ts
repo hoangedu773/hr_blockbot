@@ -10,12 +10,15 @@ export function revenueParts(text: string) {
 export type RevenueIntent =
   | 'list' | 'periods' | 'detail' | 'history' | 'export' | 'pending' | 'help'
   | 'create' | 'open' | 'close-check' | 'compute' | 'close'
+  | 'seed-baseline' | 'diversify'
   | 'draft' | 'edit' | 'publish' | 'accept' | 'refuse' | 'keep' | 'force' | 'cancel-target' | 'adjust-target'
   | 'request' | 'verify' | 'approve-adjustment' | 'reject-adjustment' | 'responsibility'
   | 'miss-reason' | 'review-reason' | 'return-reason' | 'confirm' | 'waive' | 'correct'
   | 'ai' | 'apply-ai';
 
 const rules: [RevenueIntent, RegExp][] = [
+  ['seed-baseline', /(?:khoi tao|tao|ap|dung|su dung|xu ly).*(?:muc tieu co so|du lieu demo|pos demo|thieu doanh thu thang goc|muc tieu mac dinh)/],
+  ['diversify', /(?:phan bo|rai|da dang).*(?:tang truong|%\s*tang|muc tieu|chi tieu)/],
   ['close-check', /(?:con (?:vuong|thieu)|du dieu kien|kiem tra|san sang|xem truoc|truoc khi).*\b(?:chot|dong)(?: ky)?\b/],
   ['create', /(?:tao|lap|khoi tao) (?:mot )?ky/],
   ['open', /(?:mo|bat dau) ky|(?:tao|bo sung|xem truoc).*ban nhap.*(?:con )?thieu/],
@@ -53,7 +56,7 @@ const rules: [RevenueIntent, RegExp][] = [
 
 export function detectRevenueIntent(text: string, inContext: boolean): RevenueIntent | null {
   const command = revenueText(revenueParts(text).instruction);
-  const scoped = /\b(?:kpi doanh thu|chi tieu doanh thu|muc tieu doanh thu|ky doanh thu)\b/.test(command);
+  const scoped = /\b(?:kpi doanh thu|chi tieu doanh thu|muc tieu doanh thu|ky doanh thu|muc tieu co so|thieu doanh thu thang goc)\b/.test(command);
   const periodCommand = /\b(?:tao|lap|mo|chot|dong|khoa) ky\b/.test(command) && /\b(?:thang|20\d{2}-|\d{1,2}\/20\d{2})/.test(command);
   if (/\b(?:hieu suat|tiep nhan nhan vien|ho so tiep nhan|ho so cua toi|lich lam|thong bao|nghiem thu cong viec|thong tin nhan su)\b/.test(command) && !scoped) return null;
   if (!scoped && !inContext && !periodCommand) return null;

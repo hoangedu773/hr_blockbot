@@ -4,8 +4,8 @@ import * as api from '../../services/revenue-kpi-api';
 import { fetchMe } from '../../services/api';
 import {
   assignmentStatus, bulkRevenuePlan, canUseUnit, choose, closeBlockers, computeOrClose, createRevenuePlan,
-  currentRevenueMonth, draftRevenuePlan, isUnitIntent, openRevenuePlan, periodStatus, resultStatus,
-  revenueMoney, unitName, unitRevenuePlan, type Plan, type Step, type UnitIntent,
+  currentRevenueMonth, diversifyRevenuePlan, draftRevenuePlan, isUnitIntent, openRevenuePlan, periodStatus, resultStatus,
+  revenueMoney, seedBaselinePlan, unitName, unitRevenuePlan, type Plan, type Step, type UnitIntent,
 } from './revenue-chat-actions';
 import { detectRevenueIntent, pickRevenueChoice, revenueMonth, revenueParts, revenueText, type RevenueIntent } from './revenue-chat-intent';
 
@@ -14,7 +14,8 @@ type Session = { period: string; options: string[]; selected?: string };
 type Decision = { step: Step<Plan> } | { plan: Plan };
 
 const capabilities: Partial<Record<RevenueIntent, AuthorizationCapability>> = {
-  create: 'revenue_kpi.assign', open: 'revenue_kpi.assign', draft: 'revenue_kpi.assign', edit: 'revenue_kpi.assign',
+  create: 'revenue_kpi.assign', open: 'revenue_kpi.assign', 'seed-baseline': 'revenue_kpi.assign', diversify: 'revenue_kpi.assign',
+  draft: 'revenue_kpi.assign', edit: 'revenue_kpi.assign',
   publish: 'revenue_kpi.assign', ai: 'revenue_kpi.assign', 'apply-ai': 'revenue_kpi.assign', responsibility: 'revenue_kpi.assign',
   accept: 'revenue_kpi.respond', refuse: 'revenue_kpi.respond', request: 'revenue_kpi.request_adjustment',
   'miss-reason': 'revenue_kpi.respond', verify: 'revenue_kpi.verify_adjustment',
@@ -176,14 +177,17 @@ export function useRevenueKpiChat({
         return;
       }
       if (pending && 'plan' in pending) {
-        if (!/^(?:toi )?(?:xac nhan(?: thuc hien)?|dong y|tien hanh|thuc hien)$/.test(q)) {
+        if (/^(?:toi )?(?:xac nhan(?: thuc hien)?|dong y|tien hanh|thuc hien)$/.test(q)) {
+          decision.current = undefined;
+          say(await pending.plan.execute(signal));
+          if (!signal.aborted) onChanged();
+          return;
+        }
+        if (intent !== 'seed-baseline' && intent !== 'diversify') {
           say('Nhắn “xác nhận” để thực hiện nội dung vừa xem hoặc “hủy” để dừng.');
           return;
         }
         decision.current = undefined;
-        say(await pending.plan.execute(signal));
-        if (!signal.aborted) onChanged();
-        return;
       }
       if (!intent) return;
       if (!can('revenue_kpi.read_scope') && !can('revenue_kpi.read_self')) {
@@ -224,9 +228,22 @@ export function useRevenueKpiChat({
         say(planned(plan));
         return;
       }
+      if (intent === 'seed-baseline') {
+        const plan = await seedBaselinePlan(period);
+        if (signal.aborted) return;
+        decision.current = { plan };
+        say(planned(plan));
+        return;
+      }
       const [d, me] = await Promise.all([api.getRevenueKpiDashboard(period), fetchMe()]);
       const employeeId = me.employeeId ?? undefined;
       if (signal.aborted) return;
+      if (intent === 'diversify') {
+        const plan = diversifyRevenuePlan(d);
+        decision.current = { plan };
+        say(planned(plan));
+        return;
+      }
       if (intent === 'close-check') {
         const blockers = closeBlockers(d);
         say(blockers.length ? `Kỳ ${period} còn ${blockers.length} mục chặn chốt.\n${blockers.map(item => '• ' + item).join('\n')}`
