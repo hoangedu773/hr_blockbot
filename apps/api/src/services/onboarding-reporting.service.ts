@@ -1,10 +1,11 @@
 import mongoose, { Schema } from "mongoose";
 import { createHash, randomUUID } from "node:crypto";
-import { InitialReportingProposalSchema, InitialReportingApprovalSchema, PaginationQuerySchema } from "@hr-blockbot/contracts";
+import { InitialReportingProposalSchema, InitialReportingApprovalSchema, OnboardingCreateSchema, PaginationQuerySchema } from "@hr-blockbot/contracts";
 import { OnboardingRequestModel } from "../models/OnboardingRequest.js";
 import { ManagementRelationModel } from "../models/AuthorizationMapping.js";
 import { UserModel } from "../models/User.js";
 import { EmployeeModel } from "../models/Employee.js";
+import { SmAppointmentModel } from "../models/SmAppointment.js";
 import type { AuthenticatedUser } from "../middlewares/auth.middleware.js";
 import { resolvePrincipal, securityVersion } from "./principal.service.js";
 import { allowedStoreIds, hasCapability, requireCapability, resourceScope } from "./authorization-scope.service.js";
@@ -12,7 +13,9 @@ import { WorkflowError, objectId } from "./project-workflow.service.js";
 import { digest } from "./project-audit.service.js";
 import { withCrmWriter } from "./crm-writer.service.js";
 import { workflowPage, workflowDetail, historyIntegrity } from "./workflow-page.service.js";
-import { assertApprovalCurrent as assertHrApprovalCurrent } from "./onboarding.service.js";
+import { assertApprovalCurrent as assertHrApprovalCurrent, createOnboarding } from "./onboarding.service.js";
+import { verifySmAppointment } from "./sm-appointment.service.js";
+import { groupStoreManagers, summarizeStoreLeadership } from "./store-leadership.service.js";
 
 const schema = new Schema({
   onboardingId: { type: Schema.Types.ObjectId, required: true, unique: true }, employeeId: { type: Schema.Types.ObjectId, required: true },
@@ -97,10 +100,72 @@ export async function initialReportingManagers(actor: AuthenticatedUser, storeId
   const users = UserModel.find({ status: "active", "authorization.profile": { $in: ["om", "sam", "am", "sm"] } }).select("employeeId").sort({ _id: 1 }).lean().cursor();
   const items = []; let totalItems = 0;
   for await (const user of users) { if (!user.employeeId) continue; try { const employee = await eligibleManager(user.employeeId, storeId); if (totalItems >= start && items.length < limit) items.push({ employeeId: String(employee._id), fullName: employee.fullName || employee.full_name || "", employeeCode: employee.employeeCode || employee.employee_code || "" }); totalItems++; } catch (error: any) { if (![401, 403, 409].includes(error?.status)) throw error; } }
-  return { items, paging: { page, limit, totalItems, hasNext: page * limit < totalItems } };
+  return { items, defaultManager: page === 1 ? await initialStoreManager(storeId) : null, paging: { page, limit, totalItems, hasNext: page * limit < totalItems } };
 }
-export async function proposeInitialReporting(actor: AuthenticatedUser, input: unknown) {
+
+async function initialStoreManager(storeId: string) {
+  const now = new Date();
+  const activeDates = { validFrom: { $lte: now }, $or: [{ validUntil: null }, { validUntil: { $gt: now } }] };
+  const appointments = await SmAppointmentModel.find({ storeId, status: "APPROVED", kind: "PRIMARY", ...activeDates }).limit(2).lean();
+  if (appointments.length > 1) return null;
+  let managerId: string | null = null;
+  try {
+    if (appointments.length === 1) {
+      verifySmAppointment(appointments[0]);
+      managerId = String(appointments[0].employeeId);
+    } else {
+      const edges = await ManagementRelationModel.find({ storeId, approvalRef: { $type: "string", $ne: "" }, revokedAt: null, ...activeDates })
+        .select("managerEmployeeId storeId validUntil")
+        .lean<{ managerEmployeeId: mongoose.Types.ObjectId; storeId: mongoose.Types.ObjectId; validUntil?: Date | null }[]>();
+      const people = await EmployeeModel.find({ _id: { $in: edges.map(edge => edge.managerEmployeeId) },
+        storeId, status: "active", storeMappingRef: { $type: "string", $ne: "" }, lifecyclePendingRequestId: null }).lean();
+      managerId = summarizeStoreLeadership(groupStoreManagers(people, edges).get(storeId) ?? []).managerEmployeeId;
+    }
+    if (!managerId) return null;
+    const manager = await eligibleManager(managerId, storeId);
+    return { employeeId: managerId, fullName: manager.fullName || manager.full_name || "", employeeCode: manager.employeeCode || manager.employee_code || "" };
+  } catch (error: any) {
+    if ([401, 403, 409].includes(error?.status)) return null;
+    throw error;
+  }
+}
+
+export async function onboardingManagerSummary(onboarding: { id: string; payload: { initialManagerEmployeeId?: string } }) {
+  const row = await OnboardingReportingModel.findOne({ onboardingId: objectId(onboarding.id) }).select("managerEmployeeId status validFrom")
+    .lean<{ managerEmployeeId: mongoose.Types.ObjectId; status: string; validFrom: Date } | null>();
+  const managerId = row?.managerEmployeeId ?? onboarding.payload.initialManagerEmployeeId;
+  if (!managerId) return null;
+  const manager: any = await EmployeeModel.findById(managerId).select("fullName full_name").lean();
+  return { managerName: manager?.fullName || manager?.full_name || "Chưa rõ", status: row?.status ?? "NOT_SUBMITTED", validFrom: row?.validFrom ?? null };
+}
+
+export async function createOnboardingWithManager(actor: AuthenticatedUser, input: unknown, draft: boolean) {
+  const parsed = OnboardingCreateSchema.safeParse(input);
+  if (!parsed.success || !parsed.data.initialManagerEmployeeId) return createOnboarding(actor, input, draft);
+  const body = parsed.data;
   return withCrmWriter(async () => {
+    requireCapability(actor, "onboarding.reporting_propose", resourceScope(actor, { storeId: body.storeId, storeMappingRef: "verified" }));
+    await eligibleManager(body.initialManagerEmployeeId, body.storeId);
+    const onboarding = await createOnboarding(actor, input, draft);
+    const existing = await OnboardingReportingModel.findOne({ onboardingId: onboarding._id }).lean<{ managerEmployeeId: mongoose.Types.ObjectId } | null>();
+    if (existing) {
+      verify(existing);
+      if (String(existing.managerEmployeeId) !== body.initialManagerEmployeeId) {
+        throw new WorkflowError(409, "INITIAL_REPORTING_EXISTS", "Hồ sơ đã có đề xuất quản lý khác. Hãy đối chiếu lịch sử.");
+      }
+      return onboarding;
+    }
+    await proposeInitialReportingOwned(actor, { onboardingId: String(onboarding._id),
+      managerEmployeeId: body.initialManagerEmployeeId, validFrom: body.hiredAt,
+      evidenceRef: "onboarding:" + String(onboarding._id), reason: body.reason });
+    return onboarding;
+  });
+}
+
+export async function proposeInitialReporting(actor: AuthenticatedUser, input: unknown) {
+  return withCrmWriter(() => proposeInitialReportingOwned(actor, input));
+}
+async function proposeInitialReportingOwned(actor: AuthenticatedUser, input: unknown) {
     const parsed = InitialReportingProposalSchema.safeParse(input); if (!parsed.success) throw new WorkflowError(400, "VALIDATION_FAILED", "Đề nghị quan hệ ban đầu không hợp lệ.");
     const body = parsed.data, onboarding: any = await OnboardingRequestModel.findById(body.onboardingId).lean();
     if (!onboarding) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy tiếp nhận.");
@@ -112,7 +177,6 @@ export async function proposeInitialReporting(actor: AuthenticatedUser, input: u
     const values = { onboardingId: onboarding._id, employeeId: onboarding.employeeId, managerEmployeeId: objectId(body.managerEmployeeId), storeId: onboarding.storeId, requestedBy: objectId(actor.userId), requesterEmployeeId: objectId(actor.employeeId!), validFrom: new Date(body.validFrom), evidenceRef: body.evidenceRef, reason: body.reason, status: "PENDING", version: 1 };
     try { return dto((await OnboardingReportingModel.create({ ...values, history: [entry(null, actor.userId, "PROPOSED", body.reason, values)] })).toObject()); }
     catch (error: any) { if (error.code === 11000) throw new WorkflowError(409, "INITIAL_REPORTING_EXISTS", "Đã có đề nghị quan hệ cho identity này; xem lịch sử, không tạo lại."); throw error; }
-  });
 }
 async function apply(row: any, actor: AuthenticatedUser, failpoint?: (stage: string) => void) {
   verify(row); await checkReviewer(actor, row); await eligibleManager(row.managerEmployeeId, row.storeId);

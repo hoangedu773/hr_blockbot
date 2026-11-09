@@ -12,7 +12,7 @@ import { digest } from "./project-audit.service.js";
 import { semanticCandidates } from "./f4-client.service.js";
 
 const normalize = (s: string) => s.normalize("NFC").trim().replace(/\s+/gu, " ").toLocaleLowerCase("vi");
-const skillsOf = (value: unknown): string[] => Array.isArray(value) ? [...new Set(value.filter((s): s is string => typeof s === "string" && !!s.trim() && s.trim().length <= 100).map((s) => s.normalize("NFC").trim()))].slice(0, 30) : [];
+export const skillsOf = (value: unknown): string[] => Array.isArray(value) ? [...new Set(value.filter((s): s is string => typeof s === "string" && !!s.trim() && s.trim().length <= 100).map((s) => s.normalize("NFC").trim()))].slice(0, 30) : [];
 async function snapshot(project: any, user: AuthenticatedUser) {
   if (!["DRAFT", "ASSIGNED", "IN_PROGRESS"].includes(project.status)) throw new WorkflowError(409, "F4_PROJECT_STATE", "Chỉ gợi ý cho công việc đang cần phân công/chuyển giao.");
   assertProjectManagement(user, project, "projects.assign");
@@ -28,11 +28,26 @@ async function snapshot(project: any, user: AuthenticatedUser) {
   return employees.map((e) => ({ employeeId: String(e._id), fullName: String(e.fullName || e.full_name || e._id), skills: skillsOf(e.skills), activeLoad: loads.get(String(e._id)) ?? 0, incomingReservations: reservations.get(String(e._id)) ?? 0 }));
 }
 
-/** The sole initial/replacement ranking orchestrator. Never reads or writes KPI. */
-export async function recommendCandidates(project: any, user: AuthenticatedUser): Promise<F4Suggestions> {
-  const rows = await snapshot(project, user), required = skillsOf(project.requiredSkills);
+type CandidateSnapshot = Awaited<ReturnType<typeof snapshot>>;
+type RankingContext = { version: number; description?: string; requiredSkills?: string[]; state: string };
+
+export function recommendCandidates(project: any, user: AuthenticatedUser) {
+  const context = (row: any): RankingContext => ({
+    version: row.version ?? 1, description: row.description, requiredSkills: row.requiredSkills, state: row.status,
+  });
+  return rankCandidates(user, async (principal, initial) => {
+    const row = initial ? project : await visibleProject(principal, String(project._id));
+    return { context: context(row), rows: await snapshot(row, principal) };
+  });
+}
+
+/** Shared advisory ranking; each caller supplies its own scoped, revalidated snapshot. */
+export async function rankCandidates(user: AuthenticatedUser, read: (principal: AuthenticatedUser, initial: boolean) =>
+  Promise<{ context: RankingContext; rows: CandidateSnapshot }>): Promise<F4Suggestions> {
+  const { context, rows } = await read(user, true);
+  const required = skillsOf(context.requiredSkills);
   const authority = (p: AuthenticatedUser) => digest({ authorization: p.authorization, canonical: p.canonical, delegations: p.effectiveDelegations ?? [] });
-  const beforeAuthority = authority(user), before = digest(rows);
+  const beforeAuthority = authority(user), before = digest({ context, rows });
   const mode = process.env.F4_MODE ?? "OFF";
   if (!["OFF", "PHOBERT"].includes(mode)) throw new WorkflowError(503, "F4_CONFIGURATION_INVALID", "Cấu hình F4 chưa hợp lệ; chọn người thủ công.");
   const alphaText = process.env.F4_SEMANTIC_WEIGHT;
@@ -43,19 +58,19 @@ export async function recommendCandidates(project: any, user: AuthenticatedUser)
   if (status === "READY" && mode === "PHOBERT") {
     // A fresh current principal is required before even the local model receives data.
     const preflight = await resolvePrincipal({ sub: user.userId, role: user.role, securityVersion: user.securityVersion });
-    const preflightProject = await visibleProject(preflight, String(project._id));
-    if (authority(preflight) !== beforeAuthority || preflightProject.version !== project.version || digest(await snapshot(preflightProject, preflight)) !== before) throw new WorkflowError(409, "F4_CONTEXT_CHANGED", "Quyền hoặc dữ liệu đã thay đổi trước khi phân tích.");
+    if (authority(preflight) !== beforeAuthority || digest(await read(preflight, false)) !== before)
+      throw new WorkflowError(409, "F4_CONTEXT_CHANGED", "Quyền hoặc dữ liệu đã thay đổi trước khi phân tích.");
     try {
       if (!Number.isFinite(alpha) || alpha <= 0 || alpha > 1) throw new Error("F4_WEIGHT_NOT_SELECTED_ON_DEV");
-      const description = String(project.description ?? "").slice(0, 10000);
+      const description = String(context.description ?? "").slice(0, 10000);
       if ([description, ...required, ...rows.flatMap((row) => row.skills)].some((text) => /\d{6}|[\w.-]+@|\b(?:cccd|cmnd|salary)\b|lương|điện\s*thoại/i.test(text))) throw new Error("F4_CONTEXT_REQUIRES_REDACTION");
       semantic = await semanticCandidates({ requestId: randomUUID(), requiredSkills: required, description, candidates: rows.map((row, index) => ({ id: "c" + index, skills: row.skills })) });
       source = "PHOBERT";
     } catch { status = "MODEL_UNAVAILABLE"; source = "BASELINE_FALLBACK"; }
   }
   const current = await resolvePrincipal({ sub: user.userId, role: user.role, securityVersion: user.securityVersion });
-  const latest = await visibleProject(current, String(project._id));
-  if (authority(current) !== beforeAuthority || latest.version !== project.version || digest({ required: latest.requiredSkills, description: latest.description, status: latest.status }) !== digest({ required: project.requiredSkills, description: project.description, status: project.status }) || digest(await snapshot(latest, current)) !== before) throw new WorkflowError(409, "F4_CONTEXT_CHANGED", "Quyền hoặc dữ liệu đã thay đổi trong lúc gợi ý. Tải lại trước khi chọn.");
+  if (authority(current) !== beforeAuthority || digest(await read(current, false)) !== before)
+    throw new WorkflowError(409, "F4_CONTEXT_CHANGED", "Quyền hoặc dữ liệu đã thay đổi trong lúc gợi ý. Tải lại trước khi chọn.");
   const items = source === "MANUAL" ? [] : rows.map((row, index) => {
     const own = new Set(row.skills.map(normalize)), matched = required.filter((s) => own.has(normalize(s))), missing = required.filter((s) => !own.has(normalize(s)));
     const exact = matched.length / required.length, inferred = semantic?.items.find((item) => item.id === "c" + index);
@@ -65,5 +80,5 @@ export async function recommendCandidates(project: any, user: AuthenticatedUser)
       explanation: `Khớp chính xác ${matched.length}/${required.length} kỹ năng; ${row.activeLoad} nhiệm vụ chịu trách nhiệm; ${row.incomingReservations} bàn giao dự kiến. ${inferred ? "Có đối sánh PhoBERT, không phải xác suất hay xác nhận năng lực." : "Baseline so khớp chính xác, chưa chạy PhoBERT."}` };
   }).sort((a, b) => (b.suitabilityScore ?? -1) - (a.suitabilityScore ?? -1) || a.activeLoad - b.activeLoad || a.employeeId.localeCompare(b.employeeId)).slice(0, 10);
   return F4SuggestionsSchema.parse({ items, candidatesConsidered: rows.length, advisoryOnly: true, status, source, model: semantic ? F4_MODEL : null, revision: semantic ? F4_REVISION : null, semanticWeight: semantic ? alpha : null,
-    projectVersion: project.version ?? 1, generatedAt: new Date().toISOString(), warning: "Quản lý quyết định cuối cùng. Không sử dụng KPI; workload chỉ phá hòa điểm, không là năng lực. Chỉ xét tải trong phạm vi được đọc. Thiếu dữ liệu/model thì chọn thủ công; xem gợi ý không ghi dữ liệu." });
+    projectVersion: context.version, generatedAt: new Date().toISOString(), warning: "Quản lý quyết định cuối cùng. Không sử dụng KPI; workload chỉ phá hòa điểm, không là năng lực. Chỉ xét tải trong phạm vi được đọc. Thiếu dữ liệu/model thì chọn thủ công; xem gợi ý không ghi dữ liệu." });
 }

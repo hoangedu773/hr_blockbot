@@ -1,0 +1,84 @@
+.crm-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.notification-bell {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  color: inherit;
+  background: var(--surface-card, transparent);
+  border: 1px solid var(--border-default, #8994a544);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.notification-bell:hover, .notification-bell[aria-expanded="true"] {
+  border-color: var(--accent-solid, #3788ed);
+}
+
+.notification-bell:focus-visible, .notification-inbox select:focus-visible {
+  outline: 2px solid var(--accent-solid, #3788ed);
+  outline-offset: 3px;
+}
+
+.notification-bell-count {
+  position: absolute;
+  top: -5px;
+  right: -6px;
+  min-width: 18px;
+  padding: 2px 4px;
+  border: 1px solid var(--surface-card, #fff);
+  border-radius: 10px;
+  background: #b91c1c;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.notification-inbox-tools, .notification-inbox-meta, .notification-inbox-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.notification-inbox-tools { margin-bottom: 14px; }
+.notification-inbox-tools label { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.notification-inbox-tools select {
+  max-width: 100%;
+  min-height: 36px;
+  padding: 4px 8px;
+  font: inherit;
+  color: inherit;
+  border: 1px solid var(--border-default, #8994a544);
+  border-radius: 6px;
+  background: var(--surface-card, #171717);
+}
+.notification-inbox-list { list-style: none; padding: 0; margin: 0 0 14px; }
+.notification-inbox-list > li {
+  padding: 14px 12px;
+  border-top: 1px solid var(--border-default, #8994a544);
+  overflow-wrap: anywhere;
+}
+.notification-inbox-list > li[data-unread="true"] { background: #3788ed10; }
+.notification-inbox-list h4 { margin: 8px 0 4px; font-weight: 600; }
+.notification-inbox-list p { margin: 6px 0; white-space: pre-wrap; }
+.notification-inbox-meta { font-size: .85em; }
+.notification-inbox-actions { margin-top: 10px; }
+.notification-level { border: 1px solid #8994a580; border-radius: 999px; padding: 2px 8px; font-weight: 600; }
+.notification-level[data-severity="ACTION_REQUIRED"] { border-color: #3788ed; background: #3788ed1a; }
+.notification-level[data-severity="URGENT"] { border-color: #df5757; background: #df57571a; }
+.notification-inbox .pf-notification-target { border-inline-start: 2px solid #8994a580; margin-top: 12px; padding-inline-start: 12px; }
+
+@media (max-width: 640px) {
+  .notification-bell { width: 40px; height: 40px; }
+  .crm-header-controls { gap: 8px; }
+}

@@ -66,7 +66,8 @@ try {
     res.setHeader('Content-Type', { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg' }[path.extname(file)] || 'application/octet-stream'); fs.createReadStream(file).pipe(res);
   });
   await new Promise((resolve) => web.listen(0, '127.0.0.1', resolve)); origin = `http://127.0.0.1:${web.address().port}`; process.env.FRONTEND_URL = origin;
-  api = http.createServer(createApp({ onboarding: { deliverActivation: async (invitation) => { invitations.set(invitation.requestId, invitation.token); } }, recovery: { deliverRecovery: async (invitation) => { recoveryInvitations.set(invitation.userId, invitation.token); } } }));
+  const otpMessages = [];
+  api = http.createServer(createApp({ accountMail: async message => { otpMessages.push(message); }, onboarding: { deliverActivation: async (invitation) => { invitations.set(invitation.requestId, invitation.token); } }, recovery: { deliverRecovery: async (invitation) => { recoveryInvitations.set(invitation.userId, invitation.token); } } }));
   await new Promise((resolve) => api.listen(0, '127.0.0.1', resolve)); apiOrigin = `http://127.0.0.1:${api.address().port}`;
   browser = await chromium.launch({ headless: true });
   let sm;
@@ -84,6 +85,7 @@ try {
     assert.equal(await visible('onboarding'), ['hr', 'sm'].includes(profile), profile + ' onboarding boundary');
     assert.equal(await visible('employees'), ['hr', 'om', 'sam', 'am', 'sm'].includes(profile), profile + ' HR/operational boundary');
     assert.equal(await page.locator('nav [data-section="authorization"]').count(), 0, profile + ' account permission screen is removed');
+    assert.equal(await page.locator('nav [data-section="directory"]').count(), 0, profile + ' redundant work directory screen is removed');
     assert.equal(await page.getByRole('region', { name: 'Thông tin cấp quyền', exact: true }).count(), 0, profile + ' no permission panel is rendered');
     if (profile !== 'system_admin') {
       await page.locator('nav [data-section="projects"]').click();
@@ -92,9 +94,7 @@ try {
       assert.equal(await page.getByRole('button', { name: 'Tạo công việc', exact: true }).count(), ['om', 'sam', 'am', 'sm'].includes(profile) ? 1 : 0, profile + ' task creation');
     }
     if (profile === 'staff') {
-      assert.equal(await visible('stores'), false); await page.locator('nav [data-section="directory"]').click();
-      const directory = page.getByRole('region', { name: 'Danh bạ công việc', exact: true }); await directory.getByRole('heading', { name: 'Isolated V1 staff', exact: true }).waitFor();
-      assert.doesNotMatch(await directory.innerText(), /staffB|fixture-contact|NEVER_SEND_BANK/);
+      assert.equal(await visible('stores'), false);
     }
     if (profile === 'sm') {
       const status = await page.evaluate(async ({ base, token, id }) => (await fetch(base + '/api/employees/' + id, { headers: { Authorization: 'Bearer ' + token } })).status, { base: apiOrigin, token: current.token(), id: String(fixture.actors.staffB.employee._id) }); assert.equal(status, 404);
@@ -107,11 +107,12 @@ try {
   const dialog = page.getByRole('dialog', { name: 'Đề nghị tiếp nhận nhân viên', exact: true });
   await dialog.getByLabel('Cửa hàng', { exact: true }).selectOption(String(fixture.stores[0]._id));
   assert.equal(await dialog.getByLabel('Mã nhân viên', { exact: true }).isEditable(), false); await dialog.getByLabel('Họ tên', { exact: true }).fill('Isolated browser onboarding');
-  await dialog.getByLabel('Thông tin điện thoại', { exact: true }).fill('isolated-contact'); await dialog.getByLabel('Ngày bắt đầu', { exact: true }).fill('2026-10-31');
+  await dialog.getByLabel('Thông tin điện thoại', { exact: true }).fill('isolated-contact'); await dialog.getByLabel('Email nhận link kích hoạt', { exact: true }).fill('new-employee@example.com'); await dialog.getByLabel('Ngày vào làm', { exact: true }).fill('2026-10-31');
   await dialog.getByLabel('Lý do đề nghị', { exact: true }).fill('Owned browser workflow test'); await dialog.getByRole('button', { name: 'Lưu đề nghị', exact: true }).click();
   await dialog.waitFor({ state: 'hidden' });
   const autoCreated = await OnboardingRequestModel.findOne({ 'payload.fullName': 'Isolated browser onboarding' }).lean();
   const onboardingCode = autoCreated.payload.employeeCode; assert.match(onboardingCode, /^GT-CH2610\d{4}$/);
+  assert.equal(autoCreated.payload.email, 'new-employee@example.com');
   await page.getByRole('heading', { name: `Isolated browser onboarding · ${onboardingCode}`, exact: true }).waitFor();
   assert.equal(await UserModel.countDocuments({ username: onboardingCode.toLowerCase() }), 0);
   const hr = await login('hr'); await hr.page.locator('nav [data-section="onboarding"]').click();
@@ -138,8 +139,22 @@ try {
   assert.equal(new URL(activation.url()).hash, '');
   await activation.getByRole('button', { name: 'Thiết lập mật khẩu', exact: true }).click(); await activation.getByText('Đã thiết lập mật khẩu. Bạn có thể đăng nhập bằng mã nhân viên.').waitFor();
   assert.equal((await UserModel.findById(request.userId)).status, 'active'); assert.equal((await EmployeeModel.findById(request.employeeId)).status, 'active');
+  assert.ok((await UserModel.findById(request.userId)).emailVerifiedAt);
   await ManagementRelationModel.create({ managerEmployeeId: fixture.actors.sm.employee._id, employeeId: request.employeeId, storeId: fixture.stores[0]._id, approvalRef: 'reviewed-browser-subject-mapping', validFrom: new Date(Date.now() - 60000), validUntil: null, version: 1 });
-  await login(onboardingCode.toLowerCase());
+  const newEmployee = await login(onboardingCode.toLowerCase());
+  await newEmployee.page.locator('nav [data-section="profile"]').click();
+  await newEmployee.page.getByRole('button', { name: 'Đổi mật khẩu', exact: true }).click();
+  const passwordDialog = newEmployee.page.getByRole('dialog', { name: 'Đổi mật khẩu', exact: true });
+  await passwordDialog.getByLabel('Mật khẩu hiện tại').fill('BrowserRecipient@2026');
+  await passwordDialog.getByRole('button', { name: 'Gửi mã qua email' }).click();
+  await passwordDialog.getByRole('status').getByText(/n\*\*\*@example\.com/).waitFor();
+  assert.equal(otpMessages[0].to, 'new-employee@example.com');
+  await passwordDialog.getByLabel('Mã xác nhận').fill(otpMessages[0].body.match(/\b\d{6}\b/)[0]);
+  await passwordDialog.getByLabel('Mật khẩu mới (tối thiểu 12 ký tự)', { exact: true }).fill('BrowserChanged@2026');
+  await passwordDialog.getByLabel('Nhập lại mật khẩu mới', { exact: true }).fill('BrowserChanged@2026');
+  await passwordDialog.getByRole('button', { name: 'Xác nhận và đổi mật khẩu' }).click();
+  await newEmployee.page.getByText('Đã đổi mật khẩu. Hãy đăng nhập lại bằng mật khẩu mới.').waitFor();
+  assert.equal((await UserModel.findById(request.userId)).securityVersion, 2);
   await page.screenshot({ path: path.join(output, 'authorization-v1-onboarding-desktop.png'), fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 }); await page.screenshot({ path: path.join(output, 'authorization-v1-onboarding-mobile.png'), fullPage: true });
   assert.deepEqual(errors, []);
@@ -254,9 +269,10 @@ try {
   await lifecycleReview.getByRole('button', { name: 'Kiểm tra điều kiện và tiếp tục xử lý', exact: true }).click(); await lifecycleReview.waitFor({ state: 'hidden' });
   assert.equal(String((await EmployeeModel.findById(request.employeeId)).storeId), String(fixture.stores[1]._id));
   assert.equal((await EmployeeLifecycleRequestModel.findOne({ employeeId: request.employeeId, kind: 'TRANSFER' })).status, 'COMPLETED');
-  const transferred = await login(onboardingCode.toLowerCase(), 'BrowserReactivated@2026'); await transferred.page.locator('nav [data-section="directory"]').click();
-  const transferredDirectory = transferred.page.getByRole('region', { name: 'Danh bạ công việc', exact: true }); await transferredDirectory.getByRole('heading', { name: 'Isolated V1 staffB', exact: true }).waitFor();
-  assert.equal(await transferredDirectory.getByRole('heading', { name: 'Isolated V1 staff', exact: true }).count(), 0);
+  const transferred = await login(onboardingCode.toLowerCase(), 'BrowserReactivated@2026');
+  const transferredDir = await transferred.page.evaluate(async ({ base, token }) => (await fetch(base + '/api/directory', { headers: { Authorization: 'Bearer ' + token } })).json(), { base: apiOrigin, token: transferred.token() });
+  assert.ok(transferredDir.items.some((item) => item.fullName === 'Isolated V1 staffB'));
+  assert.equal(transferredDir.items.some((item) => item.fullName === 'Isolated V1 staff'), false);
   console.log('PASS browser/database transfer: HR approval + two independent store managers -> resume -> canonical B directory only; original identity and CRM history preserved');
 
   const technical = await login('system_admin'); await technical.page.locator('nav [data-section="accounts"]').click();

@@ -4,7 +4,11 @@ import { useAuth } from './context/AuthContext';
 import { ToastContainer, type ToastMessage, type NotifyFn } from './components/Toast';
 import { BrandMark } from './components/BrandMark';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
+import { PasswordOtpDialog } from './components/PasswordOtpDialog';
+import { GoogleLinkDialog } from './components/GoogleLinkDialog';
 import { ActivationView } from './components/ActivationView';
+import { NotificationCenter } from './components/NotificationCenter';
+import type { ActiveCrmView } from './components/CrmDashboardView';
 const FolioLandingView = React.lazy(() =>
   import('./components/FolioLandingView').then((m) => ({ default: m.FolioLandingView }))
 );
@@ -21,11 +25,19 @@ export const AppContent: React.FC = () => {
   const hasSession = isAuthenticated && user !== null;
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isSplashFading, setIsSplashFading] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [googleLinkOpen, setGoogleLinkOpen] = useState(false);
 
   // The workspace opens on the operating surface, not on the assistant. CRM is
   // where the shift and roster decisions live; chat is a secondary tool reached
   // from the sidebar.
   const [activeTab, setActiveTab] = useState<'crm' | 'chat'>('crm');
+  const [notificationView, setNotificationView] = useState<ActiveCrmView | null>(null);
+  const clearNotificationView = useCallback(() => setNotificationView(null), []);
+  const openNotificationView = useCallback((view: ActiveCrmView) => {
+    setNotificationView(view);
+    setActiveTab('crm');
+  }, []);
   const [activationToken, setActivationToken] = useState(() => {
     const parameters = new URLSearchParams(window.location.hash.slice(1));
     const token = parameters.get('legacy-import') || parameters.get('activate') || parameters.get('reactivate') || parameters.get('recover');
@@ -96,12 +108,14 @@ export const AppContent: React.FC = () => {
 
   const handleLogin = async (credentials: LoginRequest) => {
     await login(credentials);
+    setNotificationView(null);
     setActiveTab('crm');
     addToast('Bạn đã đăng nhập vào Guta Workspace.', 'success', 'Đăng nhập thành công');
   };
 
   const handleLogout = useCallback(async () => {
     setActiveTab('crm');
+    setNotificationView(null);
     await logout();
     addToast('Đã đăng xuất phiên làm việc an toàn.', 'info');
   }, [logout, addToast]);
@@ -150,13 +164,15 @@ export const AppContent: React.FC = () => {
     );
   }
 
+  const notificationButton = !user.mustChangePassword && <NotificationCenter onNavigate={openNotificationView} />;
+
   // 2. Authenticated: Render 21st CRM Dashboard (Exact 21st Design)
   return (
     <>
       <DemoErrorBoundary>
         <React.Suspense fallback={<div className="guta-view-loading" role="status" aria-label="Đang tải không gian làm việc..." />}>
           {activeTab === 'chat' ? (
-            <ChatPageView onSwitchTab={handleSwitchTab} onLogout={handleLogout} />
+            <ChatPageView onSwitchTab={handleSwitchTab} onLogout={handleLogout} notificationButton={notificationButton} />
           ) : (
             <CrmDashboardView
               userName={('username' in user && typeof user.username === 'string' && user.username) || (user.role === 'Admin' ? 'Quản trị viên' : 'Nhân viên')}
@@ -166,6 +182,11 @@ export const AppContent: React.FC = () => {
               onTelegramAlert={handleSendTelegramAlert}
               onSwitchTab={handleSwitchTab}
               onNotify={addToast}
+              notificationButton={notificationButton}
+              notificationView={notificationView}
+              onNotificationViewApplied={clearNotificationView}
+              onChangePassword={() => setPasswordOpen(true)}
+              onLinkGoogle={() => setGoogleLinkOpen(true)}
             />
           )}
         </React.Suspense>
@@ -175,8 +196,17 @@ export const AppContent: React.FC = () => {
           username={user.username}
           onSubmit={changePassword}
           onLogout={handleLogout}
+          onEmailOtp={() => setPasswordOpen(true)}
         />
       )}
+      {passwordOpen && <PasswordOtpDialog onClose={() => setPasswordOpen(false)} onSuccess={() => {
+        setPasswordOpen(false);
+        addToast('Đã đổi mật khẩu. Hãy đăng nhập lại bằng mật khẩu mới.', 'success');
+      }} />}
+      {googleLinkOpen && <GoogleLinkDialog onClose={() => setGoogleLinkOpen(false)} onLinked={() => {
+        setGoogleLinkOpen(false);
+        addToast('Đã liên kết. Bạn có thể dùng Google ở lần đăng nhập tiếp theo.', 'success');
+      }} />}
       <ToastContainer toasts={toasts} onDismiss={removeToast} />
     </>
   );

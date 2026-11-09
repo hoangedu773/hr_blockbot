@@ -6,7 +6,7 @@ import { TaskEvaluationModel as TaskEvaluation } from '../models/TaskEvaluation.
 import { PerformanceKpiPolicyModel as Policy } from '../models/PerformanceKpiPolicy.js';
 import type { AuthenticatedUser as User } from '../middlewares/auth.middleware.js';
 import { pfresh,pwrite,pid,pget,pcreate,pupdate,pdto,pfail,nowIso,replay,checkVersion,directManager,scopedRead,ownAuthority,profile,subject,pHistory } from './performance-kpi-common.service.js';
-import { requireCapability,allowedStoreIds,resourceScope } from './authorization-scope.service.js';
+import { requireCapability,allowedStoreIds,resourceScope,hasCapability } from './authorization-scope.service.js';
 import { employeeRole,directEdge } from './performance-kpi-common.service.js';
 import { addWorkingDays } from './revenue-kpi-calc.service.js';
 import { scoreTaskRubric } from './performance-kpi-scoring.service.js';
@@ -16,12 +16,59 @@ async function taskManager(u:User,t:C.TaskInstance,cap:C.AuthorizationCapability
 export async function canReadTask(u:User,t:C.TaskInstance){if(t.assigneeEmployeeId===u.employeeId||t.responsibilitySegments.some(s=>s.employeeId===u.employeeId)){ownAuthority(u,u.employeeId!,'task.read_self');return;}requireCapability(u,'task.read_scope',resourceScope(u,{storeId:t.storeId,storeMappingRef:'task'}));if(profile(u)==='hr')return;if(t.assignerEmployeeId===u.employeeId)return;if(t.assigneeEmployeeId){await scopedRead(u,t.assigneeEmployeeId,t.storeId);return;}pfail('RBAC_DENIED','Nhiệm vụ không thuộc phạm vi được cấp.',403);}
 export async function getTask(user:User,id:string){const u=await pfresh(user),t=await pget(Task,C.TaskInstanceSchema,id);await canReadTask(u,t);return t as C.TaskInstance;}
 export async function listTasks(user:User,period:string){C.PerformanceMonth.parse(period);const u=await pfresh(user);const rows=(await Task.find({kpiPeriod:period}).sort({dueAt:1,_id:1}).limit(2001).lean()).map(r=>pdto(C.TaskInstanceSchema,r));if(rows.length>2000)pfail('DATA_INSUFFICIENT','Danh sách quá lớn; cần lọc thêm.');const result=[];for(const t of rows)try{await canReadTask(u,t);result.push(t);}catch(e:any){if(e.status!==403)throw e;}return result;}
+type ScoredWorkFilters = {
+ period?: string; storeId?: string; departmentId?: string; assigneeId?: string;
+ q?: string; status?: string; assignmentView?: string; mine?: string; overdue?: string; dueFrom?: string; dueTo?: string;
+};
+
+export async function listScoredWork(user: User, filters: ScoredWorkFilters) {
+ const u = await pfresh(user);
+ const scopes: Record<string, unknown>[] = [];
+ if (hasCapability(u, 'task.read_scope')) scopes.push({ storeId: { $in: allowedStoreIds(u, 'task.read_scope') } });
+ if (u.employeeId && hasCapability(u, 'task.read_self')) {
+  scopes.push({ assigneeEmployeeId: u.employeeId }, { 'responsibilitySegments.employeeId': u.employeeId });
+ }
+ if (!scopes.length) return [];
+ const clauses: Record<string, unknown>[] = [{ $or: scopes }];
+ if (filters.period) clauses.push({ kpiPeriod: filters.period });
+ if (filters.storeId) clauses.push({ storeId: filters.storeId });
+ if (filters.departmentId) clauses.push({ storeId: { $in: (u.canonical?.verifiedStores ?? []).filter(s => s.departmentId === filters.departmentId).map(s => s.id) } });
+ if (filters.assigneeId) clauses.push({ assigneeEmployeeId: filters.assigneeId });
+ if (filters.mine === 'true') clauses.push({ assigneeEmployeeId: u.employeeId ?? { $in: [] } });
+ if (filters.status) {
+  const states: Record<string, string[]> = { ASSIGNED: ['ASSIGNED', 'PENDING_ACCEPTANCE', 'ACCEPTED'], IN_PROGRESS: ['IN_PROGRESS', 'REJECTED'], PENDING_REVIEW: ['SUBMITTED', 'PENDING_REVIEW'] };
+  clauses.push({ status: { $in: states[filters.status] ?? [filters.status] } });
+ }
+ if (filters.assignmentView === 'AWAITING_ACCEPTANCE') clauses.push({ assignmentStatus: 'PENDING_ACCEPTANCE', status: { $in: ['ASSIGNED', 'PENDING_ACCEPTANCE'] } });
+ if (filters.assignmentView === 'PENDING_REQUESTS') clauses.push({ assignmentStatus: 'REFUSED', refusalDecision: null });
+ if (filters.assignmentView === 'HANDOVER') clauses.push({ status: 'HANDOVER' });
+ if (filters.q) {
+  const search = new RegExp(filters.q.replace(/[.*+?^$(){}|[\]\\]/g, '\\$&'), 'i');
+  clauses.push({ $or: [{ title: search }, { description: search }] });
+ }
+ const due = { $ifNull: ['$extendedDueAt', '$dueAt'] };
+ if (filters.dueFrom) clauses.push({ $expr: { $gte: [due, new Date(filters.dueFrom).toISOString()] } });
+ if (filters.dueTo) clauses.push({ $expr: { $lte: [due, new Date(filters.dueTo).toISOString()] } });
+ if (filters.overdue === 'true') clauses.push({ $expr: { $lt: [due, nowIso()] }, status: { $nin: ['COMPLETED', 'CANCELLED'] } });
+ const rows = await Task.find({ $and: clauses }).sort({ createdAt: -1, _id: -1 }).limit(2001).lean();
+ if (rows.length > 2000) pfail('DATA_INSUFFICIENT', 'Danh sách công việc có thang điểm quá lớn. Chọn tháng hoặc lọc thêm.');
+ const result: Pick<C.TaskInstance, 'id' | 'title' | 'storeId' | 'assigneeEmployeeId' | 'status' | 'assignmentStatus' | 'progressPercent' | 'dueAt' | 'extendedDueAt' | 'kpiPeriod'>[] = [];
+ for (const row of rows) {
+  const task: C.TaskInstance = pdto(C.TaskInstanceSchema, row);
+  try { await canReadTask(u, task); }
+  catch (error) { if ((error as { status?: number }).status === 403) continue; throw error; }
+  const { id, title, storeId, assigneeEmployeeId, status, assignmentStatus, progressPercent, dueAt, extendedDueAt, kpiPeriod } = task;
+  result.push({ id, title, storeId, assigneeEmployeeId, status, assignmentStatus, progressPercent, dueAt, extendedDueAt, kpiPeriod });
+ }
+ return result;
+}
+
 export async function createTask(user:User,body:any){const input=C.CreateTaskRequestSchema.parse(body);return pwrite(user,async u=>{
  requireCapability(u,'task.manage');if(!allowedStoreIds(u,'task.manage').includes(input.storeId))pfail('RBAC_DENIED','Cửa hàng không thuộc phạm vi được cấp.',403);
  if(input.projectId){const p=await mongoose.connection.collection('projects').findOne({_id:new mongoose.Types.ObjectId(input.projectId)});if(!p||String(p.storeId)!==input.storeId)pfail('RESPONSIBILITY_CONFLICT','Công việc liên kết không thuộc cửa hàng.');}
  const id=pid('task:'+u.userId+':'+input.clientRequestId),old=await Task.findById(id).lean();if(old){const t=pdto(C.TaskInstanceSchema,old);if(replay(t,u,'TASK_CREATED',input))return t;}
- const template=await pget(Template,C.TaskTemplateSchema,input.templateId),period=taskPeriod(input.dueAt);if(template.status!=='PUBLISHED'||template.content.effectiveFrom>period||template.content.effectiveTo&&template.content.effectiveTo<period)pfail('FRAMEWORK_NOT_PUBLISHED','Mẫu nhiệm vụ chưa công bố hoặc hết hiệu lực.');
- return pcreate(Task,C.TaskInstanceSchema,{id,templateId:template.id,templateVersion:template.templateVersion,templateSnapshot:template.content,storeId:input.storeId,projectId:input.projectId,title:input.title,description:input.description,assignerEmployeeId:u.employeeId,assigneeEmployeeId:null,status:'DRAFT',assignmentStatus:null,assignedAt:null,acceptedAt:null,refusedAt:null,refusalReason:null,acceptanceDeadlineAt:null,responsibilityStartedAt:null,responsibilityEndedAt:null,dueAt:input.dueAt,extendedDueAt:null,extensionHistory:[],submittedAt:null,lastSubmittedAt:null,evaluatedAt:null,progressPercent:0,stepProgress:template.content.steps.map((s:any)=>({code:s.code,weightPercent:s.progressWeightPercent,done:false,doneAt:null,evidenceRefs:[]})),taskWeightPercent:input.taskWeightPercent,kpiPeriod:period,responsibilitySegments:[],evidenceRefs:[],auditRequired:true,responsibleApproverId:null,isDemo:input.isDemo,cancellation:null,refusalDecision:null,handover:null,evaluations:[]},u,'TASK_CREATED',input);
+ const template=await pget(Template,C.TaskTemplateSchema,input.templateId),period=taskPeriod(input.dueAt);if(template.proposalStoreId&&template.proposalStoreId!==input.storeId)pfail('RBAC_DENIED','Mẫu chấm chỉ áp dụng cho cửa hàng được duyệt.',403);if(template.status!=='PUBLISHED'||template.content.effectiveFrom>period||template.content.effectiveTo&&template.content.effectiveTo<period)pfail('FRAMEWORK_NOT_PUBLISHED','Mẫu nhiệm vụ chưa công bố hoặc hết hiệu lực.');
+ return pcreate(Task,C.TaskInstanceSchema,{id,templateId:template.id,templateVersion:template.templateVersion,templateSnapshot:template.content,storeId:input.storeId,projectId:input.projectId,title:input.title,description:input.description,...(input.requiredSkills?.length?{requiredSkills:input.requiredSkills}:{}),assignerEmployeeId:u.employeeId,assigneeEmployeeId:null,status:'DRAFT',assignmentStatus:null,assignedAt:null,acceptedAt:null,refusedAt:null,refusalReason:null,acceptanceDeadlineAt:null,responsibilityStartedAt:null,responsibilityEndedAt:null,dueAt:input.dueAt,extendedDueAt:null,extensionHistory:[],submittedAt:null,lastSubmittedAt:null,evaluatedAt:null,progressPercent:0,stepProgress:template.content.steps.map((s:any)=>({code:s.code,weightPercent:s.progressWeightPercent,done:false,doneAt:null,evidenceRefs:[]})),taskWeightPercent:input.taskWeightPercent,kpiPeriod:period,responsibilitySegments:[],evidenceRefs:[],auditRequired:true,responsibleApproverId:null,isDemo:input.isDemo,cancellation:null,refusalDecision:null,handover:null,evaluations:[]},u,'TASK_CREATED',input);
  });}
 const taskInputs:Record<string,any>={assign:C.AssignTaskRequestSchema,accept:C.PerformanceCommandSchema,refuse:C.TaskReasonRequestSchema,progress:C.TaskProgressRequestSchema,submit:C.TaskSubmitRequestSchema,evaluate:C.TaskEvaluateRequestSchema,extend:C.TaskExtendRequestSchema,cancel:C.TaskCancelRequestSchema,handover:C.TaskHandoverRequestSchema,'refusal-decision':C.TaskRefusalDecisionRequestSchema};
 export async function mutateTask(user:User,id:string,action:string,body:any){const schema=taskInputs[action];if(!schema)pfail('INVALID_STATE','Thao tác không được hỗ trợ.');const input=schema.parse(body);return pwrite(user,async u=>{

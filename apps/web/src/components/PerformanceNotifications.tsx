@@ -4,13 +4,13 @@ import { fetchNotifications, markNotificationRead } from '../services/api';
 import { performanceEvaluation, performanceTask } from '../services/performance-kpi-api';
 import { performanceDate, performanceLabels } from './TaskDetailView';
 
-const severityLabels = {
+export const notificationSeverityLabels = {
   INFO: 'Thông tin',
   ACTION_REQUIRED: 'Cần xử lý',
   URGENT: 'Khẩn cấp',
 };
 
-function NotificationTarget({ id, isTask }: { id: string; isTask: boolean }) {
+export function PerformanceNotificationTarget({ id, isTask, onOpenWork }: { id: string; isTask: boolean; onOpenWork?: (period: string, id: string) => void }) {
   const [detail, setDetail] = useState<{ title: string; period: string; status: string; due?: string; description?: string }>();
   const [failed, setFailed] = useState(false);
 
@@ -35,10 +35,11 @@ function NotificationTarget({ id, isTask }: { id: string; isTask: boolean }) {
     <p>Kỳ {detail.period.slice(5)}/{detail.period.slice(0, 4)} · {performanceLabels[detail.status] ?? detail.status}</p>
     {detail.due && <p>Hạn thực hiện {performanceDate(detail.due)}</p>}
     {detail.description && <p>{detail.description}</p>}
+    {isTask && onOpenWork && <button type="button" className="btn" onClick={() => onOpenWork(detail.period, id)}>Mở công việc có thang điểm</button>}
   </div>;
 }
 
-export function PerformanceNotifications({ reload }: { reload: number }) {
+export function PerformanceNotifications({ reload, work }: { reload: number; work: boolean }) {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [unread, setUnread] = useState(0);
   const [filter, setFilter] = useState<'ALL' | NotificationItem['severity']>('ALL');
@@ -51,7 +52,7 @@ export function PerformanceNotifications({ reload }: { reload: number }) {
     let active = true;
     setLoading(true);
     setError('');
-    void Promise.all([fetchNotifications(30, 'performance_kpi'), fetchNotifications(30, 'task')])
+    void Promise.all([fetchNotifications(30, work ? 'task' : 'performance_kpi')])
       .then(groups => {
         if (!active) return;
         setItems(groups.flatMap(group => group.items).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
@@ -60,7 +61,7 @@ export function PerformanceNotifications({ reload }: { reload: number }) {
       .catch(() => { if (active) setError('Chưa tải được thông báo. Hãy dùng nút Tải lại.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [reload]);
+  }, [reload, work]);
 
   async function markRead(id: string) {
     setMarking(id);
@@ -78,11 +79,11 @@ export function PerformanceNotifications({ reload }: { reload: number }) {
 
   const visible = filter === 'ALL' ? items : items.filter(item => item.severity === filter);
   return <details className="pf-card pf-notifications">
-    <summary>Thông báo KPI và nhiệm vụ · {unread} chưa đọc</summary>
+    <summary>{work?'Thông báo công việc':'Thông báo KPI hiệu suất'} · {unread} chưa đọc</summary>
     <label className="pf-notification-filter">Mức độ
       <select value={filter} onChange={event => setFilter(event.target.value as typeof filter)}>
         <option value="ALL">Tất cả</option>
-        {Object.entries(severityLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+        {Object.entries(notificationSeverityLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
       </select>
     </label>
     {loading && <p role="status">Đang tải thông báo…</p>}
@@ -96,7 +97,7 @@ export function PerformanceNotifications({ reload }: { reload: number }) {
         const expanded = selected === item.id;
         return <li key={item.id}>
           <div className="pf-notification-meta">
-            <span className="pf-notification-severity" data-severity={item.severity}>{severityLabels[item.severity]}</span>
+            <span className="pf-notification-severity" data-severity={item.severity}>{notificationSeverityLabels[item.severity]}</span>
             <span>{isTask ? 'Nhiệm vụ' : 'KPI hiệu suất'}</span>
             <time dateTime={item.createdAt}>{performanceDate(item.createdAt)}</time>
             <span>{item.readAt ? 'Đã đọc' : 'Chưa đọc'}</span>
@@ -111,7 +112,7 @@ export function PerformanceNotifications({ reload }: { reload: number }) {
               {marking === item.id ? 'Đang đánh dấu…' : 'Đánh dấu đã đọc'}
             </button>}
           </div>
-          {hasTarget && expanded && <NotificationTarget key={item.id} id={entityId} isTask={isTask} />}
+          {hasTarget && expanded && <PerformanceNotificationTarget key={item.id} id={entityId} isTask={isTask} />}
         </li>;
       })}
     </ul>

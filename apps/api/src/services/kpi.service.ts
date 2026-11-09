@@ -50,7 +50,8 @@ export function periodRange(period: string): { start: Date; end: Date } {
   return { start: new Date(Date.UTC(year, month - 1, 1)), end: new Date(Date.UTC(year, month, 1)) };
 }
 export function currentPeriod(now = new Date()): string {
-  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+  const vietnamTime = new Date(now.getTime() + 7 * 3600000);
+  return `${vietnamTime.getUTCFullYear()}-${String(vietnamTime.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 export function previousPeriods(period: string, count: number): string[] {
   const { start } = periodRange(period);

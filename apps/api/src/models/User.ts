@@ -9,6 +9,18 @@ import { AuthorizationStateSchema, type AuthorizationState } from "@hr-blockbot/
 export interface IUser extends Document {
   username: string;
   email?: string | null;
+  emailVerifiedAt?: Date | null;
+  googleSubject?: string | null;
+  passwordChangeOtp?: {
+    id: string;
+    email: string;
+    digest: string;
+    expiresAt: Date;
+    resendAt: Date;
+    attempts: number;
+    securityVersion: number;
+    delivered: boolean;
+  };
   passwordHash: string;
   role: "Admin" | "Employee";
   status: "active" | "disabled" | "pending_activation";
@@ -45,7 +57,7 @@ const UserSchema = new Schema<IUser>(
       lowercase: true,
       trim: true,
     },
-    // Email chỉ còn là thông tin tuỳ chọn cho admin; đăng nhập không dùng email.
+    // Email liên hệ; đăng nhập vẫn dùng mã nhân viên.
     email: {
       type: String,
       required: false,
@@ -53,6 +65,9 @@ const UserSchema = new Schema<IUser>(
       trim: true,
       default: undefined,
     },
+    emailVerifiedAt: { type: Date },
+    googleSubject: { type: String },
+    passwordChangeOtp: { type: Schema.Types.Mixed, select: false },
     passwordHash: { type: String, required: true },
     role: { type: String, enum: ["Admin", "Employee"], required: true },
     status: { type: String, enum: ["active", "disabled", "pending_activation"], default: "active" },
@@ -86,6 +101,7 @@ const UserSchema = new Schema<IUser>(
 
 // Email unique nhưng phải sparse: gần như toàn bộ tài khoản không có email.
 UserSchema.index({ email: 1 }, { unique: true, sparse: true });
+UserSchema.index({ googleSubject: 1 }, { unique: true, partialFilterExpression: { googleSubject: { $type: "string" } } });
 UserSchema.index({ "passwordRecovery.tokenHash": 1 }, { unique: true, partialFilterExpression: { "passwordRecovery.tokenHash": { $type: "string" } } });
 
 // Mỗi hồ sơ nhân viên chỉ được gắn tối đa một tài khoản. Partial (không phải sparse)

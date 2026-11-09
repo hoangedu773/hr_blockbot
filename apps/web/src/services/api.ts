@@ -1,4 +1,4 @@
-import { F4SuggestionsSchema } from '@hr-blockbot/contracts';
+import { F4SuggestionsSchema, NotificationInboxSchema, type NotificationGroup, type NotificationInboxItem } from '@hr-blockbot/contracts';
 import type {
   AdminUser,
   AssignmentNotice, AssignmentAudit,
@@ -158,7 +158,10 @@ export function isEmployeeDetail(value: EmployeeDetail | EmployeeSummary): value
 // F1 - Employees & profile change approval (FR-003 / FR-004)
 // ---------------------------------------------------------------------------
 
+export type EmployeeTitleGroup = 'am' | 'aom' | 'sam' | 'om' | 'sm' | 'ptch' | 'staff' | 'kitchen' | 'bakery' | 'ops_support';
+
 export interface EmployeeListParams {
+  jobTitleGroup?: EmployeeTitleGroup;
   jobTitle?: string;
   departmentId?: string;
   storeId?: string;
@@ -180,6 +183,7 @@ export async function fetchEmployees(params?: EmployeeListParams): Promise<Pagin
   if (params?.storeId) query.set('storeId', params.storeId);
   if (params?.level) query.set('level', params.level);
   if (params?.jobTitle) query.set('jobTitle', params.jobTitle);
+  if (params?.jobTitleGroup) query.set('jobTitleGroup', params.jobTitleGroup);
   if (params?.status) query.set('status', params.status);
   if (params?.q) query.set('q', params.q);
   if (params?.page) query.set('page', String(params.page));
@@ -326,7 +330,7 @@ export interface ProjectListParams {
   mine?: boolean;
 }
 
-export async function fetchProjects(params?: ProjectListParams): Promise<PaginatedProjectsResponse> {
+function projectListQuery(params?: ProjectListParams) {
   const query = new URLSearchParams();
   for (const key of ['storeId', 'assigneeId', 'dueFrom', 'dueTo'] as const) if (params?.[key]) query.set(key, params[key]!);
   if (params?.status) query.set('status', params.status);
@@ -338,12 +342,32 @@ export async function fetchProjects(params?: ProjectListParams): Promise<Paginat
   if (params?.page) query.set('page', String(params.page));
   if (params?.limit) query.set('limit', String(params.limit));
 
-  const qs = query.toString();
+  return query;
+}
+
+export async function fetchProjects(params?: ProjectListParams): Promise<PaginatedProjectsResponse> {
+  const qs = projectListQuery(params).toString();
   const json = await requestJson<PaginatedProjectsResponse>(`/projects${qs ? `?${qs}` : ''}`);
   if (!Array.isArray(json.items) || !json.paging) {
     throw new ApiError('Phản hồi danh sách đề tài sai hợp đồng (thiếu items/paging)', 500, 'INVALID_RESPONSE');
   }
   return json;
+}
+
+export type ScoredWorkRow = Pick<import('@hr-blockbot/contracts').TaskInstance,
+  'id' | 'title' | 'storeId' | 'assigneeEmployeeId' | 'status' | 'assignmentStatus' | 'progressPercent' | 'dueAt' | 'extendedDueAt' | 'kpiPeriod'
+> & { assigneeName: string | null };
+export type WorkListResponse = {
+  items: ({ type: 'regular'; project: Project } | { type: 'scored'; task: ScoredWorkRow })[];
+  paging: PaginatedProjectsResponse['paging'];
+};
+export type WorkType = 'all' | 'regular' | 'scored';
+
+export async function fetchWorkList(params: ProjectListParams & { workType: WorkType; period: string }): Promise<WorkListResponse> {
+  const query = projectListQuery(params);
+  query.set('workType', params.workType);
+  if (params.period) query.set('period', params.period);
+  return requestJson<WorkListResponse>('/work-list?' + query);
 }
 
 export async function fetchProjectById(projectId: string): Promise<Project> {
@@ -686,6 +710,23 @@ export async function overrideKpi(id: string, expectedVersion: number, finalScor
 }
 export async function fetchNotifications(limit = 30, entityKind?: 'schedule' | 'revenue_kpi' | 'performance_kpi' | 'task', before?: string): Promise<{ items: NotificationItem[]; unread: number }> {
   return requestJson(`/notifications?limit=${limit}${entityKind ? '&entityKind=' + entityKind : ''}${before ? '&before=' + encodeURIComponent(before) : ''}`);
+}
+export async function fetchNotificationInbox(options: {
+  limit: number;
+  group?: NotificationGroup;
+  unreadOnly?: boolean;
+  cursor?: Pick<NotificationInboxItem, 'createdAt' | 'id' | 'source'>;
+  signal?: AbortSignal;
+}) {
+  const query = new URLSearchParams({ limit: String(options.limit) });
+  if (options.group) query.set('group', options.group);
+  if (options.unreadOnly) query.set('unread', 'true');
+  if (options.cursor) {
+    query.set('before', options.cursor.createdAt);
+    query.set('beforeId', options.cursor.id);
+    query.set('beforeSource', options.cursor.source);
+  }
+  return NotificationInboxSchema.parse(await requestJson('/notifications/inbox?' + query, { signal: options.signal }));
 }
 export async function markNotificationRead(id: string): Promise<void> {
   await requestJson(`/notifications/${encodeURIComponent(id)}/read`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });

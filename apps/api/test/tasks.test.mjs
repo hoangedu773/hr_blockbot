@@ -1,6 +1,7 @@
 import './require-isolated-db.mjs';
 import { before,after,test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
 import mongoose from 'mongoose';
 import { connectDB,disconnectDB } from '../dist/db.js';
 import { performanceFixture,cmd,ev } from './helpers/performance-kpi-fixture.mjs';
@@ -40,4 +41,85 @@ test('late/missing task reminders dedupe and never auto accept responsibility',a
  assert.equal(legacy.body, n.body);
  assert.equal(legacy.severity, 'URGENT');
  assert.equal(legacy.actionRef, t.id);
+});
+
+test('manager template proposals need independent scoped HR and cannot bypass published template rules', async () => {
+ const T = await import('../dist/services/task-template.service.js');
+ const hr = await f.principal('hr');
+ const storeId = String(f.stores[0]._id), otherStore = String(f.stores[1]._id);
+ const input = cmd(0, { storeId, content: f.template.content, reason: 'Đề xuất mẫu kiểm kê cho cửa hàng.' });
+ await assert.rejects(T.proposeTaskTemplate(staff, input), e => e.status === 403);
+ await assert.rejects(T.proposeTaskTemplate(sm, { ...input, storeId: otherStore }), e => e.status === 403);
+ const draft = await T.proposeTaskTemplate(sm, input);
+ assert.equal(draft.status, 'DRAFT');
+ assert.equal(draft.proposalStoreId, storeId);
+ assert.equal(draft.approvedBy, null);
+ assert.notEqual(draft.content.code, f.template.content.code);
+ assert.equal(draft.history[0].action, 'TEMPLATE_PROPOSED');
+ assert.deepEqual(await T.proposeTaskTemplate(sm, input), draft);
+ assert.ok((await T.listTaskTemplates(hr)).some(t => t.id === draft.id));
+ assert.ok((await T.listTaskTemplates(sm)).some(t => t.id === draft.id));
+ assert.ok(!(await T.listTaskTemplates(await f.principal('am'))).some(t => t.id === draft.id));
+ const publish = cmd(draft.version, { reason: 'HR đã đối chiếu phạm vi và thang chấm.', evidenceRefs: ev });
+ await assert.rejects(T.publishTaskTemplate(sm, draft.id, publish), e => e.status === 403);
+ const create = cmd(0, { templateId: draft.id, storeId, title: 'Công việc kiểm kê theo mẫu mới', description: 'Đối chiếu thực tế.', dueAt: '2026-11-25T10:00:00.000Z', taskWeightPercent: 20 });
+ await assert.rejects(S.createTask(sm, create), e => e.code === 'PERFORMANCE_KPI_FRAMEWORK_NOT_PUBLISHED');
+ const published = await T.publishTaskTemplate(hr, draft.id, publish);
+ assert.equal(published.status, 'PUBLISHED');
+ assert.equal(published.approvedBy, hr.userId);
+ assert.equal(published.history.length, 2);
+ const work = await S.createTask(sm, create);
+ assert.deepEqual(work.templateSnapshot, published.content);
+ assert.equal(work.status, 'DRAFT');
+
+ const rejectDraft = await T.proposeTaskTemplate(sm, cmd(0, { storeId, content: input.content, reason: input.reason }));
+ const rejection = cmd(rejectDraft.version, { reason: 'Tiêu chí chưa phù hợp với công việc.', evidenceRefs: ev });
+ const rejected = await T.rejectTaskTemplateProposal(hr, rejectDraft.id, rejection);
+ assert.equal(rejected.status, 'ARCHIVED');
+ assert.equal(rejected.approvedBy, null);
+ assert.deepEqual(await T.rejectTaskTemplateProposal(hr, rejectDraft.id, rejection), rejected);
+ await assert.rejects(T.publishTaskTemplate(hr, rejectDraft.id, publish), e => e.status === 409);
+ assert.equal((await T.listTaskTemplates(sm)).find(t => t.id === rejectDraft.id).history.at(-1).reason, rejection.reason);
+});
+
+test('unified work pages contain both types, respect shared filters, and hide work outside scope', async () => {
+ const { createApp } = await import('../dist/app.js');
+ const server = createServer(createApp());
+ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+ const origin = 'http://127.0.0.1:' + server.address().port;
+ const headers = alias => ({ Authorization: 'Bearer ' + f.actors[alias].token, 'Content-Type': 'application/json' });
+ async function list(alias, query) {
+  const response = await fetch(origin + '/api/work-list?' + query, { headers: headers(alias) });
+  assert.equal(response.status, 200);
+  return response.json();
+ }
+ try {
+  const title = 'Phiên đối chiếu chung';
+  for (let index = 0; index < 3; index++) {
+   const body = { title: title + ' thường ' + index, departmentId: String(f.departmentId), storeId: String(f.stores[0]._id), dueDate: '2026-11-25T10:00:00.000Z' };
+   const result = await fetch(origin + '/api/projects', { method: 'POST', headers: headers('sm'), body: JSON.stringify(body) });
+   assert.equal(result.status, 201);
+  }
+  await task(title + ' tính điểm 1');
+  await task(title + ' tính điểm 2');
+  const params = 'q=' + encodeURIComponent(title);
+  const first = await list('sm', params + '&limit=2');
+  assert.deepEqual(first.items.map(i => i.type), ['scored', 'regular']);
+  assert.equal(first.paging.totalItems, 5);
+  const second = await list('sm', params + '&limit=2&page=2');
+  const third = await list('sm', params + '&limit=2&page=3');
+  const ids = [...first.items, ...second.items, ...third.items].map(i => i.type === 'scored' ? i.task.id : i.project.id);
+  assert.equal(ids.length, 5);
+  assert.equal(new Set(ids).size, 5);
+  assert.deepEqual((await list('sm', params + '&limit=3&page=2')).items.map(i => i.type), ['regular', 'regular']);
+  const kpi = await list('sm', params + '&workType=scored&period=2026-11&status=ASSIGNED');
+  assert.equal(kpi.items.length, 2);
+  assert.ok(kpi.items.every(i => i.type === 'scored' && i.task.kpiPeriod === '2026-11' && !('history' in i.task)));
+  assert.equal((await list('sm', params + '&workType=regular')).items.length, 3);
+  assert.equal((await list('staff', params)).items.length, 2);
+  assert.equal((await list('staffB', params)).items.length, 0);
+ } finally {
+  server.closeAllConnections();
+  await new Promise(resolve => server.close(resolve));
+ }
 });

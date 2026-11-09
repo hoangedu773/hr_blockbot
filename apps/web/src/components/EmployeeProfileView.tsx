@@ -7,11 +7,11 @@ import { SmAppointments, isSmPositionCandidate } from './SmAppointments';
 import { employeeLocationLabel, employeeJobLabel, profileDate } from '../services/employee-display';
 import '../styles/employee-profile.css';
 
-interface EmployeeProfileViewProps { onLogout: () => void; onNotify: NotifyFn }
+interface EmployeeProfileViewProps { onLogout: () => void; onNotify: NotifyFn; onChangePassword?: () => void; onLinkGoogle?: () => void }
 const labels: Record<string, string> = { level: 'Cấp bậc', hiredAt: 'Ngày vào làm', jobTitle: 'Chức danh' };
 const dateOnlyRequest = (r: ProfileChangeRequest) => !!r.targetFields.hiredAt && Object.keys(r.targetFields).every(k => k === 'hiredAt');
 
-export const EmployeeProfileView: React.FC<EmployeeProfileViewProps> = ({ onNotify }) => {
+export const EmployeeProfileView: React.FC<EmployeeProfileViewProps> = ({ onNotify, onChangePassword, onLinkGoogle }) => {
   const { can } = useAuthorization();
   const canEditRegular = can('profile.update_self_basic'), canRequestChange = can('profile.request_self');
   const [profile, setProfile] = useState<EmployeeDetail | null>(null), [isLoading, setIsLoading] = useState(true), [loadError, setLoadError] = useState('');
@@ -68,6 +68,11 @@ export const EmployeeProfileView: React.FC<EmployeeProfileViewProps> = ({ onNoti
         <p className="employee-profile-job">{employeeJobLabel(profile.jobTitle)}</p><p className="employee-profile-location">{employeeLocationLabel(profile)}</p></div>
       <button className="btn" disabled={regularBusy || changeBusy} onClick={() => void load()}>Làm mới hồ sơ</button>
     </header>
+    {onChangePassword && <section className="card card--pad employee-profile-card" aria-label="Bảo mật tài khoản">
+      <h3>Bảo mật tài khoản</h3><p>Xác nhận bằng mã gửi tới email đã xác minh.</p>
+      <button type="button" className="btn" onClick={onChangePassword}>Đổi mật khẩu</button>
+      {onLinkGoogle && <button type="button" className="btn" onClick={onLinkGoogle}>Liên kết Google</button>}
+    </section>}
     <div className="employee-profile-columns">
       <section className="card card--pad employee-profile-card" aria-label="Thông tin cơ bản">
         <div className="employee-profile-card-heading"><h3>Thông tin cơ bản</h3>{canEditRegular && !isEditingRegular && <button className="btn btn--sm" onClick={() => setIsEditingRegular(true)}>Sửa</button>}</div>

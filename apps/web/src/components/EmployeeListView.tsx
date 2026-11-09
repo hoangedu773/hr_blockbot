@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { EmployeeSummary, EmployeeManagement, PaginationMeta } from '@hr-blockbot/contracts';
-import { ApiError, fetchDepartments, fetchEmployees, fetchEmployeeById, fetchPersonnelManagement, type CrmDepartment } from '../services/api';
+import { ApiError, fetchDepartments, fetchEmployees, fetchEmployeeById, fetchPersonnelManagement, type CrmDepartment, type EmployeeTitleGroup } from '../services/api';
 import { Select } from './ui/Select';
 import { CrmDialog } from './ui/CrmDialog';
 import '../styles/crm-work.css';
@@ -9,9 +9,39 @@ import { PersonnelAdmin } from './PersonnelAdmin';
 import { useAuthorization } from '../context/useAuthorization';
 import { EmployeeHrHistory } from './EmployeeHrHistory';
 import { SmAppointments, isSmPositionCandidate } from './SmAppointments';
+import { ScopedManagerList } from './ScopedManagerList';
 import { employeeLocationLabel } from '../services/employee-display';
 
+const titles: { value: EmployeeTitleGroup; label: string }[] = [
+  { value: 'am', label: 'AM — Quản lý khu vực' },
+  { value: 'sam', label: 'SAM — Quản lý khu vực cấp cao' },
+  { value: 'aom', label: 'AOM — Trợ lý OM' },
+  { value: 'om', label: 'OM — Quản lý vùng' },
+  { value: 'sm', label: 'SM — Cửa hàng trưởng' },
+  { value: 'ptch', label: 'PTCH — Phụ trách cửa hàng' },
+  { value: 'staff', label: 'Nhân viên cửa hàng (Cafe)' },
+  { value: 'kitchen', label: 'Khối Bếp (Bếp chính / Bếp nấu / Phụ bếp)' },
+  { value: 'bakery', label: 'Khối Bánh mì' },
+  { value: 'ops_support', label: 'Giao hàng / Bảo vệ / Hỗ trợ vận hành' },
+];
+
 export const EmployeeListView: React.FC = () => {
+  const { can } = useAuthorization();
+  const canReadManagers = can('stores.read');
+  const [view, setView] = useState<'employees' | 'managers'>('employees');
+  const [managerRole, setManagerRole] = useState('');
+  const openManagers = (role = '') => { setManagerRole(role); setView('managers'); };
+  return <>
+    {canReadManagers && <nav className="pf-tabs" aria-label="Phạm vi danh sách nhân sự">
+      <button type="button" aria-pressed={view==='employees'} onClick={() => setView('employees')}>Nhân sự điểm bán</button>
+      <button type="button" aria-pressed={view==='managers'} onClick={() => openManagers()}>Quản lý theo phạm vi</button>
+    </nav>}
+    {canReadManagers && view==='managers' ? <ScopedManagerList key={managerRole} initialRole={managerRole} />
+      : <OutletEmployees onOpenManagers={canReadManagers ? openManagers : undefined} />}
+  </>;
+};
+
+function OutletEmployees({ onOpenManagers }: { onOpenManagers?: (role?: string) => void }) {
   const { can, stores } = useAuthorization();
   const canMetadata = can('projects.create');
   const [storeId, setStoreId] = useState('');
@@ -23,6 +53,7 @@ export const EmployeeListView: React.FC = () => {
   const [query, setQuery] = useState('');
   const [jobTitle, setJobTitle] = useState('');
   const [titleQuery, setTitleQuery] = useState('');
+  const [titleGroup, setTitleGroup] = useState<EmployeeTitleGroup | '' | 'custom'>('');
   const [status, setStatus] = useState('');
   const [department, setDepartment] = useState('');
   const [departments, setDepartments] = useState<CrmDepartment[]>([]);
@@ -48,7 +79,8 @@ export const EmployeeListView: React.FC = () => {
     setLoading(true); setError('');
     try {
       const result = await fetchEmployees({
-        q: query, jobTitle: titleQuery || undefined, storeId: storeId || undefined, status: (status || undefined) as 'active' | 'inactive' | 'UNKNOWN' | undefined,
+        q: query, jobTitle: titleGroup==='custom' ? titleQuery || undefined : undefined,
+        jobTitleGroup: titleGroup && titleGroup!=='custom' ? titleGroup : undefined, storeId: storeId || undefined, status: (status || undefined) as 'active' | 'inactive' | 'UNKNOWN' | undefined,
         departmentId: department || undefined, page, limit: 20,
       });
       if (sequence === latest.current) { setEmployees(result.items); setPaging(result.paging); }
@@ -57,7 +89,7 @@ export const EmployeeListView: React.FC = () => {
         ? 'Danh mục nhân sự chỉ dành cho quản lý trong phạm vi được cấp. Nhân viên vui lòng mở Hồ sơ của tôi.'
         : failure instanceof Error ? failure.message : 'Không tải được nhân sự.');
     } finally { if (sequence === latest.current) setLoading(false); }
-  }, [query, titleQuery, status, department, storeId, page]);
+  }, [query, titleQuery, titleGroup, status, department, storeId, page]);
   useEffect(() => { void load(); return () => { latest.current++; }; }, [load]);
   const details = async (employee: EmployeeSummary) => {
     const sequence = ++detailRequest.current;
@@ -69,17 +101,24 @@ export const EmployeeListView: React.FC = () => {
       if (sequence === detailRequest.current) setDetailError(failure instanceof Error ? failure.message : 'Không tải được hồ sơ.');
     } finally { if (sequence === detailRequest.current) setDetailLoading(false); }
   };
-  const clear = () => { setSearch(''); setQuery(''); setJobTitle(''); setTitleQuery(''); setStatus(''); setDepartment(''); setStoreId(''); setPage(1); };
+  const clear = () => { setSearch(''); setQuery(''); setJobTitle(''); setTitleQuery(''); setTitleGroup(''); setStatus(''); setDepartment(''); setStoreId(''); setPage(1); };
   return <section className="crm-workspace" aria-label="Danh mục nhân sự">
-    <header className="crm-work-heading"><div><p className="crm-work-eyebrow">DỮ LIỆU NHÂN SỰ</p><h2>Danh Sách Nhân Sự Điểm Bán</h2><p>Tra cứu trong phạm vi được cấp. Không hiển thị ngân hàng, CCCD hoặc tiền lương.</p></div><button type="button" className="btn" onClick={() => void load()} disabled={loading}>Làm Mới</button></header>
+    <header className="crm-work-heading"><div><p className="crm-work-eyebrow">DỮ LIỆU NHÂN SỰ</p><h2>Danh Sách Nhân Sự Điểm Bán</h2><p>Tra cứu theo cửa hàng công tác đã xác minh trong phạm vi được cấp.</p></div><button type="button" className="btn" onClick={() => void load()} disabled={loading}>Làm Mới</button></header>
     <PersonnelAdmin departments={departments} editingEmployeeId={editingEmployee} onDismissEdit={() => setEditingEmployee(null)} onChanged={() => { void load(); if (canMetadata) void fetchDepartments().then(setDepartments).catch(() => {}); }} />
     <div className="crm-work-toolbar">
       <label className="field"><span className="field__label">Tìm nhân sự</span><input className="input" type="search" maxLength={50} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm theo tên, mã NV..." /></label>
-      <label className="field"><span className="field__label">Chức danh</span><input className="input" type="search" maxLength={100} value={jobTitle} onChange={(event) => setJobTitle(event.target.value)} placeholder="Lọc theo chức danh..." /></label>
+      <div className="field"><span id="employee-title-filter" className="field__label">Chức danh</span>
+        <Select aria-labelledby="employee-title-filter" value={titleGroup} onChange={(value) => { setTitleGroup(value as typeof titleGroup); setPage(1); }}
+          options={[{ value: '', label: 'Tất cả chức danh' }, ...titles, { value: 'custom', label: 'Tìm chức danh khác…' }]} />
+      </div>
+      {titleGroup==='custom' && <label className="field"><span className="field__label">Tên chức danh</span><input className="input" type="search" maxLength={100} value={jobTitle} onChange={(event) => setJobTitle(event.target.value)} placeholder="Nhập chức danh…" /></label>}
       <div className="field"><span id="employee-status-filter" className="field__label">Trạng thái</span><Select aria-labelledby="employee-status-filter" value={status} onChange={(value) => { setStatus(value); setPage(1); }} options={[{ value: '', label: 'Tất cả trạng thái' }, { value: 'active', label: 'Hoạt động' }, { value: 'inactive', label: 'Tạm dừng' }, { value: 'UNKNOWN', label: 'Chưa xác minh' }]} /></div>
       <label className="field">Cửa hàng nhân sự<select aria-label="Cửa hàng nhân sự" className="input" value={storeId} onChange={(event) => { setStoreId(event.target.value); setPage(1); }}><option value="">Tất cả cửa hàng được cấp</option>{stores.filter((store) => store.capabilities.includes('employees.read_operational')).map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
       {!!departments.length && <div className="field"><span id="employee-department-filter" className="field__label">Phòng ban</span><Select aria-labelledby="employee-department-filter" value={department} onChange={(value) => { setDepartment(value); setPage(1); }} options={[{ value: '', label: 'Tất cả phạm vi được cấp' }, ...departments.map((item) => ({ value: item.id, label: item.name }))]} /></div>}
     </div>
+    {onOpenManagers && ['am','aom','sam','om'].includes(titleGroup) && <p>
+      Mục này lọc theo cửa hàng công tác. Để xem người quản lý theo cửa hàng phụ trách, <button type="button" className="btn" onClick={() => onOpenManagers(titleGroup)}>Xem quản lý theo phạm vi</button>.
+    </p>}
     {loading && <p role="status">Đang tải danh sách nhân sự từ API...</p>}
     {error && <div role="alert" className="banner banner--error">{error}<button type="button" className="btn" onClick={() => void load()}>Thử lại</button></div>}
     {!loading && !error && !employees.length && <div className="empty"><h3>Không tìm thấy nhân sự phù hợp</h3><p>Kiểm tra từ khóa hoặc thay đổi bộ lọc.</p><button type="button" className="btn" onClick={clear}>Xóa bộ lọc</button></div>}
@@ -97,4 +136,4 @@ export const EmployeeListView: React.FC = () => {
       {!detailLoading && !detailError && isSmPositionCandidate(selected.jobTitle) && <SmAppointments key={selected.employeeId} employeeId={selected.employeeId} />}
     </CrmDialog>}
   </section>;
-};
+}

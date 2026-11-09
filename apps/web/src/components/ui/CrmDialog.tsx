@@ -21,7 +21,7 @@ export function CrmDialog({ title, busy = false, onClose, children }: {
   }, []);
   return <dialog ref={ref} data-register="product" className="crm-dialog" aria-label={title}
     onKeyDown={(event) => {
-      if (event.key !== 'Tab') return;
+      if (event.key !== 'Tab' || (event.target as HTMLElement).closest('dialog') !== event.currentTarget) return;
       const focusable = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]')]
         .filter((element) => element.getClientRects().length > 0);
       const first = focusable[0];

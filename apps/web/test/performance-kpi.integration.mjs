@@ -6,32 +6,47 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { chromium } from './helpers/browser-deps.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../..'),reqApi=createRequire(root+'/apps/api/package.json');
+const mongoose=reqApi('mongoose');
 const mongo=await reqApi('mongodb-memory-server').MongoMemoryServer.create();
 process.env.NODE_ENV='test';process.env.TEST_MONGODB_URI=mongo.getUri('test_performance_kpi_browser');process.env.PERFORMANCE_KPI_ENABLED='true';process.env.JWT_SECRET='owned-performance-browser-key-minimum32';delete process.env.ATLAS_URI;delete process.env.MONGODB_DB_NAME;delete process.env.AI_SERVICE_URL;delete process.env.AI_SERVICE_API_KEY;
 await import('../../api/test/require-isolated-db.mjs');
 const {connectDB,disconnectDB}=await import('../../api/dist/db.js');
 const {createApp}=await import('../../api/dist/app.js');
-const {performanceFixture,cmd,ev}=await import('../../api/test/helpers/performance-kpi-fixture.mjs');
+const {performanceFixture,cmd,ev,templateContent,manualScores}=await import('../../api/test/helpers/performance-kpi-fixture.mjs');
 const E=await import('../../api/dist/services/performance-kpi-evaluation.service.js');
 const T=await import('../../api/dist/services/task-instance.service.js');
 const {executeGatewayTool}=await import('../../api/dist/services/chat-authorization.service.js');
 const {explainPerformanceKpi}=await import('../../api/dist/services/performance-kpi-explain.service.js');
 let web,api,upstream,browser,origin,apiOrigin;const contexts=[],errors=[],actors={};const output=path.join(root,'test-results/performance-kpi');fs.mkdirSync(output,{recursive:true});
-const settle=async page=>{await page.locator('.pf-view').waitFor();await page.getByRole('status').filter({hasText:'Đang tải dữ liệu đánh giá'}).waitFor({state:'hidden'});};
+const settle=async page=>{await page.locator('.pf-view').waitFor();await page.locator('.pf-view').getByRole('status').filter({hasText:/Đang tải (dữ liệu đánh giá|công việc)/}).waitFor({state:'hidden'});};
 async function confirm(page){await page.locator('.pf-dialog[open]').getByRole('button',{name:'Xác nhận và lưu',exact:true}).click();await page.locator('.pf-dialog[open]').waitFor({state:'hidden'});await settle(page);}
 async function reason(page,value='Đối chiếu dữ liệu mô phỏng và bằng chứng đã xác minh.'){await page.getByLabel('Lý do và căn cứ',{exact:true}).fill(value);await page.getByLabel('Bằng chứng (mỗi dòng một nội dung hoặc liên kết)',{exact:true}).fill(ev[0]);}
 async function refresh(page){await page.getByRole('button',{name:'Tải lại',exact:true}).click();await settle(page);}
 try{
- await connectDB();const f=await performanceFixture(),principals={};for(const p of ['hr','sm','am','staff','ptch'])principals[p]=await f.principal(p);
+ process.env.F4_MODE='OFF';
+ await connectDB();const f=await performanceFixture(),principals={};
+ await mongoose.connection.collection('employees').updateOne({_id:f.actors.ptch.employee._id},{$set:{skills:['Kiểm kê']}});for(const p of ['hr','sm','am','staff','ptch'])principals[p]=await f.principal(p);
  for(const role of ['STAFF','PTCH','SM'])await E.openPerformancePeriod(principals.hr,'2026-11',cmd(f.policies[role].version,{policyId:f.policies[role].id,employeeIds:[principals[role.toLowerCase()].employeeId],reason:'Mở kỳ riêng cho kiểm thử trình duyệt.'}));
  for(const [name,weight,score]of [['A',40,85],['B',30,95],['C',30,0]]){let t=await T.createTask(principals.sm,cmd(0,{templateId:f.template.id,storeId:String(f.stores[0]._id),title:'Nhiệm vụ '+name,description:'Nội dung giả lập không phải dữ liệu nhân sự thật.',dueAt:new Date(Date.now()-1000).toISOString(),taskWeightPercent:weight,isDemo:true}));t=await T.mutateTask(principals.sm,t.id,'assign',cmd(t.version,{assigneeEmployeeId:principals.staff.employeeId,reason:'Giao nhiệm vụ mô phỏng theo phần việc.'}));t=await T.mutateTask(principals.staff,t.id,'accept',cmd(t.version));if(score){t=await T.mutateTask(principals.staff,t.id,'progress',cmd(t.version,{completedStepCodes:['count','report'],evidenceRefs:ev}));t=await T.mutateTask(principals.staff,t.id,'submit',cmd(t.version,{reason:'Nộp kết quả mô phỏng đầy đủ.',evidenceRefs:ev}));}const points=score?[25,score-60,15,20]:[0,0,0,0];await T.mutateTask(principals.sm,t.id,'evaluate',cmd(t.version,{segmentId:t.responsibilitySegments[0].segmentId,criteriaScores:t.templateSnapshot.qualityCriteria.map((q,i)=>({code:q.code,score:points[i],comment:'Đối chiếu phần việc có bằng chứng.',evidenceRefs:score?ev:[]})),workCompletedPercent:score?100:0,outcome:'CONFIRM',employeeFault:!score,lateReason:score?'Thời hạn và việc nộp trong kịch bản giả lập.':null,reason:score?'Đã xác minh nhiệm vụ mô phỏng.':'Đã nhận nhưng không thực hiện, giữ trong mẫu số.',evidenceRefs:ev}));}
- upstream=http.createServer(async(req,res)=>{try{assert.equal(req.url,'/api/v1/authorized-chat/stream');let raw='';for await(const c of req)raw+=c;const body=JSON.parse(raw);const {result}=await executeGatewayTool(body.delegationToken,{requestId:body.requestId,tool:'get_my_kpi',args:{period:'2026-11'}});res.writeHead(200,{'Content-Type':'text/event-stream'});res.write(`event: delta\ndata: ${JSON.stringify({delta:result.summary})}\n\n`);res.end(`event: done\ndata: ${JSON.stringify({result:{reply:result.summary,citations:[],attachments:[],proposedAction:null}})}\n\n`);}catch{res.writeHead(503).end();}});await new Promise(r=>upstream.listen(0,'127.0.0.1',r));process.env.AI_SERVICE_URL='http://127.0.0.1:'+upstream.address().port;process.env.AI_SERVICE_API_KEY='owned-performance-chat-key';process.env.AI_LLM_API_KEY='owned-performance-chat-provider-key';process.env.AI_LLM_BASE_URL='https://provider.invalid/v1';
+ upstream=http.createServer(async(req,res)=>{try{let raw='';for await(const c of req)raw+=c;const body=JSON.parse(raw);if(req.url==='/api/v1/kpi/suggest-task-structure'){res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({content:templateContent(),rationale:'Gợi ý đối chiếu kiểm kê và bằng chứng.',confidence:'medium',model:'isolated-structure-provider',degraded:false}));return;}assert.equal(req.url,'/api/v1/authorized-chat/stream');const {result}=await executeGatewayTool(body.delegationToken,{requestId:body.requestId,tool:'get_my_kpi',args:{period:'2026-11'}});res.writeHead(200,{'Content-Type':'text/event-stream'});res.write(`event: delta\ndata: ${JSON.stringify({delta:result.summary})}\n\n`);res.end(`event: done\ndata: ${JSON.stringify({result:{reply:result.summary,citations:[],attachments:[],proposedAction:null}})}\n\n`);}catch{res.writeHead(503).end();}});await new Promise(r=>upstream.listen(0,'127.0.0.1',r));process.env.AI_SERVICE_URL='http://127.0.0.1:'+upstream.address().port;process.env.AI_SERVICE_API_KEY='owned-performance-chat-key';process.env.AI_LLM_API_KEY='owned-performance-chat-provider-key';process.env.AI_LLM_BASE_URL='https://provider.invalid/v1';
  const dist=path.join(root,'apps/web/dist');web=http.createServer((req,res)=>{const name=new URL(req.url,'http://127.0.0.1').pathname,file=path.resolve(dist,'.'+(name==='/'?'/index.html':name));if(!file.startsWith(dist+path.sep)||!fs.existsSync(file))return res.writeHead(404).end();res.setHeader('Content-Type',{'.html':'text/html','.js':'application/javascript','.css':'text/css','.svg':'image/svg+xml'}[path.extname(file)]??'application/octet-stream');fs.createReadStream(file).pipe(res);});await new Promise(r=>web.listen(0,'127.0.0.1',r));origin='http://127.0.0.1:'+web.address().port;process.env.FRONTEND_URL=origin;api=http.createServer(createApp());await new Promise(r=>api.listen(0,'127.0.0.1',r));apiOrigin='http://127.0.0.1:'+api.address().port;browser=await chromium.launch({headless:true});
  for(const profile of ['hr','sm','am','staff','ptch','staffB']){const context=await browser.newContext({viewport:{width:1440,height:1050}});contexts.push(context);await context.route('**/*',async route=>{const u=new URL(route.request().url());if(u.pathname.startsWith('/api/'))return route.fulfill({response:await route.fetch({url:apiOrigin+u.pathname+u.search})});return u.origin===origin?route.continue():route.fulfill({status:200,body:''});});const page=await context.newPage();actors[profile]=page;page.setDefaultTimeout(18000);page.on('pageerror',e=>errors.push(e.message));await page.goto(origin,{waitUntil:'networkidle'});await page.getByRole('button',{name:'Get Started',exact:true}).click();await page.locator('#login-username').fill('v1-'+profile.toLowerCase());await page.locator('#login-password').fill(f.password);await page.getByRole('button',{name:'Đăng nhập',exact:true}).click();await page.locator('.crm-sidebar').waitFor();await page.locator('[data-section="performanceKpi"]').click();await page.getByLabel('Kỳ đánh giá',{exact:true}).fill('2026-11');await settle(page);}
  const {hr,sm,am,staff,ptch,staffB}=actors;
- const notices=staff.locator('.pf-notifications');await notices.locator('summary').click();const severity=notices.getByLabel('Mức độ');await severity.selectOption('ACTION_REQUIRED');
- const assigned=notices.locator('li').filter({hasText:'Đã giao nhiệm vụ'}).first();await assigned.waitFor();await assigned.getByRole('button',{name:'Xem nhiệm vụ'}).click();await assigned.locator('.pf-notification-target strong').waitFor();assert.match(await assigned.locator('.pf-notification-target strong').innerText(),/Nhiệm vụ [ABC]/);
- await assigned.getByRole('button',{name:'Đánh dấu đã đọc'}).click();await assigned.getByText('Đã đọc',{exact:true}).waitFor();await severity.selectOption('INFO');assert.equal(await notices.locator('li').filter({hasText:'Đã giao nhiệm vụ'}).count(),0);await severity.selectOption('ALL');
+ await staff.getByRole('button',{name:/^Thông báo/}).first().click();
+ const inbox=staff.getByRole('dialog',{name:'Thông báo',exact:true});
+ const assigned=inbox.locator('li').filter({hasText:'Đã giao nhiệm vụ'}).first();
+ await assigned.waitFor();
+ await assigned.getByRole('button',{name:'Xem nhiệm vụ',exact:true}).click();
+ await assigned.locator('.pf-notification-target strong').waitFor();
+ assert.match(await assigned.locator('.pf-notification-target strong').innerText(),/Nhiệm vụ [ABC]/);
+ await assigned.getByRole('button',{name:'Đánh dấu đã đọc'}).click();
+ await assigned.getByText('Đã đọc',{exact:true}).waitFor();
+ await inbox.getByRole('button',{name:'Đóng',exact:true}).click();
+ const notices=staff.locator('.pf-notifications');await notices.locator('summary').click();
+ const severity=notices.getByLabel('Mức độ');
+ await severity.selectOption('ACTION_REQUIRED');
+ assert.equal(await notices.locator('li').filter({hasText:'Đã giao nhiệm vụ'}).count(),0);
+ await severity.selectOption('ALL');
  for(const width of [320,375,768,1440]){await staff.setViewportSize({width,height:900});await notices.scrollIntoViewIfNeeded();await staff.screenshot({path:path.join(output,`notifications-${width}.png`)});const small=await notices.locator('summary,select,button').evaluateAll(els=>els.map(el=>({name:el.textContent.trim(),width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height})).filter(r=>r.width<44||r.height<44));assert.deepEqual(small,[],`Notification controls must be at least 44px at ${width}px`);}
  await staff.setViewportSize({width:1440,height:1050});await notices.locator('summary').click();
  assert.match(await staffB.locator('.pf-view').innerText(),/Chưa có bản đánh giá/);assert.doesNotMatch(await staffB.locator('.pf-view').innerText(),/Isolated V1 staff\s/);
@@ -40,9 +55,107 @@ try{
  await refresh(staff);assert.match(await staff.locator('.pf-view').innerText(),/74,75/);await staff.getByRole('button',{name:'Giải thích vì sao có điểm này',exact:true}).click();await staff.getByRole('heading',{name:'Giải thích từ dữ liệu đã lưu'}).waitFor();assert.match(await staff.locator('.pf-explanation').innerText(),/62,5/);assert.match(await staff.locator('.pf-explanation').innerText(),/89,29/);assert.match(await staff.locator('.pf-explanation').innerText(),/tạm tính/);
  await staff.locator('.crm-copilot').click();await staff.getByLabel('Tin nhắn cho Guta AI').fill('Vì sao KPI 2026-11 của tôi có điểm này?');await staff.getByLabel('Tin nhắn cho Guta AI').press('Enter');await staff.getByRole('region',{name:'Giải thích KPI hiệu suất'}).waitFor();assert.match(await staff.getByRole('log').innerText(),/62,5/);await staff.getByRole('region',{name:'Giải thích KPI hiệu suất'}).getByRole('button',{name:'Kiến nghị',exact:true}).click();await staff.locator('.pf-dialog[open]').waitFor();await reason(staff,'Đề nghị xem xét bằng chứng nhiệm vụ C trong kỳ.');await confirm(staff);await refresh(sm);card=sm.getByRole('article',{name:'Đánh giá Isolated V1 staff',exact:true});await card.getByRole('button',{name:'Phản hồi kiến nghị',exact:true}).click();await reason(sm,'Giữ nguyên sau khi đối chiếu trách nhiệm đã chấp nhận.');await confirm(sm);await refresh(staff);await staff.getByRole('button',{name:'Khiếu nại độc lập',exact:true}).click();await reason(staff,'Đề nghị AM độc lập xem xét toàn bộ căn cứ.');await confirm(staff);await refresh(am);card=am.getByRole('article',{name:'Đánh giá Isolated V1 staff',exact:true});await card.getByRole('button',{name:'Xử lý khiếu nại',exact:true}).click();await reason(am,'AM xem xét độc lập và giữ nguyên theo dữ liệu.');await confirm(am);await refresh(staff);await staff.getByRole('button',{name:'Khiếu nại độc lập',exact:true}).click();await reason(staff,'Đề nghị HR giải quyết cấp cuối theo bằng chứng.');await confirm(staff);await refresh(hr);card=hr.getByRole('article',{name:'Đánh giá Isolated V1 staff',exact:true});await card.getByRole('button',{name:'Xử lý khiếu nại',exact:true}).click();await reason(hr,'HR kiểm tra độc lập và chốt căn cứ cuối cùng.');await confirm(hr);assert.match(await card.innerText(),/Đã chốt/);
  // Real task forms: SM create/assign; Staff accept/update/submit; manager rubric.
- await sm.getByRole('tab',{name:'Nhiệm vụ',exact:true}).click();await sm.getByRole('button',{name:'Tạo nhiệm vụ nhỏ',exact:true}).click();await sm.getByLabel('Tên nhiệm vụ',{exact:true}).fill('Báo cáo kiểm kê qua giao diện');await sm.getByLabel('Mô tả phần việc',{exact:true}).fill('Kiểm đếm và đối chiếu báo cáo cho ca mô phỏng.');await sm.getByLabel('Hạn hoàn thành (giờ Việt Nam)').fill('2026-11-28T17:00');await confirm(sm);let tc=sm.getByRole('article',{name:'Nhiệm vụ Báo cáo kiểm kê qua giao diện',exact:true});await tc.getByRole('button',{name:'Chọn người và giao',exact:true}).click();await sm.getByLabel('Người nhận nhiệm vụ',{exact:true}).selectOption(principals.ptch.employeeId);await sm.getByLabel('Lý do và căn cứ',{exact:true}).fill('Giao theo phạm vi và trách nhiệm có mô tả.');await confirm(sm);await refresh(ptch);await ptch.getByRole('tab',{name:'Nhiệm vụ',exact:true}).click();tc=ptch.getByRole('article',{name:'Nhiệm vụ Báo cáo kiểm kê qua giao diện',exact:true});await tc.getByRole('button',{name:'Chấp nhận nhiệm vụ',exact:true}).click();await confirm(ptch);await tc.getByRole('button',{name:'Cập nhật bước',exact:true}).click();for(const checkbox of await ptch.locator('.pf-dialog input[type="checkbox"]').all())await checkbox.check();await confirm(ptch);await tc.getByRole('button',{name:'Nộp kết quả',exact:true}).click();await reason(ptch);await confirm(ptch);await refresh(sm);tc=sm.getByRole('article',{name:'Nhiệm vụ Báo cáo kiểm kê qua giao diện',exact:true});await tc.getByRole('button',{name:'Chấm rubric',exact:true}).click();for(const fieldset of await sm.locator('.pf-dialog fieldset').all()){const label=await fieldset.locator('legend').innerText();const max=label.match(/tối đa (\d+)/)?.[1];await fieldset.getByLabel('Điểm',{exact:true}).fill(max);await fieldset.getByLabel('Lý do theo tiêu chí').fill('Đã kiểm tra kết quả và bằng chứng đúng phạm vi.');await fieldset.getByLabel('Bằng chứng của tiêu chí, mỗi dòng một nội dung').fill(ev[0]);}await reason(sm);await confirm(sm);assert.match(await tc.innerText(),/Hoàn tất/);
+ assert.equal(await sm.getByRole('tab',{name:'Nhiệm vụ',exact:true}).count(),0);
+ const openWork=page=>page.locator('[data-section="projects"]').click();
+ const scoredTitle='Báo cáo kiểm kê qua giao diện', ordinaryTitle='Bổ sung vật tư quầy chiều';
+ const createForm=async (page,title,scored=false)=>{
+  await page.getByRole('button',{name:'Tạo công việc',exact:true}).click();
+  const dialog=page.getByRole('dialog',{name:'Tạo công việc',exact:true});
+  assert.equal(await dialog.getByLabel('Tính vào KPI',{exact:true}).isChecked(),false);
+  assert.equal(await dialog.getByLabel('Mẫu nhiệm vụ đã công bố').count(),0);
+  if(scored)await dialog.getByLabel('Tính vào KPI',{exact:true}).check();
+  await dialog.getByLabel('Tiêu đề công việc',{exact:true}).fill(title);
+  await dialog.getByLabel('Mô tả',{exact:true}).fill('Kiểm đếm và đối chiếu báo cáo cho ca mô phỏng.');
+  await dialog.getByLabel('Hạn hoàn thành (giờ Việt Nam, cuối ngày)',{exact:true}).fill('2026-11-28');
+  return dialog;
+ };
+ const saveWork=async dialog=>{await dialog.getByRole('button',{name:'Lưu công việc',exact:true}).click();await dialog.waitFor({state:'hidden'});};
+ const row=(page,title)=>page.getByRole('row').filter({has:page.getByRole('button',{name:title,exact:true})});
+ const details=page=>page.getByRole('dialog',{name:'Chi tiết công việc có thang điểm',exact:true});
+ const closeDetails=page=>details(page).getByRole('button',{name:'Đóng',exact:true}).click();
+ await openWork(sm);
+ await saveWork(await createForm(sm,ordinaryTitle));
+ await row(sm,ordinaryTitle).waitFor();
+ assert.equal(await row(sm,ordinaryTitle).getByText('KPI',{exact:true}).count(),0);
+ const draftForm=await createForm(sm,scoredTitle,true);
+ await draftForm.getByText('Gợi ý thang điểm',{exact:true}).click();
+ await sm.getByRole('button',{name:'AI đề xuất mẫu mới',exact:true}).click();
+ await sm.getByText('Bản nháp AI đề xuất',{exact:true}).waitFor();
+ await sm.getByRole('button',{name:'Gửi mẫu cho HR duyệt',exact:true}).click();
+ await sm.getByText('Báo cáo kiểm kê qua giao diện · Chờ HR duyệt',{exact:true}).waitFor();
+ assert.equal(await sm.getByLabel('Mẫu nhiệm vụ đã công bố').locator('option',{hasText:'Báo cáo kiểm kê qua giao diện'}).count(),0);
+ await refresh(hr);
+ await hr.getByRole('tab',{name:'Bộ tiêu chí và chính sách'}).click();
+ const proposal=hr.locator('article').filter({has:hr.getByRole('heading',{name:'Báo cáo kiểm kê qua giao diện · Chờ HR duyệt'})});
+ await proposal.getByRole('button',{name:'Công bố mẫu nhiệm vụ',exact:true}).click();await reason(hr);await confirm(hr);
+ await draftForm.getByRole('button',{name:'Đóng',exact:true}).click();
+ const create=await createForm(sm,scoredTitle,true);
+ await create.getByLabel('Mẫu nhiệm vụ đã công bố').selectOption({label:scoredTitle});
+ const suggest=create.getByRole('button',{name:'Gợi ý người nhận (PhoBERT)',exact:true});
+ assert.equal(await suggest.isDisabled(),true);
+ await create.getByLabel(/Kỹ năng yêu cầu/).fill('Kiểm kê');
+ await suggest.click();
+ await create.getByRole('button',{name:'Chọn Isolated V1 ptch vào biểu mẫu',exact:true}).click();
+ assert.equal(await mongoose.connection.collection('task_instances').countDocuments({title:scoredTitle}),0);
+ await saveWork(create);
+ const prefilled=sm.locator('.pf-dialog[open]');
+ await prefilled.waitFor();
+ assert.equal(await prefilled.getByLabel('Người nhận nhiệm vụ').inputValue(),principals.ptch.employeeId);
+ assert.equal((await mongoose.connection.collection('task_instances').findOne({title:scoredTitle})).assigneeEmployeeId,null);
+ await prefilled.getByRole('button',{name:'Đóng',exact:true}).click();await closeDetails(sm);
+ await row(sm,scoredTitle).getByText('KPI',{exact:true}).waitFor();
+ await row(sm,ordinaryTitle).waitFor();
+ await sm.getByLabel('Loại công việc',{exact:true}).selectOption('regular');
+ await row(sm,scoredTitle).waitFor({state:'hidden'});
+ await row(sm,ordinaryTitle).waitFor();
+ await sm.getByLabel('Loại công việc',{exact:true}).selectOption('scored');
+ await row(sm,ordinaryTitle).waitFor({state:'hidden'});
+ await row(sm,scoredTitle).getByRole('button',{name:'Chi tiết',exact:true}).click();
+ await details(sm).getByRole('button',{name:'Chọn người và giao',exact:true}).click();
+ await sm.getByRole('button',{name:'Gợi ý người nhận (PhoBERT)',exact:true}).click();
+ await sm.getByRole('button',{name:'Chọn Isolated V1 ptch vào biểu mẫu',exact:true}).click();
+ assert.equal(await sm.getByLabel('Người nhận nhiệm vụ',{exact:true}).inputValue(),principals.ptch.employeeId);
+ await sm.getByLabel('Lý do và căn cứ',{exact:true}).fill('Giao theo phạm vi và trách nhiệm có mô tả.');
+ await confirm(sm);await closeDetails(sm);
+ await openWork(ptch);
+ await row(ptch,scoredTitle).getByRole('button',{name:'Chi tiết',exact:true}).click();
+ const tc=ptch.getByRole('article',{name:'Nhiệm vụ '+scoredTitle,exact:true});
+ await tc.getByRole('button',{name:'Chấp nhận nhiệm vụ',exact:true}).click();await confirm(ptch);
+ await tc.getByRole('button',{name:'Cập nhật bước',exact:true}).click();
+ for(const checkbox of await ptch.locator('.pf-dialog input[type="checkbox"]').all())await checkbox.check();
+ await confirm(ptch);
+ await tc.getByRole('button',{name:'Nộp kết quả',exact:true}).click();await reason(ptch);await confirm(ptch);await closeDetails(ptch);
+ await sm.getByRole('button',{name:'Làm mới',exact:true}).click();
+ await row(sm,scoredTitle).getByRole('button',{name:'Nghiệm thu',exact:true}).click();
+ await sm.locator('.pf-dialog[open]').waitFor();
+ for(const fieldset of await sm.locator('.pf-dialog fieldset').all()){
+  const label=await fieldset.locator('legend').innerText();
+  const max=label.match(/tối đa (\d+)/)?.[1];
+  await fieldset.getByLabel('Điểm',{exact:true}).fill(max);
+  await fieldset.getByLabel('Lý do theo tiêu chí').fill('Đã kiểm tra kết quả và bằng chứng đúng phạm vi.');
+  await fieldset.getByLabel('Bằng chứng của tiêu chí, mỗi dòng một nội dung').fill(ev[0]);
+ }
+ await reason(sm);await confirm(sm);
+ await details(sm).getByText('Hoàn tất',{exact:true}).waitFor();
+ await closeDetails(sm);
+ const completed = await mongoose.connection.collection('task_instances').findOne({title:'Báo cáo kiểm kê qua giao diện'});
+ assert.equal(completed.evaluations.length,1);
+ await sm.locator('[data-section="performanceKpi"]').click();await sm.getByLabel('Kỳ đánh giá',{exact:true}).fill('2026-11');await settle(sm);
+ await ptch.locator('[data-section="performanceKpi"]').click();await ptch.getByLabel('Kỳ đánh giá',{exact:true}).fill('2026-11');await settle(ptch);
+ const ptchEvaluation=(await E.listPerformanceEvaluations(principals.sm,'2026-11')).find(e=>e.employeeId===principals.ptch.employeeId);
+ const scored=await E.mutatePerformanceEvaluation(principals.sm,ptchEvaluation.id,'manager-score',cmd(ptchEvaluation.version,{criteriaScores:manualScores('PTCH'),reason:'Tổng hợp kết quả và đối chiếu bằng chứng tháng.',evidenceRefs:ev}));
+ assert.equal(scored.taskBreakdown.filter(t=>t.taskId===String(completed._id)).length,1);
+ assert.equal(scored.taskGroupScore,100);
+ await refresh(ptch);
+ await ptch.getByText('Minh chứng công việc và căn cứ tính điểm',{exact:true}).click();
+ await ptch.getByRole('button',{name:'Mở công việc',exact:true}).click();
+ await ptch.getByRole('article',{name:'Nhiệm vụ Báo cáo kiểm kê qua giao diện',exact:true}).waitFor();
+ await closeDetails(ptch);
+ await ptch.locator('[data-section="performanceKpi"]').click();await ptch.getByLabel('Kỳ đánh giá',{exact:true}).fill('2026-11');await settle(ptch);
+
+
  for(const [role,page]of Object.entries({hr,sm,am,staff,ptch})){await page.getByRole('tab').first().click();await refresh(page);await page.getByRole('button',{name:'Chế độ sáng',exact:true}).click();await page.locator('.pf-head').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,role+'-desktop.png')});await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.screenshot({path:path.join(output,role+'-mobile.png')});assert.doesNotMatch(await page.locator('.pf-view').innerText(),/[a-f0-9]{24}|expectedVersion|allowlist|DTO|payloadHash/);}
  await hr.setViewportSize({width:1440,height:1050});await hr.getByRole('tab',{name:'Bộ tiêu chí và chính sách'}).click();await hr.getByRole('button',{name:'Tạo bộ tiêu chí',exact:true}).click();await hr.keyboard.press('Escape');assert.equal(await hr.locator('.pf-dialog[open]').count(),0);assert.equal(await hr.getByRole('button',{name:'Tạo bộ tiêu chí',exact:true}).evaluate(e=>e===document.activeElement),true);
- assert.deepEqual(errors,[]);console.log('PASS performance KPI real browser/API/owned Mongo: self review, criterion scoring, 62.5/89.29 grounded explain and persisted chatbot card→request form, reconsideration→AM→HR independent, final; task create/assign/accept/progress/submit/rubric; PTCH own framework; staffB privacy; five roles desktop/mobile, Escape/focus; no vendor calls');
+ assert.deepEqual(errors,[]);console.log('PASS performance KPI real browser/API/owned Mongo: self review, criterion scoring, 62.5/89.29 grounded explain and persisted chatbot card→request form, reconsideration→AM→HR independent, final; mixed list and type filters, regular-default create and KPI toggle, scoped AI draft and HR publication, work create/assign/accept/progress/submit/rubric; PTCH own framework; staffB privacy; five roles desktop/mobile, Escape/focus; no vendor calls');
 }catch(e){for(const [role,page]of Object.entries(actors)){await page.screenshot({path:path.join(output,role+'-failure.png')}).catch(()=>{});console.error(role+': '+(await page.locator('.pf-view').innerText().catch(()=>'')).slice(-1100));}throw e;}
 finally{for(const c of contexts)await c.close().catch(()=>{});await browser?.close();for(const s of [api,web,upstream])if(s){s.closeAllConnections();await new Promise(r=>s.close(r));}await disconnectDB();await mongo.stop();}

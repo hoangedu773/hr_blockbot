@@ -29,6 +29,7 @@ import delegationsRouter from "./routes/delegations.js";
 import employeeLifecycleRouter from "./routes/employee-lifecycle.js";
 import onboardingReportingRouter from "./routes/onboarding-reporting.js";
 import type { OnboardingOptions } from "./services/onboarding.service.js";
+import { deliverableAccountEmail, gmailAccountMail, type AccountMail } from "./services/account-mail.service.js";
 import type { RecoveryOptions } from "./services/password-recovery.service.js";
 import { isInfrastructureError } from "./middlewares/auth.middleware.js";
 import { redactSecrets } from "./lib/redact.js";
@@ -62,9 +63,20 @@ function sanitize(err: unknown): string {
 dotenv.config();
 dotenv.config({ path: "../../.env" });
 
-export function createApp(options: { onboarding?: OnboardingOptions; recovery?: RecoveryOptions; legacyImport?: LegacyImportOptions } = {}): Express {
+export function createApp(options: { onboarding?: OnboardingOptions; recovery?: RecoveryOptions; legacyImport?: LegacyImportOptions; accountMail?: AccountMail } = {}): Express {
   const app = express();
-  app.locals.onboardingOptions = options.onboarding ?? {};
+  const accountMail = options.accountMail ?? gmailAccountMail();
+  app.locals.accountMail = accountMail;
+  app.locals.onboardingOptions = options.onboarding ?? (accountMail && process.env.FRONTEND_URL ? {
+    deliverActivation: async invitation => {
+      const recipient = deliverableAccountEmail(invitation.email);
+      if (!recipient) throw new Error("Activation email unavailable");
+      const url = new URL(process.env.FRONTEND_URL!);
+      url.hash = new URLSearchParams({ [invitation.purpose === "reactivation" ? "reactivate" : "activate"]: invitation.token }).toString();
+      await accountMail({ to: recipient, subject: "Kích hoạt tài khoản GUTA Workspace",
+        body: `Mã đăng nhập: ${invitation.username}\nĐặt mật khẩu trong 24 giờ tại:\n${url.href}\nLiên kết chỉ dùng một lần.` });
+    },
+  } satisfies OnboardingOptions : {});
   app.locals.recoveryOptions = options.recovery ?? {};
   app.locals.legacyImportOptions = options.legacyImport ?? {};
 

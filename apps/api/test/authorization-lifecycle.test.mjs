@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
-import { SignJWT } from 'jose';
+import { SignJWT, generateKeyPair } from 'jose';
 import { createApp } from '../dist/app.js';
 import { connectDB, disconnectDB } from '../dist/db.js';
 import { initSocket } from '../dist/socket.js';
@@ -13,11 +13,13 @@ import { EmployeeModel } from '../dist/models/Employee.js';
 import { ProjectModel } from '../dist/models/Project.js';
 import { hashPassword, signAccessToken, getJwtSecret } from '../dist/services/auth.service.js';
 import { resolvePrincipal } from '../dist/services/principal.service.js';
+import { consumeGoogleIdentity, googleLoginAccount, issueGoogleChallenge } from '../dist/services/google-sign-in.service.js';
 import { testGrant } from './helpers/authorization-v1-fixture.mjs';
 const requireWeb = createRequire(new URL('../../web/package.json', import.meta.url));
 const { io: clientIo } = requireWeb('socket.io-client');
 let server, socketServer, base, user, employee, passwordHash;
 const clients = [];
+const mail = [];
 async function request(path, { method = 'GET', token, body, cookie } = {}) {
   return fetch(`${base}/api${path}`, { method, headers: { Connection: 'close', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}), ...(cookie ? { Cookie: cookie } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
 }
@@ -35,7 +37,7 @@ before(async () => {
   await connectDB(); passwordHash = await hashPassword('FixtureOnly@2026');
   employee = await EmployeeModel.create({ employeeCode: 'AUTHZ-ONE', fullName: 'Isolated fixture', department: 'SAME', level: 'Junior', status: 'active' });
   user = await fixture('one', { employeeId: employee._id });
-  server = createServer(createApp()); socketServer = initSocket(server);
+  server = createServer(createApp({ accountMail: async message => { mail.push(message); } })); socketServer = initSocket(server);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${server.address().port}`;
 });
@@ -54,6 +56,41 @@ test('single login returns unconfigured authorization honestly; no profile from 
   assert.equal(body.authorization.configured, false);
   assert.equal(body.authorization.enforcement, 'MIGRATING');
   assert.deepEqual(body.authorization.capabilities, []);
+});
+
+test('Google identity is bound to the challenge and existing account, and only succeeds once', async () => {
+  const clientId = 'isolated-google-client.apps.googleusercontent.com';
+  const saved = process.env.GOOGLE_SIGN_IN_CLIENT_ID;
+  process.env.GOOGLE_SIGN_IN_CLIENT_ID = clientId;
+  try {
+    const { privateKey, publicKey } = await generateKeyPair('RS256');
+    const getKey = async () => publicKey;
+    const challenge = await issueGoogleChallenge();
+    const subject = 'isolated-google-identity';
+    const sign = (audience, nonce, verified = true) => new SignJWT({ nonce, email_verified: verified, email: 'test@example.com' })
+      .setProtectedHeader({ alg: 'RS256' }).setIssuer('https://accounts.google.com').setSubject(subject)
+      .setAudience(audience).setIssuedAt().setExpirationTime('5m').sign(privateKey);
+    for (const credential of [
+      await sign('another-client', challenge.nonce),
+      await sign(clientId, 'another-nonce'),
+      await sign(clientId, challenge.nonce, false),
+    ]) {
+      await assert.rejects(consumeGoogleIdentity(credential, challenge.nonce, undefined, getKey), { code: 'GOOGLE_CREDENTIAL_INVALID' });
+    }
+    const credential = await sign(clientId, challenge.nonce);
+    const results = await Promise.allSettled([1, 2].map(() => consumeGoogleIdentity(credential, challenge.nonce, undefined, getKey)));
+    assert.equal(results.filter(result => result.status === 'fulfilled' && result.value === subject).length, 1);
+    assert.equal(results.filter(result => result.status === 'rejected' && result.reason.code === 'GOOGLE_CREDENTIAL_INVALID').length, 1);
+    await fixture('google-email-only', { email: 'test@example.com' });
+    await assert.rejects(googleLoginAccount(subject), { code: 'GOOGLE_ACCOUNT_UNAVAILABLE' });
+    const linked = await fixture('google-linked', { googleSubject: subject });
+    assert.equal(String((await googleLoginAccount(subject))._id), String(linked._id));
+    await UserModel.updateOne({ _id: linked._id }, { $set: { status: 'disabled' } });
+    await assert.rejects(googleLoginAccount(subject), { code: 'GOOGLE_ACCOUNT_UNAVAILABLE' });
+  } finally {
+    if (saved === undefined) delete process.env.GOOGLE_SIGN_IN_CLIENT_ID;
+    else process.env.GOOGLE_SIGN_IN_CLIENT_ID = saved;
+  }
 });
 
 test('legacy token without version and token from before security revision are rejected', async () => {
@@ -110,15 +147,31 @@ test('temporary password can read minimal session/change password but not busine
 });
 
 test('password change invalidates old access and refresh; concurrent change has one winner', async () => {
-  const value = await fixture('password');
+  const value = await fixture('password', { email: 'otp-fixture@example.com', emailVerifiedAt: new Date() });
   const login = await request('/auth/login', { method: 'POST', body: { username: value.username, password: 'FixtureOnly@2026' } });
   const { accessToken } = await login.json(), cookie = login.headers.get('set-cookie').split(';')[0];
-  const replies = await Promise.all([1, 2].map(() => request('/auth/change-password', { method: 'POST', token: accessToken, body: { currentPassword: 'FixtureOnly@2026', newPassword: 'ChangedFixture@2026' } })));
+  const post = (path, body) => request(path, { method: 'POST', token: accessToken, body });
+  const currentPassword = 'FixtureOnly@2026';
+  const newPassword = 'ChangedFixture@2026';
+  assert.equal((await post('/auth/change-password', { currentPassword, newPassword })).status, 403);
+  assert.equal((await post('/auth/change-password/otp', { currentPassword: 'IncorrectFixture' })).status, 400);
+  assert.equal(mail.length, 0);
+  const issued = await post('/auth/change-password/otp', { currentPassword });
+  assert.equal(issued.status, 200);
+  const { challengeId, destination } = await issued.json();
+  assert.equal(destination, 'o***@example.com');
+  assert.equal(mail[0].to, value.email);
+  const otp = mail[0].body.match(/\b\d{6}\b/)[0];
+  assert.equal((await post('/auth/change-password/otp', { currentPassword })).status, 429);
+  const wrongCode = otp === '000000' ? '111111' : '000000';
+  assert.equal((await post('/auth/change-password', { currentPassword, newPassword, challengeId, otp: wrongCode })).status, 400);
+  const replies = await Promise.all([1, 2].map(() => post('/auth/change-password', { currentPassword, newPassword, challengeId, otp })));
   assert.equal(replies.filter((res) => res.status === 204).length, 1);
-  assert.ok(replies.every((res) => [204, 409, 401].includes(res.status)));
+  assert.ok(replies.every((res) => [204, 409, 401, 400].includes(res.status)));
   assert.equal((await request('/auth/me', { token: accessToken })).status, 401);
   assert.equal((await request('/auth/refresh', { method: 'POST', cookie })).status, 401);
   assert.equal((await UserModel.findById(value._id)).securityVersion, 1);
+  assert.equal((await UserModel.findById(value._id).select('+passwordChangeOtp')).passwordChangeOtp, undefined);
 });
 
 test('all nine profiles survive explicit schema round-trip through Mongo and /auth/me without acquiring pending rights', async () => {

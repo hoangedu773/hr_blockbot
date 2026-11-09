@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { NotificationItemSchema, NotificationNewPayloadSchema, type NotificationItem, type NotificationType } from "@hr-blockbot/contracts";
+import { NotificationItemSchema, NotificationNewPayloadSchema, notificationEntityKinds, type NotificationGroup, type NotificationItem, type NotificationType } from "@hr-blockbot/contracts";
 import { NotificationModel } from "../models/Notification.js";
 import { getIO } from "../socket.js";
 import { performanceNotificationContent } from "./performance-notification-content.js";
@@ -68,14 +68,35 @@ export function notificationDto(row: any): NotificationItem {
   });
 }
 
-export async function listNotifications(userId: string, options: { unreadOnly?: boolean; limit?: number; before?: string; entityKind?: 'schedule' | 'revenue_kpi' | 'performance_kpi' | 'task' } = {}) {
+export async function listNotifications(userId: string, options: {
+  unreadOnly?: boolean;
+  limit?: number;
+  before?: string;
+  beforeId?: string;
+  includeBefore?: boolean;
+  entityKind?: 'schedule' | 'revenue_kpi' | 'performance_kpi' | 'task';
+  group?: NotificationGroup;
+} = {}) {
   const limit = Math.min(Math.max(options.limit ?? 30, 1), 100);
-  const filter: Record<string, any> = { userId: new mongoose.Types.ObjectId(userId) };
-  if (options.entityKind) filter.entityKind = options.entityKind;
+  const scope: Record<string, unknown> = { userId: new mongoose.Types.ObjectId(userId) };
+  if (options.entityKind) scope.entityKind = options.entityKind;
+  if (options.group) {
+    scope.entityKind = options.group === 'other'
+      ? { $nin: Object.values(notificationEntityKinds).flat() }
+      : { $in: notificationEntityKinds[options.group] };
+  }
+  const filter = { ...scope };
   if (options.unreadOnly) filter.readAt = null;
-  if (options.before && !Number.isNaN(Date.parse(options.before))) filter.createdAt = { $lt: new Date(options.before) };
+  if (options.before && !Number.isNaN(Date.parse(options.before))) {
+    const before = new Date(options.before);
+    if (options.beforeId) {
+      filter.$or = [{ createdAt: { $lt: before } }, { createdAt: before, _id: { $lt: new mongoose.Types.ObjectId(options.beforeId) } }];
+    } else {
+      filter.createdAt = options.includeBefore ? { $lte: before } : { $lt: before };
+    }
+  }
   const rows = await NotificationModel.find(filter).sort({ createdAt: -1, _id: -1 }).limit(limit).lean();
-  const unread = await NotificationModel.countDocuments({ userId: new mongoose.Types.ObjectId(userId), readAt: null, ...(options.entityKind ? { entityKind: options.entityKind } : {}) });
+  const unread = await NotificationModel.countDocuments({ ...scope, readAt: null });
   return { items: rows.map(notificationDto), unread };
 }
 

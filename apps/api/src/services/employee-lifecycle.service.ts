@@ -151,7 +151,8 @@ async function finish(row: any, options: OnboardingOptions) {
       AuthorizationStateSchema.parse(authorization);
     }
     const status = row.kind === "EXIT" ? "disabled" : row.kind === "REACTIVATE" ? "active" : user.status;
-    const changes: any = { status, authorization, lifecycleAppliedRequestId: id };
+    const changes: any = { status, authorization, lifecycleAppliedRequestId: id,
+      ...(row.kind === "EXIT" || row.kind === "REACTIVATE" ? { googleSubject: null } : {}) };
     if (row.kind === "REACTIVATE") {
       if (!row.recoveryPasswordHash || user.status !== "disabled" || user.authorization?.profile === "system_admin") throw new WorkflowError(409, "SECURE_RECOVERY_REQUIRED", "Tái kích hoạt cần mật khẩu mới và hồ sơ nghiệp vụ hợp lệ; tài khoản kỹ thuật cần quy trình riêng.");
       Object.assign(changes, { passwordHash: row.recoveryPasswordHash, mustChangePassword: false, passwordChangedAt: new Date() });
@@ -203,13 +204,13 @@ async function resumeLifecycleOwned(actor: AuthenticatedUser, id: string, option
   if (new Date(row.effectiveAt).getTime() > Date.now()) return row.status === "PENDING_EFFECTIVE" ? row : advance(row, actor.userId, { status: "PENDING_EFFECTIVE" }, "Chờ đúng ngày hiệu lực; không áp dụng sớm", "WAITING_EFFECTIVE_DATE");
   if (row.kind !== "REACTIVATE" && await ProjectModel.exists({ status: { $ne: "COMPLETED" }, $or: [{ assigneeId: referenceMatch(String(row.employeeId)) }, { assignmentRequests: { $elemMatch: { status: "HANDOVER_PENDING", replacementId: String(row.employeeId) } } }] })) return row.status === "PENDING_HANDOVER" ? row : advance(row, actor.userId, { status: "PENDING_HANDOVER" }, "Còn phân công CRM cần quản lý xử lý qua workflow hiện có; không tự chuyển trách nhiệm", "WAITING_CRM_HANDOVER");
   if (row.kind === "REACTIVATE") {
-    const employee: any = await EmployeeModel.findById(row.employeeId).select("phone").lean(), user: any = row.snapshot.userId ? await UserModel.findById(row.snapshot.userId).select("username status authorization").lean() : null;
+    const employee: any = await EmployeeModel.findById(row.employeeId).select("phone").lean(), user: any = row.snapshot.userId ? await UserModel.findById(row.snapshot.userId).select("username status authorization email emailVerifiedAt").lean() : null;
     if (!user || user.status !== "disabled" || !AuthorizationStateSchema.safeParse(user.authorization).success || user.authorization?.profile === "system_admin") throw new WorkflowError(409, "SECURE_RECOVERY_REQUIRED", "Tái kích hoạt chưa có tài khoản nghiệp vụ/profile được xác minh phù hợp; không tự tạo, suy diễn profile hoặc mở account kỹ thuật.");
     if (row.status !== "PENDING_ACTIVATION") row = await advance(row, actor.userId, { status: "PENDING_ACTIVATION" }, "Chờ nhân viên tự đặt mật khẩu mới qua kênh an toàn", "WAITING_SECURE_ACTIVATION");
     if (options.deliverActivation && (row.deliveryState !== "DELIVERED" || new Date(row.recoveryExpiresAt ?? 0).getTime() <= Date.now())) {
       const token = randomBytes(32).toString("hex");
       row = await advance(row, actor.userId, { recoveryTokenHash: tokenHash(token), recoveryExpiresAt: new Date(Date.now() + 86400000), deliveryState: "PENDING" }, "Phát hành lời mời đặt lại mật khẩu một lần", "RECOVERY_ISSUED");
-      try { await options.deliverActivation({ requestId: id, token, username: user.username, phone: employee?.phone ?? "", purpose: "reactivation" }); }
+      try { await options.deliverActivation({ requestId: id, token, username: user.username, phone: employee?.phone ?? "", email: user.emailVerifiedAt ? user.email : undefined, purpose: "reactivation" }); }
       catch { return advance(row, actor.userId, { deliveryState: "FAILED" }, "Kênh gửi chưa xác nhận thành công", "DELIVERY_FAILED"); }
       row = await advance(row, actor.userId, { deliveryState: "DELIVERED" }, "Adapter xác nhận gửi an toàn", "DELIVERED");
     }

@@ -4,13 +4,14 @@ interface ChangePasswordModalProps {
   username?: string;
   onSubmit: (currentPassword: string, newPassword: string) => Promise<void>;
   onLogout: () => Promise<void>;
+  onEmailOtp: () => void;
 }
 
 /**
  * Bắt buộc đổi mật khẩu ở lần đăng nhập đầu tiên: mật khẩu quản lý phát là mật khẩu
  * tạm, chỉ dùng một lần. Modal không có nút đóng — người dùng đổi mật khẩu hoặc đăng xuất.
  */
-export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ username, onSubmit, onLogout }) => {
+export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ username, onSubmit, onLogout, onEmailOtp }) => {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -84,6 +85,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ userna
           <button type="submit" disabled={isSubmitting} style={{ width: '100%', padding: '13px 16px', border: 0, borderRadius: 10, color: '#171717', background: '#f5f5f5', fontWeight: 600, fontSize: 15, opacity: isSubmitting ? .65 : 1, cursor: isSubmitting ? 'wait' : 'pointer' }}>
             {isSubmitting ? 'Đang lưu…' : 'Đổi mật khẩu'}
           </button>
+          <button className="btn" type="button" disabled={isSubmitting} onClick={onEmailOtp}>Đổi qua mã email</button>
           <button type="button" disabled={isSubmitting} onClick={() => void onLogout()} style={{ width: '100%', padding: '11px 16px', border: '1px solid #404040', borderRadius: 10, color: '#d4d4d4', background: 'transparent', fontSize: 14, cursor: 'pointer' }}>
             Đăng xuất
           </button>

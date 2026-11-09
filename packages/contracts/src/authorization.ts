@@ -107,10 +107,12 @@ export const AuthorizationSummarySchema = z.object({
 export type AuthorizationSummary = z.infer<typeof AuthorizationSummarySchema>;
 
 export const GutaGradeSchema = z.enum(["NV1", "NV2", "NV3", "PTCH", "SM1", "SM2", "SM3", "AM1", "AM2", "AM3", "SAM", "AOM", "OM"]);
+export const AccountEmailSchema = z.string().trim().email().max(254).transform(email => email.toLowerCase());
 export const OnboardingCreateSchema = z.object({
   clientRequestId: z.string().uuid(),
   fullName: z.string().trim().min(1).max(200), storeId: Id,
-  hiredAt: DateTime, phone: z.string().trim().min(1).max(30),
+  hiredAt: DateTime, phone: z.string().trim().min(1).max(30), email: AccountEmailSchema.optional(),
+  initialManagerEmployeeId: Id.optional(),
   reason: z.string().trim().min(1).max(2000),
 }).strict();
 export const OnboardingReviewSchema = z.object({
@@ -128,4 +130,4 @@ export const ActivationRequestSchema = z.object({
 export const PasswordRecoveryIssueSchema = z.object({
   expectedVersion: z.number().int().nonnegative(), reason: z.string().trim().min(1).max(2000),
 }).strict();
-export const OnboardingResubmitSchema = OnboardingCreateSchema.pick({ fullName: true, phone: true, hiredAt: true, reason: true }).extend({ expectedVersion: z.number().int().positive() }).strict();
+export const OnboardingResubmitSchema = OnboardingCreateSchema.pick({ fullName: true, phone: true, email: true, hiredAt: true, reason: true }).extend({ expectedVersion: z.number().int().positive() }).strict();

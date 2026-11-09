@@ -198,6 +198,64 @@ export async function changePassword(currentPassword: string, newPassword: strin
   clearAuthState();
 }
 
+type PasswordOtp = { challengeId: string; destination: string; expiresInSeconds: number };
+
+async function passwordOtpRequest(path: string, body: Record<string, string>): Promise<Response> {
+  const res = await apiFetch(`${API_BASE}/auth/change-password${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    if (res.status === 401) throw new Error('Mật khẩu hiện tại không đúng hoặc phiên đã hết hạn.');
+    throw new Error(data?.error?.message ?? 'Chưa đổi được mật khẩu. Vui lòng thử lại.');
+  }
+  return res;
+}
+
+export async function sendPasswordOtp(currentPassword: string): Promise<PasswordOtp> {
+  return (await passwordOtpRequest('/otp', { currentPassword })).json();
+}
+
+export async function confirmPasswordOtp(currentPassword: string, newPassword: string, challengeId: string, otp: string): Promise<void> {
+  await passwordOtpRequest('', { currentPassword, newPassword, challengeId, otp });
+  clearAuthState();
+}
+
+type GoogleChallenge = { enabled: false } | { enabled: true; clientId: string; nonce: string };
+type GoogleCredential = { credential: string; nonce: string };
+
+async function googleResponse(response: Response) {
+  if (response.ok) return response;
+  const data = await response.json().catch(() => null);
+  throw new Error(data?.error?.message || 'Chưa thể xác thực với Google. Vui lòng thử lại.');
+}
+
+export async function getGoogleChallenge(link: boolean): Promise<GoogleChallenge> {
+  const url = `${API_BASE}/auth/google/${link ? 'link' : 'challenge'}`;
+  const response = link ? await apiFetch(url) : await fetch(url, { signal: AbortSignal.timeout(10000) });
+  return (await googleResponse(response)).json();
+}
+
+export async function loginWithGoogle(input: GoogleCredential): Promise<void> {
+  await logoutPromise;
+  const revision = ++authRevision;
+  const response = await fetch(`${API_BASE}/auth/google/login`, {
+    method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input), signal: AbortSignal.timeout(15000),
+  });
+  const data = LoginResponseSchema.parse(await (await googleResponse(response)).json());
+  if (revision !== authRevision) throw new Error('Yêu cầu đăng nhập đã bị hủy.');
+  setAuthState(data.accessToken, data.user);
+}
+
+export async function linkGoogleAccount(input: GoogleCredential, currentPassword: string): Promise<void> {
+  await googleResponse(await apiFetch(`${API_BASE}/auth/google/link`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...input, currentPassword }),
+  }));
+}
+
 export function logout(): Promise<void> {
   if (logoutPromise) return logoutPromise;
   const token = inMemoryAccessToken;

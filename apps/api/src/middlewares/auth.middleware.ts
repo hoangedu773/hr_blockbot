@@ -111,7 +111,7 @@ export async function authenticateToken(
 
   try {
     req.user = await resolvePrincipal(claims);
-    if (req.user.mustChangePassword && !["/auth/me", "/auth/change-password"].includes(req.path)) {
+    if (req.user.mustChangePassword && !["/auth/me", "/auth/change-password", "/auth/change-password/otp"].includes(req.path)) {
       res.status(403).json({ error: { code: "PASSWORD_CHANGE_REQUIRED", message: "Change the temporary password before accessing business data" } });
       return;
     }
