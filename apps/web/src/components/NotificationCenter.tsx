@@ -25,14 +25,17 @@ function groupFor(item: NotificationInboxItem) {
   return groups[groupEntries.find(([, kinds]) => kinds.includes(item.entityKind ?? ''))?.[0] ?? 'other'];
 }
 
-function Inbox({ onChanged, onClose, onNavigate, onOpenOnboarding }: {
-  onChanged: () => void;
-  onClose: () => void;
+export function NotificationInbox({ initialUnread = false, initialActionOnly = false, onChanged, onClose, onNavigate, onOpenOnboarding }: {
+  initialUnread?: boolean;
+  initialActionOnly?: boolean;
+  onChanged?: () => void;
+  onClose?: () => void;
   onNavigate: (view: ActiveCrmView) => void;
   onOpenOnboarding?: (id: string) => void;
 }) {
   const [group, setGroup] = useState<NotificationGroup | ''>('');
-  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [unreadOnly, setUnreadOnly] = useState(initialUnread);
+  const [actionOnly, setActionOnly] = useState(initialActionOnly);
   const [items, setItems] = useState<NotificationInboxItem[]>([]);
   const [selected, setSelected] = useState<string>();
   const [more, setMore] = useState(false);
@@ -48,7 +51,7 @@ function Inbox({ onChanged, onClose, onNavigate, onOpenOnboarding }: {
     setLoading(true);
     setError('');
     try {
-      const page = await fetchNotificationInbox({ limit: pageSize + 1, group: group || undefined, unreadOnly, cursor, signal: controller.signal });
+      const page = await fetchNotificationInbox({ limit: pageSize + 1, group: group || undefined, unreadOnly, actionOnly, cursor, signal: controller.signal });
       if (controller.signal.aborted) return;
       const visible = page.items.slice(0, pageSize);
       setItems(previous => cursor ? [...previous, ...visible] : visible);
@@ -58,7 +61,7 @@ function Inbox({ onChanged, onClose, onNavigate, onOpenOnboarding }: {
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
-  }, [group, unreadOnly]);
+  }, [group, unreadOnly, actionOnly]);
 
   useEffect(() => {
     setItems([]);
@@ -78,7 +81,7 @@ function Inbox({ onChanged, onClose, onNavigate, onOpenOnboarding }: {
         if (row.source !== item.source || row.id !== item.id) return [row];
         return unreadOnly ? [] : [{ ...row, read: true }];
       }));
-      onChanged();
+      onChanged?.();
       if (unreadOnly) void load();
     } catch {
       setError('Chưa đánh dấu được thông báo. Hãy tải lại rồi thử lại.');
@@ -87,8 +90,7 @@ function Inbox({ onChanged, onClose, onNavigate, onOpenOnboarding }: {
     }
   }
 
-  return <CrmDialog title="Thông báo" onClose={onClose} busy={saving}>
-    <div className="notification-inbox">
+  const inbox = <section className="notification-inbox" aria-label="Danh sách thông báo của bạn">
       <div className="notification-inbox-tools">
         <label>Nhóm thông báo
           <select value={group} disabled={saving} onChange={event => setGroup(event.target.value as NotificationGroup | '')}>
@@ -100,10 +102,16 @@ function Inbox({ onChanged, onClose, onNavigate, onOpenOnboarding }: {
           <input type="checkbox" checked={unreadOnly} disabled={saving} onChange={event => setUnreadOnly(event.target.checked)} />
           Chỉ chưa đọc
         </label>
+        <label className="notification-unread-toggle">
+          <input type="checkbox" checked={actionOnly} disabled={saving} onChange={event => setActionOnly(event.target.checked)} />
+          Chỉ hiện thông báo cần xử lý
+        </label>
       </div>
       {error && <p role="alert">{error} <button type="button" className="btn" onClick={() => void load()}>Tải lại</button></p>}
       {loading && <p role="status">Đang tải thông báo…</p>}
-      {!loading && !error && !items.length && <p>{unreadOnly ? 'Bạn đã đọc hết thông báo trong nhóm này.' : 'Chưa có thông báo trong nhóm này.'}</p>}
+      {!loading && !error && !items.length && <p>{actionOnly
+        ? unreadOnly ? 'Không có thông báo chưa đọc được đánh dấu cần xử lý.' : 'Không có thông báo được đánh dấu cần xử lý trong nhóm này.'
+        : unreadOnly ? 'Bạn đã đọc hết thông báo trong nhóm này.' : 'Chưa có thông báo trong nhóm này.'}</p>}
       <ul className="notification-inbox-list">
         {items.map(item => {
           const isTask = item.entityKind === 'task';
@@ -141,11 +149,15 @@ function Inbox({ onChanged, onClose, onNavigate, onOpenOnboarding }: {
       {more && items.length > 0 && <button type="button" className="btn" disabled={loading || saving} onClick={() => void load(items[items.length - 1])}>
         Xem thông báo cũ hơn
       </button>}
-    </div>
-  </CrmDialog>;
+  </section>;
+  return onClose ? <CrmDialog title="Thông báo" onClose={onClose} busy={saving}>{inbox}</CrmDialog> : inbox;
 }
 
-export function NotificationCenter({ onNavigate, onOpenOnboarding }: { onNavigate: (view: ActiveCrmView) => void; onOpenOnboarding?: (id: string) => void }) {
+export function NotificationCenter({ onNavigate, onOpenOnboarding, revision }: {
+  onNavigate: (view: ActiveCrmView) => void;
+  onOpenOnboarding?: (id: string) => void;
+  revision?: number;
+}) {
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
   const request = useRef<AbortController>();
@@ -170,7 +182,7 @@ export function NotificationCenter({ onNavigate, onOpenOnboarding }: { onNavigat
       document.removeEventListener('visibilitychange', refresh);
       window.removeEventListener('focus', refresh);
     };
-  }, [refresh]);
+  }, [refresh, revision]);
 
   return <>
     <button type="button" className="notification-bell" aria-label={unread ? 'Thông báo, ' + unread + ' chưa đọc' : 'Thông báo'}
@@ -181,7 +193,7 @@ export function NotificationCenter({ onNavigate, onOpenOnboarding }: { onNavigat
       {unread > 0 && <span className="notification-bell-count" aria-hidden="true">{unread > 99 ? '99+' : unread}</span>}
     </button>
     {open && createPortal(
-      <Inbox onChanged={refresh} onClose={() => setOpen(false)} onNavigate={view => { setOpen(false); onNavigate(view); }}
+      <NotificationInbox onClose={() => setOpen(false)} onChanged={refresh} onNavigate={view => { setOpen(false); onNavigate(view); }}
         onOpenOnboarding={onOpenOnboarding && (id => { setOpen(false); onOpenOnboarding(id); })} />,
       document.body
     )}

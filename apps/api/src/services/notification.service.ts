@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import { NotificationItemSchema, NotificationNewPayloadSchema, notificationEntityKinds, type NotificationGroup, type NotificationItem, type NotificationType } from "@hr-blockbot/contracts";
 import { NotificationModel } from "../models/Notification.js";
 import { getIO } from "../socket.js";
-import { performanceNotificationContent } from "./performance-notification-content.js";
+import { legacyPerformanceNoticeTitles, legacyPerformanceNoticeTypes, performanceNotificationContent } from "./performance-notification-content.js";
 
 export interface NotifyInput {
   userId: string;
@@ -55,7 +55,7 @@ export async function notifyUser(input: NotifyInput): Promise<{ created: boolean
 
 export function notificationDto(row: any): NotificationItem {
   const type = row.performanceType ?? row.revenueType ?? row.type;
-  const legacyContent = row.title === 'Cập nhật nhiệm vụ' || row.title === 'Cập nhật KPI hiệu suất'
+  const legacyContent = legacyPerformanceNoticeTitles.includes(row.title)
     ? performanceNotificationContent(type, row.dedupeKey)
     : undefined;
   return NotificationItemSchema.parse({
@@ -70,6 +70,7 @@ export function notificationDto(row: any): NotificationItem {
 
 export async function listNotifications(userId: string, options: {
   unreadOnly?: boolean;
+  actionOnly?: boolean;
   limit?: number;
   before?: string;
   beforeId?: string;
@@ -84,6 +85,17 @@ export async function listNotifications(userId: string, options: {
     scope.entityKind = options.group === 'other'
       ? { $nin: Object.values(notificationEntityKinds).flat() }
       : { $in: notificationEntityKinds[options.group] };
+  }
+  if (options.actionOnly) {
+    // Match the severity shown by notificationDto, including older performance notices.
+    const legacyType = { $ifNull: ['$performanceType', { $ifNull: ['$revenueType', '$type'] }] };
+    const legacy = (types: string[]) => ({
+      title: { $in: legacyPerformanceNoticeTitles }, $expr: { $in: [legacyType, types] },
+    });
+    scope.$and = [{ $or: [
+      legacy(legacyPerformanceNoticeTypes.action),
+      { severity: { $in: ['ACTION_REQUIRED', 'URGENT'] }, $nor: [legacy(legacyPerformanceNoticeTypes.info)] },
+    ] }];
   }
   const filter = { ...scope };
   if (options.unreadOnly) filter.readAt = null;
