@@ -31,7 +31,7 @@ async function snapshot(user: User, storeId: string, period: string, currentAssi
       .select('fullName full_name skills').sort({ _id: 1 }).lean(),
     Policy.distinct('role', { period, status: { $in: ['PUBLISHED', 'OPEN', 'CLOSED'] } }),
     Task.find({
-      storeId, assignerEmployeeId: user.employeeId, assigneeEmployeeId: { $in: ids.map(String) },
+      storeId, assigneeEmployeeId: { $in: ids.map(String) },
       status: { $in: ['ASSIGNED', 'PENDING_ACCEPTANCE', 'ACCEPTED', 'IN_PROGRESS', 'REJECTED', 'PENDING_REVIEW', 'HANDOVER'] },
     }).select('assigneeEmployeeId assignmentStatus status').lean(),
   ]);
