@@ -948,9 +948,11 @@ export async function decideChatAction(user: AuthenticatedUser, id: string, raw:
         fail('REVENUE_KPI_ACTION_DECIDED', 'Kế hoạch đã được phê duyệt với nội dung khác.');
       }
       const command = approved as { approve: true; clientRequestId: string; expectedVersion: number; planDigest: string };
-      const claimed = await assignmentActions().updateOne({ _id: id, status: row.status },
-        { $set: { status: 'CONFIRMED', leaseUntil: new Date(Date.now() + 60000).toISOString(), updatedAt: new Date().toISOString() }, $unset: { purgeAt: '' } });
-      if (!claimed.modifiedCount) fail('REVENUE_KPI_ACTION_DECIDED', 'Đề xuất đã được xử lý.');
+      if (!row.freshClaim) {
+        const claimed = await assignmentActions().updateOne({ _id: id, status: row.status },
+          { $set: { status: 'CONFIRMED', leaseUntil: new Date(Date.now() + 60000).toISOString(), updatedAt: new Date().toISOString() }, $unset: { purgeAt: '' } });
+        if (!claimed.modifiedCount) fail('REVENUE_KPI_ACTION_DECIDED', 'Đề xuất đã được xử lý.');
+      }
       const markFailed = async () => { await assignmentActions().updateOne({ _id: id, status: 'CONFIRMED' },
         { $set: { status: 'FAILED', updatedAt: new Date().toISOString() }, $unset: { leaseUntil: '' } }); };
       try {

@@ -23,6 +23,9 @@ The source of truth is `packages/contracts/src/authorization.ts` and
 older grant mean no capability, not all permissions of its profile. The retired
 `assertInScope` and title-based scope resolver fail closed.
 
+Web authorization hints accept only the latest in-flight refresh for the current session. A late older response cannot restore stale capabilities; server-side authorization remains authoritative.
+Authenticated browser requests time out after 25 seconds without response headers. A timed-out mutation has an unknown outcome and should be checked before retry; the deadline does not cover a stalled response body, and chat SSE continues after headers.
+
 ## Runtime boundaries
 
 | Surface | Enforcement |

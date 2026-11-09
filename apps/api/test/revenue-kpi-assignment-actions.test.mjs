@@ -138,13 +138,19 @@ test('AREA hr-decision with drifted store target is blocked in preview warning a
     e => e.code === 'REVENUE_KPI_TARGET_INVALID');
 });
 
-test('adjustment-request by SM then verify by AM then decision by HR via chat actions', async () => {
+test('adjustment-request by SM then verify by AM then decision by HR via chat actions', async (t) => {
   const { published } = await publishedStoreAssignment();
   const active = await S.mutateRevenueKpiAssignment(sm, published.id, 'accept', command(published.version));
 
   const req = await S.previewRevenueAssignmentAction(sm, active.id, 'adjustment-request',
     { reason: 'Cần điều chỉnh mục tiêu sau sự cố.', evidenceRef: 'Biên bản mô phỏng P3 số 01.' });
-  const reqDone = await S.decideChatAction(sm, req.actionId, approve(req));
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+  let reqDone;
+  try {
+    reqDone = await S.decideChatAction(sm, req.actionId, approve(req));
+  } finally {
+    t.mock.timers.reset();
+  }
   assert.equal(reqDone.result.assignment.status, 'ADJUSTMENT_REQUESTED');
   assert.equal(reqDone.result.assignment.adjustment.status, 'PENDING');
 
