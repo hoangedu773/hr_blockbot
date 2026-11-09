@@ -265,13 +265,13 @@ export function OnboardingView({ chatMode, initialRequestId }: { chatMode?: 'rev
           borderTop: '1px solid rgba(255, 255, 255, 0.1)'
         }}>
           <label className="field" style={{ marginBottom: '14px' }}>
-            <span style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0' }}>Lý do quyết định (ghi chú kiểm duyệt)</span>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0' }}>Lý do từ chối</span>
             <textarea
               className="input"
               maxLength={2000}
               value={reason}
               disabled={busy}
-              placeholder="Nhập nhận xét hoặc lý do phê duyệt/từ chối tiếp nhận..."
+              placeholder="Chỉ điền nếu bạn từ chối hồ sơ."
               style={{ minHeight: '70px', marginTop: '6px' }}
               onChange={(event) => setReason(event.target.value)}
             />
@@ -314,7 +314,7 @@ export function OnboardingView({ chatMode, initialRequestId }: { chatMode?: 'rev
             <button
               type="button"
               className="btn btn--primary"
-              disabled={busy || !reason.trim()}
+              disabled={busy}
               style={{
                 background: '#16a34a',
                 color: '#fff',
@@ -322,10 +322,10 @@ export function OnboardingView({ chatMode, initialRequestId }: { chatMode?: 'rev
                 border: 'none',
                 padding: '8px 20px',
                 borderRadius: '8px',
-                cursor: busy || !reason.trim() ? 'not-allowed' : 'pointer',
-                opacity: busy || !reason.trim() ? 0.6 : 1
+                cursor: busy ? 'not-allowed' : 'pointer',
+                opacity: busy ? 0.6 : 1
               }}
-              onClick={() => void run(`/onboarding/${selected.id}/review`, { expectedVersion: selected.version, decision: 'APPROVE', reason: reason.trim() }, 'Đã duyệt. Tài khoản staff chờ nhân viên kích hoạt.')}
+              onClick={() => void run(`/onboarding/${selected.id}/review`, { expectedVersion: selected.version, decision: 'APPROVE' }, 'Đã duyệt. Tài khoản staff chờ nhân viên kích hoạt.')}
             >
               ✓ Phê duyệt tiếp nhận
             </button>
