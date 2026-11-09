@@ -49,7 +49,8 @@ async function fetchChatAction(actionId: string): Promise<RevenueKpiChatAction |
 function buildDecisionBody(
   action: RevenueKpiChatAction | PerformanceKpiChatAction,
   approve: boolean,
-  clientRequestId: string
+  clientRequestId: string,
+  extra: Record<string, unknown> = {}
 ): Record<string, unknown> {
   if (!approve) {
     return { approve: false, clientRequestId };
@@ -94,6 +95,7 @@ function buildDecisionBody(
     clientRequestId,
     expectedVersion,
     planDigest,
+    ...extra,
   };
 }
 
@@ -107,6 +109,8 @@ export const KpiActionCard: React.FC<KpiActionCardProps> = ({ initial, onExecute
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
+  const [reason, setReason] = useState('');
+  const [evidenceRef, setEvidenceRef] = useState('');
   const inFlight = useRef(false);
   React.useEffect(() => {
     if (!inFlight.current) setAction(initial);
@@ -152,10 +156,17 @@ export const KpiActionCard: React.FC<KpiActionCardProps> = ({ initial, onExecute
     }
   };
 
+  const isAdjustmentRequest = action.type === 'revenue_kpi.mutate_assignment'
+    && action.args.action === 'adjustment-request';
+  const reasonValid = reason.trim().length >= 5 && evidenceRef.trim().length >= 5;
+
   const decide = (approve: boolean) => run(async () => {
     const key = action.actionId + ':' + approve;
     if (request.current?.key !== key) request.current = { key, id: uuidv4() };
-    const body = buildDecisionBody(action, approve, request.current.id);
+    const extra: Record<string, unknown> = isAdjustmentRequest && approve
+      ? { reason: reason.trim(), evidenceRef: evidenceRef.trim() }
+      : {};
+    const body = buildDecisionBody(action, approve, request.current.id, extra);
     const res = await apiFetch(`${API_BASE}/chat/actions/${encodeURIComponent(action.actionId)}/decision`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -376,11 +387,36 @@ export const KpiActionCard: React.FC<KpiActionCardProps> = ({ initial, onExecute
 
       {error && <p role="alert">{error}</p>}
 
+      {pending && isAdjustmentRequest && (
+        <div className="guta-chat-actions" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '13px' }}>
+            Lý do yêu cầu điều chỉnh (bắt buộc, ≥ 5 ký tự)
+            <textarea
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              maxLength={2000}
+              rows={3}
+              aria-label="Lý do yêu cầu điều chỉnh"
+            />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '13px' }}>
+            Bằng chứng — link hoặc mã tài liệu (bắt buộc, ≥ 5 ký tự)
+            <input
+              type="text"
+              value={evidenceRef}
+              onChange={(event) => setEvidenceRef(event.target.value)}
+              maxLength={2000}
+              aria-label="Bằng chứng yêu cầu điều chỉnh"
+            />
+          </label>
+        </div>
+      )}
+
       {pending && (
         <div className="guta-chat-actions">
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || (isAdjustmentRequest && !reasonValid)}
             onClick={() => void decide(true)}
           >
             Xác nhận thực hiện

@@ -25,7 +25,10 @@ describe("Phase 3: Attachments Security & Static File Integrity", () => {
     fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "hr-blockbot-attachments-test-"));
     const pdfRoot = path.join(fixtureRoot, "guta_mau_bien_ban_cho_agent");
     const imageRoot = path.join(fixtureRoot, "guta_bo_du_lieu_chatbot", "anh_tham_chieu");
+    const rescuedRoot = path.join(fixtureRoot, "guta_rescued_pdf");
     fs.mkdirSync(pdfRoot, { recursive: true }); fs.mkdirSync(imageRoot, { recursive: true });
+    fs.mkdirSync(rescuedRoot, { recursive: true });
+    fs.writeFileSync(path.join(rescuedRoot, "RESCUED_Policy_Sheet.pdf"), "%PDF-1.4\n% Synthetic test fixture, not a business document\n%%EOF");
     for (const name of ["GUTA_Bien_ban_ban_giao_cong_viec.pdf", "GUTA_Bien_ban_ban_giao_tai_san.pdf"]) {
       fs.writeFileSync(path.join(pdfRoot, name), "%PDF-1.4\n% Synthetic test fixture, not a business document\n%%EOF");
     }
@@ -40,7 +43,7 @@ describe("Phase 3: Attachments Security & Static File Integrity", () => {
     await UserModel.updateOne({ _id: fixtureUserId }, { $push: { 'authorization.grants.1.capabilities': 'attachments.read' } });
     await mongoose.connection.collection('policies').insertOne({ title: 'Synthetic attachment security fixture', version: 'test-only',
       acl: { reviewStatus: 'APPROVED', approvalRef: 'isolated-attachment-acl', tier: 'T2_OPERATIONAL', classification: 'operational', allowedProfiles: ['staff'], validFrom: new Date(Date.now() - 60000).toISOString(), validUntil: null, revokedAt: null, scopeKind: 'stores', storeIds: [String(fixture.stores[0]._id)] },
-      attachments: [{ category: 'pdf', filename: 'GUTA_Bien_ban_ban_giao_cong_viec.pdf' }, { category: 'pdf', filename: 'GUTA_Bien_ban_ban_giao_tai_san.pdf' }, { category: 'images', filename: 'A-001d06816e.png' }] });
+      attachments: [{ category: 'pdf', filename: 'GUTA_Bien_ban_ban_giao_cong_viec.pdf' }, { category: 'pdf', filename: 'GUTA_Bien_ban_ban_giao_tai_san.pdf' }, { category: 'images', filename: 'A-001d06816e.png' }, { category: 'rescued_pdf', filename: 'RESCUED_Policy_Sheet.pdf' }] });
 
     const app = createApp();
     server = http.createServer(app);
@@ -107,6 +110,26 @@ describe("Phase 3: Attachments Security & Static File Integrity", () => {
       req.end();
     });
   }
+
+  describe("0. Rescued policy PDF category", () => {
+    test("phục vụ PDF trong category rescued_pdf khi policy có attachment tương ứng", async () => {
+      const res = await rawGet("/api/attachments/rescued_pdf/RESCUED_Policy_Sheet.pdf");
+      assert.equal(res.statusCode, 200);
+      assert.match(res.headers["content-type"] || "", /application\/pdf/);
+      assert.match(res.body, /%PDF-1\.4/);
+    });
+
+    test("category rescued_pdf từ chối đuôi không phải pdf", async () => {
+      const res = await rawGet("/api/attachments/rescued_pdf/notes.txt");
+      assert.equal(res.statusCode, 400);
+    });
+
+    test("category rescued_pdf vẫn chặn path traversal", async () => {
+      const res = await rawGet("/api/attachments/rescued_pdf/..%2f..%2fpackage.json");
+      assert.ok(res.statusCode === 400 || res.statusCode === 404);
+      assert.doesNotMatch(res.body, /"name":\s*"api"/);
+    });
+  });
 
   describe("1. Security & Path Traversal Lockdown", () => {
     test("chặn payload ../package.json (400 hoặc 404, không lộ package.json)", async () => {

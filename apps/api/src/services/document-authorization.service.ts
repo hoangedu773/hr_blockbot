@@ -109,18 +109,28 @@ function scoreText(queryTerms: string[], phrase: string, title: string, text: st
   return score;
 }
 function bestChunks(queryTerms: string[], content: unknown, chunks: unknown): string {
-  const pool: string[] = [];
-  if (typeof content === "string" && content.trim()) pool.push(content.trim());
+  return bestChunkMeta(queryTerms, content, chunks).text;
+}
+
+/** Chọn chunk tốt nhất kèm article + score để citation chỉ đúng điều khoản. */
+function bestChunkMeta(queryTerms: string[], content: unknown, chunks: unknown): { text: string; article: string | null; score: number | null } {
+  const pool: { text: string; article: string | null }[] = [];
+  if (typeof content === "string" && content.trim()) pool.push({ text: content.trim(), article: null });
   if (Array.isArray(chunks)) for (const chunk of chunks) {
     const text = typeof chunk === "string" ? chunk : typeof chunk?.text === "string" ? chunk.text : "";
-    if (text.trim()) pool.push(text.trim());
+    const article = typeof chunk === "object" && chunk !== null && typeof chunk?.article === "string" ? chunk.article : null;
+    if (text.trim()) pool.push({ text: text.trim(), article });
   }
-  if (!pool.length) return "";
-  if (pool.length === 1) return pool[0].slice(0, 6000);
-  const ranked = pool.map((text) => ({ text, score: scoreText(queryTerms, "", "", text) }))
+  if (!pool.length) return { text: "", article: null, score: null };
+  if (pool.length === 1) return { text: pool[0].text.slice(0, 6000), article: pool[0].article, score: null };
+  const ranked = pool.map((item) => ({ ...item, score: scoreText(queryTerms, "", "", item.text) }))
     .sort((a, b) => b.score - a.score).filter((row) => row.score > 0).slice(0, 2);
-  const selected = (ranked.length ? ranked : pool.slice(0, 1).map((text) => ({ text, score: 0 })));
-  return selected.map((row) => row.text).join(String.fromCharCode(10, 10)).slice(0, 6000);
+  const selected = (ranked.length ? ranked : pool.slice(0, 1).map((item) => ({ ...item, score: 0 })));
+  return {
+    text: selected.map((row) => row.text).join(String.fromCharCode(10, 10)).slice(0, 6000),
+    article: selected[0].article,
+    score: selected[0].score > 0 ? selected[0].score : null,
+  };
 }
 
 export async function approvedDocuments(user: AuthenticatedUser, query = "") {
@@ -136,9 +146,10 @@ export async function approvedDocuments(user: AuthenticatedUser, query = "") {
   // Filter BEFORE text scoring/projection/context/provider. Missing ACL never means public.
   const queryTerms = expand(query);
   const allowed = candidates.filter((document) => documentAllowed(user, document));
-  const scored = allowed.map((document) => {
-    const text = bestChunks(queryTerms, document.content, document.chunks);
-    return { document, text, score: scoreText(queryTerms, query, String(document.title ?? ""), text) };
+  const scored = allowed.map((document: any) => {
+    const best = bestChunkMeta(queryTerms, document.content, document.chunks);
+    const enriched = { ...document, __bestArticle: best.article ?? null, __bestScore: best.score ?? null };
+    return { document: enriched, text: best.text, score: scoreText(queryTerms, query, String(document.title ?? ""), best.text), article: best.article };
   });
   if (!queryTerms.length) return scored.slice(0, 5);
   const positive = scored.filter((row) => row.score > 0).sort((a, b) => b.score - a.score);

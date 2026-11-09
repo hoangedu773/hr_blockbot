@@ -35,11 +35,28 @@ class DatabaseClient:
             return
         try:
             self.client = MongoClient(uri, serverSelectionTimeoutMS=2000, connectTimeoutMS=2000)
-            self.db = self.client["hr_bot"]
+            self.db = self.client[self.db_name()]
         except Exception as exc:  # noqa: BLE001 - never log credentials
             print(f"[WARN] MongoDB client initialization failed: {type(exc).__name__}")
             self.client = None
             self.db = None
+
+    @staticmethod
+    def db_name() -> str:
+        """Same precedence as `apps/api/src/db.ts::resolveDbName`.
+
+        Hardcoding `hr_bot` sent the AI service to an empty database while the API
+        read `hr_bot_test_363`, so `query_policy` returned nothing even though the
+        corpus was populated and ACL-approved. Env first, then URI path, then the
+        historical default so existing deployments keep working.
+        """
+        explicit = (os.getenv("MONGODB_DB_NAME") or "").strip()
+        if explicit:
+            return explicit
+        uri = get_mongodb_uri() or ""
+        after_scheme = uri.split("://", 1)[-1]
+        path = after_scheme.split("/", 1)[1].split("?", 1)[0].strip() if "/" in after_scheme else ""
+        return path or "hr_bot"
 
     def ping(self) -> bool:
         if not self.get_uri():

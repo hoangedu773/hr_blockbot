@@ -116,11 +116,40 @@ function interleaveMessages(messages: Message[], inline: InlineMessage[]) {
   return [...(after.get(undefined) ?? []), ...messages.flatMap(message => [message, ...(after.get(message.id) ?? [])])];
 }
 
-const TOPICS = [
-  { title: 'Gợi ý điều động ca', prompt: 'Chi nhánh nào đang thiếu người ca trưa nay?' },
-  { title: 'Quy định kỷ luật', prompt: 'Kiểm tra quy định đi trễ quá 15 phút' },
-  { title: 'Báo cáo két ca', prompt: 'Tổng hợp doanh thu két sáng toàn chuỗi' },
-];
+// Gợi ý câu hỏi theo role: mỗi câu map vào một intent đã có trong gateway
+// (pending actions, schedule, policy search, revenue KPI). Không câu nào
+// cần logic mới — thêm câu mới chỉ khi intent tương ứng đã wire.
+const ROLE_PROMPTS = {
+  staff: [
+    { label: 'Việc nào sắp đến hạn?', prompt: 'Việc nào của tôi sắp đến hạn?' },
+    { label: 'Lịch làm tuần này', prompt: 'Lịch làm của tôi tuần này' },
+    { label: 'Quy định đi trễ', prompt: 'Quy định đi trễ quá 15 phút' },
+    { label: 'Biểu mẫu bàn giao ca', prompt: 'Cho tôi biểu mẫu bàn giao ca' },
+  ],
+  sm_am: [
+    { label: 'Việc nào chờ tôi xử lý?', prompt: 'Việc nào đang chờ tôi xử lý?' },
+    { label: 'KPI doanh thu cửa hàng', prompt: 'KPI doanh thu của cửa hàng tháng này' },
+    { label: 'Quy trình xử lý két lệch', prompt: 'Quy trình xử lý két tiền lệch' },
+    { label: 'Quy định nộp trễ doanh thu', prompt: 'Quy định xử phạt nộp trễ doanh thu' },
+  ],
+  hr: [
+    { label: 'Kỳ KPI chờ chốt?', prompt: 'Kỳ KPI nào đang chờ chốt?' },
+    { label: 'Yêu cầu điều chỉnh chờ quyết định', prompt: 'Yêu cầu điều chỉnh KPI nào đang chờ quyết định?' },
+    { label: 'Quy chế chấm công', prompt: 'Quy chế chấm công và giải trình công hiện hành' },
+    { label: 'Quy định nghỉ lễ', prompt: 'Quy định nghỉ lễ và ngày lễ GUTA' },
+  ],
+  system_admin: [
+    { label: 'Tài liệu kỹ thuật đang lưu', prompt: 'Danh mục tài liệu kỹ thuật đang lưu' },
+    { label: 'Trạng thái dịch vụ', prompt: 'Trạng thái dịch vụ' },
+  ],
+} as const;
+
+function roleKey(profile: string | undefined | null): keyof typeof ROLE_PROMPTS {
+  if (profile === 'staff' || profile === 'ptch') return 'staff';
+  if (profile === 'sm' || profile === 'am' || profile === 'sam' || profile === 'om' || profile === 'aom') return 'sm_am';
+  if (profile === 'hr') return 'hr';
+  return 'system_admin';
+}
 
 const SAFE_URL_PROTOCOLS = new Set(['http:', 'https:']);
 
@@ -156,14 +185,16 @@ function isServiceFault(error: unknown): boolean {
 export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogout, notificationButton, onNotificationsChanged, onboardingNotification, onOnboardingNotificationOpened }) => {
   const { user } = useAuth();
   const profileLabel = user?.authorization?.profile || 'Chưa cấp profile';
-  const canProposeOnboarding = user?.authorization?.capabilities.includes('onboarding.propose');
-  const canReviewOnboarding = user?.authorization?.capabilities.includes('onboarding.review');
+  const canProposeOnboarding = user?.authorization?.capabilities?.includes('onboarding.propose');
+  const canReviewOnboarding = user?.authorization?.capabilities?.includes('onboarding.review');
   const [intakePrompt, setIntakePrompt] = useState<string | null>(null);
   const [kpiAction, setKpiAction] = useState<{ id: string; period: string; kind: string } | null>(null);
-  const quickReplies = ['Thông báo nào cần xử lý?', 'Tóm tắt nhiệm vụ tôi được phép xem', 'Xem thông tin hồ sơ của tôi', 'Tra cứu tài liệu đã được duyệt',
-    ...(canProposeOnboarding ? ['Tiếp nhận nhân viên mới'] : []),
-    ...(canReviewOnboarding ? ['Hồ sơ tiếp nhận nào chờ duyệt?'] : []),
-  ].map((label) => ({ label, prompt: label }));
+  const quickReplies = [
+    { label: 'Thông báo nào cần xử lý?', prompt: 'Thông báo nào cần xử lý?' },
+    ...ROLE_PROMPTS[roleKey(user?.authorization?.profile)],
+    ...(canProposeOnboarding ? [{ label: 'Tiếp nhận nhân viên mới', prompt: 'Tiếp nhận nhân viên mới' }] : []),
+    ...(canReviewOnboarding ? [{ label: 'Hồ sơ tiếp nhận nào chờ duyệt?', prompt: 'Hồ sơ tiếp nhận nào chờ duyệt?' }] : []),
+  ];
   const [messages, setMessages] = useState<Message[]>([]);
   const [inlineMessages, setInlineMessages] = useState<InlineMessage[]>([]);
   const inbox = useChatInbox({
@@ -359,6 +390,10 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
       return;
     }
     if (isOnboardingRequest(text)) {
+      if (!canProposeOnboarding) {
+        void send('Bạn chưa được cấp quyền tiếp nhận nhân viên mới. Vui lòng liên hệ quản lý.');
+        return;
+      }
       historySequence.current++;
       setIntakePrompt(text);
       setSidebarOpen(false);
@@ -492,14 +527,6 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
         {/* One nav, not two. The role quick replies already render in the centre
             column where the user is looking; repeating them here made the
             sidebar a second, competing menu. */}
-        <nav aria-label="Câu hỏi nhanh">
-          <p className="guta-chat-sidebar-label">Hỏi nhanh</p>
-          {TOPICS.map((topic) => (
-            <button type="button" key={topic.title} disabled={isTyping || inbox.busy || !!intakePrompt} onClick={() => send(topic.prompt)}>
-              {topic.title}
-            </button>
-          ))}
-        </nav>
         <footer>
           <button className="chat-back-crm" type="button" onClick={() => onSwitchTab('crm')}>Quay lại Vận Hành (CRM)</button>
           <button type="button" aria-label="Đăng Xuất Phiên" onClick={onLogout}>Đăng xuất</button>
