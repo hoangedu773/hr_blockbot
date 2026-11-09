@@ -20,7 +20,16 @@ correction recomputes the ledger after close and never accepts client actuals.
 The existing non-expiring CRM writer fence serializes mutations with account,
 lifecycle and other CRM writes. CAS, request UUID and payload fingerprint reject
 stale writes/different-body replay. Failure after part of open/compute/close can
-be resumed; records are deterministic and old versions are preserved. Notifications
+be resumed; records are deterministic and old versions are preserved.
+Recovery of a claimed-but-crashed open action replays the approved preview
+instead of re-deriving the plan: period transition and AUTO_DRAFT writes are
+attributed through the stored decision hash, already-written rows are kept
+untouched and reported skipped, targets stay pinned to what the approver saw,
+and any drift that cannot be proven against the approved preview fails closed
+with a fresh conflict preview — expiry only gates the first claim, never the
+completion of an approved action. Implementation and regression coverage:
+apps/api/src/services/revenue-kpi.service.ts (replayOpenPlan) and
+apps/api/test/revenue-kpi-open.test.mjs. Notifications
 derive from retained history and unique dedupe keys, retry independently, and
 revalidate recipients. The separate module reminder starts only with the flag.
 
