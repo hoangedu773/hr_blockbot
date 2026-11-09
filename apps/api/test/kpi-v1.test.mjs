@@ -99,6 +99,20 @@ test('F5 lifecycle: open, self review, manager review, AI signal, deterministic 
   assert.equal((await call('sm', '/kpi/' + evaluation.id + '/analyze', { expectedVersion: overridden.body.version })).status, 409);
 });
 
+test('new periods use performance KPI when the new workflow is enabled', async () => {
+  const previous = process.env.PERFORMANCE_KPI_ENABLED;
+  process.env.PERFORMANCE_KPI_ENABLED = 'true';
+  try {
+    const response = await call('sm', '/kpi/periods/open', { period: '2026-12' });
+    assert.equal(response.status, 409);
+    assert.equal(await EvaluationModel.countDocuments({ period: '2026-12' }), 0);
+    assert.equal((await call('staff', '/kpi/me?period=2026-10')).status, 200);
+  } finally {
+    if (previous === undefined) delete process.env.PERFORMANCE_KPI_ENABLED;
+    else process.env.PERFORMANCE_KPI_ENABLED = previous;
+  }
+});
+
 test('F5 scope: staff cannot read department aggregate; system_admin denied; manager sees own store only', async () => {
   assert.equal((await call('staff', '/kpi/department?period=' + period)).status, 403);
   assert.equal((await call('system_admin', '/kpi/department?period=' + period)).status, 403);

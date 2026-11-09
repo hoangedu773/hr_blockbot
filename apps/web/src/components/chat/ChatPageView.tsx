@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { BrandMark } from '../BrandMark';
 import { ThemeToggle } from '../ThemeToggle';
 import { OnboardingView } from '../OnboardingView';
+import { PerformanceKpiView } from '../PerformanceKpiView';
 import '../../styles/crm-work.css';
 import { apiFetch, API_BASE } from '../../services/auth';
 import { newClientMessageId } from '../../services/api';
@@ -140,6 +141,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   const canReviewOnboarding = user?.authorization?.capabilities.includes('onboarding.review');
   const onboardingSequence = useRef(0);
   const [onboarding, setOnboarding] = useState<{ mode: 'create' | 'review'; id?: string; key: number } | null>(null);
+  const [kpiAction, setKpiAction] = useState<{ id: string; period: string; kind: string } | null>(null);
   useEffect(() => {
     if (!onboardingNotification) return;
     if (canReviewOnboarding) setOnboarding({ mode: 'review', id: onboardingNotification.id, key: ++onboardingSequence.current });
@@ -497,6 +499,13 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
               <OnboardingView key={onboarding.key} chatMode={onboarding.mode} initialRequestId={onboarding.id} />
             </div>
           </div>
+        ) : kpiAction ? (
+          <div className="guta-chat-body" aria-label="Đánh giá hiệu suất trong chat">
+            <div className="guta-chat-width">
+              <button type="button" className="btn" onClick={() => setKpiAction(null)}>Quay lại hội thoại</button>
+              <PerformanceKpiView key={kpiAction.id + kpiAction.kind} selectedPeriod={kpiAction.period} chatEvaluation={kpiAction} />
+            </div>
+          </div>
         ) : messages.length === 0 ? (
           <section className="guta-chat-empty" aria-label="Bắt đầu hội thoại">
             <div className="guta-chat-width">
@@ -531,7 +540,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
                   <article className="guta-chat-message" data-sender={message.sender} key={message.id}>
                     <strong>{message.sender === 'user' ? 'Bạn' : 'Guta AI'}</strong>
                     <p>{message.text}</p>
-                    {message.performanceKpi&&<section className="guta-chat-card" aria-label="Giải thích KPI hiệu suất"><strong>{['FINAL','CORRECTED'].includes(message.performanceKpi.status)?'Điểm chính thức':'Điểm tạm tính'} · {message.performanceKpi.period}</strong><p>{message.performanceKpi.score==null?'Chưa đủ dữ liệu':new Intl.NumberFormat('vi-VN',{maximumFractionDigits:2}).format(message.performanceKpi.score)+' / 100'}</p><div style={{display:'flex',flexWrap:'wrap',gap:8}}>{[['detail','Xem chi tiết'],...(message.performanceKpi.canReconsider?[['reconsideration','Kiến nghị']]:[]),...(message.performanceKpi.canAppeal?[['appeal','Khiếu nại']]:[])].map(([kind,label])=><button type="button" className="btn" key={kind} onClick={()=>{sessionStorage.setItem('performance-kpi-navigation',JSON.stringify({id:message.performanceKpi!.evaluationId,period:message.performanceKpi!.period,kind}));onSwitchTab('crm');}}>{label}</button>)}</div><small>Mở đúng hồ sơ để xem hoặc điền yêu cầu; bạn xác nhận trước khi gửi.</small></section>}
+                    {message.performanceKpi&&<section className="guta-chat-card" aria-label="Giải thích KPI hiệu suất"><strong>{['FINAL','CORRECTED'].includes(message.performanceKpi.status)?'Điểm chính thức':'Điểm tạm tính'} · {message.performanceKpi.period}</strong><p>{message.performanceKpi.score==null?'Chưa đủ dữ liệu':new Intl.NumberFormat('vi-VN',{maximumFractionDigits:2}).format(message.performanceKpi.score)+' / 100'}</p><div style={{display:'flex',flexWrap:'wrap',gap:8}}>{[['detail','Xem chi tiết'],...(message.performanceKpi.canReconsider?[['reconsideration','Kiến nghị']]:[]),...(message.performanceKpi.canAppeal?[['appeal','Khiếu nại']]:[])].map(([kind,label])=><button type="button" className="btn" key={kind} onClick={()=>setKpiAction({id:message.performanceKpi!.evaluationId,period:message.performanceKpi!.period,kind})}>{label}</button>)}</div><small>Xem hồ sơ hoặc xác nhận gửi yêu cầu ngay trong chat.</small></section>}
                     {!!message.citations?.length && <details className="guta-chat-card guta-chat-citation-details" aria-label="Trích dẫn">
                       <summary>
                         <strong>Căn cứ quy định (Citations)</strong>
