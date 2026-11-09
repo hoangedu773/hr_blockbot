@@ -18,7 +18,7 @@ const T=await import('../../api/dist/services/task-instance.service.js');
 const {executeGatewayTool}=await import('../../api/dist/services/chat-authorization.service.js');
 const {explainPerformanceKpi}=await import('../../api/dist/services/performance-kpi-explain.service.js');
 let web,api,upstream,browser,origin,apiOrigin;const contexts=[],errors=[],actors={};const output=path.join(root,'test-results/performance-kpi');fs.mkdirSync(output,{recursive:true});
-const settle=async page=>{await page.locator('.pf-view').waitFor();await page.getByRole('status').filter({hasText:'Đang tải dữ liệu đánh giá'}).waitFor({state:'hidden'});};
+const settle=async page=>{await page.locator('.pf-view').waitFor();await page.locator('.pf-view').getByRole('status').filter({hasText:/Đang tải (dữ liệu đánh giá|công việc)/}).waitFor({state:'hidden'});};
 async function confirm(page){await page.locator('.pf-dialog[open]').getByRole('button',{name:'Xác nhận và lưu',exact:true}).click();await page.locator('.pf-dialog[open]').waitFor({state:'hidden'});await settle(page);}
 async function reason(page,value='Đối chiếu dữ liệu mô phỏng và bằng chứng đã xác minh.'){await page.getByLabel('Lý do và căn cứ',{exact:true}).fill(value);await page.getByLabel('Bằng chứng (mỗi dòng một nội dung hoặc liên kết)',{exact:true}).fill(ev[0]);}
 async function refresh(page){await page.getByRole('button',{name:'Tải lại',exact:true}).click();await settle(page);}
@@ -104,7 +104,7 @@ try{
   await fieldset.getByLabel('Bằng chứng của tiêu chí, mỗi dòng một nội dung').fill(ev[0]);
  }
  await reason(sm);await confirm(sm);
- assert.match(await details(sm).innerText(),/Hoàn tất/);
+ await details(sm).getByText('Hoàn tất',{exact:true}).waitFor();
  await closeDetails(sm);
  const completed = await mongoose.connection.collection('task_instances').findOne({title:'Báo cáo kiểm kê qua giao diện'});
  assert.equal(completed.evaluations.length,1);
