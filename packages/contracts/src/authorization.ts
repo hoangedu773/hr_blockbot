@@ -115,10 +115,16 @@ export const OnboardingCreateSchema = z.object({
   initialManagerEmployeeId: Id.optional(),
   reason: z.string().trim().min(1).max(2000),
 }).strict();
-export const OnboardingReviewSchema = z.object({
-  decision: z.enum(["APPROVE", "REJECT"]), reason: z.string().trim().min(1).max(2000),
-  expectedVersion: z.number().int().positive(),
-}).strict();
+const onboardingReviewVersion = z.object({ expectedVersion: z.number().int().positive() });
+export const OnboardingReviewSchema = z.discriminatedUnion("decision", [
+  onboardingReviewVersion.extend({
+    decision: z.literal("APPROVE"), reason: z.string().trim().max(2000).optional(),
+  }).strict(),
+  onboardingReviewVersion.extend({
+    decision: z.literal("REJECT"), reason: z.string().trim().min(1).max(2000),
+  }).strict(),
+]);
+export type OnboardingReview = z.infer<typeof OnboardingReviewSchema>;
 export const InitialReportingProposalSchema = z.object({
   onboardingId: Id, managerEmployeeId: Id, validFrom: DateTime,
   evidenceRef: z.string().trim().min(1).max(500), reason: z.string().trim().min(1).max(2000),
