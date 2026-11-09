@@ -26,6 +26,7 @@ export async function directManager(u:User,employeeId:string,storeId:string,cap:
  const e=await subject(employeeId);if(String(e.storeId)!==storeId)pfail('RESPONSIBILITY_CONFLICT','Nhân sự đã đổi cửa hàng; cần đối chiếu trách nhiệm.');
  const edge=await directEdge(u.employeeId!,employeeId,storeId);if(!edge)pfail('REPORTING_RELATION_REQUIRED','Chưa có quan hệ quản lý trực tiếp được phê duyệt.',403);
  requireCapability(u,cap,resourceScope(u,{storeId,storeMappingRef:e.storeMappingRef,employeeId}));
+ return role;
 }
 export async function directEdge(managerEmployeeId:string,employeeId:string,storeId:string){return mongoose.connection.collection('management_relations').findOne({managerEmployeeId:new mongoose.Types.ObjectId(managerEmployeeId),employeeId:new mongoose.Types.ObjectId(employeeId),storeId:new mongoose.Types.ObjectId(storeId),approvalRef:{$type:'string',$ne:''},revokedAt:null,validFrom:{$lte:new Date()},$or:[{validUntil:null},{validUntil:{$gt:new Date()}}]});}
 export async function scopedRead(u:User,employeeId:string,storeId:string){if(u.employeeId===employeeId){ownAuthority(u,employeeId);return;}

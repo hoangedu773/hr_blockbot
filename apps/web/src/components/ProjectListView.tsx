@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import type { EmployeeSummary, MeResponse, Project, ProjectStatus, Report } from '@hr-blockbot/contracts';
+import type { EmployeeSummary, MeResponse, Project, ProjectStatus, Report, TaskInstance } from '@hr-blockbot/contracts';
 import {
   ApiError, assignProject, createProject, editProject, fetchDepartments, fetchMe, requestJson,
   fetchProjectById, fetchProjectReports, fetchWorkList, newClientMessageId, reviewReport, submitReport, transitionProject, updateProjectProgress,
@@ -10,20 +10,20 @@ import type { NotifyFn } from './Toast';
 import { Select } from './ui/Select';
 import { CrmDialog } from './ui/CrmDialog';
 import { AssignmentPanel, assignmentLabel } from './AssignmentPanel';
-import { CandidateSuggestions } from './CandidateSuggestions';
+import { CandidateAdvice, CandidateSuggestions } from './CandidateSuggestions';
 import '../styles/crm-work.css';
 import { WorkOverview } from './WorkOverview';
 import { WorkRubricFields } from './WorkRubricFields';
 import { PerformanceKpiView } from './PerformanceKpiView';
 import { performanceLabels } from './TaskDetailView';
-import { performancePost } from '../services/performance-kpi-api';
+import { performancePost, suggestDraftTaskCandidates } from '../services/performance-kpi-api';
 
 const LABEL: Record<ProjectStatus, string> = {
   DRAFT: 'Khởi tạo', ASSIGNED: 'Đã giao', IN_PROGRESS: 'Đang thực hiện', PENDING_REVIEW: 'Chờ nghiệm thu', COMPLETED: 'Hoàn thành',
 };
 const REPORT_LABEL = { PENDING: 'Chờ duyệt', APPROVED: 'Đã duyệt', REJECTED: 'Yêu cầu làm lại' };
 type WorkTarget = { id: string; period: string };
-type WorkModal = { kind: 'create' } | { kind: 'scored'; task: WorkTarget; review?: boolean } | { kind: 'edit' | 'assign' | 'progress' | 'submit' | 'details' | 'review' | 'assignment'; project: Project };
+type WorkModal = { kind: 'create' } | { kind: 'scored'; task: WorkTarget; review?: boolean; preferredAssignee?: string } | { kind: 'edit' | 'assign' | 'progress' | 'submit' | 'details' | 'review' | 'assignment'; project: Project };
 const dateText = (value?: string | null) => value ? new Date(value).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : 'Chưa đặt hạn';
 const dateInput = (value?: string | null) => value ? new Date(value).toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }) : '';
 const deadline = (value: string) => value ? new Date(value + 'T23:59:59+07:00').toISOString() : undefined;
@@ -85,8 +85,14 @@ export const ProjectListView: React.FC<{
   const [description, setDescription] = useState('');
   const [requiredSkills, setRequiredSkills] = useState('');
   const [dueDate, setDueDate] = useState('');
-  const [department, setDepartment] = useState('');
   const [storeId, setStoreId] = useState('');
+  const skills = [...new Set(requiredSkills.split(',').map(skill => skill.trim()).filter(Boolean))];
+  const validSkills = skills.length <= 30 && skills.every(skill => skill.length <= 100);
+  const candidateKey = JSON.stringify({ scored, storeId, title, description, dueDate, skills });
+  const [preferred, setPreferred] = useState<{ key: string; id: string; name: string }>();
+  const selectedCandidate = preferred?.key === candidateKey ? preferred : undefined;
+
+  const [department, setDepartment] = useState('');
   const [progress, setProgress] = useState('0');
   const [content, setContent] = useState('');
   const [attachments, setAttachments] = useState('');
@@ -215,17 +221,17 @@ export const ProjectListView: React.FC<{
 
   function openCreate() {
     setTitle(''); setDescription(''); setRequiredSkills(''); setDueDate(''); setWeight('30');
-    createRequest.current = undefined;
+    createRequest.current = undefined; setPreferred(undefined);
     selectCreationType(!canCreateRegular);
     setModal({ kind: 'create' });
   }
 
-  const run = async (action: () => Promise<unknown>, message: string) => {
+  const run = async (action: () => Promise<unknown>, message: string, nextModal?: () => WorkModal | null) => {
     if (writing.current) return;
     writing.current = true; setBusy(true); setFormError('');
     try {
       await action(); setOverviewRevision((old) => old + 1);
-      detailRequest.current++; setModal(null); notify.current(message, 'success'); await load();
+      detailRequest.current++; setModal(nextModal?.() ?? null); notify.current(message, 'success'); await load();
     } catch (failure) {
       const message = failure instanceof Error ? failure.message : 'Không thể lưu thay đổi.';
       setFormError(message); notify.current(message, 'error');
@@ -239,24 +245,29 @@ export const ProjectListView: React.FC<{
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     if (!modal || busy) return;
+    if ((modal.kind === 'create' || modal.kind === 'edit') && !validSkills) {
+      setFormError('Tối đa 30 kỹ năng, mỗi kỹ năng không quá 100 ký tự.');
+      return;
+    }
     if (modal.kind === 'create' && scored) {
       const importance = Number(weight);
       if (!canCreateScored || title.trim().length < 3 || !storeId || !dueDate || !templateId || importance < 5 || importance > 50) {
         setFormError('Chọn cửa hàng, hạn hoàn thành, mẫu đã công bố và mức quan trọng hợp lệ.');
         return;
       }
-      const fields = { title: title.trim(), description: description.trim(), storeId, templateId, dueAt: deadline(dueDate), taskWeightPercent: importance };
+      const fields = { title: title.trim(), description: description.trim(), storeId, templateId, dueAt: deadline(dueDate), ...(skills.length ? { requiredSkills: skills } : {}), taskWeightPercent: importance };
       const key = JSON.stringify(fields);
       if (createRequest.current?.key !== key) createRequest.current = { key, id: newClientMessageId() };
       const clientRequestId = createRequest.current.id;
+      let created: TaskInstance | undefined;
       void run(async () => {
-        await performancePost('/tasks', { ...fields, expectedVersion: 0, clientRequestId });
+        created = await performancePost<TaskInstance>('/tasks', { ...fields, expectedVersion: 0, clientRequestId });
         setWorkType('all'); setWorkPeriod(''); setFilters(old => ({ ...old, page: 1 }));
-      }, 'Đã tạo công việc có thang điểm.');
+      }, 'Đã tạo công việc có thang điểm.', () => selectedCandidate && created?.status === 'DRAFT'
+        ? { kind: 'scored', task: { id: created.id, period: created.kpiPeriod }, preferredAssignee: selectedCandidate.id }
+        : null);
     } else if (modal.kind === 'create' || modal.kind === 'edit') {
       if (!title.trim() || (modal.kind === 'create' && !department)) { setFormError('Nhập tiêu đề và chọn phòng ban.'); return; }
-      const skills = [...new Set(requiredSkills.split(',').map((skill) => skill.trim()).filter(Boolean))];
-      if (skills.length > 30 || skills.some((skill) => skill.length > 100)) { setFormError('Tối đa 30 kỹ năng, mỗi kỹ năng không quá 100 ký tự.'); return; }
       if (modal.kind === 'create' && !dueDate) { setFormError('Chọn hạn hoàn thành cho nhiệm vụ mới.'); return; }
       const fields = { title: title.trim(), description: description.trim(), requiredSkills: skills, dueDate: deadline(dueDate)! };
       if (modal.kind === 'create') void run(() => createProject({ ...fields, departmentId: department, storeId }), 'Đã tạo công việc.');
@@ -369,7 +380,7 @@ export const ProjectListView: React.FC<{
     </>}
 
     {modal?.kind === 'scored' && <CrmDialog title="Chi tiết công việc có thang điểm" busy={busy} onClose={close}>
-      <PerformanceKpiView work target={modal.task} openReview={modal.review} onWorkChanged={() => void load()} />
+      <PerformanceKpiView work target={modal.task} openReview={modal.review} preferredAssignee={modal.preferredAssignee} onWorkChanged={() => void load()} />
     </CrmDialog>}
     {modal && modal.kind !== 'scored' && <CrmDialog title={modalTitle} busy={busy} onClose={close}>
       {current && <div className="crm-work-detail"><h4>{current.title}</h4><p>{current.description || 'Chưa có mô tả.'}</p><p>Kỹ năng yêu cầu: {current.requiredSkills.join(', ') || 'Chưa cập nhật'}</p><p>Người nhận: {current.assigneeName || current.assigneeId || 'Chưa giao'}</p><p>{LABEL[current.status]} · phiên bản {current.version} · {dateText(current.dueDate)}</p></div>}
@@ -385,9 +396,16 @@ export const ProjectListView: React.FC<{
           </label>}
           <label className="field"><span className="field__label">Tiêu đề công việc</span><input className="input" required maxLength={200} value={title} onChange={(event) => setTitle(event.target.value)} disabled={busy} /></label>
           <label className="field"><span className="field__label" id="work-description-label">Mô tả</span><textarea aria-labelledby="work-description-label" className="textarea" maxLength={10000} value={description} onChange={(event) => setDescription(event.target.value)} disabled={busy} /></label>
-          {(modal.kind === 'edit' || !scored) && <label className="field"><span className="field__label">Kỹ năng yêu cầu (cách nhau bằng dấu phẩy)</span><input className="input" maxLength={3030} value={requiredSkills} onChange={(event) => setRequiredSkills(event.target.value)} disabled={busy} placeholder="Bàn giao, Kiểm kê tài sản" /></label>}
+          <label className="field"><span className="field__label">Kỹ năng yêu cầu (tùy chọn, cách nhau bằng dấu phẩy)</span><input className="input" maxLength={3030} value={requiredSkills} onChange={(event) => setRequiredSkills(event.target.value)} disabled={busy} placeholder="Bàn giao, Kiểm kê tài sản" /></label>
           {modal.kind === 'create' && <div className="field"><span className="field__label" id="work-store-label">Cửa hàng phụ trách</span><Select aria-labelledby="work-store-label" value={storeId} onChange={(value) => { setStoreId(value); setTemplateId(''); setDepartment(creationStores.find((store) => store.id === value)?.departmentId || ''); }} disabled={busy || !creationStores.length} options={creationStores.map((item) => ({ value: item.id, label: item.name }))} placeholder="Chọn cửa hàng được cấp" /></div>}
           <label className="field"><span className="field__label">Hạn hoàn thành (giờ Việt Nam, cuối ngày)</span><input className="input" type="date" required={modal.kind === 'create' || !!current?.dueDate} value={dueDate} onChange={(event) => { setDueDate(event.target.value); if (scored) setTemplateId(''); }} disabled={busy} /></label>
+          {modal.kind === 'create' && scored && can('task.assign') && <>
+            <CandidateAdvice requestKey={candidateKey} disabled={busy || !storeId || !dueDate || !skills.length || !validSkills}
+              request={() => suggestDraftTaskCandidates({ storeId, description, dueAt: deadline(dueDate)!, requiredSkills: skills })}
+              onSelect={candidate => setPreferred({ key: candidateKey, id: candidate.employeeId, name: candidate.fullName })} />
+            {(!skills.length || !dueDate) && <p>Nhập kỹ năng và hạn hoàn thành nếu muốn dùng gợi ý. Bạn vẫn có thể tạo việc khi bỏ trống kỹ năng.</p>}
+            {selectedCandidate && <p role="status">Đã chọn {selectedCandidate.name}. Sau khi lưu bản nháp, bạn xác nhận giao việc ở bước tiếp theo.</p>}
+          </>}
           {modal.kind === 'create' && scored && <WorkRubricFields
             storeId={storeId} title={title} description={description} dueDate={dueDate} templateId={templateId} weight={weight}
             onTemplate={setTemplateId} onWeight={setWeight} disabled={busy} onBusy={assignmentBusy}
