@@ -356,7 +356,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   const send = async (prompt: string) => {
     const text = prompt.trim();
     if (!text || text.length > 2000 || pending.current || isTyping) return;
-    const command = text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/đ/g, 'd');
+    const command = text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/đ/g, 'd').replace(/\s+/g, ' ');
     const inbox = notificationQuery(command);
     if (inbox) {
       historySequence.current++;
@@ -365,12 +365,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
       setServiceUnavailable(false);
       return;
     }
-    const reviewIntake = /^(?:(?:toi muon|hay|cho toi)\s+)?(?:duyet (?:ho so|de nghi) tiep nhan|(?:xem (?:danh sach )?)?(?:ho so|de nghi) tiep nhan(?: nao)?(?: dang)? cho (?:duyet|xu ly))[.!?]*$/.test(command);
-    if (reviewIntake && canReviewOnboarding) {
-      setOnboarding({ key: ++onboardingSequence.current });
-      setSidebarOpen(false);
-      return;
-    }
+    const reviewIntake = /^(?:(?:toi muon|hay|cho toi|toi co|minh co|co) )?(?:duyet (?:ho so|de nghi) tiep nhan|(?:xem (?:danh sach )?)?(?:ho so|de nghi) tiep nhan(?: nao)?(?: dang)? (?:cho|can) (?:duyet|xu l[yi]))(?: (?:khong|ko|k))?[.!?]*$/.test(command);
     if (isOnboardingRequest(text)) {
       if (!canProposeOnboarding) {
         void send('Bạn chưa được cấp quyền tiếp nhận nhân viên mới. Vui lòng liên hệ quản lý.');
