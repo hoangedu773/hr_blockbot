@@ -6,6 +6,7 @@ import { RevenueKpiPolicySchema } from '@hr-blockbot/contracts';
 import * as S from '../dist/services/revenue-kpi.service.js';
 import { UserModel } from '../dist/models/User.js';
 import { StoreModel } from '../dist/models/Store.js';
+import { SmAppointmentModel } from '../dist/models/SmAppointment.js';
 import { RevenueKpiAssignmentModel as Assignment } from '../dist/models/RevenueKpiAssignment.js';
 import { revenueFixture, command } from './helpers/revenue-kpi-fixture.mjs';
 let f, hr, sm, a, p;
@@ -66,5 +67,38 @@ test('store closing mid-period keeps its KPI visible, cancellable and the period
   } finally {
     await StoreModel.updateOne({ _id: f.stores[0]._id }, { $set: { status: 'ACTIVE' } });
     await UserModel.updateOne({ _id: hrUser._id }, { $set: { authorization: hrUser.authorization } });
+  }
+});
+
+test('an existing imported store KPI is not flagged for assignment and duplicate requests return a conflict', async () => {
+  const storeId = String(f.stores[0]._id);
+  const appointment = await SmAppointmentModel.findOne({ storeId }).lean();
+  assert.ok(appointment);
+  await SmAppointmentModel.updateOne({ _id: appointment._id }, { $set: { validFrom: new Date('2026-06-01') } });
+  try {
+    const period = '2026-05';
+    const created = await S.createRevenueKpiPeriod(hr, command(0, { period, policy: RevenueKpiPolicySchema.parse({}) }));
+    await S.openRevenueKpiPeriod(hr, period, command(created.version));
+    const before = await S.revenueKpiDashboard(hr, period);
+    assert.equal(before.stores.find(store => store.id === storeId)?.smStatus, 'AMBIGUOUS');
+    assert.ok(before.flags.some(flag => flag.includes(before.stores.find(store => store.id === storeId).name)));
+    const input = { period, unitType: 'STORE', storeId, assigneeEmployeeId: sm.employeeId, targetMode: 'ABSOLUTE_VND', targetVnd: 100000, reason: 'Mục tiêu cho dữ liệu kiểm thử.' };
+    const request = command(0, input);
+    const draft = await S.saveRevenueKpiAssignment(hr, request);
+    const stored = await Assignment.findById(draft.id).lean();
+    await Assignment.deleteOne({ _id: draft.id });
+    const importedId = S.revenueId('fixture:legacy-revenue-kpi');
+    await Assignment.create({ ...stored, _id: importedId });
+
+    const after = await S.revenueKpiDashboard(hr, period);
+    assert.equal(after.stores.find(store => store.id === storeId)?.smStatus, 'AMBIGUOUS');
+    assert.equal(after.flags.length, before.flags.length - 1);
+    assert.ok(after.assignments.some(assignment => assignment.id === importedId));
+    await assert.rejects(S.saveRevenueKpiAssignment(hr, command(0, input)),
+      error => error.status === 409 && /đã có KPI trong kỳ này/.test(error.message));
+    assert.equal((await S.saveRevenueKpiAssignment(hr, request)).id, importedId);
+    assert.equal(await Assignment.countDocuments({ period, unitType: 'STORE', storeId }), 1);
+  } finally {
+    await SmAppointmentModel.updateOne({ _id: appointment._id }, { $set: { validFrom: appointment.validFrom } });
   }
 });
