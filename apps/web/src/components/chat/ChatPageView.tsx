@@ -3,11 +3,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { BrandMark } from '../BrandMark';
 import { ThemeToggle } from '../ThemeToggle';
-import { OnboardingView } from '../OnboardingView';
 import { ChatOnboarding, isOnboardingRequest } from './ChatOnboarding';
+import { useChatInbox } from './ChatInbox';
 import { PerformanceKpiView } from '../PerformanceKpiView';
-import { NotificationInbox } from '../NotificationCenter';
-import type { ActiveCrmView } from '../CrmDashboardView';
 import '../../styles/crm-work.css';
 import { apiFetch, API_BASE } from '../../services/auth';
 import { newClientMessageId } from '../../services/api';
@@ -22,7 +20,6 @@ interface ChatPageViewProps {
   onSwitchTab: (tab: 'crm' | 'chat') => void;
   onLogout: () => void;
   notificationButton?: React.ReactNode;
-  onNavigateNotification: (view: ActiveCrmView) => void;
   onNotificationsChanged: () => void;
   onboardingNotification?: { id: string } | null;
   onOnboardingNotificationOpened?: () => void;
@@ -104,17 +101,26 @@ interface Message {
   proposedAction?: ChatAction | null;
 }
 
+type InlineMessage = Message & { after: Message['id'] | undefined };
+
+// Workflow replies are session-local. A server history refresh replaces only the AI turns.
+function interleaveMessages(messages: Message[], inline: InlineMessage[]) {
+  const after = new Map<InlineMessage['after'], InlineMessage[]>();
+  const ids = new Set(messages.map(message => message.id));
+  for (const message of inline) {
+    const anchor = message.after !== undefined && ids.has(message.after) ? message.after : undefined;
+    const list = after.get(anchor) ?? [];
+    list.push(message);
+    after.set(anchor, list);
+  }
+  return [...(after.get(undefined) ?? []), ...messages.flatMap(message => [message, ...(after.get(message.id) ?? [])])];
+}
+
 const TOPICS = [
   { title: 'Gợi ý điều động ca', prompt: 'Chi nhánh nào đang thiếu người ca trưa nay?' },
   { title: 'Quy định kỷ luật', prompt: 'Kiểm tra quy định đi trễ quá 15 phút' },
   { title: 'Báo cáo két ca', prompt: 'Tổng hợp doanh thu két sáng toàn chuỗi' },
 ];
-
-function notificationQuery(command: string) {
-  const text = command.trim().replace(/\s+/g, ' ').replace(/[.!?]+$/g, '');
-  if (!/^(?:(?:toi|minh|em) )?(?:(?:muon xem|cho toi xem|cho minh xem|kiem tra|xem|co) )?(?:danh sach )?thong bao(?: (?:cua (?:toi|minh|em)|gi|nao|moi|chua doc|(?:dang )?(?:can|cho) xu l[yi]|khan))*(?: (?:khong|ko|k|nhe|voi|a))?$/.test(text)) return null;
-  return { actionOnly: /xu l[yi]|\bkhan\b/.test(text), unreadOnly: /chua doc|\bmoi\b/.test(text) };
-}
 
 const SAFE_URL_PROTOCOLS = new Set(['http:', 'https:']);
 
@@ -147,30 +153,25 @@ function isServiceFault(error: unknown): boolean {
 
 
 
-export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogout, notificationButton, onNavigateNotification, onNotificationsChanged, onboardingNotification, onOnboardingNotificationOpened }) => {
+export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogout, notificationButton, onNotificationsChanged, onboardingNotification, onOnboardingNotificationOpened }) => {
   const { user } = useAuth();
   const profileLabel = user?.authorization?.profile || 'Chưa cấp profile';
   const canProposeOnboarding = user?.authorization?.capabilities.includes('onboarding.propose');
   const canReviewOnboarding = user?.authorization?.capabilities.includes('onboarding.review');
-  const onboardingSequence = useRef(0);
-  const [onboarding, setOnboarding] = useState<{ id?: string; key: number } | null>(null);
   const [intakePrompt, setIntakePrompt] = useState<string | null>(null);
-  const [notificationSearch, setNotificationSearch] = useState<{ text: string; actionOnly: boolean; unreadOnly: boolean } | null>(null);
   const [kpiAction, setKpiAction] = useState<{ id: string; period: string; kind: string } | null>(null);
-  useEffect(() => {
-    if (!onboardingNotification) return;
-    if (canReviewOnboarding) {
-      setIntakePrompt(null);
-      setNotificationSearch(null);
-      setOnboarding({ id: onboardingNotification.id, key: ++onboardingSequence.current });
-    }
-    onOnboardingNotificationOpened?.();
-  }, [onboardingNotification, canReviewOnboarding, onOnboardingNotificationOpened]);
   const quickReplies = ['Thông báo nào cần xử lý?', 'Tóm tắt nhiệm vụ tôi được phép xem', 'Xem thông tin hồ sơ của tôi', 'Tra cứu tài liệu đã được duyệt',
     ...(canProposeOnboarding ? ['Tiếp nhận nhân viên mới'] : []),
     ...(canReviewOnboarding ? ['Hồ sơ tiếp nhận nào chờ duyệt?'] : []),
   ].map((label) => ({ label, prompt: label }));
   const [messages, setMessages] = useState<Message[]>([]);
+  const [inlineMessages, setInlineMessages] = useState<InlineMessage[]>([]);
+  const inbox = useChatInbox({
+    userId: user?.id, canReview: canReviewOnboarding,
+    stores: user?.authorization?.stores ?? [], onChanged: onNotificationsChanged,
+  });
+  const displayMessages = interleaveMessages(messages, inlineMessages);
+  const lastMessageId = messages[messages.length - 1]?.id;
   const [isTyping, setIsTyping] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [serviceUnavailable, setServiceUnavailable] = useState(false);
@@ -217,11 +218,24 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   }, [onSwitchTab, sidebarOpen, deleteTarget]);
   useEffect(() => { if (!deleteTarget) return; const dialog = deleteDialog.current; dialog?.showModal(); return () => dialog?.close(); }, [deleteTarget]);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'auto' }); }, [messages, isTyping]);
+  useEffect(() => {
+    const end = endRef.current;
+    const last = end?.previousElementSibling;
+    const body = end?.closest('.guta-chat-body');
+    if (!inbox.busy && last?.hasAttribute('data-inline-message') && body && last.clientHeight > body.clientHeight) {
+      last.scrollIntoView({ block: 'start' });
+    } else end?.scrollIntoView({ behavior: 'auto' });
+  }, [messages, inlineMessages, isTyping, inbox.busy]);
+
+  const appendInline = (after: InlineMessage['after']) => (turn: Pick<Message, 'text' | 'sender'>) => {
+    const id = 'inline:' + ++nextId.current;
+    setInlineMessages(previous => [...previous, { ...turn, id, after }]);
+  };
 
   const newChat = (focus = true) => {
     setIntakePrompt(null);
-    setNotificationSearch(null);
+    inbox.reset();
+    setInlineMessages([]);
     cancelPending();
     historySequence.current++;
     turns.current.clear(); setSelectedConversation(undefined); setMessageCursor(null); setHistoryError(''); setHistoryLoading(false);
@@ -275,7 +289,8 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   };
   const openConversation = (id: string) => {
     setIntakePrompt(null);
-    setNotificationSearch(null);
+    inbox.reset();
+    setInlineMessages([]);
     cancelPending();
     historySequence.current++;
     turns.current.clear();
@@ -322,27 +337,30 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     return () => { window.removeEventListener('focus', refresh); window.clearInterval(timer); };
   }, [selectedConversation, isTyping, user?.id]);
 
+  useEffect(() => {
+    if (!onboardingNotification || isTyping || historyLoading || inbox.busy || pending.current) return;
+    if (canReviewOnboarding) {
+      historySequence.current++;
+      setIntakePrompt(null);
+      setKpiAction(null);
+      setServiceUnavailable(false);
+      inbox.openDetail(onboardingNotification.id, appendInline(lastMessageId));
+    }
+    onOnboardingNotificationOpened?.();
+  }, [onboardingNotification, canReviewOnboarding, isTyping, historyLoading, inbox.busy, lastMessageId, onOnboardingNotificationOpened]);
+
   const send = async (prompt: string) => {
     const text = prompt.trim();
-    if (!text || text.length > 2000 || pending.current || isTyping) return;
-    const command = text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/đ/g, 'd').replace(/\s+/g, ' ');
-    const inbox = notificationQuery(command);
-    if (inbox) {
+    if (!text || text.length > 2000 || pending.current || isTyping || inbox.busy || historyLoading) return;
+    if (inbox.send(text, appendInline(lastMessageId))) {
       historySequence.current++;
-      setNotificationSearch({ text, ...inbox });
       setSidebarOpen(false);
       setServiceUnavailable(false);
       return;
     }
-    const reviewIntake = /^(?:(?:toi muon|hay|cho toi|toi co|minh co|co) )?(?:duyet (?:ho so|de nghi) tiep nhan|(?:xem (?:danh sach )?)?(?:ho so|de nghi) tiep nhan(?: nao)?(?: dang)? (?:cho|can) (?:duyet|xu l[yi]))(?: (?:khong|ko|k))?[.!?]*$/.test(command);
     if (isOnboardingRequest(text)) {
       historySequence.current++;
       setIntakePrompt(text);
-      setSidebarOpen(false);
-      return;
-    }
-    if (reviewIntake && canReviewOnboarding) {
-      setOnboarding({ key: ++onboardingSequence.current });
       setSidebarOpen(false);
       return;
     }
@@ -450,7 +468,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
 
   const composer = (
     <ChatComposer
-      isTyping={isTyping || historyLoading}
+      isTyping={isTyping || historyLoading || inbox.busy}
       onSend={(text) => send(text)}
       inputRef={inputRef}
     />
@@ -477,7 +495,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
         <nav aria-label="Câu hỏi nhanh">
           <p className="guta-chat-sidebar-label">Hỏi nhanh</p>
           {TOPICS.map((topic) => (
-            <button type="button" key={topic.title} disabled={isTyping || !!intakePrompt || !!notificationSearch} onClick={() => send(topic.prompt)}>
+            <button type="button" key={topic.title} disabled={isTyping || inbox.busy || !!intakePrompt} onClick={() => send(topic.prompt)}>
               {topic.title}
             </button>
           ))}
@@ -528,41 +546,10 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
             <p>Bạn vẫn xem được dữ liệu CRM; phần trả lời AI cần backend.</p>
           </div>
         )}
-        {notificationSearch ? (
-          <div className="guta-chat-body" aria-label="Tra cứu thông báo trong chat">
-            <div className="guta-chat-width">
-              <article className="guta-chat-message" data-sender="user"><strong>Bạn</strong><p>{notificationSearch.text}</p></article>
-              <article className="guta-chat-message" data-sender="assistant">
-                <strong>Guta AI</strong>
-                <p>{notificationSearch.actionOnly
-                  ? 'Mình đang hiển thị thông báo được đánh dấu Cần xử lý hoặc Khẩn của bạn. Mở từng mục để xem tình trạng hiện tại.'
-                  : 'Đây là thông báo của tài khoản bạn, lấy từ cùng danh sách với nút chuông.'}</p>
-                <button type="button" className="btn" onClick={() => setNotificationSearch(null)}>Quay lại hội thoại</button>
-                {canReviewOnboarding && notificationSearch.actionOnly &&
-                  <button type="button" className="btn" onClick={() => {
-                    setNotificationSearch(null);
-                    setOnboarding({ key: ++onboardingSequence.current });
-                  }}>Hồ sơ tiếp nhận đang chờ duyệt</button>}
-                <NotificationInbox initialActionOnly={notificationSearch.actionOnly} initialUnread={notificationSearch.unreadOnly}
-                  onNavigate={onNavigateNotification} onChanged={onNotificationsChanged}
-                  onOpenOnboarding={canReviewOnboarding ? id => {
-                    setNotificationSearch(null);
-                    setOnboarding({ id, key: ++onboardingSequence.current });
-                  } : undefined} />
-              </article>
-            </div>
-          </div>
-        ) : intakePrompt ? (
+        {intakePrompt ? (
           <ChatOnboarding prompt={intakePrompt} onExit={() => setIntakePrompt(null)}
             stores={user?.authorization?.stores.filter(store => store.capabilities.includes('onboarding.propose')) ?? []}
             renderComposer={(onSend, busy) => <ChatComposer onSend={onSend} isTyping={busy} onboarding />} />
-        ) : onboarding ? (
-          <div className="guta-chat-body" aria-label="Thao tác tiếp nhận trong chat">
-            <div className="guta-chat-width">
-              <button type="button" className="btn" onClick={() => setOnboarding(null)}>Quay lại hội thoại</button>
-              <OnboardingView key={onboarding.key} chatMode="review" initialRequestId={onboarding.id} />
-            </div>
-          </div>
         ) : kpiAction ? (
           <div className="guta-chat-body" aria-label="Đánh giá hiệu suất trong chat">
             <div className="guta-chat-width">
@@ -570,7 +557,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
               <PerformanceKpiView key={kpiAction.id + kpiAction.kind} selectedPeriod={kpiAction.period} chatEvaluation={kpiAction} />
             </div>
           </div>
-        ) : messages.length === 0 ? (
+        ) : displayMessages.length === 0 && !inbox.busy ? (
           <section className="guta-chat-empty" aria-label="Bắt đầu hội thoại">
             <div className="guta-chat-width">
               <div className="guta-chat-hero">
@@ -600,8 +587,8 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
           <>
             <div className="guta-chat-body" role="log" aria-label="Hội thoại">
               <div className="guta-chat-width">
-                {messages.map((message) => (
-                  <article className="guta-chat-message" data-sender={message.sender} key={message.id}>
+                {displayMessages.map((message) => (
+                  <article className="guta-chat-message" data-sender={message.sender} data-inline-message={'after' in message ? true : undefined} key={message.id}>
                     <strong>{message.sender === 'user' ? 'Bạn' : 'Guta AI'}</strong>
                     <p>{message.text}</p>
                     {message.performanceKpi&&<section className="guta-chat-card" aria-label="Giải thích KPI hiệu suất"><strong>{['FINAL','CORRECTED'].includes(message.performanceKpi.status)?'Điểm chính thức':'Điểm tạm tính'} · {message.performanceKpi.period}</strong><p>{message.performanceKpi.score==null?'Chưa đủ dữ liệu':new Intl.NumberFormat('vi-VN',{maximumFractionDigits:2}).format(message.performanceKpi.score)+' / 100'}</p><div style={{display:'flex',flexWrap:'wrap',gap:8}}>{[['detail','Xem chi tiết'],...(message.performanceKpi.canReconsider?[['reconsideration','Kiến nghị']]:[]),...(message.performanceKpi.canAppeal?[['appeal','Khiếu nại']]:[])].map(([kind,label])=><button type="button" className="btn" key={kind} onClick={()=>setKpiAction({id:message.performanceKpi!.evaluationId,period:message.performanceKpi!.period,kind})}>{label}</button>)}</div><small>Xem hồ sơ hoặc xác nhận gửi yêu cầu ngay trong chat.</small></section>}
@@ -693,6 +680,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
                     )}
                   </article>
                 ))}
+                {inbox.busy && <p role="status">Đang xử lý…</p>}
                 {/* ponytail: CSS keyframes step carousel; add SSE streaming stage events when backend supports event-driven progress */}
                 {isTyping && !isStreaming && (
                   <div className="guta-chat-status" role="status">

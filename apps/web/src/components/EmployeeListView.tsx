@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import type { EmployeeSummary, EmployeeManagement, PaginationMeta } from '@hr-blockbot/contracts';
-import { ApiError, fetchDepartments, fetchEmployees, fetchEmployeeById, fetchPersonnelManagement, requestJson, type CrmDepartment, type EmployeeTitleGroup } from '../services/api';
+import type { EmployeeSummary, EmployeeManagement, PaginationMeta, StoreSummary } from '@hr-blockbot/contracts';
+import { ApiError, fetchDepartments, fetchEmployees, fetchEmployeeById, fetchPersonnelManagement, fetchStoreById, requestJson, type CrmDepartment, type EmployeeTitleGroup } from '../services/api';
 import { Select } from './ui/Select';
 import { CrmDialog } from './ui/CrmDialog';
 import '../styles/crm-work.css';
@@ -90,6 +90,36 @@ function OutletEmployees({ onOpenManagers, onNavigateOnboarding }: { onOpenManag
     store.capabilities.includes('employees.read_operational') ||
     store.capabilities.includes('stores.read')
   );
+
+  const effectiveStoreId = storeId || (availableStores.length > 0 ? availableStores[0]?.id : '');
+  const [currentStore, setCurrentStore] = useState<StoreSummary | null>(null);
+
+  useEffect(() => {
+    if (!effectiveStoreId) {
+      setCurrentStore(null);
+      return;
+    }
+    let active = true;
+    fetchStoreById(effectiveStoreId)
+      .then((data) => {
+        if (active) setCurrentStore(data);
+      })
+      .catch(() => {
+        if (active) setCurrentStore(null);
+      });
+    return () => { active = false; };
+  }, [effectiveStoreId]);
+
+  const aomManager = currentStore?.managers?.find((m) => m.role === 'aom' || m.role === 'om');
+  const amManager = currentStore?.managers?.find((m) => m.role === 'am' || m.role === 'sam');
+  const smManager = currentStore?.managers?.find((m) => m.role === 'sm' && m.assignmentKind === 'home') || currentStore?.managers?.find((m) => m.role === 'sm');
+  const ptchEmployee = employees.find((e) => e.jobTitle && /PTCH|Phụ trách cửa hàng/i.test(e.jobTitle));
+
+  const isRegionalManager = (title?: string | null) => {
+    if (!title) return false;
+    return /^(?:AOM|AM|SAM|OM|QUẢN LÝ KHU VỰC|TRỢ LÝ OM|QUẢN LÝ VÙNG)/i.test(title.trim());
+  };
+  const floorEmployees = employees.filter((e) => !isRegionalManager(e.jobTitle));
 
   const submitAddEmployee = async (event: FormEvent) => {
     event.preventDefault();
@@ -187,6 +217,162 @@ function OutletEmployees({ onOpenManagers, onNavigateOnboarding }: { onOpenManag
       </div>
     )}
     <PersonnelAdmin departments={departments} editingEmployeeId={editingEmployee} onDismissEdit={() => setEditingEmployee(null)} onChanged={() => { void load(); if (canMetadata) void fetchDepartments().then(setDepartments).catch(() => {}); }} />
+
+    {currentStore && (
+      <div className="store-hierarchy-card" style={{
+        background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.75) 0%, rgba(15, 23, 42, 0.95) 100%)',
+        border: '1px solid rgba(255, 255, 255, 0.12)',
+        borderRadius: '12px',
+        padding: '16px 20px',
+        marginBottom: '20px',
+        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '8px',
+              background: 'rgba(59, 130, 246, 0.15)',
+              border: '1px solid rgba(59, 130, 246, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '18px'
+            }}>
+              🏪
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#f8fafc', letterSpacing: '-0.2px' }}>
+                {currentStore.name}
+              </h3>
+              <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#94a3b8' }}>
+                Tuyến phân cấp vận hành chuẩn GUTA · 1 Cửa hàng trưởng duy nhất · Phụ trách bởi AM &amp; AOM
+              </p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <span style={{
+              fontSize: '11px',
+              fontWeight: 600,
+              padding: '4px 10px',
+              borderRadius: '9999px',
+              background: 'rgba(16, 185, 129, 0.15)',
+              color: '#34d399',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }}></span>
+              Tuyến quản lý phân cấp chuẩn
+            </span>
+          </div>
+        </div>
+
+        {/* 3 hoặc 4 Thẻ Quản Lý Nổi Bật */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+          gap: '12px'
+        }}>
+          {/* AOM */}
+          <div style={{
+            background: 'rgba(168, 85, 247, 0.05)',
+            border: '1px solid rgba(168, 85, 247, 0.25)',
+            borderRadius: '10px',
+            padding: '12px 14px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#c084fc', letterSpacing: '0.5px' }}>
+                👑 Quản Lý Vận Hành (AOM)
+              </span>
+              <span style={{ fontSize: '10px', background: 'rgba(168, 85, 247, 0.2)', color: '#e9d5ff', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
+                Cấp Vùng
+              </span>
+            </div>
+            <div style={{ fontSize: '14px', fontWeight: 600, color: '#f1f5f9' }}>
+              {aomManager?.fullName || 'Chưa phân công'}
+            </div>
+            <div style={{ fontSize: '11px', color: '#a855f7', marginTop: '3px' }}>
+              Trợ lý OM · Điều hành &amp; giám sát cụm khu vực
+            </div>
+          </div>
+
+          {/* AM */}
+          <div style={{
+            background: 'rgba(59, 130, 246, 0.05)',
+            border: '1px solid rgba(59, 130, 246, 0.25)',
+            borderRadius: '10px',
+            padding: '12px 14px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#60a5fa', letterSpacing: '0.5px' }}>
+                👔 Quản Lý Khu Vực (AM)
+              </span>
+              <span style={{ fontSize: '10px', background: 'rgba(59, 130, 246, 0.2)', color: '#bfdbfe', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
+                Khu vực
+              </span>
+            </div>
+            <div style={{ fontSize: '14px', fontWeight: 600, color: '#f1f5f9' }}>
+              {amManager?.fullName || 'Chưa phân công'}
+            </div>
+            <div style={{ fontSize: '11px', color: '#3b82f6', marginTop: '3px' }}>
+              Quản lý khu vực · Phụ trách cụm cửa hàng
+            </div>
+          </div>
+
+          {/* SM */}
+          <div style={{
+            background: 'rgba(16, 185, 129, 0.05)',
+            border: '1px solid rgba(16, 185, 129, 0.25)',
+            borderRadius: '10px',
+            padding: '12px 14px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#34d399', letterSpacing: '0.5px' }}>
+                🏬 Cửa Hàng Trưởng (SM)
+              </span>
+              <span style={{ fontSize: '10px', background: 'rgba(16, 185, 129, 0.2)', color: '#a7f3d0', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
+                1 SM / Điểm bán
+              </span>
+            </div>
+            <div style={{ fontSize: '14px', fontWeight: 600, color: '#f1f5f9' }}>
+              {smManager?.fullName || currentStore.managerName || 'Chưa xác định'}
+            </div>
+            <div style={{ fontSize: '11px', color: '#10b981', marginTop: '3px' }}>
+              Cửa hàng trưởng chính thức · Điều hành trực tiếp
+            </div>
+          </div>
+
+          {/* PTCH nếu có */}
+          {ptchEmployee && (
+            <div style={{
+              background: 'rgba(245, 158, 11, 0.05)',
+              border: '1px solid rgba(245, 158, 11, 0.25)',
+              borderRadius: '10px',
+              padding: '12px 14px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#fbbf24', letterSpacing: '0.5px' }}>
+                  📋 Phụ Trách Cửa Hàng (PTCH)
+                </span>
+                <span style={{ fontSize: '10px', background: 'rgba(245, 158, 11, 0.2)', color: '#fde68a', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
+                  Phó CH
+                </span>
+              </div>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: '#f1f5f9' }}>
+                {ptchEmployee.fullName}
+              </div>
+              <div style={{ fontSize: '11px', color: '#f59e0b', marginTop: '3px' }}>
+                {ptchEmployee.employeeCode} · Giám sát ca &amp; nhận ủy quyền
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+
     <div className="crm-work-toolbar">
       <label className="field"><span className="field__label">Tìm nhân sự</span><input className="input" type="search" maxLength={50} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm theo tên, mã NV..." /></label>
       <div className="field"><span id="employee-title-filter" className="field__label">Chức danh</span>
@@ -203,12 +389,112 @@ function OutletEmployees({ onOpenManagers, onNavigateOnboarding }: { onOpenManag
     </p>}
     {loading && <p role="status">Đang tải danh sách nhân sự từ API...</p>}
     {error && <div role="alert" className="banner banner--error">{error}<button type="button" className="btn" onClick={() => void load()}>Thử lại</button></div>}
-    {!loading && !error && !employees.length && <div className="empty"><h3>Không tìm thấy nhân sự phù hợp</h3><p>Kiểm tra từ khóa hoặc thay đổi bộ lọc.</p><button type="button" className="btn" onClick={clear}>Xóa bộ lọc</button></div>}
-    {!loading && !error && !!employees.length && <>
-      <p className="crm-work-count">{paging?.totalItems ?? employees.length} nhân sự phù hợp</p>
-      <div className="crm-work-table-wrap"><table className="table crm-work-table"><caption className="sr-only">Nhân sự trong phạm vi được cấp</caption><thead><tr><th>Họ tên</th><th>Chức danh</th><th>Điểm bán / phòng ban</th><th>Kỹ năng</th><th>Trạng thái</th></tr></thead>
-        <tbody>{employees.map((employee) => <tr key={employee.employeeId}><td><button type="button" className="crm-work-title" onClick={() => void details(employee)}>{employee.fullName}</button><p>{employee.employeeCode}</p></td><td>{employee.jobTitle || 'Chưa cập nhật'}</td><td>{employeeLocationLabel(employee)}</td><td>{employee.skills.join(', ') || 'Chưa cập nhật'}</td><td>{employee.status === 'active' ? 'Hoạt động' : employee.status === 'inactive' ? 'Tạm dừng' : 'Chưa xác minh'}</td></tr>)}</tbody></table></div>
-      <nav aria-label="Phân trang nhân sự" className="crm-work-pagination"><button type="button" className="btn" disabled={!paging?.hasPrev} onClick={() => setPage((old) => old - 1)}>Trang trước</button><span>Trang {paging?.page ?? page} / {paging?.totalPages ?? 1}</span><button type="button" className="btn" disabled={!paging?.hasNext} onClick={() => setPage((old) => old + 1)}>Trang sau</button></nav>
+    {!loading && !error && !floorEmployees.length && <div className="empty"><h3>Không tìm thấy nhân sự phù hợp</h3><p>Kiểm tra từ khóa hoặc thay đổi bộ lọc.</p><button type="button" className="btn" onClick={clear}>Xóa bộ lọc</button></div>}
+    {!loading && !error && !!floorEmployees.length && <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+        <p className="crm-work-count" style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>
+          <strong style={{ color: '#f8fafc' }}>{floorEmployees.length} nhân sự điểm bán</strong>
+          {currentStore ? ` thuộc ${currentStore.name}` : ''}
+        </p>
+      </div>
+      <div className="crm-work-table-wrap">
+        <table className="table crm-work-table">
+          <caption className="sr-only">Nhân sự trong phạm vi được cấp</caption>
+          <thead>
+            <tr>
+              <th>Họ tên &amp; Mã NV</th>
+              <th>Chức danh</th>
+              <th>Điểm bán / phòng ban</th>
+              <th>Kỹ năng</th>
+              <th>Trạng thái</th>
+            </tr>
+          </thead>
+          <tbody>
+            {floorEmployees.map((employee) => {
+              const isSm = employee.jobTitle && /SM|Cửa hàng trưởng/i.test(employee.jobTitle);
+              const isPtch = employee.jobTitle && /PTCH|Phụ trách cửa hàng/i.test(employee.jobTitle);
+              const initials = employee.fullName
+                .split(' ')
+                .filter(Boolean)
+                .slice(-2)
+                .map((w) => w[0])
+                .join('')
+                .toUpperCase() || 'NV';
+
+              return (
+                <tr key={employee.employeeId} style={isSm ? { background: 'rgba(16, 185, 129, 0.05)' } : isPtch ? { background: 'rgba(245, 158, 11, 0.05)' } : undefined}>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '50%',
+                        background: isSm ? 'linear-gradient(135deg, #059669, #10b981)' : isPtch ? 'linear-gradient(135deg, #d97706, #f59e0b)' : 'linear-gradient(135deg, #334155, #475569)',
+                        color: '#fff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        flexShrink: 0
+                      }}>
+                        {initials}
+                      </div>
+                      <div>
+                        <button type="button" className="crm-work-title" onClick={() => void details(employee)} style={{ fontWeight: 600 }}>
+                          {employee.fullName}
+                        </button>
+                        <p style={{ margin: '1px 0 0 0', fontSize: '11px', color: '#94a3b8', fontFamily: 'monospace' }}>
+                          {employee.employeeCode}
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    {isSm ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', fontSize: '12px', fontWeight: 600, border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                        🏬 SM · Cửa hàng trưởng
+                      </span>
+                    ) : isPtch ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', fontSize: '12px', fontWeight: 600, border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+                        📋 Phụ trách cửa hàng
+                      </span>
+                    ) : (
+                      <span style={{ color: '#cbd5e1', fontSize: '13px' }}>
+                        {employee.jobTitle || 'Chưa cập nhật'}
+                      </span>
+                    )}
+                  </td>
+                  <td>{employeeLocationLabel(employee)}</td>
+                  <td>{employee.skills.join(', ') || 'Chưa cập nhật'}</td>
+                  <td>
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      fontSize: '12px',
+                      color: employee.status === 'active' ? '#34d399' : '#94a3b8'
+                    }}>
+                      <span style={{
+                        width: '6px',
+                        height: '6px',
+                        borderRadius: '50%',
+                        background: employee.status === 'active' ? '#10b981' : '#64748b'
+                      }}></span>
+                      {employee.status === 'active' ? 'Hoạt động' : employee.status === 'inactive' ? 'Tạm dừng' : 'Chưa xác minh'}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <nav aria-label="Phân trang nhân sự" className="crm-work-pagination">
+        <button type="button" className="btn" disabled={!paging?.hasPrev} onClick={() => setPage((old) => old - 1)}>Trang trước</button>
+        <span>Trang {paging?.page ?? page} / {paging?.totalPages ?? 1}</span>
+        <button type="button" className="btn" disabled={!paging?.hasNext} onClick={() => setPage((old) => old + 1)}>Trang sau</button>
+      </nav>
     </>}
     {!loading && !error && can('employees.review') && <ProfileApprovalQueue />}
     {selected && <CrmDialog title="Chi tiết nhân sự" onClose={() => { detailRequest.current++; setSelected(null); }}>

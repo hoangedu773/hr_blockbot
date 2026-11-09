@@ -35,7 +35,9 @@ try {
   provider = http.createServer(async (req, res) => {
     let text = ''; for await (const chunk of req) text += chunk; const body = JSON.parse(text); providerCalls++;
     if (body.message.includes('hold')) { entered(); await new Promise(r => { pendingRelease = r; }); }
-    res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ reply: 'Synthetic saved browser answer', citations: [], attachments: [], proposedAction: null, decisionSource: 'isolated-provider' }));
+    const reply = { reply: 'Synthetic saved browser answer', citations: [], attachments: [], proposedAction: null, decisionSource: 'isolated-provider' };
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+    res.end(`event: done\ndata: ${JSON.stringify(reply)}\n\n`);
   });
   await new Promise(r => provider.listen(0, '127.0.0.1', r)); process.env.AI_SERVICE_URL = 'http://127.0.0.1:' + provider.address().port;
   process.env.AI_SERVICE_API_KEY = 'owned-browser-service-key'; process.env.AI_LLM_API_KEY = 'owned-browser-provider-key'; process.env.AI_LLM_BASE_URL = 'https://provider.invalid/v1';
@@ -56,12 +58,23 @@ try {
   await page.goto(origin, { waitUntil: 'networkidle' }); await login(page, 'staff');
   const first = 'Synthetic browser conversation one'; await send(page, first); await answer(page);
   assert.equal(providerCalls, 1);
+  const chat = page.getByRole('log', { name: 'Hội thoại', exact: true });
+  const notices = 'Tôi có thông báo gì không?';
+  await send(page, notices);
+  await chat.getByText('Bạn chưa có thông báo nào.', { exact: true }).waitFor();
+  assert.deepEqual(await chat.locator('[data-sender="user"] p').allTextContents(), [first, notices]);
+  assert.equal(await page.getByRole('button', { name: 'Quay lại hội thoại', exact: true }).count(), 0);
+  assert.equal(providerCalls, 1);
   await page.getByRole('button', { name: 'Quay lại CRM', exact: true }).click(); await page.locator('.crm-sidebar .crm-copilot').click(); await answer(page);
   assert.equal(providerCalls, 1, 'restoring never invokes AI');
   await page.reload({ waitUntil: 'networkidle' }); await page.locator('.crm-sidebar').waitFor(); await page.locator('.crm-sidebar .crm-copilot').click(); await answer(page);
   assert.equal(providerCalls, 1);
   await page.getByRole('button', { name: 'Hội thoại mới', exact: true }).click();
+  await send(page, notices);
+  await chat.getByText('Bạn chưa có thông báo nào.', { exact: true }).waitFor();
   await send(page, 'Synthetic second conversation'); await answer(page); assert.equal(providerCalls, 2);
+  assert.deepEqual(await chat.locator('[data-sender="user"] p').allTextContents(), [notices, 'Synthetic second conversation']);
+  assert.equal(await chat.getByText('Bạn chưa có thông báo nào.', { exact: true }).count(), 1);
   await page.getByRole('navigation', { name: 'Lịch sử hội thoại' }).getByRole('button', { name: first, exact: true }).click(); await answer(page);
   assert.equal(await page.locator('.guta-chat-message[data-sender="user"]').textContent(), 'Bạn' + first);
   assert.equal(providerCalls, 2);
