@@ -4,6 +4,7 @@ import { useAuth } from './context/AuthContext';
 import { ToastContainer, type ToastMessage, type NotifyFn } from './components/Toast';
 import { BrandMark } from './components/BrandMark';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
+import { PasswordOtpDialog } from './components/PasswordOtpDialog';
 import { ActivationView } from './components/ActivationView';
 import { NotificationCenter } from './components/NotificationCenter';
 import type { ActiveCrmView } from './components/CrmDashboardView';
@@ -23,6 +24,7 @@ export const AppContent: React.FC = () => {
   const hasSession = isAuthenticated && user !== null;
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isSplashFading, setIsSplashFading] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
 
   // The workspace opens on the operating surface, not on the assistant. CRM is
   // where the shift and roster decisions live; chat is a secondary tool reached
@@ -181,6 +183,7 @@ export const AppContent: React.FC = () => {
               notificationButton={notificationButton}
               notificationView={notificationView}
               onNotificationViewApplied={clearNotificationView}
+              onChangePassword={() => setPasswordOpen(true)}
             />
           )}
         </React.Suspense>
@@ -190,8 +193,13 @@ export const AppContent: React.FC = () => {
           username={user.username}
           onSubmit={changePassword}
           onLogout={handleLogout}
+          onEmailOtp={() => setPasswordOpen(true)}
         />
       )}
+      {passwordOpen && <PasswordOtpDialog onClose={() => setPasswordOpen(false)} onSuccess={() => {
+        setPasswordOpen(false);
+        addToast('Đã đổi mật khẩu. Hãy đăng nhập lại bằng mật khẩu mới.', 'success');
+      }} />}
       <ToastContainer toasts={toasts} onDismiss={removeToast} />
     </>
   );

@@ -1,5 +1,9 @@
 import { Router, Request, Response } from "express";
 import crypto from "crypto";
+import { z } from "zod";
+import { endpoint } from "../lib/endpoint.js";
+import { issuePasswordChangeOtp, passwordChangeOtpFilter } from "../services/password-change-otp.service.js";
+import { deliverableAccountEmail } from "../services/account-mail.service.js";
 import {
   LoginRequestSchema,
   LoginResponseSchema,
@@ -216,7 +220,19 @@ router.get("/auth/me", authenticateToken, (req: Request, res: Response) => {
   res.status(200).json(meData);
 });
 
-// POST /api/auth/change-password - bắt buộc với mật khẩu tạm do quản lý phát
+const passwordOtpRequest = z.object({ currentPassword: z.string().min(1).max(128) }).strict();
+router.post("/auth/change-password/otp", authenticateToken, endpoint(async (req, res) => {
+  const { currentPassword } = passwordOtpRequest.parse(req.body);
+  const key = "password-otp|" + req.user!.userId;
+  if (registerLoginAttempt(key)) {
+    res.status(429).json({ error: { code: "PASSWORD_OTP_COOLDOWN", message: "Quá nhiều lần thử. Vui lòng đợi rồi thử lại." } });
+    return;
+  }
+  const issued = await issuePasswordChangeOtp(req.user!.userId, securityVersion(req.user!), currentPassword, req.app.locals.accountMail);
+  await clearLoginAttempts(key);
+  res.status(200).json(issued);
+}));
+
 router.post("/auth/change-password", authenticateToken, async (req: Request, res: Response) => {
   const parsed = ChangePasswordRequestSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -230,17 +246,26 @@ router.post("/auth/change-password", authenticateToken, async (req: Request, res
     return;
   }
 
-  const { currentPassword, newPassword } = parsed.data;
+  const { currentPassword, newPassword, challengeId, otp } = parsed.data;
 
   try {
     const user = await UserModel.findById(req.user!.userId);
-    if (!user) {
+    if (!user || securityVersion(user) !== securityVersion(req.user!)) {
       res.status(401).json({
         error: { code: "UNAUTHENTICATED", message: "User not found or deactivated" },
       });
       return;
     }
 
+    const temporaryWithoutEmail = user.mustChangePassword && (!user.emailVerifiedAt || !deliverableAccountEmail(user.email));
+    if (!temporaryWithoutEmail && (!challengeId || !otp)) {
+      res.status(403).json({ error: { code: "PASSWORD_OTP_REQUIRED", message: "Hãy xác nhận mã gửi qua email để đổi mật khẩu." } });
+      return;
+    }
+    if (challengeId && newPassword.length < 12) {
+      res.status(400).json({ error: { code: "VALIDATION_FAILED", message: "Mật khẩu mới phải có ít nhất 12 ký tự." } });
+      return;
+    }
     const isValid = await verifyPassword(user.passwordHash, currentPassword);
     if (!isValid) {
       res.status(401).json({
@@ -249,10 +274,15 @@ router.post("/auth/change-password", authenticateToken, async (req: Request, res
       return;
     }
 
+    const otpFilter = challengeId && otp ? await passwordChangeOtpFilter(String(user._id), securityVersion(user), challengeId, otp, user.email) : {};
+    const passwordHash = await hashPassword(newPassword);
     const changed = await UserModel.updateOne(
       { _id: user._id, passwordHash: user.passwordHash, status: { $ne: "disabled" },
-        ...securityVersionFilter(securityVersion(user)) },
-      { $set: { passwordHash: await hashPassword(newPassword), mustChangePassword: false, passwordChangedAt: new Date() },
+        ...securityVersionFilter(securityVersion(user)), ...otpFilter,
+        ...(challengeId ? { "passwordChangeOtp.expiresAt": { $gt: new Date() } } : {}),
+        email: user.email ?? null, emailVerifiedAt: user.emailVerifiedAt ?? null,
+        ...(temporaryWithoutEmail && !challengeId ? { mustChangePassword: true } : {}) },
+      { $set: { passwordHash, mustChangePassword: false, passwordChangedAt: new Date() }, $unset: { passwordChangeOtp: 1 },
         $inc: { securityVersion: 1 } }
     );
     if (!changed.modifiedCount) {
@@ -269,6 +299,10 @@ router.post("/auth/change-password", authenticateToken, async (req: Request, res
     res.clearCookie("refreshToken", getClearCookieOptions());
     res.status(204).send();
   } catch (err) {
+    if (err instanceof Error && "status" in err && "code" in err && typeof err.status === "number") {
+      res.status(err.status).json({ error: { code: err.code, message: err.message } });
+      return;
+    }
     console.error(
       "[Auth] Change password error:",
       err instanceof Error ? err.message : "internal error"

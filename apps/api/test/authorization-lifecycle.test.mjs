@@ -18,6 +18,7 @@ const requireWeb = createRequire(new URL('../../web/package.json', import.meta.u
 const { io: clientIo } = requireWeb('socket.io-client');
 let server, socketServer, base, user, employee, passwordHash;
 const clients = [];
+const mail = [];
 async function request(path, { method = 'GET', token, body, cookie } = {}) {
   return fetch(`${base}/api${path}`, { method, headers: { Connection: 'close', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}), ...(cookie ? { Cookie: cookie } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
 }
@@ -35,7 +36,7 @@ before(async () => {
   await connectDB(); passwordHash = await hashPassword('FixtureOnly@2026');
   employee = await EmployeeModel.create({ employeeCode: 'AUTHZ-ONE', fullName: 'Isolated fixture', department: 'SAME', level: 'Junior', status: 'active' });
   user = await fixture('one', { employeeId: employee._id });
-  server = createServer(createApp()); socketServer = initSocket(server);
+  server = createServer(createApp({ accountMail: async message => { mail.push(message); } })); socketServer = initSocket(server);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${server.address().port}`;
 });
@@ -110,15 +111,31 @@ test('temporary password can read minimal session/change password but not busine
 });
 
 test('password change invalidates old access and refresh; concurrent change has one winner', async () => {
-  const value = await fixture('password');
+  const value = await fixture('password', { email: 'otp-fixture@example.com', emailVerifiedAt: new Date() });
   const login = await request('/auth/login', { method: 'POST', body: { username: value.username, password: 'FixtureOnly@2026' } });
   const { accessToken } = await login.json(), cookie = login.headers.get('set-cookie').split(';')[0];
-  const replies = await Promise.all([1, 2].map(() => request('/auth/change-password', { method: 'POST', token: accessToken, body: { currentPassword: 'FixtureOnly@2026', newPassword: 'ChangedFixture@2026' } })));
+  const post = (path, body) => request(path, { method: 'POST', token: accessToken, body });
+  const currentPassword = 'FixtureOnly@2026';
+  const newPassword = 'ChangedFixture@2026';
+  assert.equal((await post('/auth/change-password', { currentPassword, newPassword })).status, 403);
+  assert.equal((await post('/auth/change-password/otp', { currentPassword: 'IncorrectFixture' })).status, 400);
+  assert.equal(mail.length, 0);
+  const issued = await post('/auth/change-password/otp', { currentPassword });
+  assert.equal(issued.status, 200);
+  const { challengeId, destination } = await issued.json();
+  assert.equal(destination, 'o***@example.com');
+  assert.equal(mail[0].to, value.email);
+  const otp = mail[0].body.match(/\b\d{6}\b/)[0];
+  assert.equal((await post('/auth/change-password/otp', { currentPassword })).status, 429);
+  const wrongCode = otp === '000000' ? '111111' : '000000';
+  assert.equal((await post('/auth/change-password', { currentPassword, newPassword, challengeId, otp: wrongCode })).status, 400);
+  const replies = await Promise.all([1, 2].map(() => post('/auth/change-password', { currentPassword, newPassword, challengeId, otp })));
   assert.equal(replies.filter((res) => res.status === 204).length, 1);
-  assert.ok(replies.every((res) => [204, 409, 401].includes(res.status)));
+  assert.ok(replies.every((res) => [204, 409, 401, 400].includes(res.status)));
   assert.equal((await request('/auth/me', { token: accessToken })).status, 401);
   assert.equal((await request('/auth/refresh', { method: 'POST', cookie })).status, 401);
   assert.equal((await UserModel.findById(value._id)).securityVersion, 1);
+  assert.equal((await UserModel.findById(value._id).select('+passwordChangeOtp')).passwordChangeOtp, undefined);
 });
 
 test('all nine profiles survive explicit schema round-trip through Mongo and /auth/me without acquiring pending rights', async () => {

@@ -39,6 +39,7 @@ export interface CrmDashboardViewProps {
   notificationButton?: React.ReactNode;
   notificationView?: ActiveCrmView | null;
   onNotificationViewApplied?: () => void;
+  onChangePassword?: () => void;
 }
 
 const CRM_HTML = `
@@ -174,6 +175,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
   notificationButton,
   notificationView,
   onNotificationViewApplied,
+  onChangePassword,
 }) => {
   const { can, summary: authorization } = useAuthorization();
   const [performanceEnabled, setPerformanceEnabled] = useState(false);
@@ -473,7 +475,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
         dangerouslySetInnerHTML={{ __html: CRM_HTML }}
       />
       {themePortalEl &&
-        createPortal(<div className="crm-header-controls">{notificationButton}<ThemeToggle /></div>, themePortalEl)}
+        createPortal(<div className="crm-header-controls">{notificationButton}{!allowedViews.profile && onChangePassword && <button type="button" className="btn" onClick={onChangePassword}>Đổi mật khẩu</button>}<ThemeToggle /></div>, themePortalEl)}
       {storesPortalEl && activeView === 'stores' && allowedViews.stores &&
         createPortal(
           <StoreDirectoryView
@@ -500,7 +502,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
           ) : activeView === 'employees' && allowedViews.employees ? (
             <EmployeeListView />
           ) : activeView === 'profile' && allowedViews.profile ? (
-            <EmployeeProfileView onLogout={onLogout} onNotify={safeNotify} />
+            <EmployeeProfileView onLogout={onLogout} onNotify={safeNotify} onChangePassword={onChangePassword} />
           ) : activeView === 'schedules' && allowedViews.schedules ? (
             <SchedulingView />
           ) : activeView === 'projects' && allowedViews.projects ? (

@@ -14,8 +14,9 @@ import { digest } from "./project-audit.service.js";
 import { workflowPage, workflowDetail, historyIntegrity } from "./workflow-page.service.js";
 import { withCrmWriter } from "./crm-writer.service.js";
 import { employeeCodePeriod, reserveEmployeeCode } from "./employee-code.service.js";
+import { deliverableAccountEmail } from "./account-mail.service.js";
 
-export type ActivationDelivery = (invitation: { token: string; username: string; requestId: string; phone: string; purpose?: "onboarding" | "reactivation" }) => Promise<void>;
+export type ActivationDelivery = (invitation: { token: string; username: string; requestId: string; phone: string; email?: string; purpose?: "onboarding" | "reactivation" }) => Promise<void>;
 export interface OnboardingOptions { deliverActivation?: ActivationDelivery; failpoint?: (stage: string) => void }
 const tokenHash = (value: string) => createHash("sha256").update(value).digest("hex");
 const termsHash = (row: any) => digest({ employeeKey: row.employeeKey, employeeId: row.employeeId, userId: row.userId, storeId: row.storeId, requestedBy: row.requestedBy, requesterEmployeeId: row.requesterEmployeeId,
@@ -85,6 +86,7 @@ export async function createOnboarding(user: AuthenticatedUser, body: unknown, d
   const parsed = OnboardingCreateSchema.safeParse(body);
   if (!parsed.success) throw new WorkflowError(400, "VALIDATION_FAILED", "Thông tin đề nghị tối thiểu không hợp lệ hoặc chứa trường cấp quyền.");
   const { clientRequestId, ...input } = parsed.data;
+  if (input.email && !deliverableAccountEmail(input.email)) throw new WorkflowError(400, "ACCOUNT_EMAIL_REQUIRED", "Hãy nhập email có thể nhận link kích hoạt.");
   requireCapability(user, draft ? "onboarding.draft" : "onboarding.propose", resourceScope(user, { storeId: input.storeId, storeMappingRef: "approved" }));
   await canonicalStore(input.storeId); await assertIndexesReady();
   employeeCodePeriod(input.hiredAt);
@@ -128,6 +130,7 @@ export async function getOnboarding(user: AuthenticatedUser, id: string) { retur
 export async function resubmitOnboarding(user: AuthenticatedUser, id: string, input: unknown) {
   const parsed = OnboardingResubmitSchema.safeParse(input);
   if (!parsed.success) throw new WorkflowError(400, "VALIDATION_FAILED", "Chỉ sửa thông tin đề nghị; không đổi mã nhân viên/cửa hàng/identity hoặc quyền.");
+  if (parsed.data.email && !deliverableAccountEmail(parsed.data.email)) throw new WorkflowError(400, "ACCOUNT_EMAIL_REQUIRED", "Hãy nhập email có thể nhận link kích hoạt.");
   const row: any = await OnboardingRequestModel.findById(objectId(id)).lean();
   if (!row || String(row.requestedBy) !== user.userId) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy đề nghị của bạn.");
   requireCapability(user, user.authorization?.profile === "hr" ? "onboarding.draft" : "onboarding.propose", resourceScope(user, { storeId: row.storeId, storeMappingRef: "approved" }));
@@ -137,14 +140,24 @@ export async function resubmitOnboarding(user: AuthenticatedUser, id: string, in
   return advance(row, user.userId, "AMENDED_AND_RESUBMITTED", parsed.data.reason, { payload: { ...row.payload, ...fields }, status: "PENDING_HR_REVIEW", approvedBy: null, approvedAt: null, approvalReason: null });
 }
 export async function reviewOnboarding(user: AuthenticatedUser, id: string, body: { decision: string; reason: string; expectedVersion: number }, options: OnboardingOptions = {}) {
+  return withCrmWriter(() => reviewOnboardingOwned(user, id, body, options));
+}
+async function reviewOnboardingOwned(user: AuthenticatedUser, id: string, body: { decision: string; reason: string; expectedVersion: number }, options: OnboardingOptions) {
   let row: any = await OnboardingRequestModel.findById(objectId(id)).lean();
   if (!row) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy đề nghị.");
   await independentReview(user, row); await canonicalStore(row.storeId);
   if (row.status !== "PENDING_HR_REVIEW" || row.version !== body.expectedVersion) throw new WorkflowError(409, "ONBOARDING_VERSION_CONFLICT", "Đề nghị đã được xử lý hoặc chưa gửi HR.");
+  const email = deliverableAccountEmail(row.payload.email);
+  if (body.decision === "APPROVE" && email) {
+    const reserved = await OnboardingRequestModel.exists({ _id: { $ne: row._id }, "payload.email": email, status: "PROVISIONING" });
+    if (reserved || await UserModel.exists({ email })) {
+      throw new WorkflowError(409, "ACCOUNT_EMAIL_CONFLICT", "Email kích hoạt đã được dùng cho một tài khoản. Hãy kiểm tra lại đề nghị.");
+    }
+  }
   row = await advance(row, user.userId, body.decision === "APPROVE" ? "HR_APPROVED" : "HR_REJECTED", body.reason,
     { status: body.decision === "APPROVE" ? "PROVISIONING" : "REJECTED", approvedBy: body.decision === "APPROVE" ? user.userId : null,
       approvedAt: body.decision === "APPROVE" ? new Date() : null, approvalReason: body.reason });
-  return body.decision === "APPROVE" ? resumeOnboarding(user, String(row._id), options) : row;
+  return body.decision === "APPROVE" ? resumeOnboardingOwned(user, String(row._id), options) : row;
 }
 export async function resumeOnboarding(user: AuthenticatedUser, id: string, options: OnboardingOptions = {}) {
   return withCrmWriter(() => resumeOnboardingOwned(user, id, options));
@@ -157,6 +170,7 @@ async function resumeOnboardingOwned(user: AuthenticatedUser, id: string, option
   if (row.status === "ACTIVATING") return finishActivation(row, options);
   if (row.status === "PROVISIONING") {
     const mappingRef = "onboarding:" + String(row._id);
+    const email = deliverableAccountEmail(row.payload.email);
     await EmployeeModel.updateOne({ _id: row.employeeId, provisioningRequestId: row._id }, { $setOnInsert: {
       employeeCode: row.payload.employeeCode, employee_code: row.payload.employeeCode, personnelKey: row.employeeKey,
       fullName: row.payload.fullName, phone: row.payload.phone, hiredAt: new Date(row.payload.hiredAt),
@@ -172,6 +186,7 @@ async function resumeOnboardingOwned(user: AuthenticatedUser, id: string, option
       approvalRef: mappingRef, grantedBy: String(row.approvedBy), grantedAt: row.approvedAt.toISOString(), validFrom: row.approvedAt.toISOString(), validUntil: null });
     await UserModel.updateOne({ _id: row.userId, provisioningRequestId: row._id }, { $setOnInsert: {
       username: row.employeeKey, passwordHash: "!PENDING_ACTIVATION", employeeId: row.employeeId, role: "Employee", businessRole: "staff",
+      ...(email ? { email } : {}),
       isGlobalAdmin: false, status: "pending_activation", mustChangePassword: true, securityVersion: 0, provisioningRequestId: row._id,
       authorization: { schemaVersion: 1, profile: "staff", grants: [makeGrant({ kind: "self" }, selfCaps), makeGrant({ kind: "organization", storeIds: [String(row.storeId)] }, ["directory.read_store"])] },
       securityAudit: [{ type: "ONBOARDING_PROVISIONED", actorId: String(row.approvedBy), requestId: String(row._id), at: new Date() }],
@@ -182,7 +197,7 @@ async function resumeOnboardingOwned(user: AuthenticatedUser, id: string, option
   if (row.status === "PENDING_ACTIVATION" && (row.deliveryState !== "DELIVERED" || !row.activationExpiresAt || new Date(row.activationExpiresAt).getTime() <= Date.now()) && options.deliverActivation) {
     const token = randomBytes(32).toString("hex");
     row = await advance(row, user.userId, "ACTIVATION_ISSUED", "Phát hành lời mời một lần qua adapter", { activationTokenHash: tokenHash(token), activationExpiresAt: new Date(Date.now() + 86400000), deliveryState: "PENDING" });
-    try { await options.deliverActivation({ token, username: row.employeeKey, requestId: String(row._id), phone: row.payload.phone, purpose: "onboarding" }); }
+    try { await options.deliverActivation({ token, username: row.employeeKey, requestId: String(row._id), phone: row.payload.phone, email: row.payload.email, purpose: "onboarding" }); }
     catch { return advance(row, user.userId, "DELIVERY_FAILED", "Kênh kích hoạt chưa xác nhận gửi thành công", { deliveryState: "FAILED" }); }
     row = await advance(row, user.userId, "DELIVERED", "Adapter đã xác nhận gửi lời mời", { deliveryState: "DELIVERED" });
   }
@@ -193,8 +208,9 @@ async function finishActivation(row: any, options: OnboardingOptions = {}) {
   const user: any = await UserModel.findById(row.userId).lean();
   if (!user || String(user.provisioningRequestId) !== String(row._id) || String(user.employeeId) !== String(row.employeeId) || user.status === "disabled") throw new WorkflowError(409, "ACTIVATION_ACCOUNT_CONFLICT", "Không tự mở lại tài khoản đã bị khóa/thay đổi.");
   if (user.status === "pending_activation") {
-    const changed = await UserModel.updateOne({ _id: row.userId, status: "pending_activation", securityVersion: user.securityVersion, provisioningRequestId: row._id },
-      { $set: { passwordHash: row.activationPasswordHash, status: "active", mustChangePassword: false, passwordChangedAt: new Date() }, $inc: { securityVersion: 1 },
+    const changed = await UserModel.updateOne({ _id: row.userId, status: "pending_activation", securityVersion: user.securityVersion, provisioningRequestId: row._id, email: user.email ?? null },
+      { $set: { passwordHash: row.activationPasswordHash, status: "active", mustChangePassword: false, passwordChangedAt: new Date(),
+          ...(user.email && user.email === row.payload.email ? { emailVerifiedAt: new Date() } : {}) }, $inc: { securityVersion: 1 },
         $push: { securityAudit: { type: "ACTIVATED", requestId: String(row._id), at: new Date() } } });
     if (!changed.modifiedCount) throw new WorkflowError(409, "ACTIVATION_ACCOUNT_CONFLICT", "Tài khoản đã thay đổi.");
   } else if (user.passwordHash !== row.activationPasswordHash) throw new WorkflowError(409, "ACTIVATION_ACCOUNT_CONFLICT", "Tài khoản không khớp lần kích hoạt.");

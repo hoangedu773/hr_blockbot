@@ -198,6 +198,31 @@ export async function changePassword(currentPassword: string, newPassword: strin
   clearAuthState();
 }
 
+type PasswordOtp = { challengeId: string; destination: string; expiresInSeconds: number };
+
+async function passwordOtpRequest(path: string, body: Record<string, string>): Promise<Response> {
+  const res = await apiFetch(`${API_BASE}/auth/change-password${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    if (res.status === 401) throw new Error('Mật khẩu hiện tại không đúng hoặc phiên đã hết hạn.');
+    throw new Error(data?.error?.message ?? 'Chưa đổi được mật khẩu. Vui lòng thử lại.');
+  }
+  return res;
+}
+
+export async function sendPasswordOtp(currentPassword: string): Promise<PasswordOtp> {
+  return (await passwordOtpRequest('/otp', { currentPassword })).json();
+}
+
+export async function confirmPasswordOtp(currentPassword: string, newPassword: string, challengeId: string, otp: string): Promise<void> {
+  await passwordOtpRequest('', { currentPassword, newPassword, challengeId, otp });
+  clearAuthState();
+}
+
 export function logout(): Promise<void> {
   if (logoutPromise) return logoutPromise;
   const token = inMemoryAccessToken;

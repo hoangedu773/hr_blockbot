@@ -50,7 +50,10 @@ export const ChangePasswordRequestSchema = z
   .object({
     currentPassword: z.string().min(1),
     newPassword: z.string().min(8).max(128),
+    challengeId: z.string().uuid().optional(),
+    otp: z.string().regex(/^\d{6}$/).optional(),
   })
+  .refine(data => Boolean(data.challengeId) === Boolean(data.otp), { path: ["otp"] })
   .refine((data) => data.currentPassword !== data.newPassword, {
     message: "Mật khẩu mới phải khác mật khẩu hiện tại",
     path: ["newPassword"],
