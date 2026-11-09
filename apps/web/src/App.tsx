@@ -33,6 +33,9 @@ export const AppContent: React.FC = () => {
   // from the sidebar.
   const [activeTab, setActiveTab] = useState<'crm' | 'chat'>('crm');
   const [notificationView, setNotificationView] = useState<ActiveCrmView | null>(null);
+  const [onboardingNotification, setOnboardingNotification] = useState<{ id: string } | null>(null);
+  const clearOnboardingNotification = useCallback(() => setOnboardingNotification(null), []);
+  const openOnboardingNotification = (id: string) => { setOnboardingNotification({ id }); setActiveTab('chat'); };
   const clearNotificationView = useCallback(() => setNotificationView(null), []);
   const openNotificationView = useCallback((view: ActiveCrmView) => {
     setNotificationView(view);
@@ -116,6 +119,7 @@ export const AppContent: React.FC = () => {
   const handleLogout = useCallback(async () => {
     setActiveTab('crm');
     setNotificationView(null);
+    setOnboardingNotification(null);
     await logout();
     addToast('Đã đăng xuất phiên làm việc an toàn.', 'info');
   }, [logout, addToast]);
@@ -164,7 +168,9 @@ export const AppContent: React.FC = () => {
     );
   }
 
-  const notificationButton = !user.mustChangePassword && <NotificationCenter onNavigate={openNotificationView} />;
+  const chatOnboardingReview = user.authorization?.capabilities.includes('chatbot.data_read') && user.authorization.capabilities.includes('onboarding.review');
+  const notificationButton = !user.mustChangePassword && <NotificationCenter onNavigate={openNotificationView}
+    onOpenOnboarding={chatOnboardingReview ? openOnboardingNotification : undefined} />;
 
   // 2. Authenticated: Render 21st CRM Dashboard (Exact 21st Design)
   return (
@@ -172,7 +178,8 @@ export const AppContent: React.FC = () => {
       <DemoErrorBoundary>
         <React.Suspense fallback={<div className="guta-view-loading" role="status" aria-label="Đang tải không gian làm việc..." />}>
           {activeTab === 'chat' ? (
-            <ChatPageView onSwitchTab={handleSwitchTab} onLogout={handleLogout} notificationButton={notificationButton} />
+            <ChatPageView onSwitchTab={handleSwitchTab} onLogout={handleLogout} notificationButton={notificationButton}
+              onboardingNotification={onboardingNotification} onOnboardingNotificationOpened={clearOnboardingNotification} />
           ) : (
             <CrmDashboardView
               userName={('username' in user && typeof user.username === 'string' && user.username) || (user.role === 'Admin' ? 'Quản trị viên' : 'Nhân viên')}

@@ -15,6 +15,7 @@ const groups: Record<NotificationGroup, { label: string; view?: ActiveCrmView }>
   revenue: { label: 'KPI doanh thu', view: 'revenueKpi' },
   performance: { label: 'KPI hiệu suất & công việc', view: 'performanceKpi' },
   evaluation: { label: 'KPI & đánh giá', view: 'kpi' },
+  onboarding: { label: 'Tiếp nhận nhân viên', view: 'onboarding' },
   other: { label: 'Khác' },
 };
 const groupEntries = Object.entries(notificationEntityKinds) as [NotificationGroup, readonly string[]][];
@@ -24,10 +25,11 @@ function groupFor(item: NotificationInboxItem) {
   return groups[groupEntries.find(([, kinds]) => kinds.includes(item.entityKind ?? ''))?.[0] ?? 'other'];
 }
 
-function Inbox({ onChanged, onClose, onNavigate }: {
+function Inbox({ onChanged, onClose, onNavigate, onOpenOnboarding }: {
   onChanged: () => void;
   onClose: () => void;
   onNavigate: (view: ActiveCrmView) => void;
+  onOpenOnboarding?: (id: string) => void;
 }) {
   const [group, setGroup] = useState<NotificationGroup | ''>('');
   const [unreadOnly, setUnreadOnly] = useState(false);
@@ -119,6 +121,8 @@ function Inbox({ onChanged, onClose, onNavigate }: {
             <h4>{item.title}</h4>
             <p>{item.body}</p>
             <div className="notification-inbox-actions">
+              {item.entityKind === 'onboarding' && entityId && /^[a-f0-9]{24}$/i.test(entityId) && onOpenOnboarding &&
+                <button type="button" className="btn" disabled={saving} onClick={() => onOpenOnboarding(entityId)}>Mở hồ sơ trong chat</button>}
               {canShowDetail && <button type="button" className="btn" aria-expanded={expanded} onClick={() => setSelected(expanded ? undefined : item.id)}>
                 {expanded ? 'Thu gọn chi tiết' : isTask ? 'Xem nhiệm vụ' : 'Xem bản đánh giá'}
               </button>}
@@ -141,7 +145,7 @@ function Inbox({ onChanged, onClose, onNavigate }: {
   </CrmDialog>;
 }
 
-export function NotificationCenter({ onNavigate }: { onNavigate: (view: ActiveCrmView) => void }) {
+export function NotificationCenter({ onNavigate, onOpenOnboarding }: { onNavigate: (view: ActiveCrmView) => void; onOpenOnboarding?: (id: string) => void }) {
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
   const request = useRef<AbortController>();
@@ -177,7 +181,8 @@ export function NotificationCenter({ onNavigate }: { onNavigate: (view: ActiveCr
       {unread > 0 && <span className="notification-bell-count" aria-hidden="true">{unread > 99 ? '99+' : unread}</span>}
     </button>
     {open && createPortal(
-      <Inbox onChanged={refresh} onClose={() => setOpen(false)} onNavigate={view => { setOpen(false); onNavigate(view); }} />,
+      <Inbox onChanged={refresh} onClose={() => setOpen(false)} onNavigate={view => { setOpen(false); onNavigate(view); }}
+        onOpenOnboarding={onOpenOnboarding && (id => { setOpen(false); onOpenOnboarding(id); })} />,
       document.body
     )}
   </>;
