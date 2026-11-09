@@ -5,6 +5,7 @@ import { BrandMark } from '../BrandMark';
 import { ThemeToggle } from '../ThemeToggle';
 import { ChatOnboarding, isOnboardingRequest } from './ChatOnboarding';
 import { useChatInbox } from './ChatInbox';
+import { useRevenueKpiChat } from './useRevenueKpiChat';
 import { PerformanceKpiView } from '../PerformanceKpiView';
 import '../../styles/crm-work.css';
 import { apiFetch, API_BASE } from '../../services/auth';
@@ -163,6 +164,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   const quickReplies = ['Thông báo nào cần xử lý?', 'Tóm tắt nhiệm vụ tôi được phép xem', 'Xem thông tin hồ sơ của tôi', 'Tra cứu tài liệu đã được duyệt',
     ...(canProposeOnboarding ? ['Tiếp nhận nhân viên mới'] : []),
     ...(canReviewOnboarding ? ['Hồ sơ tiếp nhận nào chờ duyệt?'] : []),
+    ...(user?.authorization?.capabilities.some(cap => cap === 'revenue_kpi.read_self' || cap === 'revenue_kpi.read_scope') ? ['KPI doanh thu tháng này'] : []),
   ].map((label) => ({ label, prompt: label }));
   const [messages, setMessages] = useState<Message[]>([]);
   const [inlineMessages, setInlineMessages] = useState<InlineMessage[]>([]);
@@ -170,6 +172,9 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     userId: user?.id, canReview: canReviewOnboarding,
     stores: user?.authorization?.stores ?? [], onChanged: onNotificationsChanged,
   });
+  const revenue = useRevenueKpiChat({ grants: user?.authorization?.capabilities ?? [], onChanged: onNotificationsChanged });
+  const inlineBusy = inbox.busy || revenue.busy;
+  const lastFlow = useRef<'inbox' | 'revenue'>();
   const displayMessages = interleaveMessages(messages, inlineMessages);
   const lastMessageId = messages[messages.length - 1]?.id;
   const [isTyping, setIsTyping] = useState(false);
@@ -222,10 +227,10 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     const end = endRef.current;
     const last = end?.previousElementSibling;
     const body = end?.closest('.guta-chat-body');
-    if (!inbox.busy && last?.hasAttribute('data-inline-message') && body && last.clientHeight > body.clientHeight) {
+    if (!inlineBusy && last?.hasAttribute('data-inline-message') && body && last.clientHeight > body.clientHeight) {
       last.scrollIntoView({ block: 'start' });
     } else end?.scrollIntoView({ behavior: 'auto' });
-  }, [messages, inlineMessages, isTyping, inbox.busy]);
+  }, [messages, inlineMessages, isTyping, inlineBusy]);
 
   const appendInline = (after: InlineMessage['after']) => (turn: Pick<Message, 'text' | 'sender'>) => {
     const id = 'inline:' + ++nextId.current;
@@ -235,6 +240,8 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   const newChat = (focus = true) => {
     setIntakePrompt(null);
     inbox.reset();
+    revenue.reset();
+    lastFlow.current = undefined;
     setInlineMessages([]);
     cancelPending();
     historySequence.current++;
@@ -290,6 +297,8 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   const openConversation = (id: string) => {
     setIntakePrompt(null);
     inbox.reset();
+    revenue.reset();
+    lastFlow.current = undefined;
     setInlineMessages([]);
     cancelPending();
     historySequence.current++;
@@ -338,21 +347,28 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
   }, [selectedConversation, isTyping, user?.id]);
 
   useEffect(() => {
-    if (!onboardingNotification || isTyping || historyLoading || inbox.busy || pending.current) return;
+    if (!onboardingNotification || isTyping || historyLoading || inlineBusy || pending.current) return;
     if (canReviewOnboarding) {
       historySequence.current++;
       setIntakePrompt(null);
       setKpiAction(null);
       setServiceUnavailable(false);
+      revenue.reset();
+      lastFlow.current = 'inbox';
       inbox.openDetail(onboardingNotification.id, appendInline(lastMessageId));
     }
     onOnboardingNotificationOpened?.();
-  }, [onboardingNotification, canReviewOnboarding, isTyping, historyLoading, inbox.busy, lastMessageId, onOnboardingNotificationOpened]);
+  }, [onboardingNotification, canReviewOnboarding, isTyping, historyLoading, inlineBusy, lastMessageId, onOnboardingNotificationOpened]);
 
   const send = async (prompt: string) => {
     const text = prompt.trim();
-    if (!text || text.length > 2000 || pending.current || isTyping || inbox.busy || historyLoading) return;
-    if (inbox.send(text, appendInline(lastMessageId))) {
+    if (!text || text.length > 2000 || pending.current || isTyping || inlineBusy || historyLoading) return;
+    const append = appendInline(lastMessageId);
+    const flow = lastFlow.current === 'inbox' && inbox.send(text, append) ? 'inbox'
+      : revenue.send(text, append, lastFlow.current === 'revenue') ? 'revenue'
+      : lastFlow.current !== 'inbox' && inbox.send(text, append) ? 'inbox' : undefined;
+    if (flow) {
+      lastFlow.current = flow;
       historySequence.current++;
       setSidebarOpen(false);
       setServiceUnavailable(false);
@@ -468,7 +484,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
 
   const composer = (
     <ChatComposer
-      isTyping={isTyping || historyLoading || inbox.busy}
+      isTyping={isTyping || historyLoading || inlineBusy}
       onSend={(text) => send(text)}
       inputRef={inputRef}
     />
@@ -495,7 +511,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
         <nav aria-label="Câu hỏi nhanh">
           <p className="guta-chat-sidebar-label">Hỏi nhanh</p>
           {TOPICS.map((topic) => (
-            <button type="button" key={topic.title} disabled={isTyping || inbox.busy || !!intakePrompt} onClick={() => send(topic.prompt)}>
+            <button type="button" key={topic.title} disabled={isTyping || inlineBusy || !!intakePrompt} onClick={() => send(topic.prompt)}>
               {topic.title}
             </button>
           ))}
@@ -557,7 +573,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
               <PerformanceKpiView key={kpiAction.id + kpiAction.kind} selectedPeriod={kpiAction.period} chatEvaluation={kpiAction} />
             </div>
           </div>
-        ) : displayMessages.length === 0 && !inbox.busy ? (
+        ) : displayMessages.length === 0 && !inlineBusy ? (
           <section className="guta-chat-empty" aria-label="Bắt đầu hội thoại">
             <div className="guta-chat-width">
               <div className="guta-chat-hero">
@@ -680,7 +696,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
                     )}
                   </article>
                 ))}
-                {inbox.busy && <p role="status">Đang xử lý…</p>}
+                {inlineBusy && <p role="status">Đang xử lý…</p>}
                 {/* ponytail: CSS keyframes step carousel; add SSE streaming stage events when backend supports event-driven progress */}
                 {isTyping && !isStreaming && (
                   <div className="guta-chat-status" role="status">
