@@ -260,18 +260,27 @@ export async function saveRevenueKpiAssignment(user: AuthenticatedUser, raw: unk
     fail('REVENUE_KPI_PLAN_CHANGED', 'Mục tiêu doanh thu tính toán không khớp với mục tiêu đã được duyệt. Hãy lập bản xem trước mới.', 409);
   }
   if (prev) return update(Assignment, C.RevenueKpiAssignmentSchema, prev, { ...draft, id: prev.id }, u, 'SAVE_DRAFT', input);
-  const exists = await Assignment.findById(draft.id).lean();
-  if (exists) {
-    const a = aDto(exists);
-    if (replay(a, u, 'SAVE_DRAFT', input)) {
-      if (expectedApprovedTargetVnd !== undefined && expectedApprovedTargetVnd !== null && a.targetVnd !== expectedApprovedTargetVnd) {
-        fail('REVENUE_KPI_PLAN_CHANGED', 'Mục tiêu được duyệt không khớp với số liệu bản ghi trước đó. Hãy lập bản xem trước mới.', 409);
-      }
-      return a;
+  // Imported KPI records can use a different ID for the same unit and month.
+  const identity = assignmentIdentity(p.period, draft);
+  let exists = await Assignment.findOne(identity).lean();
+  if (!exists) {
+    const created = { ...draft, history: [event(u, null, draft, 'SAVE_DRAFT', input)] };
+    try {
+      return aDto(await Assignment.create(dbRow(C.RevenueKpiAssignmentSchema.parse(created))));
+    } catch (error) {
+      if ((error as { code?: number }).code !== 11000) throw error;
+      exists = await Assignment.findOne(identity).lean();
+      if (!exists) throw error;
     }
-    fail('REVENUE_KPI_VERSION_CONFLICT', 'Đơn vị đã có KPI tháng này.');
   }
-  const created = { ...draft, history: [event(u, null, draft, 'SAVE_DRAFT', input)] }; return aDto(await Assignment.create(dbRow(C.RevenueKpiAssignmentSchema.parse(created))));
+  const a = aDto(exists);
+  if (!replay(a, u, 'SAVE_DRAFT', input)) {
+    fail('REVENUE_KPI_VERSION_CONFLICT', 'Đơn vị đã có KPI trong kỳ này. Hãy mở KPI hiện có để xử lý.');
+  }
+  if (expectedApprovedTargetVnd !== undefined && expectedApprovedTargetVnd !== null && a.targetVnd !== expectedApprovedTargetVnd) {
+    fail('REVENUE_KPI_PLAN_CHANGED', 'Mục tiêu được duyệt không khớp với số liệu bản ghi trước đó. Hãy lập bản xem trước mới.', 409);
+  }
+  return a;
 }); }
 type PlannedOpenItem = { item: C.RevenueKpiOpenItem; draft?: C.RevenueKpiAssignment };
 const knownOpenBlocks: Record<string, string> = {
@@ -282,7 +291,7 @@ const knownOpenBlocks: Record<string, string> = {
   REVENUE_KPI_STORE_NOT_IN_SCOPE: 'Kiểm tra quyền trên các cửa hàng trong kỳ.',
   REVENUE_KPI_ASSIGNMENT_CANCELLED: 'Kiểm tra KPI đã hủy của đơn vị trước khi tiếp tục.',
 };
-function assignmentIdentity(period: string, item: C.RevenueKpiOpenItem) {
+function assignmentIdentity(period: string, item: Pick<C.RevenueKpiOpenItem, 'unitType' | 'storeId' | 'areaKey'>) {
   return item.unitType === 'STORE'
     ? { period, unitType: 'STORE', storeId: item.storeId }
     : { period, unitType: 'AREA', areaKey: item.areaKey };
@@ -1495,7 +1504,10 @@ export async function revenueKpiDashboard(user: AuthenticatedUser, period: strin
   const assignments = all.filter(a => canRead(u, a)), results = [];
   for (const a of assignments) { const r = await latest(a.id); if (r) results.push(r); }
   const cat = hasCapability(u, 'revenue_kpi.assign') ? await catalog(u, period) : { stores: [], candidates: [] };
-  const flags = cat.stores.filter(s => s.smStatus !== 'IDENTIFIED').map(s => `${s.name}: ${s.smStatus === 'MISSING' ? 'Chưa có SM hợp lệ' : 'HR cần chọn SM phụ trách'}`);
+  const storesWithKpi = new Set(assignments.filter(a => a.unitType === 'STORE').map(a => a.storeId));
+  const flags = p.status === 'CLOSED' ? [] : cat.stores
+    .filter(s => s.smStatus !== 'IDENTIFIED' && !storesWithKpi.has(s.id))
+    .map(s => `${s.name}: ${s.smStatus === 'MISSING' ? 'Chưa có SM hợp lệ' : 'HR cần chọn SM phụ trách'}`);
   return C.RevenueKpiDashboardSchema.parse({ period: p, assignments, results, ...cat, flags, generatedAt: new Date().toISOString() });
 }
 export async function revenueKpiAssignmentResult(user: AuthenticatedUser, id: string) { const u = await fresh(user), a = await assignmentGet(id); if (!canRead(u, a)) fail('RBAC_DENIED', 'Không có quyền xem KPI này.', 403); return { assignment: a, result: await latest(id) }; }
