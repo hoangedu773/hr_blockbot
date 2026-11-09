@@ -144,7 +144,10 @@ try {
   await dialog.getByRole('button', { name: 'Kiểm tra điều kiện và tiếp tục xử lý', exact: true }).click(); await dialog.waitFor({ state: 'hidden' });
   const transferred = await EmployeeModel.findById(onboard.employeeId).lean(); assert.equal(String(transferred.storeId), String(fixture.stores[1]._id)); assert.equal(transferred.lifecyclePendingRequestId, undefined); assert.equal((await EmployeeLifecycleRequestModel.findById(lifecycle._id)).status, 'COMPLETED'); assert.equal(transferred.profileHistory.filter((event) => event.requestId === String(lifecycle._id)).length, 1);
   assert.equal(JSON.stringify(await ProjectModel.findById(task._id).lean()), taskBeforeTransfer, 'HR transfer never rewrites prior task/history/intervals');
-  const newSession = await login(NEW_CODE, NEW_PASSWORD); await newSession.page.locator('nav [data-section="directory"]').click(); await newSession.page.getByRole('heading', { name: 'Isolated V1 staffB', exact: true }).waitFor(); assert.equal(await newSession.page.getByRole('heading', { name: 'Isolated V1 staff', exact: true }).count(), 0);
+  const newSession = await login(NEW_CODE, NEW_PASSWORD);
+  const transferredDir = (await call(newSession, '/directory')).body;
+  assert.ok(transferredDir.items.some((item) => item.fullName === 'Isolated V1 staffB'));
+  assert.equal(transferredDir.items.some((item) => item.fullName === 'Isolated V1 staff'), false);
   assert.equal((await call(sm, '/employees?q=' + NEW_CODE)).body.paging.totalItems, 0); assert.equal((await call(newSession, `/projects/${task._id}/progress`, { progress: 99, expectedVersion: task.version })).status, 403);
   assert.equal((await call(newSession, `/projects/${task._id}/assignment/audit`)).body.valid, true, 'historical participant may still read their assignment audit');
   assert.equal(JSON.stringify(await mongoose.connection.collection('evaluations').find({}).toArray()), kpiBefore);

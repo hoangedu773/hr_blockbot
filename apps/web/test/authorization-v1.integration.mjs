@@ -85,6 +85,7 @@ try {
     assert.equal(await visible('onboarding'), ['hr', 'sm'].includes(profile), profile + ' onboarding boundary');
     assert.equal(await visible('employees'), ['hr', 'om', 'sam', 'am', 'sm'].includes(profile), profile + ' HR/operational boundary');
     assert.equal(await page.locator('nav [data-section="authorization"]').count(), 0, profile + ' account permission screen is removed');
+    assert.equal(await page.locator('nav [data-section="directory"]').count(), 0, profile + ' redundant work directory screen is removed');
     assert.equal(await page.getByRole('region', { name: 'Thông tin cấp quyền', exact: true }).count(), 0, profile + ' no permission panel is rendered');
     if (profile !== 'system_admin') {
       await page.locator('nav [data-section="projects"]').click();
@@ -93,9 +94,7 @@ try {
       assert.equal(await page.getByRole('button', { name: 'Tạo công việc', exact: true }).count(), ['om', 'sam', 'am', 'sm'].includes(profile) ? 1 : 0, profile + ' task creation');
     }
     if (profile === 'staff') {
-      assert.equal(await visible('stores'), false); await page.locator('nav [data-section="directory"]').click();
-      const directory = page.getByRole('region', { name: 'Danh bạ công việc', exact: true }); await directory.getByRole('heading', { name: 'Isolated V1 staff', exact: true }).waitFor();
-      assert.doesNotMatch(await directory.innerText(), /staffB|fixture-contact|NEVER_SEND_BANK/);
+      assert.equal(await visible('stores'), false);
     }
     if (profile === 'sm') {
       const status = await page.evaluate(async ({ base, token, id }) => (await fetch(base + '/api/employees/' + id, { headers: { Authorization: 'Bearer ' + token } })).status, { base: apiOrigin, token: current.token(), id: String(fixture.actors.staffB.employee._id) }); assert.equal(status, 404);
@@ -270,9 +269,10 @@ try {
   await lifecycleReview.getByRole('button', { name: 'Kiểm tra điều kiện và tiếp tục xử lý', exact: true }).click(); await lifecycleReview.waitFor({ state: 'hidden' });
   assert.equal(String((await EmployeeModel.findById(request.employeeId)).storeId), String(fixture.stores[1]._id));
   assert.equal((await EmployeeLifecycleRequestModel.findOne({ employeeId: request.employeeId, kind: 'TRANSFER' })).status, 'COMPLETED');
-  const transferred = await login(onboardingCode.toLowerCase(), 'BrowserReactivated@2026'); await transferred.page.locator('nav [data-section="directory"]').click();
-  const transferredDirectory = transferred.page.getByRole('region', { name: 'Danh bạ công việc', exact: true }); await transferredDirectory.getByRole('heading', { name: 'Isolated V1 staffB', exact: true }).waitFor();
-  assert.equal(await transferredDirectory.getByRole('heading', { name: 'Isolated V1 staff', exact: true }).count(), 0);
+  const transferred = await login(onboardingCode.toLowerCase(), 'BrowserReactivated@2026');
+  const transferredDir = await transferred.page.evaluate(async ({ base, token }) => (await fetch(base + '/api/directory', { headers: { Authorization: 'Bearer ' + token } })).json(), { base: apiOrigin, token: transferred.token() });
+  assert.ok(transferredDir.items.some((item) => item.fullName === 'Isolated V1 staffB'));
+  assert.equal(transferredDir.items.some((item) => item.fullName === 'Isolated V1 staff'), false);
   console.log('PASS browser/database transfer: HR approval + two independent store managers -> resume -> canonical B directory only; original identity and CRM history preserved');
 
   const technical = await login('system_admin'); await technical.page.locator('nav [data-section="accounts"]').click();

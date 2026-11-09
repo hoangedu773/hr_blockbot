@@ -17,7 +17,6 @@ import { ThemeToggle } from './ThemeToggle';
 import { useAuthorization } from '../context/useAuthorization';
 import { OnboardingView } from './OnboardingView';
 import { DelegationView } from './DelegationView';
-import { WorkDirectoryView } from './WorkDirectoryView';
 import { EmployeeLifecycleView } from './EmployeeLifecycleView';
 import { InitialReportingView } from './InitialReportingView';
 import { KpiView } from './KpiView';
@@ -26,7 +25,7 @@ import { SalesReportView } from './SalesReportView';
 import { RevenueKpiView } from './RevenueKpiView';
 import { getRevenueKpiConfig } from '../services/revenue-kpi-api';
 
-export type ActiveCrmView = 'stores' | 'sales' | 'revenueKpi' | 'performanceKpi' | 'employees' | 'profile' | 'schedules' | 'projects' | 'kpi' | 'settings' | 'accounts' | 'onboarding' | 'delegations' | 'directory' | 'lifecycle' | 'initialReporting';
+export type ActiveCrmView = 'stores' | 'sales' | 'revenueKpi' | 'performanceKpi' | 'employees' | 'profile' | 'schedules' | 'projects' | 'kpi' | 'settings' | 'accounts' | 'onboarding' | 'delegations' | 'lifecycle' | 'initialReporting';
 export interface CrmDashboardViewProps {
   userName: string;
   userRole: string;
@@ -93,7 +92,6 @@ const CRM_HTML = `
           <button type="button" data-section="revenueKpi" class="crm-nav-item">KPI doanh thu</button>
           <button type="button" data-section="onboarding" class="crm-nav-item">Tiếp nhận nhân viên</button>
           <button type="button" data-section="initialReporting" class="crm-nav-item">Quản lý ban đầu</button>
-          <button type="button" data-section="directory" class="crm-nav-item">Danh bạ công việc</button>
           <button type="button" data-section="lifecycle" class="crm-nav-item">Điều chuyển & trạng thái</button>
           <button type="button" data-section="delegations" class="crm-nav-item">Ủy quyền nghiệp vụ</button>
           <button type="button" data-section="accounts" id="crm-nav-accounts" class="crm-nav-item">Tài khoản</button>
@@ -195,7 +193,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
     schedules: can('schedules.read_self') || can('schedules.read_store'), projects: canReadProjects || canReadScoredWork,
     kpi: can('kpi.read_self') || can('kpi.read_department') || can('kpi.manage'),
     settings: can('provider_settings.manage'), accounts: can('accounts.manage'), onboarding: can('onboarding.propose') || can('onboarding.draft') || can('onboarding.review'),
-    delegations: can('authorization.inspect_self') || can('delegations.request') || can('delegations.review') || !!authorization?.delegations.length, directory: can('directory.read_store'),
+    delegations: can('authorization.inspect_self') || can('delegations.request') || can('delegations.review') || !!authorization?.delegations.length,
     lifecycle: can('employees.lifecycle_request') || can('employees.lifecycle_review') || can('employees.transfer_confirm'), initialReporting: can('onboarding.reporting_propose') || can('onboarding.reporting_review') };
   const authorizationKey = JSON.stringify(allowedViews);
   const [activeView, setActiveView] = useState<ActiveCrmView>('stores');
@@ -531,8 +529,6 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
             <InitialReportingView />
           ) : activeView === 'delegations' && allowedViews.delegations ? (
             <DelegationView />
-          ) : activeView === 'directory' && allowedViews.directory ? (
-            <WorkDirectoryView />
           ) : activeView === 'lifecycle' && allowedViews.lifecycle ? (
             <EmployeeLifecycleView />
           ) : activeView === 'settings' && allowedViews.settings ? (
