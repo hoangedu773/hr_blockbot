@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { useAuthorization } from '../context/useAuthorization';
 import { requestJson } from '../services/api';
 import { CrmDialog } from './ui/CrmDialog';
-import { WorkflowHistoryNavigation } from './WorkflowHistoryNavigation';
+import { WorkflowHistoryNavigation, HashChainLedger, type HashChainBlockItem } from './WorkflowHistoryNavigation';
 
 type Row = {
   onboardingStatus: string | null;
@@ -21,7 +21,7 @@ type Row = {
   validFrom: string;
   evidenceRef: string;
   auditIntegrity?: string;
-  history: { id: string; actorId: string; type: string; at: string; reason: string }[];
+  history: HashChainBlockItem[];
 };
 
 type Option = { id: string; fullName: string; employeeCode: string; storeId: string };
@@ -474,23 +474,11 @@ export function InitialReportingView() {
               <div>🕒 <strong>Hiệu lực:</strong> {new Date(selected.validFrom).toLocaleString('vi-VN')}</div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              {selected.history.map((item) => (
-                <div
-                  key={item.id}
-                  style={{
-                    padding: '8px 10px',
-                    borderRadius: '8px',
-                    background: 'rgba(255,255,255,0.03)',
-                    borderLeft: '3px solid #3b82f6',
-                    fontSize: '12px',
-                    color: '#cbd5e1',
-                  }}
-                >
-                  {new Date(item.at).toLocaleString('vi-VN')} · <strong>{item.type}</strong> · {item.reason}
-                </div>
-              ))}
-            </div>
+            <HashChainLedger
+              entries={selected.history}
+              integrity={selected.auditIntegrity}
+              title="Chuỗi băm quan hệ quản lý ban đầu (Reporting SHA-256 Hash-chain)"
+            />
 
             {selected.status === 'PENDING' &&
               !['PROVISIONING', 'PENDING_ACTIVATION', 'ACTIVATING', 'ACTIVE'].includes(selected.onboardingStatus || '') && (

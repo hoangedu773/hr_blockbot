@@ -4,7 +4,7 @@ import { fetchEmployees, fetchPersonnelManagement, requestJson } from '../servic
 import { useAuth } from '../context/AuthContext';
 import { useAuthorization } from '../context/useAuthorization';
 import { CrmDialog } from './ui/CrmDialog';
-import { WorkflowHistoryNavigation } from './WorkflowHistoryNavigation';
+import { WorkflowHistoryNavigation, HashChainLedger, type HashChainBlockItem } from './WorkflowHistoryNavigation';
 
 type Row = {
   id: string;
@@ -19,7 +19,7 @@ type Row = {
   effectiveAt: string;
   deliveryState: string;
   confirmations: { storeId: string; managerUserId: string; at: string; reason: string }[];
-  history: { type: string; actorId: string; at: string; reason: string }[];
+  history: HashChainBlockItem[];
 };
 
 const labels: Record<string, string> = {
@@ -50,15 +50,6 @@ const STATUS_STYLE: Record<string, { bg: string; color: string; border: string }
   APPROVED: { bg: 'rgba(16, 185, 129, 0.14)', color: '#34d399', border: 'rgba(16, 185, 129, 0.32)' },
   COMPLETED: { bg: 'rgba(16, 185, 129, 0.16)', color: '#34d399', border: 'rgba(16, 185, 129, 0.35)' },
   REJECTED: { bg: 'rgba(239, 68, 68, 0.14)', color: '#f87171', border: 'rgba(239, 68, 68, 0.32)' },
-};
-
-const ACTION_LABELS: Record<string, string> = {
-  REQUESTED: 'Khởi tạo yêu cầu',
-  REVIEW_APPROVED: 'HR phê duyệt',
-  REVIEW_REJECTED: 'HR từ chối',
-  STORE_CONFIRMED: 'Quản lý cửa hàng xác nhận',
-  COMPLETED: 'Hoàn tất áp dụng',
-  RESUMED: 'Tiếp tục xử lý workflow',
 };
 
 const post = (body: unknown): RequestInit => ({
@@ -538,32 +529,12 @@ export function EmployeeLifecycleView() {
               </div>
             )}
 
-            {/* Immutable Audit History */}
-            <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'rgba(15, 23, 42, 0.55)', border: '1px solid rgba(255,255,255,0.07)' }}>
-              <div style={{ fontSize: '12px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '8px' }}>
-                Nhật ký bất biến (Không sửa/xóa qua UI)
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {selected.history.map((entry, index) => (
-                  <div
-                    key={index}
-                    style={{
-                      padding: '8px 10px',
-                      borderRadius: '8px',
-                      background: 'rgba(255,255,255,0.03)',
-                      borderLeft: '3px solid #3b82f6',
-                      fontSize: '12px',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#94a3b8', marginBottom: '2px' }}>
-                      <strong style={{ color: '#e2e8f0' }}>{ACTION_LABELS[entry.type] || entry.type}</strong>
-                      <span>{new Date(entry.at).toLocaleString('vi-VN')}</span>
-                    </div>
-                    <div style={{ color: '#cbd5e1' }}>Lý do: {entry.reason}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {/* Immutable Audit History (SHA-256 Hash-chain Ledger) */}
+            <HashChainLedger
+              entries={selected.history}
+              integrity={selected.auditIntegrity}
+              title="Chuỗi băm điều chuyển & trạng thái (Lifecycle SHA-256 Hash-chain)"
+            />
 
             {/* Decision Form */}
             <label className="field" style={{ margin: 0 }}>

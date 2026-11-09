@@ -3,6 +3,7 @@ import type { SmAppointment } from '@hr-blockbot/contracts';
 import { useAuthorization } from '../context/useAuthorization';
 import { useAuth } from '../context/AuthContext';
 import { requestJson } from '../services/api';
+import { HashChainLedger } from './WorkflowHistoryNavigation';
 
 export const SM_POSITION_LABELS = {
   PRIMARY: 'SM phụ trách chính cửa hàng',
@@ -236,24 +237,12 @@ export function SmAppointments({ employeeId }: { employeeId: string }) {
               ⚠️ Không xác minh được lịch sử. Vui lòng liên hệ quản trị để kiểm tra.
             </p>
           )}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
-            {detail.history.map((item) => (
-              <div
-                key={item.id}
-                style={{
-                  padding: '6px 10px',
-                  borderRadius: '6px',
-                  background: 'rgba(255,255,255,0.03)',
-                  borderLeft: '2px solid #3b82f6',
-                  fontSize: '11px',
-                  color: '#cbd5e1',
-                }}
-              >
-                {new Date(item.at).toLocaleString('vi-VN')} · {item.before ? states[item.before] || 'Đã ghi nhận' : 'Mới'} ➔{' '}
-                <strong style={{ color: '#34d399' }}>{states[item.after] || 'Đã xác nhận'}</strong> · {item.reason}
-                {item.handoverRef ? ` · Bàn giao: ${item.handoverRef}` : ''}
-              </div>
-            ))}
+          <div style={{ marginBottom: '10px' }}>
+            <HashChainLedger
+              entries={detail.history}
+              integrity={detail.auditIntegrity}
+              title="Chuỗi băm phân công Cửa hàng trưởng (SM Appointment SHA-256 Hash-chain)"
+            />
           </div>
 
           {canReview && detail.auditIntegrity === 'VALID_LOCAL_CHAIN' && ['PENDING', 'APPROVED'].includes(detail.status) && (
