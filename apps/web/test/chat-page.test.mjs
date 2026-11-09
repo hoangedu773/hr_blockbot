@@ -109,7 +109,7 @@ test('ChatPageView renders citations/attachments, confirms drafts honestly and r
                 contents: `
                   const C = window.ChatContracts;
                   export default C;
-                  export const ChatConversationListSchema = C.ChatConversationListSchema;
+                  export const ChatConversationListSchema = C.ChatConversationListSchema; export const PerformanceDashboardSchema = C.PerformanceDashboardSchema; export const PerformancePolicyRulesSchema = C.PerformancePolicyRulesSchema;
                   export const ChatHistoryPageSchema = C.ChatHistoryPageSchema;
                   export const ChatHistorySendSchema = C.ChatHistorySendSchema;
                   export const RevenueKpiOpenActionSchema = C.RevenueKpiOpenActionSchema;
@@ -150,7 +150,7 @@ test('ChatPageView renders citations/attachments, confirms drafts honestly and r
             }
             if (args.path === 'api-service') {
               return {
-                contents: "export const API_BASE = '/api'; export const apiFetch = (...args) => window.fetch(...args); export const requestJson = (...args) => window.fetch(...args); export const newClientMessageId = () => '375a3b79-6a09-4c3a-b551-32ae773d93c3'; export const fetchMe = () => window.fetch('/api/auth/me');",
+                contents: "export const API_BASE = '/api'; export const apiFetch = (...args) => window.fetch(...args); export const requestJson = (...args) => window.fetch(...args); export const newClientMessageId = () => '375a3b79-6a09-4c3a-b551-32ae773d93c3'; export const fetchReplacementCandidates = () => window.fetch('/api/projects/x/candidates'); export const fetchNotifications = () => window.fetch('/api/notifications'); export const markNotificationRead = () => window.fetch('/api/notifications/read', { method: 'POST' }); export const fetchMe = () => window.fetch('/api/auth/me');",
                 loader: 'js',
               };
             }
