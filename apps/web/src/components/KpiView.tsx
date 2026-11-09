@@ -2,22 +2,13 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { KpiEvaluation, KpiDashboard, NotificationItem } from '@hr-blockbot/contracts';
 import {
   analyzeKpi, ApiError, fetchDepartmentKpi, fetchKpiDashboard, fetchMe, fetchMyKpi,
-  fetchNotifications, markAllNotificationsRead, markNotificationRead, openKpiPeriod,
-  overrideKpi, publishKpi, saveKpiManagerReview, saveKpiSelfReview,
+  fetchNotifications, markAllNotificationsRead, markNotificationRead,
+  publishKpi, saveKpiManagerReview, saveKpiSelfReview,
 } from '../services/api';
 import type { NotifyFn } from './Toast';
 import '../styles/crm-work.css';
 
 const STATUS_LABEL: Record<string, string> = { OPEN: 'Đang mở', ANALYZED: 'Chờ công bố', PUBLISHED: 'Đã công bố' };
-const monthOptions = (count = 12) => {
-  const values: string[] = [];
-  const now = new Date();
-  for (let index = 0; index < count; index += 1) {
-    const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - index, 1));
-    values.push(`${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`);
-  }
-  return values;
-};
 const scoreText = (value: number | null | undefined) => typeof value === 'number' ? value.toFixed(1) : '—';
 const percent = (value: number | null | undefined) => typeof value === 'number' ? `${Math.round(value * 100)}%` : '—';
 
@@ -37,10 +28,9 @@ const Bar: React.FC<{ label: string; value: number; hint?: string }> = ({ label,
   </div>
 );
 
-export const KpiView: React.FC<{ onNotify?: NotifyFn }> = ({ onNotify }) => {
+export const KpiView: React.FC<{ onNotify?: NotifyFn; selectedPeriod: string; published: boolean }> = ({ onNotify, selectedPeriod: period, published }) => {
   const notify: NotifyFn = onNotify ?? ((message, type) => console.log(`[Toast ${type}] ${message}`));
   const [capabilities, setCapabilities] = useState<string[]>([]);
-  const [period, setPeriod] = useState(() => monthOptions(1)[0]);
   const [tab, setTab] = useState<'mine' | 'department' | 'dashboard'>('mine');
   const [mine, setMine] = useState<KpiEvaluation | null>(null);
   const [department, setDepartment] = useState<KpiEvaluation[]>([]);
@@ -53,8 +43,6 @@ export const KpiView: React.FC<{ onNotify?: NotifyFn }> = ({ onNotify }) => {
   const [selfText, setSelfText] = useState('');
   const [managerText, setManagerText] = useState('');
   const [managerScore, setManagerScore] = useState('70');
-  const [overrideScore, setOverrideScore] = useState('');
-  const [overrideReason, setOverrideReason] = useState('');
   const can = useCallback((capability: string) => capabilities.includes(capability), [capabilities]);
   const selected = useMemo(() => department.find((item) => item.id === selectedId) ?? null, [department, selectedId]);
   const fail = (cause: unknown) => {
@@ -76,15 +64,21 @@ export const KpiView: React.FC<{ onNotify?: NotifyFn }> = ({ onNotify }) => {
   const reload = useCallback(async () => {
     setError('');
     try {
-      if (can('kpi.read_self')) { const result = await fetchMyKpi(period); setMine(result.items[0] ?? null); setSelfText(result.items[0]?.selfReview ?? ''); }
+      if (can('kpi.read_self')) {
+        const { items } = await fetchMyKpi(period);
+        const item = items.find(row => (row.status === 'PUBLISHED') === published);
+        setMine(item ?? null); setSelfText(item?.selfReview ?? '');
+      }
       if (can('kpi.read_department')) {
-        const result = await fetchDepartmentKpi(period); setDepartment(result.items);
-        if (!selectedId && result.items[0]) setSelectedId(result.items[0].id);
+        const { items } = await fetchDepartmentKpi(period);
+        const visible = items.filter(row => (row.status === 'PUBLISHED') === published);
+        setDepartment(visible);
+        setSelectedId(id => visible.some(item => item.id === id) ? id : visible[0]?.id ?? '');
       }
       if (can('kpi.read_department')) setDashboard(await fetchKpiDashboard(period));
       setNotifications(await fetchNotifications(8));
     } catch (cause) { fail(cause); }
-  }, [period, can, selectedId]);
+  }, [period, can, published]);
 
   useEffect(() => { void reload(); }, [period, capabilities.join('|')]);
 
@@ -92,8 +86,6 @@ export const KpiView: React.FC<{ onNotify?: NotifyFn }> = ({ onNotify }) => {
     if (!selected) return;
     setManagerText(selected.managerReview ?? '');
     setManagerScore(String(selected.managerScore ?? 70));
-    setOverrideScore(String(selected.finalScore ?? selected.machineScore ?? ''));
-    setOverrideReason(selected.overrideReason ?? '');
   }, [selectedId, selected?.version]);
 
   const run = async (action: () => Promise<unknown>, message: string) => {
@@ -108,21 +100,15 @@ export const KpiView: React.FC<{ onNotify?: NotifyFn }> = ({ onNotify }) => {
     <div className="crm-workspace space-y-4">
       <div className="crm-work-heading flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">KPI &amp; đánh giá hiệu suất</h2>
-          <p className="text-xs text-muted-foreground">Điểm máy do công thức tất định tính từ hoàn thành thật, tín hiệu AI và điểm quản lý. AI không sinh điểm cuối.</p>
-        </div>
-        <div className="crm-work-toolbar flex items-center gap-2">
-          <label className="text-xs text-muted-foreground" htmlFor="kpi-period">Kỳ</label>
-          <select id="kpi-period" className="rounded-md border border-border bg-background px-2 py-1 text-sm" value={period} onChange={(event) => setPeriod(event.target.value)}>
-            {monthOptions(12).map((value) => <option key={value} value={value}>{value}</option>)}
-          </select>
+          <h3 className="text-lg font-semibold">{published ? 'Kết quả theo mẫu đánh giá cũ' : 'Hoàn tất hồ sơ theo mẫu đánh giá cũ'}</h3>
+          <p className="text-xs text-muted-foreground">{published ? 'Xem lại điểm chốt, nhận xét và lịch sử hiệu chỉnh.' : 'Tiếp tục xử lý các hồ sơ đã mở trước đây.'}</p>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-2" role="tablist" aria-label="Khu vực KPI">
         {can('kpi.read_self') && <button type="button" role="tab" aria-selected={tab === 'mine'} className={`rounded-md px-3 py-1.5 text-sm ${tab === 'mine' ? 'bg-primary text-primary-foreground' : 'border border-border'}`} onClick={() => setTab('mine')}>Của tôi</button>}
         {can('kpi.read_department') && <button type="button" role="tab" aria-selected={tab === 'department'} className={`rounded-md px-3 py-1.5 text-sm ${tab === 'department' ? 'bg-primary text-primary-foreground' : 'border border-border'}`} onClick={() => setTab('department')}>Phòng ban</button>}
-        {can('kpi.read_department') && <button type="button" role="tab" aria-selected={tab === 'dashboard'} className={`rounded-md px-3 py-1.5 text-sm ${tab === 'dashboard' ? 'bg-primary text-primary-foreground' : 'border border-border'}`} onClick={() => setTab('dashboard')}>Tổng quan</button>}
+        {published && can('kpi.read_department') && <button type="button" role="tab" aria-selected={tab === 'dashboard'} className={`rounded-md px-3 py-1.5 text-sm ${tab === 'dashboard' ? 'bg-primary text-primary-foreground' : 'border border-border'}`} onClick={() => setTab('dashboard')}>Tổng quan</button>}
       </div>
 
       {error && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
@@ -132,7 +118,7 @@ export const KpiView: React.FC<{ onNotify?: NotifyFn }> = ({ onNotify }) => {
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
           <Card title="Kỳ đánh giá của tôi" aside={<span className="rounded-full border border-border px-2 py-0.5 text-[11px]">{mine ? STATUS_LABEL[mine.status] : 'Chưa có kỳ'}</span>}>
             {!mine ? (
-              <p className="text-sm text-muted-foreground">Chưa có bản đánh giá cho kỳ này. Quản lý cần mở kỳ trước khi bạn tự nhận xét.</p>
+              <p className="text-sm text-muted-foreground">Chưa có hồ sơ thuộc nhóm này trong kỳ đã chọn.</p>
             ) : (
               <div className="space-y-4">
                 <div className="flex flex-wrap items-end gap-4">
@@ -165,9 +151,12 @@ export const KpiView: React.FC<{ onNotify?: NotifyFn }> = ({ onNotify }) => {
                     <button type="button" disabled={busy || !selfText.trim()} className="mt-2 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50" onClick={() => run(() => saveKpiSelfReview(mine.id, selfText, mine.version), 'Đã lưu tự nhận xét.')}>Lưu tự nhận xét</button>
                   </div>
                 )}
+                {published && mine.selfReview && <p className="text-sm">Tự nhận xét: {mine.selfReview}</p>}
+                {published && mine.managerReview && <p className="text-sm">Nhận xét quản lý: {mine.managerReview}</p>}
+                {published && mine.overrideReason && <p className="text-sm">Lý do hiệu chỉnh: {mine.overrideReason}</p>}
                 {mine.history.length > 0 && (
                   <ol className="crm-work-history space-y-1 text-xs text-muted-foreground">
-                    {mine.history.slice(-6).map((entry) => <li key={entry.at + entry.action}>{new Date(entry.at).toLocaleString('vi-VN')} · {entry.action}{entry.reason ? ` · ${entry.reason}` : ''}</li>)}
+                    {(published ? mine.history : mine.history.slice(-6)).map((entry, index) => <li key={index}>{new Date(entry.at).toLocaleString('vi-VN')} · {entry.action}{entry.reason ? ` · ${entry.reason}` : ''}</li>)}
                   </ol>
                 )}
               </div>
@@ -192,12 +181,12 @@ export const KpiView: React.FC<{ onNotify?: NotifyFn }> = ({ onNotify }) => {
 
       {tab === 'department' && !loading && (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-          <Card title={`Đánh giá phòng ban · ${period}`} aside={can('kpi.manage') ? <button type="button" className="rounded-md border border-border px-2 py-1 text-xs" disabled={busy} onClick={() => run(() => openKpiPeriod(period), 'Đã mở kỳ cho nhân viên trong phạm vi.')}>Mở kỳ</button> : null}>
+          <Card title={`Đánh giá phòng ban · ${period}`}>
             <div className="crm-work-table-wrap overflow-x-auto">
               <table className="crm-work-table w-full text-sm">
                 <thead><tr><th className="text-left">Nhân viên</th><th className="text-right">Hoàn thành</th><th className="text-right">Điểm máy</th><th className="text-right">Điểm chốt</th><th className="text-left">Trạng thái</th></tr></thead>
                 <tbody>
-                  {department.length === 0 ? <tr><td colSpan={5} className="py-4 text-center text-muted-foreground">Chưa có bản đánh giá trong kỳ. Bấm “Mở kỳ” để tạo cho nhân viên trong phạm vi.</td></tr> : department.map((item) => (
+                  {department.length === 0 ? <tr><td colSpan={5} className="py-4 text-center text-muted-foreground">Chưa có hồ sơ thuộc nhóm này trong kỳ đã chọn.</td></tr> : department.map((item) => (
                     <tr key={item.id} className={`cursor-pointer ${item.id === selectedId ? 'bg-muted/60' : ''}`} onClick={() => setSelectedId(item.id)}>
                       <td>{item.employeeName}</td>
                       <td className="text-right tabular-nums">{percent(item.objectiveCompletionScore)}</td>
@@ -238,18 +227,12 @@ export const KpiView: React.FC<{ onNotify?: NotifyFn }> = ({ onNotify }) => {
                 {selected.status === 'ANALYZED' && can('kpi.publish') && (
                   <button type="button" className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50" disabled={busy} onClick={() => run(() => publishKpi(selected.id, selected.version), 'Đã công bố KPI cho nhân viên.')}>Công bố điểm {scoreText(selected.machineScore)}</button>
                 )}
-                {selected.status === 'PUBLISHED' && can('kpi.override') && (
-                  <div className="rounded-lg border border-border p-3">
-                    <p className="mb-2 text-xs font-medium">Hiệu chỉnh điểm chốt (bắt buộc lý do)</p>
-                    <div className="flex flex-wrap items-end gap-2">
-                      <input type="number" min={0} max={100} aria-label="Điểm chốt mới" className="w-24 rounded-md border border-border bg-background px-2 py-1 text-sm" value={overrideScore} onChange={(event) => setOverrideScore(event.target.value)} />
-                      <input aria-label="Lý do hiệu chỉnh" className="min-w-40 flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm" placeholder="Lý do hiệu chỉnh" value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} />
-                      <button type="button" className="rounded-md border border-border px-3 py-1.5 text-sm disabled:opacity-50" disabled={busy || overrideReason.trim().length < 5} onClick={() => run(() => overrideKpi(selected.id, selected.version, Number(overrideScore), overrideReason), 'Đã ghi hiệu chỉnh kèm lý do.')}>Hiệu chỉnh</button>
-                    </div>
-                  </div>
-                )}
+                {selected.managerReview && <p className="text-xs">Nhận xét quản lý: {selected.managerReview}</p>}
                 {selected.analysis && <p className="rounded-md bg-muted/50 p-2 text-xs text-muted-foreground">{selected.analysis.explanation}</p>}
                 {selected.overrideReason && <p className="text-xs">Lý do hiệu chỉnh: {selected.overrideReason}</p>}
+                {published && selected.history.length > 0 && <details><summary>Lịch sử công bố và hiệu chỉnh</summary><ol className="crm-work-history">
+                  {selected.history.map((entry, index) => <li key={index}>{new Date(entry.at).toLocaleString('vi-VN')} · {entry.action}{entry.reason ? ` · ${entry.reason}` : ''}</li>)}
+                </ol></details>}
               </div>
             )}
           </Card>

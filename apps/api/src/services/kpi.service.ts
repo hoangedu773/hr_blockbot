@@ -137,6 +137,9 @@ function assertCanManage(user: AuthenticatedUser, evaluation: any, capability: "
 export async function openPeriod(user: AuthenticatedUser, period: string) {
   periodRange(period);
   requireCapability(user, "kpi.manage");
+  if (process.env.PERFORMANCE_KPI_ENABLED === 'true') {
+    throw new WorkflowError(409, "KPI_LEGACY_OPEN_DISABLED", "Mở kỳ mới trong KPI hiệu suất theo bằng chứng.");
+  }
   const employees: any[] = await EmployeeModel.find({
     $and: [employeeScopeQuery(user, "kpi.manage"), { status: "active" }],
   }).select("_id fullName full_name departmentId storeId").limit(5000).lean();

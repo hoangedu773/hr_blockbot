@@ -1063,6 +1063,32 @@ function revenueOpenIntent(message: string) {
   const reverse = text.match(/\b(1[0-2]|0?[1-9])(?:[/. -]|\s+năm\s+)(20\d{2})\b/);
   return reverse ? reverse[2] + '-' + reverse[1].padStart(2, '0') : null;
 }
+
+function ownPerformancePeriod(message: string) {
+  const normalized = message.normalize('NFC').toLocaleLowerCase('vi').normalize('NFD').replace(/\p{M}/gu, '').replace(/đ/g, 'd');
+  if (!/\bkpi hieu suat\b/.test(normalized) || !/\bcua (?:toi|minh|em)\b/.test(normalized)
+    || /\b(?:doanh thu|phong ban|doi ngu|kien nghi|khieu nai|cham diem)\b/.test(normalized)) return undefined;
+  const forward = normalized.match(/\b(20\d{2})[-/](1[0-2]|0?[1-9])\b/);
+  if (forward) return forward[1] + '-' + forward[2].padStart(2, '0');
+  const reverse = normalized.match(/\b(1[0-2]|0?[1-9])(?:[/. -]|\s+nam\s+)(20\d{2})\b/);
+  if (reverse) return reverse[2] + '-' + reverse[1].padStart(2, '0');
+  const month = normalized.match(/\bthang\s+(1[0-2]|0?[1-9])\b/);
+  const current = currentPeriod();
+  return month ? current.slice(0, 4) + '-' + month[1].padStart(2, '0') : current;
+}
+
+async function replyWithOwnPerformance(authorization: Awaited<ReturnType<typeof beginAuthorizedChat>>, period: string): Promise<ChatResult> {
+  const { result } = await executeGatewayTool(authorization.delegationToken, {
+    requestId: authorization.requestId, tool: 'get_my_kpi', args: { period },
+  });
+  const data = result as { kind?: string; summary?: string; advice?: string[]; available?: boolean; finalScore?: number | null; message?: string };
+  const reply = data.kind === 'performance_kpi'
+    ? [data.summary, ...(data.advice ?? [])].filter(Boolean).join('\n')
+    : data.available && data.finalScore != null
+      ? `KPI hiệu suất kỳ ${period} theo mẫu đánh giá cũ đã công bố. Điểm chốt của bạn là ${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(data.finalScore)} / 100.`
+      : `Kỳ ${period}. ${data.message ?? 'Chưa có kết quả KPI hiệu suất để hiển thị.'}`;
+  return { reply, citations: [], attachments: [], proposedAction: null, abstain: false };
+}
 export async function revalidateChatAuthorization(user: AuthenticatedUser, requestId: string): Promise<{ current: AuthenticatedUser; row: ChatAuthorizationRequestDoc; citations: { document: string; version: string; score: number }[] }> {
   const row = await receipts().findOne({ _id: requestId, userId: user.userId, securityVersion: user.securityVersion, status: "ACTIVE", expiresAt: { $gt: new Date() } });
   if (!row) throw new WorkflowError(403, "CHAT_REQUEST_UNAVAILABLE", "Request no longer valid");
@@ -1240,11 +1266,13 @@ export function computeProposalReply(proposedAction: any, period: string | null 
 export async function authorizedChat(user: AuthenticatedUser, message: string, conversationId?: string,
   onValidated?: (response: unknown, evidence: ChatHistoryEvidence) => Promise<void>) {
   const period = revenueOpenIntent(message);
+  const performancePeriod = ownPerformancePeriod(message);
   const authorization = await beginAuthorizedChat(user, period ?? undefined);
   try {
     const result: ChatResult = period === null
       ? { reply: "Bạn muốn xem trước kỳ nào? Hãy ghi rõ tháng, ví dụ 11/2026.", citations: [], attachments: [], proposedAction: null, abstain: false }
-      : await chatWithAiService(message, {}, conversationId, authorization);
+      : performancePeriod ? await replyWithOwnPerformance(authorization, performancePeriod)
+        : await chatWithAiService(message, {}, conversationId, authorization);
     const { current, row, citations } = await revalidateChatAuthorization(user, authorization.requestId);
     const proposedAction = await reloadServerProposedAction(current, row);
     const reply = computeProposalReply(proposedAction, period, result.reply);
@@ -1286,6 +1314,7 @@ export async function authorizedChatStream(
     throw new WorkflowError(499, 'CLIENT_CLOSED_REQUEST', 'Yêu cầu đã bị hủy');
   }
   const period = revenueOpenIntent(message);
+  const performancePeriod = ownPerformancePeriod(message);
   const authorization = await beginAuthorizedChat(user, period ?? undefined);
 
   // ponytail: bounded coalescing with 40ms timer / 120 chars ceiling avoids per-token revalidation amplification; upgrade path: adaptive pacing based on upstream RTT.
@@ -1367,6 +1396,8 @@ export async function authorizedChatStream(
     let result: ChatResult;
     if (period === null) {
       result = { reply: "Bạn muốn xem trước kỳ nào? Hãy ghi rõ tháng, ví dụ 11/2026.", citations: [], attachments: [], proposedAction: null, abstain: false };
+    } else if (performancePeriod) {
+      result = await replyWithOwnPerformance(authorization, performancePeriod);
     } else {
       try {
         result = await streamChatWithAiService(

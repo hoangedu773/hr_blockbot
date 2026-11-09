@@ -31,6 +31,7 @@ let api, web, browser, fixture, origin, apiOrigin, failAt;
 const contexts = [], errors = [], httpErrors = [], invitations = new Map();
 let NEW_CODE;
 const NEW_PASSWORD = 'CoreBrowserRecipient@2026', TITLE = 'Core browser transfer with real handover';
+const NEW_PHONE = '0900000123';
 const localDate = (date) => new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 async function login(name, password = fixture.password) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } }); contexts.push(context);
@@ -91,22 +92,43 @@ try {
   await new Promise((resolve) => api.listen(0, '127.0.0.1', resolve)); apiOrigin = `http://127.0.0.1:${api.address().port}`;
   browser = await chromium.launch({ headless: true });
   const sm = await login('sm'), hr = await login('hr'), hr2 = await login('hr2'), am = await login('am');
+  const ordinaryChatRequests = [];
+  sm.page.on('request', request => {
+    if (request.method() === 'POST' && /\/api\/chat(?:\/stream)?$/.test(request.url())) ordinaryChatRequests.push(request.url());
+  });
   await sm.page.getByRole('link', { name: 'Chat', exact: true }).click();
-  await sm.page.getByPlaceholder('Hỏi AI về ca trực, nhân sự, tiền két...').fill('Tiếp nhận nhân viên mới');
+  await sm.page.getByPlaceholder('Hỏi AI về ca trực, nhân sự, tiền két...').fill('tôi cần thêm nhân viên mới');
   await sm.page.getByRole('button', { name: 'Gửi', exact: true }).click();
-  let dialog = sm.page.getByRole('dialog', { name: 'Đề nghị tiếp nhận nhân viên', exact: true });
-  await dialog.getByLabel('Cửa hàng', { exact: true }).selectOption(String(fixture.stores[0]._id));
-  await dialog.getByText(/Đã điền SM chính/).waitFor();
-  assert.equal(await dialog.getByLabel('Quản lý trực tiếp', { exact: true }).inputValue(), String(fixture.actors.sm.employee._id));
-  await dialog.getByRole('button', { name: 'Tiếp tục', exact: true }).click();
-  for (const [label, value] of [['Họ tên', 'Synthetic browser new hire'], ['Thông tin điện thoại', 'owned-contact'], ['Email nhận link kích hoạt', 'new-core@example.com'], ['Ngày vào làm', '2026-10-31'], ['Lý do đề nghị', 'Owned browser complete core flow']]) {
-    await dialog.getByLabel(label, { exact: true }).fill(value);
-    await dialog.getByRole('button', { name: 'Tiếp tục', exact: true }).click();
+  const intake = sm.page.getByRole('log', { name: 'Tiếp nhận nhân viên trong chat' });
+  const answer = async (text) => {
+    await sm.page.getByLabel('Tin nhắn cho Guta AI').fill(text);
+    await sm.page.getByRole('button', { name: 'Gửi', exact: true }).click();
+  };
+  await intake.getByText(/Đã chọn .* làm quản lý trực tiếp/).waitFor();
+  assert.equal(await sm.page.getByRole('dialog').count(), 0);
+  for (const [question, value] of [
+    [/tên đầy đủ là gì/, 'Synthetic browser new hire'],
+    [/Cho mình số điện thoại/, NEW_PHONE],
+    [/email nào/, 'khong-phai-email'],
+    [/Thông tin chưa hợp lệ.*email nào/, 'new-core@example.com'],
+    [/vào làm ngày nào/, '31/10/2026'],
+    [/lý do tiếp nhận/, 'Owned browser complete core flow'],
+  ]) {
+    await intake.getByText(question).first().waitFor();
+    await answer(value);
   }
-  await dialog.getByRole('heading', { name: 'Xem trước hồ sơ' }).waitFor();
+  await intake.getByText(/Xem trước hồ sơ/).waitFor();
   assert.equal(await OnboardingRequestModel.countDocuments(), 0);
-  await dialog.getByRole('button', { name: 'Xác nhận gửi HR', exact: true }).click(); await dialog.waitFor({ state: 'hidden' });
+  await answer('sửa email');
+  await intake.getByText('Nhân viên dùng email nào để nhận link kích hoạt?', { exact: true }).last().waitFor();
+  await answer('new-core-corrected@example.com');
+  await intake.getByText(/Xem trước hồ sơ.*new-core-corrected@example.com/s).waitFor();
+  assert.equal(await OnboardingRequestModel.countDocuments(), 0);
+  await answer('xác nhận');
+  await intake.getByText(/Đã gửi đề nghị cho HR duyệt/).waitFor();
+  assert.equal(ordinaryChatRequests.length, 0);
   const onboard = await OnboardingRequestModel.findOne({ 'payload.fullName': 'Synthetic browser new hire' }).lean(); assert.ok(onboard);
+  assert.equal(onboard.payload.email, 'new-core-corrected@example.com');
   NEW_CODE = onboard.payload.employeeCode; assert.match(NEW_CODE, /^GT-CH2610\d{4}$/);
   assert.equal((await call(sm, '/onboarding/pending-review')).status, 403);
   assert.equal(await mongoose.connection.collection('notifications').countDocuments({ entityKind: 'onboarding', entityId: String(onboard._id), userId: fixture.actors.hr.user._id }), 1);
@@ -116,11 +138,12 @@ try {
   assert.equal(await sm.page.locator('nav [data-section="initialReporting"]').count(), 0);
   await sm.page.getByRole('button', { name: 'Quản lý trực tiếp', exact: true }).click();
   const reporting = await OnboardingReportingModel.findOne({ onboardingId: onboard._id }).lean();
+  assert.equal(String(reporting.managerEmployeeId), String(fixture.actors.sm.employee._id));
   assert.equal((await call(sm, `/initial-reporting/${reporting._id}/approve`, { expectedVersion: 1, reason: 'Self approval forbidden' })).status, 403);
   await hr.page.getByRole('link', { name: 'Chat', exact: true }).click();
   await hr.page.getByRole('button', { name: /^Thông báo/ }).click();
   await hr.page.getByRole('button', { name: 'Mở hồ sơ trong chat', exact: true }).click();
-  dialog = hr.page.getByRole('dialog', { name: 'Đối chiếu đề nghị tiếp nhận', exact: true }); await dialog.getByLabel('Lý do quyết định', { exact: true }).fill('Independent HR ordinary personnel review'); await dialog.getByRole('button', { name: 'Phê duyệt tiếp nhận', exact: true }).click(); await dialog.waitFor({ state: 'hidden' });
+  let dialog = hr.page.getByRole('dialog', { name: 'Đối chiếu đề nghị tiếp nhận', exact: true }); await dialog.getByLabel('Lý do quyết định', { exact: true }).fill('Independent HR ordinary personnel review'); await dialog.getByRole('button', { name: 'Phê duyệt tiếp nhận', exact: true }).click(); await dialog.waitFor({ state: 'hidden' });
   assert.equal((await call(hr, '/onboarding/pending-review')).body.items.length, 0);
   await hr.page.getByRole('button', { name: 'Quay lại CRM', exact: true }).click();
   await am.page.locator('nav [data-section="onboarding"]').click(); await am.page.getByRole('button', { name: 'Lịch sử quan hệ ban đầu', exact: true }).click();
@@ -175,7 +198,7 @@ try {
   await hr.page.getByRole('row').filter({ hasText: 'Synthetic unknown UI row' }).getByText('Chưa xác minh', { exact: true }).waitFor();
   assert.equal((await EmployeeModel.collection.findOne({ _id: raw.insertedId })).status, undefined);
   await hr.page.getByPlaceholder('Tìm theo tên, mã NV...').fill(NEW_CODE); await hr.page.getByRole('button', { name: 'Synthetic browser new hire', exact: true }).click();
-  dialog = hr.page.getByRole('dialog', { name: 'Chi tiết nhân sự', exact: true }); await dialog.getByText('owned-contact', { exact: true }).waitFor();
+  dialog = hr.page.getByRole('dialog', { name: 'Chi tiết nhân sự', exact: true }); await dialog.getByText(NEW_PHONE, { exact: true }).waitFor();
   await dialog.getByRole('button', { name: 'Chỉnh sửa thông tin thường', exact: true }).click();
   dialog = hr.page.getByRole('dialog', { name: 'Sửa thông tin thường', exact: true }); await dialog.getByLabel('Điện thoại', { exact: true }).fill('verified-core-phone'); await dialog.getByRole('button', { name: 'Lưu thông tin thường', exact: true }).click(); await dialog.waitFor({ state: 'hidden' });
   await hr.page.getByRole('button', { name: 'Synthetic browser new hire', exact: true }).click(); dialog = hr.page.getByRole('dialog', { name: 'Chi tiết nhân sự', exact: true });

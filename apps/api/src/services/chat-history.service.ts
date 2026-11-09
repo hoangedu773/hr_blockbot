@@ -1,5 +1,6 @@
 import { getRevenueKpiOpenAction, getMyRevenueKpi, listMyPendingActions, getMyTasks, revenueKpiAssignmentResult, getRevenueKpiDetail } from './revenue-kpi.service.js';
 import { getPerformanceEvaluation } from './performance-kpi-evaluation.service.js';
+import { addWorkingDays } from './revenue-kpi-calc.service.js';
 import mongoose from 'mongoose';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
@@ -230,7 +231,24 @@ async function turnDto(user: AuthenticatedUser, row: any) {
     }
   }
   let performanceKpi;
-  if(visible&&row.evidence?.performanceEvaluations?.length){const e=await getPerformanceEvaluation(user,row.evidence.performanceEvaluations[0].id);performanceKpi={evaluationId:e.id,period:e.period,status:e.evaluationStatus,score:e.finalScore,canReconsider:e.employeeId===user.employeeId&&e.evaluationStatus==='PROVISIONAL'&&!e.reconsideration,canAppeal:e.employeeId===user.employeeId&&!!e.reconsideration&&e.evaluationStatus!=='FINAL'&&e.evaluationStatus!=='CORRECTED'};}
+  if (visible && row.evidence?.performanceEvaluations?.length) {
+    const e = await getPerformanceEvaluation(user, row.evidence.performanceEvaluations[0].id);
+    const own = e.employeeId === user.employeeId;
+    const now = new Date().toISOString();
+    const reconsideration = e.reconsideration;
+    const appealDeadline = e.appealDeadlineAt ?? (reconsideration
+      ? addWorkingDays(new Date(reconsideration.responseDeadlineAt), e.policySnapshot.policy.appealWindowWorkingDays).toISOString()
+      : null);
+    performanceKpi = {
+      evaluationId: e.id, period: e.period, status: e.evaluationStatus, score: e.finalScore,
+      canReconsider: own && e.evaluationStatus === 'PROVISIONAL' && !e.reconsideration && !!e.reconsiderationDeadlineAt && now <= e.reconsiderationDeadlineAt,
+      canAppeal: own && !!appealDeadline && now <= appealDeadline && (
+        !e.appeal && (reconsideration?.status === 'RESPONDED' ||
+          reconsideration?.status === 'REQUESTED' && now > reconsideration.responseDeadlineAt) ||
+        e.appeal?.escalationLevel === 1 && ['UPHELD', 'ADJUSTED'].includes(e.appeal.status)
+      ),
+    };
+  }
   return { ...(performanceKpi?{performanceKpi}:{}), id: row.clientMessageId, userMessage: row.userMessage, createdAt: row.createdAt.toISOString(), status: row.status,
     reply: visible ? row.reply : null, citations: visible ? row.citations : [],
     replyHidden: row.status === 'COMPLETED' && !visible, attachments: [], proposedAction };
