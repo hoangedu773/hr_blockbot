@@ -4,8 +4,8 @@ import { useAuthorization } from '../context/useAuthorization';
 import { useAuth } from '../context/AuthContext';
 import { requestJson } from '../services/api';
 import { CrmDialog } from './ui/CrmDialog';
-import { WorkflowHistoryNavigation } from './WorkflowHistoryNavigation';
-type Row = { id: string; version: number; auditIntegrity?: string; status: string; delegatorUserId: string; recipientUserId: string; approvedByUserId: string | null; capabilities: AuthorizationCapability[]; scope: AuthorizationScope; validFrom: string; validUntil: string; history: { actorUserId: string; at: string; reason: string; to: string; hash: string }[] };
+import { WorkflowHistoryNavigation, HashChainLedger, type HashChainBlockItem } from './WorkflowHistoryNavigation';
+type Row = { id: string; version: number; auditIntegrity?: string; status: string; delegatorUserId: string; recipientUserId: string; approvedByUserId: string | null; capabilities: AuthorizationCapability[]; scope: AuthorizationScope; validFrom: string; validUntil: string; history: HashChainBlockItem[] };
 type Recipient = { userId: string; fullName: string; profile: string };
 const allowed = ['projects.create', 'projects.assign', 'reports.review'] as const;
 const capabilityLabels: Record<string, string> = {
@@ -147,41 +147,11 @@ export function DelegationView() {
 
       {selected.history && selected.history.length > 0 && (
         <div style={{ marginBottom: '16px' }}>
-          <div style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Lịch sử quyết định & xử lý
-          </div>
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-            maxHeight: '140px',
-            overflowY: 'auto',
-            padding: '8px 12px',
-            background: 'rgba(0, 0, 0, 0.2)',
-            borderRadius: '8px',
-            border: '1px solid rgba(255, 255, 255, 0.05)'
-          }}>
-            {selected.history.map((entry, index) => (
-              <div key={index} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '12.5px', lineHeight: 1.4 }}>
-                <span style={{ color: '#64748b', fontSize: '11px', whiteSpace: 'nowrap', marginTop: '2px' }}>
-                  {new Date(entry.at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} · {new Date(entry.at).toLocaleDateString('vi-VN')}
-                </span>
-                <span style={{
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  padding: '1px 6px',
-                  borderRadius: '4px',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  color: '#cbd5e1'
-                }}>
-                  {statusLabels[entry.to] || entry.to}
-                </span>
-                <span style={{ color: '#e2e8f0', flex: 1 }}>
-                  {entry.reason}
-                </span>
-              </div>
-            ))}
-          </div>
+          <HashChainLedger
+            entries={selected.history}
+            integrity={selected.auditIntegrity}
+            title="Chuỗi băm ủy quyền nghiệp vụ (Delegation SHA-256 Hash-chain)"
+          />
         </div>
       )}
 

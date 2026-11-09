@@ -3,11 +3,11 @@ import { useAuthorization } from '../context/useAuthorization';
 import { useAuth } from '../context/AuthContext';
 import { requestJson } from '../services/api';
 import { CrmDialog } from './ui/CrmDialog';
-import { WorkflowHistoryNavigation } from './WorkflowHistoryNavigation';
+import { WorkflowHistoryNavigation, HashChainLedger, type HashChainBlockItem } from './WorkflowHistoryNavigation';
 import { InitialManagerPicker } from './InitialManagerPicker';
 type RequestRow = { id: string; version: number; auditIntegrity?: string; status: string; storeId: string; requestedBy: string; deliveryState: string;
   initialReporting?: { managerName: string; status: string; validFrom: string | null } | null;
-  payload: { employeeCode: string; fullName: string; phone: string; email?: string; hiredAt: string }; history: { type: string; actor: string; at: string; reason: string }[] };
+  payload: { employeeCode: string; fullName: string; phone: string; email?: string; hiredAt: string }; history: HashChainBlockItem[] };
 const post = (body: unknown): RequestInit => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 const states: Record<string, string> = { DRAFT: 'Bản nháp', PENDING_HR_REVIEW: 'Chờ HR độc lập duyệt', REJECTED: 'Từ chối', PROVISIONING: 'Đang tạo liên kết', PENDING_ACTIVATION: 'Chờ nhân viên kích hoạt', ACTIVATING: 'Đang hoàn tất kích hoạt', ACTIVE: 'Đã kích hoạt' };
 const reportingStates: Record<string, string> = { NOT_SUBMITTED: 'Chưa gửi đề xuất', PENDING: 'Chờ cấp trên trực tiếp của người đề nghị duyệt sau HR', APPROVED: 'Đã duyệt, chờ áp dụng', APPLIED: 'Đã có hiệu lực' };
@@ -220,41 +220,11 @@ export function OnboardingView({ chatMode, initialRequestId }: { chatMode?: 'rev
 
       {selected.history && selected.history.length > 0 && (
         <div style={{ marginBottom: '16px' }}>
-          <div style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Lịch sử xử lý hồ sơ
-          </div>
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-            maxHeight: '140px',
-            overflowY: 'auto',
-            padding: '8px 12px',
-            background: 'rgba(0, 0, 0, 0.2)',
-            borderRadius: '8px',
-            border: '1px solid rgba(255, 255, 255, 0.05)'
-          }}>
-            {selected.history.map((entry, index) => (
-              <div key={index} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '12.5px', lineHeight: 1.4 }}>
-                <span style={{ color: '#64748b', fontSize: '11px', whiteSpace: 'nowrap', marginTop: '2px' }}>
-                  {new Date(entry.at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} · {new Date(entry.at).toLocaleDateString('vi-VN')}
-                </span>
-                <span style={{
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  padding: '1px 6px',
-                  borderRadius: '4px',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  color: '#cbd5e1'
-                }}>
-                  {entry.type}
-                </span>
-                <span style={{ color: '#e2e8f0', flex: 1 }}>
-                  {entry.reason}
-                </span>
-              </div>
-            ))}
-          </div>
+          <HashChainLedger
+            entries={selected.history}
+            integrity={selected.auditIntegrity}
+            title="Chuỗi băm tiếp nhận nhân sự (Onboarding SHA-256 Hash-chain)"
+          />
         </div>
       )}
 
@@ -265,13 +235,13 @@ export function OnboardingView({ chatMode, initialRequestId }: { chatMode?: 'rev
           borderTop: '1px solid rgba(255, 255, 255, 0.1)'
         }}>
           <label className="field" style={{ marginBottom: '14px' }}>
-            <span style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0' }}>Lý do quyết định (ghi chú kiểm duyệt)</span>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0' }}>Lý do từ chối</span>
             <textarea
               className="input"
               maxLength={2000}
               value={reason}
               disabled={busy}
-              placeholder="Nhập nhận xét hoặc lý do phê duyệt/từ chối tiếp nhận..."
+              placeholder="Chỉ điền nếu bạn từ chối hồ sơ."
               style={{ minHeight: '70px', marginTop: '6px' }}
               onChange={(event) => setReason(event.target.value)}
             />
@@ -314,7 +284,7 @@ export function OnboardingView({ chatMode, initialRequestId }: { chatMode?: 'rev
             <button
               type="button"
               className="btn btn--primary"
-              disabled={busy || !reason.trim()}
+              disabled={busy}
               style={{
                 background: '#16a34a',
                 color: '#fff',
@@ -322,10 +292,10 @@ export function OnboardingView({ chatMode, initialRequestId }: { chatMode?: 'rev
                 border: 'none',
                 padding: '8px 20px',
                 borderRadius: '8px',
-                cursor: busy || !reason.trim() ? 'not-allowed' : 'pointer',
-                opacity: busy || !reason.trim() ? 0.6 : 1
+                cursor: busy ? 'not-allowed' : 'pointer',
+                opacity: busy ? 0.6 : 1
               }}
-              onClick={() => void run(`/onboarding/${selected.id}/review`, { expectedVersion: selected.version, decision: 'APPROVE', reason: reason.trim() }, 'Đã duyệt. Tài khoản staff chờ nhân viên kích hoạt.')}
+              onClick={() => void run(`/onboarding/${selected.id}/review`, { expectedVersion: selected.version, decision: 'APPROVE' }, 'Đã duyệt. Tài khoản staff chờ nhân viên kích hoạt.')}
             >
               ✓ Phê duyệt tiếp nhận
             </button>

@@ -1753,3 +1753,555 @@
     font-size: 12px;
   }
 }
+
+
+/* ==========================================================================
+   Monthly Stepper / Workflow Timeline
+   ========================================================================== */
+.rk-stepper-card {
+  background: var(--rk-card);
+  border: 1px solid var(--rk-border);
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.rk-stepper-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.rk-stepper-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.rk-stepper-badge {
+  background: rgba(22, 133, 237, 0.15);
+  color: var(--rk-blue);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.rk-stepper-current-pill {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: var(--rk-subtle);
+  border: 1px solid var(--rk-border);
+  color: var(--rk-text);
+}
+
+.rk-stepper-current-pill.running {
+  background: rgba(22, 133, 237, 0.12);
+  border-color: rgba(22, 133, 237, 0.3);
+  color: var(--rk-blue);
+}
+
+.rk-stepper-current-pill.closed {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: var(--rk-green);
+}
+
+.rk-stepper-track {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.rk-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 170px;
+  background: var(--rk-subtle);
+  border: 1px solid var(--rk-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  transition: all 0.2s ease;
+}
+
+.rk-step.active {
+  background: rgba(22, 133, 237, 0.08);
+  border-color: var(--rk-blue);
+  box-shadow: 0 0 0 1px var(--rk-blue);
+}
+
+.rk-step.completed {
+  background: rgba(16, 185, 129, 0.06);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.rk-step-circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--rk-border);
+  color: var(--rk-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.rk-step.active .rk-step-circle {
+  background: var(--rk-blue);
+  color: #fff;
+  box-shadow: 0 0 10px rgba(22, 133, 237, 0.5);
+}
+
+.rk-step.completed .rk-step-circle {
+  background: var(--rk-green);
+  color: #fff;
+}
+
+.rk-step-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rk-step-title {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--rk-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rk-step-sub {
+  font-size: 11px;
+  color: var(--rk-muted);
+}
+
+.rk-step-status-chip {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--rk-muted);
+}
+
+.rk-step.active .rk-step-status-chip {
+  color: var(--rk-blue);
+}
+
+.rk-step.completed .rk-step-status-chip {
+  color: var(--rk-green);
+}
+
+.rk-step-line {
+  height: 2px;
+  flex: 0 0 12px;
+  background: var(--rk-border);
+}
+
+.rk-step-line.completed {
+  background: var(--rk-green);
+}
+
+/* ==========================================================================
+   Controls: View Mode & Export Bar
+   ========================================================================== */
+.rk-controls-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.rk-controls-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.rk-controls-bottom-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  flex-wrap: wrap;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.rk-view-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--rk-subtle);
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid var(--rk-border);
+}
+
+.rk-mode-btn {
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--rk-muted) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  padding: 6px 12px !important;
+  border-radius: 6px !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.rk-mode-btn:hover {
+  color: var(--rk-text) !important;
+}
+
+.rk-mode-btn.active {
+  background: var(--rk-card) !important;
+  color: var(--rk-text) !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3) !important;
+  border: 1px solid var(--rk-border) !important;
+}
+
+.rk-btn-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(16, 185, 129, 0.12) !important;
+  color: var(--rk-green) !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  padding: 6px 14px !important;
+  border-radius: 8px !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.rk-btn-export:hover {
+  background: rgba(16, 185, 129, 0.22) !important;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+}
+
+/* ==========================================================================
+   Table View (Spreadsheet / High-Density Mode)
+   ========================================================================== */
+.rk-table-view-card {
+  background: var(--rk-card);
+  border: 1px solid var(--rk-border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  margin-top: 14px;
+}
+
+.rk-table-scroll-wrap {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.rk-dense-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+
+.rk-dense-table th {
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--rk-muted);
+  font-weight: 650;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--rk-border);
+  white-space: nowrap;
+}
+
+.rk-dense-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  vertical-align: middle;
+}
+
+.rk-table-row:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.rk-row-area {
+  background: rgba(139, 92, 246, 0.03);
+}
+
+.rk-table-title-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rk-table-store-name {
+  color: var(--rk-text);
+  font-size: 13px;
+}
+
+.rk-table-subtag {
+  display: block;
+  font-size: 11px;
+  color: var(--rk-purple);
+  font-weight: 500;
+}
+
+.rk-table-tree-btn {
+  background: transparent !important;
+  border: 1px solid var(--rk-border) !important;
+  color: var(--rk-muted) !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  font-size: 10px !important;
+  cursor: pointer;
+  min-height: auto !important;
+}
+
+.rk-table-tree-btn:hover {
+  color: var(--rk-text) !important;
+  border-color: var(--rk-text) !important;
+}
+
+.rk-table-icon {
+  font-size: 14px;
+}
+
+.rk-table-assignee-cell strong {
+  display: block;
+  font-size: 13px;
+  color: var(--rk-text);
+}
+
+.rk-table-subrole {
+  font-size: 11px;
+  color: var(--rk-muted);
+}
+
+.rk-unit-badge-sm {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  display: inline-block;
+}
+
+.rk-unit-badge-sm.store {
+  background: rgba(22, 133, 237, 0.12);
+  color: var(--rk-blue);
+  border: 1px solid rgba(22, 133, 237, 0.25);
+}
+
+.rk-unit-badge-sm.area {
+  background: rgba(139, 92, 246, 0.12);
+  color: var(--rk-purple);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+}
+
+.rk-table-target {
+  font-weight: 700;
+  color: var(--rk-text);
+}
+
+.rk-growth-small {
+  display: block;
+  font-size: 11px;
+  color: var(--rk-green);
+  font-weight: 600;
+}
+
+.rk-ai-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #a855f7;
+  background: rgba(168, 85, 247, 0.12);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  padding: 2px 7px;
+  border-radius: 6px;
+}
+
+.rk-ai-pill.degraded {
+  color: var(--rk-amber);
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+/* Health Pills: Green / Amber / Red */
+.rk-health-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.rk-health-pill.sm {
+  font-size: 11px;
+  padding: 2px 7px;
+}
+
+.rk-health-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.rk-health-good {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.rk-health-warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.rk-health-danger {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.rk-health-none {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--rk-muted);
+  border: 1px solid var(--rk-border);
+}
+
+.rk-state-chip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  display: inline-block;
+  background: var(--rk-subtle);
+  border: 1px solid var(--rk-border);
+}
+
+.rk-state-chip.active,
+.rk-state-chip.accepted {
+  color: var(--rk-green);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.rk-state-chip.pending_acceptance {
+  color: var(--rk-amber);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.rk-state-chip.draft {
+  color: var(--rk-muted);
+}
+
+.rk-table-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rk-table-actions button {
+  padding: 4px 10px !important;
+  font-size: 11px !important;
+  min-height: 28px !important;
+  border-radius: 6px !important;
+}
+
+/* Sub-rows for Tree view */
+.rk-table-subrow {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.rk-table-subrow td {
+  padding: 8px 14px;
+  font-size: 12px;
+}
+
+.rk-subrow-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 24px;
+}
+
+.rk-tree-indent {
+  color: var(--rk-muted);
+  font-family: monospace;
+}
+
+.rk-substore-name {
+  color: var(--rk-text);
+  font-weight: 500;
+}
+
+/* ==========================================================================
+   Area Accordion for Card View
+   ========================================================================== */
+.rk-area-accordion-wrapper {
+  margin-top: 14px;
+  border: 1px solid var(--rk-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.rk-accordion-header-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(139, 92, 246, 0.06) !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 10px 14px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: var(--rk-text) !important;
+  cursor: pointer;
+  text-align: left;
+}
+
+.rk-accordion-header-btn:hover {
+  background: rgba(139, 92, 246, 0.12) !important;
+}
+
+.rk-accordion-badge {
+  background: rgba(139, 92, 246, 0.2);
+  color: var(--rk-purple);
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 12px;
+}

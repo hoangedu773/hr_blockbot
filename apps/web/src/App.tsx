@@ -180,7 +180,7 @@ export const AppContent: React.FC = () => {
         <React.Suspense fallback={<div className="guta-view-loading" role="status" aria-label="Đang tải không gian làm việc..." />}>
           {activeTab === 'chat' ? (
             <ChatPageView onSwitchTab={handleSwitchTab} onLogout={handleLogout} notificationButton={notificationButton}
-              onNavigateNotification={openNotificationView} onNotificationsChanged={() => setNotificationRevision(value => value + 1)}
+              onNotificationsChanged={() => setNotificationRevision(value => value + 1)}
               onboardingNotification={onboardingNotification} onOnboardingNotificationOpened={clearOnboardingNotification} />
           ) : (
             <CrmDashboardView

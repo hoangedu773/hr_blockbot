@@ -1,6 +1,6 @@
 import { RevenueKpiOpenCard, requestRevenueOpenProposal } from './RevenueKpiOpenCard';
 import type { RevenueKpiOpenAction } from '@hr-blockbot/contracts';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   RevenueKpiDashboardSchema,
   RevenueKpiPolicySchema,
@@ -20,6 +20,29 @@ const percentage = (n: number | null | undefined) =>
   n == null ? '—' : new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(n) + '%';
 const date = (s: string | null) =>
   s ? new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', dateStyle: 'short', timeStyle: 'short' }).format(new Date(s)) : '—';
+
+function getKpiHealth(achievementPercent: number | null | undefined, threshold = 30): {
+  level: 'good' | 'warning' | 'danger' | 'none';
+  label: string;
+  pillClass: string;
+  dotColor: string;
+} {
+  if (achievementPercent == null) {
+    return { level: 'none', label: 'Chưa có số', pillClass: 'rk-health-none', dotColor: '#64748b' };
+  }
+  if (achievementPercent >= 100) {
+    return { level: 'good', label: 'Đạt / Vượt', pillClass: 'rk-health-good', dotColor: '#10b981' };
+  }
+  if (achievementPercent >= 80) {
+    return { level: 'warning', label: 'Tiệm cận', pillClass: 'rk-health-warning', dotColor: '#f59e0b' };
+  }
+  return {
+    level: 'danger',
+    label: achievementPercent <= threshold ? 'Hụt sâu' : 'Chưa đạt',
+    pillClass: 'rk-health-danger',
+    dotColor: '#ef4444',
+  };
+}
 
 const labels: Record<string, string> = {
   DRAFT: 'Nháp',
@@ -124,12 +147,74 @@ export function RevenueKpiView() {
   const [notices, setNotices] = useState<NotificationItem[]>([]);
   const [unread, setUnread] = useState(0);
 
-  // Filters for Store vs Area view
+  // Filters for Store vs Area view & Display mode
   const [unitFilter, setUnitFilter] = useState<'ALL' | 'STORE' | 'AREA'>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [flagsExpanded, setFlagsExpanded] = useState(false);
   const [flagsSearch, setFlagsSearch] = useState('');
+  const [viewMode, setViewMode] = useState<'CARDS' | 'TABLE'>('CARDS');
+  const [expandedAreaIds, setExpandedAreaIds] = useState<Set<string>>(new Set());
+
+  const toggleAreaExpanded = (id: string) => {
+    setExpandedAreaIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const exportCsv = () => {
+    if (!dashboard) return;
+    const headers = [
+      'Kỳ',
+      'Loại hình',
+      'Chi nhánh / Khu vực',
+      'Người phụ trách',
+      'Chức danh',
+      'Mục tiêu (VND)',
+      'Tăng trưởng (%)',
+      'Đề xuất AI (%)',
+      'Doanh thu POS (VND)',
+      'Tỷ lệ hoàn thành (%)',
+      'Đánh giá hiệu suất',
+      'Trạng thái',
+    ];
+    const rows = dashboard.assignments.map(a => {
+      const result = dashboard.results.find(r => r.assignmentId === a.id);
+      const isArea = a.unitType === 'AREA';
+      const name = isArea ? `Khu vực ${a.assigneeName}` : (a.stores[0]?.storeName ?? '');
+      const health = getKpiHealth(
+        result?.achievementPercent,
+        dashboard.period.policy.underperformingRateThresholdPercent
+      );
+      return [
+        `"${period}"`,
+        `"${isArea ? 'Khu vực (AM)' : 'Cửa hàng (SM)'}"`,
+        `"${name.replace(/"/g, '""')}"`,
+        `"${a.assigneeName.replace(/"/g, '""')}"`,
+        `"${a.assigneeRole}"`,
+        a.targetVnd,
+        a.growthPercent ?? '',
+        a.aiProposal?.suggestedGrowthPercent ?? '',
+        result?.actualRevenueVnd ?? '',
+        result?.achievementPercent != null ? `${result.achievementPercent}%` : '',
+        `"${health.label}"`,
+        `"${labels[a.status] || a.status}"`,
+      ].join(',');
+    });
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `GUTA_KPI_DoanhThu_${period}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   const dialog = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLElement | null>(null);
@@ -305,6 +390,7 @@ export function RevenueKpiView() {
     setBusy(true);
     if (targetCardId) setActiveCardId(targetCardId);
     setError('');
+    const prevScrollY = typeof window !== 'undefined' ? window.scrollY : 0;
     try {
       const res = await operation();
       if (res && typeof res === 'object' && 'id' in res) {
@@ -323,7 +409,19 @@ export function RevenueKpiView() {
       commandCache.current = null;
       setModal(null);
       setNotice(message);
-      trigger.current?.focus();
+
+      // Restore scroll and safe focus to prevent jump-scrolling / feeling of page reload
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: prevScrollY, behavior: 'instant' });
+      }
+      if (trigger.current && document.body.contains(trigger.current)) {
+        trigger.current.focus({ preventScroll: true });
+      } else if (targetCardId) {
+        const cardElem = document.getElementById(`rk-card-${targetCardId}`);
+        if (cardElem) {
+          cardElem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Thao tác chưa hoàn tất.');
     } finally {
@@ -458,36 +556,56 @@ export function RevenueKpiView() {
         const drafts = dashboard!.assignments.filter(
           a => a.status === 'DRAFT' && (kind !== 'ai' && kind !== 'apply' || a.unitType === 'STORE')
         );
-        for (const a of drafts) {
-          setActiveCardId(a.id);
-          if (kind === 'ai') {
-            const updated = await api.proposeRevenueKpiTarget(a.id, {
-              expectedVersion: a.version,
-              clientRequestId: newClientMessageId(),
-            });
-            mergeAssignmentInPlace(updated);
-          } else if (kind === 'publish') {
-            const prepared =
-              a.unitType === 'AREA'
-                ? await api.saveRevenueKpiAssignment({
-                    id: a.id,
-                    period,
-                    unitType: 'AREA',
-                    assigneeEmployeeId: a.assigneeEmployeeId,
-                    targetMode: 'ABSOLUTE_VND',
-                    reason: 'HR đồng bộ tổng mục tiêu các cửa hàng trước phát hành.',
-                    expectedVersion: a.version,
-                    clientRequestId: newClientMessageId(),
-                  })
-                : a;
-            const published = await api.publishRevenueKpiAssignment(prepared.id, {
-              expectedVersion: prepared.version,
-              clientRequestId: newClientMessageId(),
-            });
-            mergeAssignmentInPlace(published);
-          } else if (a.aiProposal?.suggestedGrowthPercent != null) {
-            const applied = await saveAiTarget(a, a.aiProposal.suggestedGrowthPercent, newClientMessageId());
-            mergeAssignmentInPlace(applied);
+        if (kind === 'ai') {
+          // Batch proposals in parallel chunks of 5 for speed without freezing/flickering UI
+          for (let i = 0; i < drafts.length; i += 5) {
+            const chunk = drafts.slice(i, i + 5);
+            const results = await Promise.all(
+              chunk.map(a =>
+                api.proposeRevenueKpiTarget(a.id, {
+                  expectedVersion: a.version,
+                  clientRequestId: newClientMessageId(),
+                })
+              )
+            );
+            setDashboard(prev =>
+              prev
+                ? {
+                    ...prev,
+                    assignments: prev.assignments.map(item => {
+                      const found = results.find(u => u.id === item.id);
+                      return found ?? item;
+                    }),
+                  }
+                : prev
+            );
+          }
+        } else {
+          for (const a of drafts) {
+            setActiveCardId(a.id);
+            if (kind === 'publish') {
+              const prepared =
+                a.unitType === 'AREA'
+                  ? await api.saveRevenueKpiAssignment({
+                      id: a.id,
+                      period,
+                      unitType: 'AREA',
+                      assigneeEmployeeId: a.assigneeEmployeeId,
+                      targetMode: 'ABSOLUTE_VND',
+                      reason: 'HR đồng bộ tổng mục tiêu các cửa hàng trước phát hành.',
+                      expectedVersion: a.version,
+                      clientRequestId: newClientMessageId(),
+                    })
+                  : a;
+              const published = await api.publishRevenueKpiAssignment(prepared.id, {
+                expectedVersion: prepared.version,
+                clientRequestId: newClientMessageId(),
+              });
+              mergeAssignmentInPlace(published);
+            } else if (a.aiProposal?.suggestedGrowthPercent != null) {
+              const applied = await saveAiTarget(a, a.aiProposal.suggestedGrowthPercent, newClientMessageId());
+              mergeAssignmentInPlace(applied);
+            }
           }
         }
       },
@@ -535,6 +653,14 @@ export function RevenueKpiView() {
       ['REFUSED', 'HR_REVIEW', 'ADJUSTMENT_REQUESTED'].includes(a.status)
     ).length;
     const aiReadyCount = storeItems.filter(a => a.aiProposal != null).length;
+    const underperformingCount = dashboard.assignments.filter(a => {
+      const r = dashboard.results.find(res => res.assignmentId === a.id);
+      return r?.achievementPercent != null && r.achievementPercent < 80;
+    }).length;
+    const achievedCount = dashboard.assignments.filter(a => {
+      const r = dashboard.results.find(res => res.assignmentId === a.id);
+      return r?.achievementPercent != null && r.achievementPercent >= 100;
+    }).length;
 
     return {
       storeCount: storeItems.length,
@@ -548,6 +674,8 @@ export function RevenueKpiView() {
       activeCount,
       attentionCount,
       aiReadyCount,
+      underperformingCount,
+      achievedCount,
     };
   }, [dashboard]);
 
@@ -560,6 +688,14 @@ export function RevenueKpiView() {
       if (statusFilter === 'PENDING_ACCEPTANCE' && a.status !== 'PENDING_ACCEPTANCE') return false;
       if (statusFilter === 'ACTIVE' && !['ACTIVE', 'ACCEPTED', 'CLOSED'].includes(a.status)) return false;
       if (statusFilter === 'ATTENTION' && !['REFUSED', 'HR_REVIEW', 'ADJUSTMENT_REQUESTED'].includes(a.status)) return false;
+      if (statusFilter === 'UNDERPERFORMING') {
+        const r = dashboard.results.find(res => res.assignmentId === a.id);
+        if (r?.achievementPercent == null || r.achievementPercent >= 80) return false;
+      }
+      if (statusFilter === 'ACHIEVED') {
+        const r = dashboard.results.find(res => res.assignmentId === a.id);
+        if (r?.achievementPercent == null || r.achievementPercent < 100) return false;
+      }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const storeMatch = a.stores.some(s => s.storeName.toLowerCase().includes(q));
@@ -614,6 +750,7 @@ export function RevenueKpiView() {
     return (
       <article
         key={a.id}
+        id={`rk-card-${a.id}`}
         className={`rk-assignment rk-assignment-${a.unitType.toLowerCase()} ${isCardBusy ? 'rk-assignment-busy' : ''}`}
         aria-label={`KPI ${a.unitType === 'AREA' ? 'khu vực' : 'cửa hàng'} ${a.assigneeName}`}
       >
@@ -827,6 +964,275 @@ export function RevenueKpiView() {
     );
   };
 
+  const renderMonthlyStepper = () => {
+    if (!dashboard) return null;
+    const periodStatus = dashboard.period.status;
+    const draftCount = stats?.draftCount ?? 0;
+    const pendingCount = stats?.pendingCount ?? 0;
+    const activeCount = stats?.activeCount ?? 0;
+    const attentionCount = stats?.attentionCount ?? 0;
+    const resultsCount = dashboard.results.length;
+
+    let activeStep = 1;
+    if (periodStatus === 'CLOSED') {
+      activeStep = 5;
+    } else if (periodStatus === 'OPEN') {
+      if (resultsCount > 0) activeStep = 4;
+      else if (activeCount > 0 && pendingCount === 0 && draftCount === 0) activeStep = 3;
+      else if (pendingCount > 0) activeStep = 2;
+      else activeStep = 1;
+    }
+
+    const steps = [
+      {
+        num: 1,
+        title: 'Lập kế hoạch & Giao',
+        sub: 'Ngày 1 - 5',
+        statusText: draftCount ? `${draftCount} bản nháp` : 'Đã lập xong',
+      },
+      {
+        num: 2,
+        title: 'Xác nhận KPI',
+        sub: 'Hạn 3 ngày',
+        statusText: pendingCount ? `${pendingCount} chờ nhận` : 'Đã xác nhận',
+      },
+      {
+        num: 3,
+        title: 'Vận hành & POS',
+        sub: 'Trong tháng',
+        statusText: activeCount ? `${activeCount} đang chạy` : 'Chưa kích hoạt',
+      },
+      {
+        num: 4,
+        title: 'Đánh giá & Giải trình',
+        sub: 'Ngày 28 - 30',
+        statusText: attentionCount ? `⚠️ ${attentionCount} cần xử lý` : resultsCount ? `${resultsCount} đã tính` : 'Chờ số liệu',
+      },
+      {
+        num: 5,
+        title: 'Chốt sổ kỳ',
+        sub: 'Cuối kỳ',
+        statusText: periodStatus === 'CLOSED' ? 'Đã hoàn tất' : 'Chờ chốt',
+      },
+    ];
+
+    return (
+      <div className="rk-stepper-card" aria-label="Tiến trình chu kỳ KPI tháng">
+        <div className="rk-stepper-head">
+          <div className="rk-stepper-title-row">
+            <span className="rk-stepper-badge">Tiến độ kỳ</span>
+            <strong>Chu kỳ quản lý tháng {period.slice(5)}/{period.slice(0, 4)}</strong>
+          </div>
+          <span className={`rk-stepper-current-pill ${periodStatus === 'CLOSED' ? 'closed' : 'running'}`}>
+            {periodStatus === 'CLOSED' ? '🔒 Đã chốt sổ kỳ' : `Đang ở bước ${activeStep}/5: ${steps[activeStep - 1].title}`}
+          </span>
+        </div>
+        <div className="rk-stepper-track">
+          {steps.map((st, idx) => {
+            const isCompleted = activeStep > st.num || periodStatus === 'CLOSED';
+            const isActive = activeStep === st.num && periodStatus !== 'CLOSED';
+            return (
+              <Fragment key={st.num}>
+                {idx > 0 && <div className={`rk-step-line ${isCompleted ? 'completed' : ''}`} />}
+                <div className={`rk-step ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}>
+                  <div className="rk-step-circle">
+                    {isCompleted ? '✓' : st.num}
+                  </div>
+                  <div className="rk-step-content">
+                    <span className="rk-step-title">{st.title}</span>
+                    <span className="rk-step-sub">{st.sub}</span>
+                    <span className="rk-step-status-chip">{st.statusText}</span>
+                  </div>
+                </div>
+              </Fragment>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const renderTableView = () => {
+    return (
+      <div className="rk-table-view-card">
+        <div className="rk-table-scroll-wrap">
+          <table className="rk-dense-table" aria-label="Bảng tổng hợp KPI doanh thu">
+            <thead>
+              <tr>
+                <th>Chi nhánh / Khu vực</th>
+                <th>Phụ trách</th>
+                <th>Phân loại</th>
+                <th className="text-right">Mục tiêu (VND)</th>
+                <th>Đề xuất AI</th>
+                <th className="text-right">Thực tế POS</th>
+                <th className="text-center">% Hoàn thành</th>
+                <th>Trạng thái</th>
+                <th className="text-right">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredAssignments.map(a => {
+                const r = dashboard!.results.find(res => res.assignmentId === a.id);
+                const health = getKpiHealth(
+                  r?.achievementPercent,
+                  dashboard!.period.policy.underperformingRateThresholdPercent
+                );
+                const isArea = a.unitType === 'AREA';
+                const isExpanded = expandedAreaIds.has(a.id);
+                const own = a.assigneeEmployeeId === employeeId;
+                const needsReason = r?.achieved === false;
+
+                return (
+                  <Fragment key={a.id}>
+                    <tr
+                      id={`rk-table-row-${a.id}`}
+                      className={`rk-table-row rk-table-row-${a.unitType.toLowerCase()} ${isArea ? 'rk-row-area' : ''}`}
+                    >
+                      <td>
+                        <div className="rk-table-title-cell">
+                          {isArea ? (
+                            <button
+                              type="button"
+                              className="rk-table-tree-btn"
+                              onClick={() => toggleAreaExpanded(a.id)}
+                              aria-expanded={isExpanded}
+                              title={isExpanded ? 'Thu gọn' : 'Xem chi nhánh trực thuộc'}
+                            >
+                              {isExpanded ? '▼' : '▶'}
+                            </button>
+                          ) : (
+                            <span className="rk-table-icon">🏪</span>
+                          )}
+                          <div>
+                            <strong className="rk-table-store-name">
+                              {isArea ? `Khu vực ${a.assigneeName}` : (a.stores[0]?.storeName ?? '—')}
+                            </strong>
+                            {isArea && (
+                              <span className="rk-table-subtag">{a.stores.length} cửa hàng trực thuộc</span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="rk-table-assignee-cell">
+                          <strong>{a.assigneeName}</strong>
+                          <span className="rk-table-subrole">{a.assigneeRole}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <span className={`rk-unit-badge-sm ${a.unitType.toLowerCase()}`}>
+                          {isArea ? 'Khu vực (AM)' : 'Cửa hàng (SM)'}
+                        </span>
+                      </td>
+                      <td className="text-right font-mono">
+                        <span className="rk-table-target">{money(a.targetVnd)}</span>
+                        {a.growthPercent != null && (
+                          <span className="rk-growth-small">+{a.growthPercent}%</span>
+                        )}
+                      </td>
+                      <td>
+                        {a.aiProposal?.suggestedGrowthPercent != null ? (
+                          <span
+                            className={`rk-ai-pill ${a.aiProposal.degraded ? 'degraded' : ''}`}
+                            title={a.aiProposal.rationale ?? ''}
+                          >
+                            ✨ +{percentage(a.aiProposal.suggestedGrowthPercent)}
+                          </span>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </td>
+                      <td className="text-right font-mono">
+                        {r?.actualRevenueVnd != null ? (
+                          <strong>{money(r.actualRevenueVnd)}</strong>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </td>
+                      <td className="text-center">
+                        {r?.achievementPercent != null ? (
+                          <span className={`rk-health-pill ${health.pillClass}`}>
+                            <span className="rk-health-dot" style={{ background: health.dotColor }} />
+                            {percentage(r.achievementPercent)}
+                          </span>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </td>
+                      <td>
+                        <span className={`rk-state-chip ${a.status.toLowerCase()}`}>
+                          {labels[a.status] || a.status}
+                        </span>
+                      </td>
+                      <td className="text-right">
+                        <div className="rk-table-actions">
+                          {hr && isOpen && a.status === 'DRAFT' && (
+                            <>
+                              {ask('edit', a)}
+                              {a.unitType === 'STORE' && ask('ai', a)}
+                              {ask('publish', a)}
+                            </>
+                          )}
+                          {own && can('revenue_kpi.respond') && a.status === 'PENDING_ACCEPTANCE' && isOpen && (
+                            <>
+                              {ask('accept', a)}
+                              {ask('refuse', a)}
+                            </>
+                          )}
+                          {hr && isOpen && !['CANCELLED', 'CLOSED'].includes(a.status) && ask('decision', a)}
+                          {own && can('revenue_kpi.request_adjustment') && a.status === 'ACTIVE' && isOpen && ask('request', a)}
+                          {am && !own && a.unitType === 'STORE' && a.status === 'ADJUSTMENT_REQUESTED' && a.adjustment?.status === 'PENDING' && ask('verify', a)}
+                          {hr && isOpen && a.status === 'ADJUSTMENT_REQUESTED' && ask('adjustment', a)}
+                          {own && r && needsReason && ['AWAITING_REASON', 'COMPUTED'].includes(r.status) && isOpen && ask('reason', a, r)}
+                          {hr && r && isOpen && r.status === 'COMPUTED' && r.missReason && ask('review', a, r)}
+                          {hr && r && isOpen && ['COMPUTED', 'AWAITING_REASON'].includes(r.status) && ask('confirm', a, r)}
+                          {hr && r && dashboard!.period.status === 'CLOSED' && ask('correct', a, r)}
+                          {hr && isOpen && a.unitType === 'STORE' && ['ACTIVE', 'PENDING_ACCEPTANCE'].includes(a.status) && ask('responsibility', a)}
+                        </div>
+                      </td>
+                    </tr>
+                    {isArea && isExpanded && a.stores.map(s => {
+                      const sr = r?.stores.find(x => x.storeId === s.storeId);
+                      const sHealth = getKpiHealth(sr?.achievementPercent, dashboard!.period.policy.underperformingRateThresholdPercent);
+                      return (
+                        <tr key={s.storeId} className="rk-table-subrow">
+                          <td className="rk-subrow-name">
+                            <span className="rk-tree-indent">└─</span>
+                            <span className="rk-substore-name">{s.storeName}</span>
+                          </td>
+                          <td className="text-muted text-sm">Trực thuộc AM</td>
+                          <td className="text-muted text-sm">Chi nhánh con</td>
+                          <td className="text-right font-mono text-sm">{money(s.targetVnd)}</td>
+                          <td className="text-muted text-sm">—</td>
+                          <td className="text-right font-mono text-sm">{sr?.actualRevenueVnd != null ? money(sr.actualRevenueVnd) : '—'}</td>
+                          <td className="text-center">
+                            {sr?.achievementPercent != null ? (
+                              <span className={`rk-health-pill sm ${sHealth.pillClass}`}>
+                                {percentage(sr.achievementPercent)}
+                              </span>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                          <td>
+                            <small className={sr?.achieved === true ? 'rk-text-pass' : sr?.achieved === false ? 'rk-text-fail' : 'text-muted'}>
+                              {sr?.achieved === true ? '✓ Đạt' : sr?.achieved === false ? '⚠️ Chưa đạt' : '—'}
+                            </small>
+                          </td>
+                          <td />
+                        </tr>
+                      );
+                    })}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <section className="revenue-kpi" aria-labelledby="rk-title" aria-busy={loading || busy}>
       <header>
@@ -955,6 +1361,8 @@ export function RevenueKpiView() {
               </div>
               {busy && <span className="rk-sync-indicator">⏳ Đang đồng bộ dữ liệu…</span>}
             </div>
+
+            {renderMonthlyStepper()}
 
             {stats && dashboard.assignments.length > 0 && (
               <div className="rk-overview-grid">
@@ -1184,38 +1592,72 @@ export function RevenueKpiView() {
 
             {dashboard.assignments.length > 0 && (
               <div className="rk-view-controls">
-                <div className="rk-unit-tabs" role="tablist" aria-label="Phân loại theo cửa hàng và khu vực">
-                  <button
-                    type="button"
-                    className={`rk-unit-tab ${unitFilter === 'ALL' ? 'active' : ''}`}
-                    onClick={() => setUnitFilter('ALL')}
-                  >
-                    Tất cả ({dashboard.assignments.length})
-                  </button>
-                  <button
-                    type="button"
-                    className={`rk-unit-tab ${unitFilter === 'STORE' ? 'active' : ''}`}
-                    onClick={() => setUnitFilter('STORE')}
-                  >
-                    🏪 Theo cửa hàng · SM ({stats?.storeCount ?? 0})
-                  </button>
-                  <button
-                    type="button"
-                    className={`rk-unit-tab ${unitFilter === 'AREA' ? 'active' : ''}`}
-                    onClick={() => setUnitFilter('AREA')}
-                  >
-                    🗺️ Theo khu vực · AM ({stats?.areaCount ?? 0})
-                  </button>
+                <div className="rk-controls-top-row">
+                  <div className="rk-unit-tabs" role="tablist" aria-label="Phân loại theo cửa hàng và khu vực">
+                    <button
+                      type="button"
+                      className={`rk-unit-tab ${unitFilter === 'ALL' ? 'active' : ''}`}
+                      onClick={() => setUnitFilter('ALL')}
+                    >
+                      Tất cả ({dashboard.assignments.length})
+                    </button>
+                    <button
+                      type="button"
+                      className={`rk-unit-tab ${unitFilter === 'STORE' ? 'active' : ''}`}
+                      onClick={() => setUnitFilter('STORE')}
+                    >
+                      🏪 Theo cửa hàng · SM ({stats?.storeCount ?? 0})
+                    </button>
+                    <button
+                      type="button"
+                      className={`rk-unit-tab ${unitFilter === 'AREA' ? 'active' : ''}`}
+                      onClick={() => setUnitFilter('AREA')}
+                    >
+                      🗺️ Theo khu vực · AM ({stats?.areaCount ?? 0})
+                    </button>
+                  </div>
+
+                  <div className="rk-controls-actions-row">
+                    <div className="rk-view-mode-toggle" role="group" aria-label="Chế độ hiển thị">
+                      <button
+                        type="button"
+                        className={`rk-mode-btn ${viewMode === 'CARDS' ? 'active' : ''}`}
+                        onClick={() => setViewMode('CARDS')}
+                        title="Xem dạng thẻ chi tiết"
+                      >
+                        🗂️ Dạng thẻ
+                      </button>
+                      <button
+                        type="button"
+                        className={`rk-mode-btn ${viewMode === 'TABLE' ? 'active' : ''}`}
+                        onClick={() => setViewMode('TABLE')}
+                        title="Xem dạng bảng tổng hợp thu gọn (như Excel)"
+                      >
+                        📊 Dạng bảng
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="rk-btn-export"
+                      onClick={exportCsv}
+                      title="Xuất bảng số liệu KPI doanh thu ra file CSV/Excel"
+                    >
+                      📥 Xuất Excel
+                    </button>
+                  </div>
                 </div>
 
-                <div className="rk-filter-right">
+                <div className="rk-controls-bottom-row">
                   <div className="rk-status-pills">
                     {[
                       ['ALL', 'Tất cả trạng thái'],
                       ['DRAFT', `Nháp (${stats?.draftCount ?? 0})`],
                       ['PENDING_ACCEPTANCE', `Chờ xác nhận (${stats?.pendingCount ?? 0})`],
                       ['ACTIVE', `Đang thực hiện (${stats?.activeCount ?? 0})`],
-                      ...(stats?.attentionCount ? [['ATTENTION', `Cần xử lý (${stats.attentionCount})`]] : []),
+                      ...(stats?.underperformingCount ? [['UNDERPERFORMING', `🔴 Chưa đạt (${stats.underperformingCount})`]] : []),
+                      ...(stats?.achievedCount ? [['ACHIEVED', `🟢 Đạt (${stats.achievedCount})`]] : []),
+                      ...(stats?.attentionCount ? [['ATTENTION', `⚠️ Cần xử lý (${stats.attentionCount})`]] : []),
                     ].map(([code, label]) => (
                       <button
                         key={code}
@@ -1259,37 +1701,41 @@ export function RevenueKpiView() {
               </div>
             )}
 
-            <div className="rk-assignment-list">
-              {unitFilter === 'ALL' &&
-              filteredAssignments.some(a => a.unitType === 'AREA') &&
-              filteredAssignments.some(a => a.unitType === 'STORE') ? (
-                <>
-                  <section className="rk-group-section" aria-label="Nhóm KPI theo khu vực AM">
-                    <div className="rk-group-header">
-                      <h3>🗺️ Doanh thu theo Khu vực (AM)</h3>
-                      <span>{filteredAssignments.filter(a => a.unitType === 'AREA').length} khu vực</span>
-                    </div>
-                    <div className="rk-group-cards">
-                      {filteredAssignments.filter(a => a.unitType === 'AREA').map(renderAssignmentCard)}
-                    </div>
-                  </section>
+            {viewMode === 'TABLE' ? (
+              renderTableView()
+            ) : (
+              <div className="rk-assignment-list">
+                {unitFilter === 'ALL' &&
+                filteredAssignments.some(a => a.unitType === 'AREA') &&
+                filteredAssignments.some(a => a.unitType === 'STORE') ? (
+                  <>
+                    <section className="rk-group-section" aria-label="Nhóm KPI theo khu vực AM">
+                      <div className="rk-group-header">
+                        <h3>🗺️ Doanh thu theo Khu vực (AM)</h3>
+                        <span>{filteredAssignments.filter(a => a.unitType === 'AREA').length} khu vực</span>
+                      </div>
+                      <div className="rk-group-cards">
+                        {filteredAssignments.filter(a => a.unitType === 'AREA').map(renderAssignmentCard)}
+                      </div>
+                    </section>
 
-                  <section className="rk-group-section" aria-label="Nhóm KPI theo cửa hàng SM">
-                    <div className="rk-group-header">
-                      <h3>🏪 Doanh thu theo Cửa hàng (SM)</h3>
-                      <span>{filteredAssignments.filter(a => a.unitType === 'STORE').length} cửa hàng</span>
-                    </div>
-                    <div className="rk-group-cards rk-store-cards-grid">
-                      {filteredAssignments.filter(a => a.unitType === 'STORE').map(renderAssignmentCard)}
-                    </div>
-                  </section>
-                </>
-              ) : (
-                <div className={unitFilter === 'STORE' ? 'rk-group-cards rk-store-cards-grid' : 'rk-group-cards'}>
-                  {filteredAssignments.map(renderAssignmentCard)}
-                </div>
-              )}
-            </div>
+                    <section className="rk-group-section" aria-label="Nhóm KPI theo cửa hàng SM">
+                      <div className="rk-group-header">
+                        <h3>🏪 Doanh thu theo Cửa hàng (SM)</h3>
+                        <span>{filteredAssignments.filter(a => a.unitType === 'STORE').length} cửa hàng</span>
+                      </div>
+                      <div className="rk-group-cards rk-store-cards-grid">
+                        {filteredAssignments.filter(a => a.unitType === 'STORE').map(renderAssignmentCard)}
+                      </div>
+                    </section>
+                  </>
+                ) : (
+                  <div className={unitFilter === 'STORE' ? 'rk-group-cards rk-store-cards-grid' : 'rk-group-cards'}>
+                    {filteredAssignments.map(renderAssignmentCard)}
+                  </div>
+                )}
+              </div>
+            )}
           </>
         )
       )}
