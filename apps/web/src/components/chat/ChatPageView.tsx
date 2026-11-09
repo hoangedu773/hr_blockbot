@@ -514,14 +514,6 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
         {/* One nav, not two. The role quick replies already render in the centre
             column where the user is looking; repeating them here made the
             sidebar a second, competing menu. */}
-        <nav aria-label="Câu hỏi nhanh">
-          <p className="guta-chat-sidebar-label">Hỏi nhanh</p>
-          {quickReplies.map((item) => (
-            <button type="button" key={item.label} disabled={isTyping || !!intakePrompt || !!notificationSearch} onClick={() => send(item.prompt)}>
-              {item.label}
-            </button>
-          ))}
-        </nav>
         <footer>
           <button className="chat-back-crm" type="button" onClick={() => onSwitchTab('crm')}>Quay lại Vận Hành (CRM)</button>
           <button type="button" aria-label="Đăng Xuất Phiên" onClick={onLogout}>Đăng xuất</button>
