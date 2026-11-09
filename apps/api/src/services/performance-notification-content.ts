@@ -21,6 +21,12 @@ const content: Partial<Record<NotificationType, NoticeContent>> = {
   performance_kpi_corrected: { title: 'Đã điều chỉnh kết quả KPI', body: 'Kết quả đã được cập nhật. Mở bản đánh giá để xem lịch sử điều chỉnh.', severity: 'INFO' },
 };
 
+export const legacyPerformanceNoticeTitles = ['Cập nhật nhiệm vụ', 'Cập nhật KPI hiệu suất'];
+export const legacyPerformanceNoticeTypes = {
+  action: Object.keys(content).filter(type => content[type as NotificationType]?.severity !== 'INFO'),
+  info: Object.keys(content).filter(type => content[type as NotificationType]?.severity === 'INFO'),
+};
+
 export function performanceNotificationContent(type: NotificationType, dedupeKey?: string): NoticeContent | undefined {
   if (type === 'performance_kpi_appeal_requested' && dedupeKey?.startsWith('performance_kpi_response_overdue:')) {
     return { title: 'Đã quá hạn phản hồi KPI', body: 'Hãy mở bản đánh giá để xem kiến nghị hoặc khiếu nại đang cần xử lý.', severity: 'URGENT' };
