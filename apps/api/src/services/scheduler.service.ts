@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { ProjectModel } from "../models/Project.js";
+import { TaskInstanceModel } from "../models/TaskInstance.js";
 import { UserModel } from "../models/User.js";
 import { EvaluationModel } from "../models/Evaluation.js";
 import { notifyUser } from "./notification.service.js";
@@ -72,7 +73,47 @@ export async function runDeadlineReminders(now = new Date()): Promise<{ consider
       }
     }
   }
-  return { considered: projects.length, sent };
+  const tasks: any[] = await TaskInstanceModel.find({
+    status: { $in: ["ASSIGNED", "PENDING_ACCEPTANCE", "ACCEPTED", "IN_PROGRESS", "REJECTED"] },
+    assigneeEmployeeId: { $ne: null },
+  }).select("title status dueAt extendedDueAt assigneeEmployeeId assignerEmployeeId storeId").limit(1000).lean();
+  let taskConsidered = 0;
+  for (const task of tasks) {
+    const due = new Date(task.extendedDueAt ?? task.dueAt);
+    if (Number.isNaN(due.getTime()) || due > horizon) continue;
+    const daysLeft = Math.ceil((due.getTime() - now.getTime()) / DAY);
+    if (daysLeft > 3) continue;
+    taskConsidered += 1;
+    const type = daysLeft <= 0 ? "deadline_overdue" : daysLeft <= 1 ? "deadline_1d" : "deadline_3d";
+    const employee = await activeUserForEmployee(task.assigneeEmployeeId);
+    const title = type === "deadline_overdue" ? `Quá hạn: ${task.title}`
+      : daysLeft <= 1 ? `Còn 1 ngày: ${task.title}` : `Còn 3 ngày: ${task.title}`;
+    const body = type === "deadline_overdue"
+      ? `Nhiệm vụ đã quá hạn từ ${due.toISOString().slice(0, 10)}. Nộp minh chứng hoặc báo quản lý ngay.`
+      : `Hạn hoàn thành ${due.toISOString().slice(0, 10)} (còn ${Math.max(0, daysLeft)} ngày).`;
+    if (employee) {
+      const result = await notifyUser({
+        userId: String(employee._id), employeeId: String(task.assigneeEmployeeId),
+        type, title, body, dedupeKey: `task_${type}:${String(task._id)}:${today}`,
+        entityKind: "project", entityId: String(task._id),
+      });
+      if (result.created) sent += 1;
+    }
+    if (type === "deadline_overdue") {
+      const manager = (await managerUserFor({ responsibleEmployeeId: task.assigneeEmployeeId, storeId: task.storeId }))
+        ?? (await activeUserForEmployee(task.assignerEmployeeId));
+      if (manager && String(manager._id) !== String(employee?._id ?? "")) {
+        const result = await notifyUser({
+          userId: String(manager._id), type: "deadline_overdue",
+          title: `Nhân viên quá hạn: ${task.title}`, body: `Nhiệm vụ đã quá hạn từ ${due.toISOString().slice(0, 10)} và chưa hoàn tất.`,
+          dedupeKey: `task_deadline_overdue_manager:${String(task._id)}:${today}`,
+          entityKind: "project", entityId: String(task._id),
+        });
+        if (result.created) sent += 1;
+      }
+    }
+  }
+  return { considered: projects.length + taskConsidered, sent };
 }
 
 export async function runAcknowledgementReminders(now = new Date()): Promise<{ considered: number; sent: number }> {
@@ -105,12 +146,46 @@ export async function runAcknowledgementReminders(now = new Date()): Promise<{ c
       }
     }
   }
-  return { considered: projects.length, sent };
+  const tasks: any[] = await TaskInstanceModel.find({
+    assignmentStatus: "PENDING_ACCEPTANCE",
+    status: { $in: ["ASSIGNED", "PENDING_ACCEPTANCE", "HANDOVER"] },
+    assignedAt: { $ne: null, $lte: stale.toISOString() },
+  }).select("title assigneeEmployeeId assignerEmployeeId storeId assignedAt").limit(500).lean();
+  for (const task of tasks) {
+    const employee = await activeUserForEmployee(task.assigneeEmployeeId);
+    if (employee) {
+      const result = await notifyUser({
+        userId: String(employee._id), employeeId: String(task.assigneeEmployeeId),
+        type: "system", title: `Chưa xác nhận nhiệm vụ: ${task.title}`,
+        body: "Bạn chưa phản hồi nhiệm vụ có chấm điểm được giao. Vào mục Công việc để nhận hoặc phản hồi.",
+        dedupeKey: `task_ack:${String(task._id)}:${today}`, entityKind: "project", entityId: String(task._id),
+      });
+      if (result.created) sent += 1;
+    }
+    if (now.getTime() - new Date(task.assignedAt).getTime() >= 3 * DAY) {
+      const manager = (await managerUserFor({ responsibleEmployeeId: task.assigneeEmployeeId, storeId: task.storeId }))
+        ?? (await activeUserForEmployee(task.assignerEmployeeId));
+      if (manager) {
+        const result = await notifyUser({
+          userId: String(manager._id), type: "system", title: `Nhiệm vụ chưa được xác nhận: ${task.title}`,
+          body: "Đã quá 3 ngày nhân viên chưa phản hồi nhiệm vụ. Cần xử lý thủ công.",
+          dedupeKey: `task_ack_escalate:${String(task._id)}:${today}`, entityKind: "project", entityId: String(task._id),
+        });
+        if (result.created) sent += 1;
+      }
+    }
+  }
+  return { considered: projects.length + tasks.length, sent };
 }
 
 export async function runKpiReviewDigest(now = new Date()): Promise<{ pending: number; sent: number }> {
   const today = bucket(now);
-  const pending: any[] = await EvaluationModel.find({ status: "ANALYZED" })
+  const pending: any[] = await EvaluationModel.find({
+    $or: [
+      { frameworkVersion: { $not: { $gte: 2 } }, status: "ANALYZED" },
+      { frameworkVersion: { $gte: 2 }, evaluationStatus: { $in: ["MANAGER_REVIEW", "PROVISIONAL", "PENDING_DISPUTE"] } },
+    ],
+  })
     .select("storeId departmentId").limit(2000).lean();
   if (!pending.length) return { pending: 0, sent: 0 };
   const byStore = new Map<string, number>();

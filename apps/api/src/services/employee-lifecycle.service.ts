@@ -7,6 +7,7 @@ import { EmployeeLifecycleRequestModel as RequestModel } from "../models/Employe
 import { EmployeeModel } from "../models/Employee.js";
 import { UserModel } from "../models/User.js";
 import { ProjectModel } from "../models/Project.js";
+import { TaskInstanceModel } from "../models/TaskInstance.js";
 import { assertNoFuturePublishedSchedules } from "./scheduling.service.js";
 import { hashPassword } from "./auth.service.js";
 import { resolvePrincipal, securityVersion, securityVersionFilter } from "./principal.service.js";
@@ -116,6 +117,13 @@ export async function confirmLifecycle(actor: AuthenticatedUser, id: string, sto
   const confirmation = { storeId, managerUserId: actor.userId, managerEmployeeId: actor.employeeId, at: new Date().toISOString(), reason };
   return advance(row, actor.userId, { confirmations: [...row.confirmations, confirmation] }, reason, "STORE_MANAGER_CONFIRMED");
 }
+async function hasActiveWorkObligations(employeeId: string): Promise<boolean> {
+  const [hasProject, hasTask] = await Promise.all([
+    ProjectModel.exists({ status: { $ne: "COMPLETED" }, $or: [{ assigneeId: referenceMatch(employeeId) }, { assignmentRequests: { $elemMatch: { status: "HANDOVER_PENDING", replacementId: employeeId } } }] }),
+    TaskInstanceModel.exists({ status: { $nin: ["COMPLETED", "CANCELLED"] }, $or: [{ assigneeEmployeeId: employeeId }, { responsibilitySegments: { $elemMatch: { employeeId, status: "ACTIVE", to: null } } }] }),
+  ]);
+  return Boolean(hasProject || hasTask);
+}
 async function finish(row: any, options: OnboardingOptions) {
   const reviewer = await currentApproval(row), employee: any = await EmployeeModel.findById(row.employeeId).lean();
   if (!employee) throw new WorkflowError(409, "CANONICAL_EMPLOYEE_REQUIRED", "Hồ sơ không tồn tại.");
@@ -123,7 +131,7 @@ async function finish(row: any, options: OnboardingOptions) {
   if (!completed && !await currentTransferConfirmations(row)) throw new WorkflowError(409, "MANAGER_CONFIRMATION_REQUIRED", "Chưa đủ xác nhận nguồn/đích.");
   if (!completed && (String(employee.storeId) !== row.snapshot.storeId || employee.storeMappingRef !== row.snapshot.storeMappingRef || employee.status !== row.snapshot.status || (employee.profileRevision ?? null) !== row.snapshot.profileRevision)) throw new WorkflowError(409, "LIFECYCLE_SNAPSHOT_CONFLICT", "Hồ sơ đã thay đổi; không tự ghi đè mapping/trạng thái.");
   // Also catch old partial APPLYING rows that predate writer coordination.
-  if (!completed && row.kind !== "REACTIVATE" && await ProjectModel.exists({ status: { $ne: "COMPLETED" }, $or: [{ assigneeId: referenceMatch(String(row.employeeId)) }, { assignmentRequests: { $elemMatch: { status: "HANDOVER_PENDING", replacementId: String(row.employeeId) } } }] })) throw new WorkflowError(409, "LIFECYCLE_RECONCILIATION_REQUIRED", "Còn nghĩa vụ CRM trong trạng thái đang áp dụng; cần đối chiếu, không tự chuyển việc hoặc hoàn tác quyết định.");
+  if (!completed && row.kind !== "REACTIVATE" && await hasActiveWorkObligations(String(row.employeeId))) throw new WorkflowError(409, "LIFECYCLE_RECONCILIATION_REQUIRED", "Còn nghĩa vụ CRM trong trạng thái đang áp dụng; cần đối chiếu, không tự chuyển việc hoặc hoàn tác quyết định.");
   if (!completed) {
     if (row.kind !== "REACTIVATE") await assertNoFuturePublishedSchedules(String(row.employeeId));
     const fenced = await EmployeeModel.updateOne({ _id: row.employeeId, ...revisionFilter(row.snapshot), storeId: objectId(row.snapshot.storeId), status: row.snapshot.status,
@@ -202,7 +210,7 @@ async function resumeLifecycleOwned(actor: AuthenticatedUser, id: string, option
   if (!["APPROVED", "PENDING_CONFIRMATIONS", "PENDING_EFFECTIVE", "PENDING_HANDOVER", "PENDING_ACTIVATION"].includes(row.status)) throw new WorkflowError(409, "LIFECYCLE_STATE_CONFLICT", "Không có bước đã duyệt cần tiếp tục.");
   if (!await currentTransferConfirmations(row)) return row.status === "PENDING_CONFIRMATIONS" ? row : advance(row, actor.userId, { status: "PENDING_CONFIRMATIONS" }, "Chờ đủ quản lý nguồn và đích xác nhận", "WAITING_MANAGERS");
   if (new Date(row.effectiveAt).getTime() > Date.now()) return row.status === "PENDING_EFFECTIVE" ? row : advance(row, actor.userId, { status: "PENDING_EFFECTIVE" }, "Chờ đúng ngày hiệu lực; không áp dụng sớm", "WAITING_EFFECTIVE_DATE");
-  if (row.kind !== "REACTIVATE" && await ProjectModel.exists({ status: { $ne: "COMPLETED" }, $or: [{ assigneeId: referenceMatch(String(row.employeeId)) }, { assignmentRequests: { $elemMatch: { status: "HANDOVER_PENDING", replacementId: String(row.employeeId) } } }] })) return row.status === "PENDING_HANDOVER" ? row : advance(row, actor.userId, { status: "PENDING_HANDOVER" }, "Còn phân công CRM cần quản lý xử lý qua workflow hiện có; không tự chuyển trách nhiệm", "WAITING_CRM_HANDOVER");
+  if (row.kind !== "REACTIVATE" && await hasActiveWorkObligations(String(row.employeeId))) return row.status === "PENDING_HANDOVER" ? row : advance(row, actor.userId, { status: "PENDING_HANDOVER" }, "Còn phân công CRM cần quản lý xử lý qua workflow hiện có; không tự chuyển trách nhiệm", "WAITING_CRM_HANDOVER");
   if (row.kind === "REACTIVATE") {
     const employee: any = await EmployeeModel.findById(row.employeeId).select("phone").lean(), user: any = row.snapshot.userId ? await UserModel.findById(row.snapshot.userId).select("username status authorization email emailVerifiedAt").lean() : null;
     if (!user || user.status !== "disabled" || !AuthorizationStateSchema.safeParse(user.authorization).success || user.authorization?.profile === "system_admin") throw new WorkflowError(409, "SECURE_RECOVERY_REQUIRED", "Tái kích hoạt chưa có tài khoản nghiệp vụ/profile được xác minh phù hợp; không tự tạo, suy diễn profile hoặc mở account kỹ thuật.");
@@ -230,11 +238,16 @@ async function activateLifecycleOwned(token: string, password: string, options: 
   return finish(row, options);
 }
 function lifecycleScope(actor: AuthenticatedUser) {
-  const hrStores = [...new Set([...allowedStoreIds(actor, "employees.lifecycle_request"), ...allowedStoreIds(actor, "employees.lifecycle_review"), ...allowedStoreIds(actor, "employees.transfer")])];
+  const isHr = actor.authorization?.profile === "hr";
+  const hrStores = isHr
+    ? [...new Set([...allowedStoreIds(actor, "employees.lifecycle_request"), ...allowedStoreIds(actor, "employees.lifecycle_review"), ...allowedStoreIds(actor, "employees.transfer")])]
+    : allowedStoreIds(actor, "employees.lifecycle_review");
+  const proposerStores = [...new Set([...allowedStoreIds(actor, "employees.lifecycle_request"), ...allowedStoreIds(actor, "employees.transfer")])];
   const managerStores = allowedStoreIds(actor, "employees.transfer_confirm");
-  if (!hrStores.length && !managerStores.length) throw new WorkflowError(403, "RBAC_DENIED", "Chưa có capability xem workflow nhân sự.");
+  if (!hrStores.length && !proposerStores.length && !managerStores.length) throw new WorkflowError(403, "RBAC_DENIED", "Chưa có capability xem workflow nhân sự.");
   return { $or: [
-    { sourceStoreId: { $in: hrStores.map(objectId) }, $or: [{ targetStoreId: null }, { targetStoreId: { $in: hrStores.map(objectId) } }] },
+    ...(hrStores.length ? [{ sourceStoreId: { $in: hrStores.map(objectId) }, $or: [{ targetStoreId: null }, { targetStoreId: { $in: hrStores.map(objectId) } }] }] : []),
+    ...(proposerStores.length ? [{ requestedBy: objectId(actor.userId), sourceStoreId: { $in: proposerStores.map(objectId) }, $or: [{ targetStoreId: null }, { targetStoreId: { $in: proposerStores.map(objectId) } }] }] : []),
     ...managerStores.flatMap((id) => {
       const managed = actor.canonical?.managedByStore[id] ?? [];
       return managed.length ? [{ kind: "TRANSFER", sourceStoreId: objectId(id), employeeId: { $in: managed.map(objectId) } }, { kind: "TRANSFER", targetStoreId: objectId(id) }] : [];
