@@ -12,7 +12,7 @@ const questions = {
   fullName: 'Nhân viên mới tên đầy đủ là gì?',
   phone: 'Cho mình số điện thoại của nhân viên.',
   email: 'Nhân viên dùng email nào để nhận link kích hoạt?',
-  hiredAt: 'Nhân viên vào làm ngày nào? Bạn có thể gõ “hôm nay”, “ngày mai” hoặc một ngày cụ thể như 15/11/2026.',
+  hiredAt: 'Nhân viên vào làm ngày nào? Ví dụ 15/11/2026.',
   reason: 'Bạn cho mình lý do tiếp nhận nhân viên này nhé.',
 } satisfies Record<keyof Draft, string>;
 const nextStep: Record<keyof Draft, keyof Draft | 'confirm'> = { fullName: 'phone', phone: 'email', email: 'hiredAt', hiredAt: 'reason', reason: 'confirm' };
