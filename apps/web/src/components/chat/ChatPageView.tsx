@@ -8,6 +8,7 @@ import { useChatInbox } from './ChatInbox';
 import { useRevenueKpiChat } from './useRevenueKpiChat';
 import { useWorkAndPerformanceChat } from './useWorkAndPerformanceChat';
 import { useScheduleChat } from './useScheduleChat';
+import { useOperationsAndHrChat } from './useOperationsAndHrChat';
 import {
   WorkflowTracePanel,
   WORKFLOW_SUGGESTIONS,
@@ -252,6 +253,15 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
         ] : []),
     ...(user?.authorization?.capabilities?.some(cap => cap === 'schedules.read_self' || cap === 'schedules.read_store')
       ? [{ label: 'Bảng đăng ký ca tuần sau', prompt: 'Bảng đăng ký ca tuần sau' }] : []),
+    ...(user?.authorization?.capabilities?.includes('dashboard.read')
+      ? [{ label: 'Báo cáo bán hàng tháng này', prompt: 'Báo cáo bán hàng tháng này' }] : []),
+    ...(user?.authorization?.capabilities?.includes('stores.read')
+      ? [{ label: 'Danh sách chi nhánh', prompt: 'Danh sách chi nhánh cửa hàng' }] : []),
+    ...(user?.authorization?.capabilities?.some(cap => cap === 'employees.read_operational' || cap === 'employees.read_hr')
+      ? [{ label: 'Danh bạ nhân sự', prompt: 'Danh bạ nhân sự đang làm việc' }] : []),
+    { label: 'Hồ sơ của tôi', prompt: 'Xem hồ sơ của tôi' },
+    ...(user?.authorization?.capabilities?.some(cap => cap === 'delegations.request' || cap === 'delegations.review')
+      ? [{ label: 'Ủy quyền nghiệp vụ', prompt: 'Danh sách ủy quyền nghiệp vụ' }] : []),
   ];
   const [messages, setMessages] = useState<Message[]>([]);
   const [inlineMessages, setInlineMessages] = useState<InlineMessage[]>([]);
@@ -266,8 +276,13 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     onOpenKpiAction: target => setKpiAction(target),
   });
   const schedule = useScheduleChat({ grants: user?.authorization?.capabilities ?? [], onChanged: onNotificationsChanged });
-  const inlineBusy = inbox.busy || revenue.busy || workPerf.busy || schedule.busy;
-  const lastFlow = useRef<'inbox' | 'revenue' | 'workPerf' | 'schedule'>();
+  const opsHr = useOperationsAndHrChat({
+    userId: user?.id,
+    authorization: user?.authorization,
+    onChanged: onNotificationsChanged,
+  });
+  const inlineBusy = inbox.busy || revenue.busy || workPerf.busy || schedule.busy || opsHr.busy;
+  const lastFlow = useRef<'inbox' | 'revenue' | 'workPerf' | 'schedule' | 'opsHr'>();
   const displayMessages = interleaveMessages(messages, inlineMessages);
   const lastMessageId = messages[messages.length - 1]?.id;
   const [isTyping, setIsTyping] = useState(false);
@@ -358,6 +373,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     revenue.reset();
     workPerf.reset();
     schedule.reset();
+    opsHr.reset();
     lastFlow.current = undefined;
     setInlineMessages([]);
     setActiveStreamingTrace(null);
@@ -420,6 +436,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     revenue.reset();
     workPerf.reset();
     schedule.reset();
+    opsHr.reset();
     lastFlow.current = undefined;
     setInlineMessages([]);
     cancelPending();
@@ -480,6 +497,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
       revenue.reset();
       workPerf.reset();
       schedule.reset();
+      opsHr.reset();
       lastFlow.current = 'inbox';
       inbox.openDetail(onboardingNotification.id, appendInline(lastMessageId));
     }
@@ -538,9 +556,11 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     const flow = lastFlow.current === 'inbox' && inbox.send(text, append) ? 'inbox'
       : lastFlow.current === 'workPerf' && workPerf.send(text, append, true) ? 'workPerf'
       : lastFlow.current === 'schedule' && schedule.send(text, append, true) ? 'schedule'
+      : lastFlow.current === 'opsHr' && opsHr.send(text, append, true) ? 'opsHr'
       : revenue.send(text, append, lastFlow.current === 'revenue') ? 'revenue'
       : lastFlow.current !== 'workPerf' && workPerf.send(text, append, false) ? 'workPerf'
       : schedule.send(text, append, false) ? 'schedule'
+      : opsHr.send(text, append, false) ? 'opsHr'
       : lastFlow.current !== 'inbox' && inbox.send(text, append) ? 'inbox' : undefined;
     if (flow) {
       lastFlow.current = flow;

@@ -92,6 +92,27 @@ export const WORKFLOW_SUGGESTIONS: WorkflowPromptSuggestion[] = [
     prompt: 'Thông báo nào cần xử lý?',
     flowSummary: 'Auth Fence → Inbox Router → Query notifications & onboarding_requests → Hash-chain Audit Check → Render',
   },
+  {
+    category: 'Báo cáo Bán hàng POS',
+    badgeColor: '#eab308',
+    label: 'Báo cáo bán hàng tháng này',
+    prompt: 'Báo cáo bán hàng tháng này',
+    flowSummary: 'Auth Fence → Sales Report Router → GET /api/dashboard/sales (store_revenues · orders) → Aggregate Net/Channel → Render',
+  },
+  {
+    category: 'Chi nhánh & Nhân sự',
+    badgeColor: '#0ea5e9',
+    label: 'Danh sách chi nhánh cửa hàng',
+    prompt: 'Danh sách chi nhánh cửa hàng',
+    flowSummary: 'Auth Fence → Store & HR Directory Router → GET /api/stores & /api/employees → Scope Fence Check → Render',
+  },
+  {
+    category: 'Ủy quyền Nghiệp vụ (SHA-256)',
+    badgeColor: '#a855f7',
+    label: 'Danh sách ủy quyền nghiệp vụ',
+    prompt: 'Danh sách ủy quyền nghiệp vụ',
+    flowSummary: 'Auth Fence → Delegation Router → GET /api/delegations → Verify VALID_LOCAL_CHAIN Hash-Chain → Render',
+  },
 ];
 
 export function computeDeterministicHex(input: string): string {
@@ -189,6 +210,94 @@ export function detectWorkflowProfile(prompt: string): DetectedFlowConfig {
       step4Description: isWrite
         ? 'Xác nhận thay đổi trạng thái phiếu KPI (OPEN → PROVISIONAL → RECONSIDERATION → APPEAL → FINAL) và lưu vết kiểm toán bất biến.'
         : 'Hiển thị bảng điểm chi tiết từng thành phần, trạng thái khóa sổ và các hành động được phép thực hiện ngay trong khung chat.',
+    };
+  }
+
+  if (/báo cáo bán hàng|doanh số bán hàng|đơn hàng pos|doanh thu pos|shopeefood|grabfood|aov/.test(lower)) {
+    return {
+      flowCode: 'POS_SALES_REPORT_PIPELINE',
+      flowName: 'Luồng Phân tích Báo cáo Bán hàng POS Đa kênh (Omnichannel Sales)',
+      flowBadge: 'POS_SALES',
+      intentName: 'SALES_REPORT_INTENT',
+      routerModule: 'useOperationsAndHrChat.ts → dashboard.ts',
+      toolName: 'fetchSalesDashboard(from, to, storeId, channel)',
+      endpointName: 'GET /api/dashboard/sales',
+      collectionName: 'orders · store_revenues · stores',
+      step2Description:
+        'Nhận diện truy vấn báo cáo bán hàng POS, bóc tách khoảng thời gian (hôm nay/tuần này/tháng MM/YYYY), chi nhánh và kênh bán (Tại cửa hàng / App / ShopeeFood).',
+      step3Description:
+        'Truy vấn dữ liệu đơn hàng POS và doanh thu thuần theo phạm vi cửa hàng được cấp quyền (dashboard.read), tổng hợp tỷ trọng kênh bán, phương thức thanh toán và AOV.',
+      step4Description:
+        'Kết xuất bảng tổng hợp Doanh thu thuần, Tổng đơn hoàn tất/hủy, Giá trị đơn TB (AOV), cơ cấu kênh bán và danh sách đơn hàng gần nhất.',
+    };
+  }
+
+  if (/danh sách cửa hàng|danh sách chi nhánh|danh mục cửa hàng|chi tiết cửa hàng|lịch sử bổ nhiệm sm/.test(lower)) {
+    return {
+      flowCode: 'STORE_DIRECTORY_PIPELINE',
+      flowName: 'Luồng Tra cứu Danh mục Chi nhánh & Lịch sử Phân công Cửa hàng trưởng (SM)',
+      flowBadge: 'STORE_OPS',
+      intentName: 'STORE_DIRECTORY_INTENT',
+      routerModule: 'useOperationsAndHrChat.ts → stores.ts',
+      toolName: 'fetchStores / fetchStoreRevenue / fetchStoreSmAppointments',
+      endpointName: 'GET /api/stores · GET /api/stores/:id/sm-appointments',
+      collectionName: 'stores · store_revenues · management_relations',
+      step2Description:
+        'Nhận diện yêu cầu tra cứu danh mục chi nhánh hoặc chi tiết vận hành cửa hàng, lọc theo quận/huyện hoặc mã cửa hàng.',
+      step3Description:
+        'Truy vấn danh sách 37 cửa hàng GUTA, doanh thu tích lũy 30 ngày và lịch sử bổ nhiệm Cửa hàng trưởng (SM Appointment History).',
+      step4Description:
+        'Hiển thị danh mục cửa hàng kèm doanh thu, số đơn hàng, Cửa hàng trưởng đương nhiệm và gợi ý tra cứu chuyên sâu.',
+    };
+  }
+
+  if (/ủy quyền|uy quyen|delegation/.test(lower)) {
+    const isWrite = /tạo ủy quyền|lập ủy quyền|duyệt ủy quyền|từ chối ủy quyền|thu hồi ủy quyền/.test(lower);
+    return {
+      flowCode: isWrite ? 'DELEGATION_MUTATION_PIPELINE' : 'DELEGATION_AUDIT_PIPELINE',
+      flowName: isWrite
+        ? 'Luồng Khởi tạo, Phê duyệt & Thu hồi Ủy quyền Nghiệp vụ (Hash-Chain)'
+        : 'Luồng Tra cứu & Kiểm chứng Chuỗi băm Ủy quyền Nghiệp vụ (SHA-256)',
+      flowBadge: 'DELEGATION_CHAIN',
+      intentName: isWrite ? 'DELEGATION_ACTION_INTENT' : 'DELEGATION_QUERY_INTENT',
+      routerModule: 'useOperationsAndHrChat.ts → delegations.ts',
+      toolName: isWrite ? 'createDelegation / reviewDelegation / revokeDelegation' : 'listDelegations / detailDelegation',
+      endpointName: isWrite ? 'POST /api/delegations/:id/(review|revoke)' : 'GET /api/delegations/:id',
+      collectionName: 'delegations · management_relations · users',
+      step2Description: isWrite
+        ? 'Phân tích lệnh tạo mới, phê duyệt hoặc thu hồi ủy quyền nghiệp vụ tạm thời, kiểm tra phạm vi quyền hạn (delegatedCapabilities & storeIds).'
+        : 'Nhận diện truy vấn danh sách hoặc chi tiết phiếu ủy quyền nghiệp vụ và trạng thái hiệu lực.',
+      step3Description: isWrite
+        ? 'Cập nhật trạng thái phiếu ủy quyền (PENDING_APPROVAL → ACTIVE / REJECTED / REVOKED), tính toán prevHash → hash SHA-256 nối tiếp vào sổ cái nội bộ.'
+        : 'Truy vấn bảng delegations và kiểm chứng toàn vẹn chuỗi băm lịch sử (VALID_LOCAL_CHAIN) trên từng bước chuyển trạng thái.',
+      step4Description: isWrite
+        ? 'Cấp phát hoặc thu hồi tức thì quyền hạn tạm thời của người nhận ủy quyền và trả về mã băm kiểm toán SHA-256.'
+        : 'Hiển thị thông tin người ủy quyền, người nhận, các quyền được ủy quyền, phạm vi cửa hàng và sổ cái hash-chain chi tiết.',
+    };
+  }
+
+  if (/danh bạ nhân sự|danh sách nhân viên|tra cứu nhân viên|hồ sơ của tôi|thông tin cá nhân|đổi số điện thoại|duyệt hồ sơ cá nhân|duyệt thay đổi thông tin/.test(lower)) {
+    const isWrite = /đổi số điện thoại|cập nhật số điện thoại|duyệt thay đổi|từ chối thay đổi/.test(lower);
+    return {
+      flowCode: isWrite ? 'PROFILE_CHANGE_PIPELINE' : 'EMPLOYEE_DIRECTORY_PIPELINE',
+      flowName: isWrite
+        ? 'Luồng Cập nhật & Phê duyệt Thay đổi Thông tin Hồ sơ Nhân sự'
+        : 'Luồng Tra cứu Danh bạ Nhân sự & Hồ sơ Cá nhân (HR Directory)',
+      flowBadge: 'HR_DIRECTORY',
+      intentName: isWrite ? 'PROFILE_UPDATE_INTENT' : 'HR_DIRECTORY_INTENT',
+      routerModule: 'useOperationsAndHrChat.ts → employees.ts / profileChangeRequests.ts',
+      toolName: isWrite ? 'createProfileChangeRequest / reviewProfileChangeRequest' : 'fetchEmployees / fetchMyProfile',
+      endpointName: isWrite ? 'POST /api/profile-change-requests' : 'GET /api/employees · GET /api/profile/me',
+      collectionName: 'employees · profile_change_requests · users',
+      step2Description: isWrite
+        ? 'Nhận diện yêu cầu cập nhật thông tin liên hệ cá nhân hoặc phê duyệt yêu cầu sửa hồ sơ từ nhân viên.'
+        : 'Nhận diện truy vấn tra cứu danh bạ nhân sự (theo tên, chức danh, cửa hàng) hoặc xem hồ sơ cá nhân đang đăng nhập.',
+      step3Description: isWrite
+        ? 'Ghi nhận yêu cầu thay đổi thông tin hoặc áp dụng phê duyệt trực tiếp vào hồ sơ nhân sự (employees) kèm lưu vết kiểm toán.'
+        : 'Truy vấn hồ sơ nhân viên trong phạm vi phân quyền (employees.read), kết xuất mã NV, chức danh, cửa hàng chính và trạng thái làm việc.',
+      step4Description: isWrite
+        ? 'Xác nhận kết quả cập nhật hồ sơ và đồng bộ thông báo tới bộ phận Nhân sự (HR).'
+        : 'Hiển thị thẻ hồ sơ nhân sự chi tiết và các câu lệnh tra cứu/cập nhật tiếp theo.',
     };
   }
 
