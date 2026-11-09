@@ -173,9 +173,20 @@ try {
     if (request.method() === 'POST' && /\/api\/chat(?:\/stream)?$/.test(request.url())) hrChatRequests.push(request.url());
   });
   await hr.page.getByRole('link', { name: 'Chat', exact: true }).click();
-  await hr.page.getByLabel('Tin nhắn cho Guta AI').fill('tôi có thông báo gì cần xử lí k');
-  await hr.page.getByRole('button', { name: 'Gửi', exact: true }).click();
+  async function askHrChat(text) {
+    await hr.page.getByLabel('Tin nhắn cho Guta AI').fill(text);
+    await hr.page.getByRole('button', { name: 'Gửi', exact: true }).click();
+  }
   const chatNotices = hr.page.getByRole('region', { name: 'Danh sách thông báo của bạn' });
+  await askHrChat('tôi có thông báo gì k');
+  await chatNotices.getByText('Thông báo tham khảo', { exact: true }).first().waitFor();
+  assert.equal(await chatNotices.getByLabel('Chỉ hiện thông báo cần xử lý').isChecked(), false);
+  await hr.page.getByRole('button', { name: 'Quay lại hội thoại', exact: true }).click();
+  await askHrChat('hồ sơ tiếp nhận cần duyệt');
+  await hr.page.getByRole('heading', { name: 'Hồ sơ chờ HR duyệt', exact: true }).waitFor();
+  await hr.page.getByRole('heading', { name: /Synthetic browser new hire/ }).waitFor();
+  await hr.page.getByRole('button', { name: 'Quay lại hội thoại', exact: true }).click();
+  await askHrChat('tôi có thông báo gì cần xử lí k');
   await chatNotices.getByText('Hồ sơ tiếp nhận chờ duyệt', { exact: true }).waitFor();
   await chatNotices.getByText('Nhiệm vụ bị từ chối', { exact: true }).waitFor();
   assert.equal(await chatNotices.getByText(/Thông báo tham khảo|Đã công bố kết quả KPI|Thông báo riêng của HR khác/).count(), 0);
