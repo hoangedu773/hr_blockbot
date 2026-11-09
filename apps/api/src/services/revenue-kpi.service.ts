@@ -111,7 +111,12 @@ async function appendResult(a: C.RevenueKpiAssignment, prev: C.RevenueKpiResult 
 async function write<T>(user: AuthenticatedUser, action: (u: AuthenticatedUser) => Promise<T>) {
   const result = await withCrmWriter(async () => action(await fresh(user)));
   // Delivery failure does not roll back a persisted decision; history retries it.
-  try { const r: any = result; await flushRevenueKpiNotices(r?.assignmentId ?? (r?.unitType ? r.id : undefined)); } catch { console.error('[RevenueKpi] notice delivery deferred'); }
+  try {
+    const r: any = result;
+    const aid = r?.assignmentId ?? (r?.unitType ? r.id : undefined);
+    const period = !aid && typeof r?.period === 'string' ? r.period : undefined;
+    await flushRevenueKpiNotices(aid, period);
+  } catch { console.error('[RevenueKpi] notice delivery deferred'); }
   return result;
 }
 
@@ -1216,8 +1221,9 @@ export async function previewRevenueKpiResultAction(user: AuthenticatedUser, kin
     if (actionKind === 'close' && new Date() < periodRangeVN(p.period).end)
       requirements.push({ met: false, label: 'Kỳ đã hết tháng', detail: 'Chưa hết tháng; không thể chốt kỳ.' });
     const rows = (await Assignment.find({ period: p.period, status: actionKind === 'compute' ? 'ACTIVE' : { $ne: 'CANCELLED' } }).lean()).map(aDto);
+    const latestMap = await latestResultByAssignment(rows.map(a => a.id));
     for (const a of rows) {
-      const prev = await latest(a.id);
+      const prev = latestMap.get(a.id) ?? null;
       if (actionKind === 'close') {
         const ok = ['ACTIVE', 'CLOSED'].includes(a.status) && !!prev && prev.status === 'CONFIRMED';
         requirements.push({ met: ok, label: `KPI ${unitLabel(a)} đã xác nhận`, detail: ok ? null
@@ -1453,8 +1459,9 @@ export async function computeRevenueKpiPeriod(user: AuthenticatedUser, period: s
   const p = await periodGet(period); requirePeriodAuthority(u, 'revenue_kpi.close'); if (replay(p, u, 'COMPUTE_PERIOD', input)) return p; unlocked(p); version(p, input);
   const assignments = (await Assignment.find({ period, status: 'ACTIVE' }).lean()).map(aDto);
   for (const a of assignments) { forStores(u, 'revenue_kpi.close', a.stores, true); independent(u, a); }
+  const latestMap = await latestResultByAssignment(assignments.map(a => a.id));
   for (const a of assignments) {
-    const prev = await latest(a.id); if (prev && (replay(prev, u, 'COMPUTE_RESULT', { ...input, expectedVersion: prev.version - 1 }) || prev.status === 'CONFIRMED')) continue;
+    const prev = latestMap.get(a.id) ?? null; if (prev && (replay(prev, u, 'COMPUTE_RESULT', { ...input, expectedVersion: prev.version - 1 }) || prev.status === 'CONFIRMED')) continue;
     const calc = await calculateRevenueKpi(a, p.policy);
     const keepReason = prev && prev.actualRevenueVnd === calc.actualRevenueVnd && prev.targetVnd === a.targetVnd ? prev.missReason : null;
     await appendResult(a, prev, { ...calc, status: calc.pendingReasons.length ? 'PENDING_DATA' : calc.achieved === false && !keepReason ? 'AWAITING_REASON' : 'COMPUTED', missReason: keepReason }, u, 'COMPUTE_RESULT', { ...input, expectedVersion: prev?.version ?? 0 });
@@ -1492,17 +1499,22 @@ export async function closeRevenueKpiPeriod(user: AuthenticatedUser, period: str
   const p = await periodGet(period); requirePeriodAuthority(u, 'revenue_kpi.close'); if (replay(p, u, 'CLOSE_PERIOD', input)) return p; unlocked(p); version(p, input);
   if (new Date() < periodRangeVN(period).end) fail('REVENUE_KPI_PERIOD_NOT_READY', 'Chưa hết tháng để chốt kỳ.');
   const rows = (await Assignment.find({ period, status: { $ne: 'CANCELLED' } }).lean()).map(aDto); if (!rows.length) fail('REVENUE_KPI_PERIOD_NOT_READY', 'Kỳ chưa có KPI để chốt.');
-  for (const a of rows) { forStores(u, 'revenue_kpi.close', a.stores, true); independent(u, a); const r = await latest(a.id);
+  const latestMap = await latestResultByAssignment(rows.map(a => a.id));
+  for (const a of rows) { forStores(u, 'revenue_kpi.close', a.stores, true); independent(u, a); const r = latestMap.get(a.id) ?? null;
     if (!['ACTIVE', 'CLOSED'].includes(a.status) || !r || r.status !== 'CONFIRMED' || a.status !== 'CLOSED' && r.assignmentVersion !== a.version) fail('REVENUE_KPI_PERIOD_NOT_READY', 'Còn KPI chưa xác nhận hoặc thiếu dữ liệu.'); }
-  for (const a of rows.filter(a => a.status !== 'CLOSED')) await update(Assignment, C.RevenueKpiAssignmentSchema, a, { status: 'CLOSED' }, u, 'CLOSE_ASSIGNMENT', { ...input, expectedVersion: a.version });
+  const toClose = rows.filter(a => a.status !== 'CLOSED');
+  for (let i = 0; i < toClose.length; i += 10) {
+    await Promise.all(toClose.slice(i, i + 10).map(a => update(Assignment, C.RevenueKpiAssignmentSchema, a, { status: 'CLOSED' }, u, 'CLOSE_ASSIGNMENT', { ...input, expectedVersion: a.version })));
+  }
   return update(Period, C.RevenueKpiPeriodSchema, p, { status: 'CLOSED', closedBy: u.userId, closedAt: new Date().toISOString() }, u, 'CLOSE_PERIOD', input);
 }); }
 export async function revenueKpiDashboard(user: AuthenticatedUser, period: string) {
   const u = await fresh(user), p = await periodGet(period);
   if (!hasCapability(u, 'revenue_kpi.read_scope')) requireCapability(u, 'revenue_kpi.read_self', { userId: u.userId, employeeId: u.employeeId });
   const all = (await Assignment.find({ period }).limit(1001).lean()).map(aDto); if (all.length > 1000) fail('REVENUE_KPI_DATA_PENDING', 'Quá nhiều KPI để tổng hợp.');
-  const assignments = all.filter(a => canRead(u, a)), results = [];
-  for (const a of assignments) { const r = await latest(a.id); if (r) results.push(r); }
+  const assignments = all.filter(a => canRead(u, a));
+  const latestMap = await latestResultByAssignment(assignments.map(a => a.id));
+  const results = assignments.map(a => latestMap.get(a.id)).filter((r): r is C.RevenueKpiResult => !!r);
   const cat = hasCapability(u, 'revenue_kpi.assign') ? await catalog(u, period) : { stores: [], candidates: [] };
   const storesWithKpi = new Set(assignments.filter(a => a.unitType === 'STORE').map(a => a.storeId));
   const flags = p.status === 'CLOSED' ? [] : cat.stores

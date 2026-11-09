@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { randomUUID } from 'node:crypto';
 import { UserModel } from '../models/User.js';
+import { NotificationModel } from '../models/Notification.js';
 import { RevenueKpiAssignmentModel as Assignment } from '../models/RevenueKpiAssignment.js';
 import { RevenueKpiResultModel as Result } from '../models/RevenueKpiResult.js';
 import { RevenueKpiPeriodModel as Period } from '../models/RevenueKpiPeriod.js';
@@ -12,9 +13,15 @@ import type { NotificationType } from '@hr-blockbot/contracts';
 import { digest } from './project-audit.service.js';
 import { ensureRevenueKpiStorage } from './revenue-kpi-storage.service.js';
 import { periodRangeVN } from './revenue-kpi-calc.service.js';
-async function eligible(user: any, assignment: any, own: boolean) {
+async function eligible(user: any, assignment: any, own: boolean, principalCache?: Map<string, Promise<any>>) {
   try {
-    const u = await resolvePrincipal({ sub: String(user._id), role: user.role, securityVersion: user.securityVersion ?? 0 });
+    const cacheKey = `${String(user._id)}:${user.role}:${user.securityVersion ?? 0}`;
+    let principalPromise = principalCache?.get(cacheKey);
+    if (!principalPromise) {
+      principalPromise = resolvePrincipal({ sub: String(user._id), role: user.role, securityVersion: user.securityVersion ?? 0 });
+      principalCache?.set(cacheKey, principalPromise);
+    }
+    const u = await principalPromise;
     if (own) return u.employeeId === assignment.assigneeEmployeeId && hasCapability(u, 'revenue_kpi.read_self');
     const profile = u.authorization?.profile;
     if (profile !== 'hr' && profile !== 'am') return false;
@@ -39,18 +46,48 @@ async function eligible(user: any, assignment: any, own: boolean) {
 }
 /** History is the durable event source: replay retries delivery after failures.
  * Messages contain no target, revenue, reason or employee name after revocation. */
-export async function flushRevenueKpiNotices(assignmentId?: string) {
+export async function flushRevenueKpiNotices(assignmentId?: string, period?: string) {
   if (process.env.REVENUE_KPI_ENABLED !== 'true') return;
   await ensureRevenueKpiStorage();
-  const rows: any[] = await Assignment.find(assignmentId ? { _id: assignmentId } : {}).limit(1000).lean();
-  const hr: any[] = await UserModel.find({ status: 'active', 'authorization.profile': 'hr' }).select('_id role securityVersion').limit(1000).lean();
-  const amList: any[] = await UserModel.find({ status: 'active', 'authorization.profile': 'am' }).select('_id role securityVersion').limit(1000).lean();
+  const filter = assignmentId ? { _id: assignmentId } : period ? { period } : {};
+  const rows: any[] = await Assignment.find(filter).limit(1000).lean();
+  if (!rows.length) return;
+  const assignmentIds = rows.map(r => String(r._id));
+  const empIdValues: any[] = [];
   for (const a of rows) {
-    const empIdFilter = mongoose.Types.ObjectId.isValid(a.assigneeEmployeeId)
-      ? { $in: [a.assigneeEmployeeId, new mongoose.Types.ObjectId(a.assigneeEmployeeId)] }
-      : a.assigneeEmployeeId;
-    const owner: any = await UserModel.findOne({ employeeId: empIdFilter, status: 'active' }).select('_id role securityVersion').lean();
-    const results: any[] = await Result.find({ assignmentId: a._id }).sort({ version: -1 }).limit(1).lean();
+    if (!a.assigneeEmployeeId) continue;
+    empIdValues.push(a.assigneeEmployeeId);
+    if (mongoose.Types.ObjectId.isValid(a.assigneeEmployeeId)) {
+      empIdValues.push(new mongoose.Types.ObjectId(a.assigneeEmployeeId));
+    }
+  }
+  const [hr, amList, ownerRows, allResults, existingNotices] = await Promise.all([
+    UserModel.find({ status: 'active', 'authorization.profile': 'hr' }).select('_id role securityVersion').limit(1000).lean(),
+    UserModel.find({ status: 'active', 'authorization.profile': 'am' }).select('_id role securityVersion').limit(1000).lean(),
+    empIdValues.length
+      ? UserModel.find({ employeeId: { $in: empIdValues }, status: 'active' }).select('_id employeeId role securityVersion').lean()
+      : Promise.resolve([]),
+    Result.find({ assignmentId: { $in: assignmentIds } }).sort({ version: -1 }).lean(),
+    NotificationModel.find({ entityKind: 'revenue_kpi', entityId: { $in: assignmentIds } }).select('userId dedupeKey').lean(),
+  ]);
+  const ownerByEmpId = new Map<string, any>();
+  for (const u of ownerRows as any[]) {
+    if (u.employeeId) ownerByEmpId.set(String(u.employeeId), u);
+  }
+  const latestResultByAssign = new Map<string, any>();
+  for (const r of allResults as any[]) {
+    const aid = String(r.assignmentId);
+    if (!latestResultByAssign.has(aid)) latestResultByAssign.set(aid, r);
+  }
+  const deliveredKeys = new Set<string>();
+  for (const n of existingNotices as any[]) {
+    if (n.userId && n.dedupeKey) deliveredKeys.add(`${String(n.userId)}:${String(n.dedupeKey)}`);
+  }
+  const principalCache = new Map<string, Promise<any>>();
+  for (const a of rows) {
+    const owner: any = ownerByEmpId.get(String(a.assigneeEmployeeId)) ?? null;
+    const latestRes = latestResultByAssign.get(String(a._id));
+    const results: any[] = latestRes ? [latestRes] : [];
     const events = [...a.history.map((e: any) => ({ ...e, entity: a._id })), ...results.flatMap(r => r.history.map((e: any) => ({ ...e, entity: a._id })))];
     for (const e of events) {
       let type: NotificationType;
@@ -139,21 +176,26 @@ export async function flushRevenueKpiNotices(assignmentId?: string) {
         continue;
       }
 
+      const dedupeKey = `${type}:${a._id}:${e.requestId}`;
       for (const { user: recipient, isOwner } of targets) {
-        if (!await eligible(recipient, a, isOwner)) continue;
+        const recipientId = String(recipient._id);
+        const deliveryKey = `${recipientId}:${dedupeKey}`;
+        if (deliveredKeys.has(deliveryKey)) continue;
+        if (!await eligible(recipient, a, isOwner, principalCache)) continue;
         // An old participant's request must not be disclosed to a new participant.
         if (isOwner && a.responsibility?.length && !a.responsibility.some((r: any) => r.employeeId === a.assigneeEmployeeId && r.from <= e.at && (!r.to || e.at < r.to))) continue;
         await notifyUser({
-          userId: String(recipient._id),
+          userId: recipientId,
           type,
           title,
           body: `Kỳ ${a.period}: mở KPI doanh thu để xem trạng thái trong phạm vi được cấp.`,
-          dedupeKey: `${type}:${a._id}:${e.requestId}`,
+          dedupeKey,
           entityKind: 'revenue_kpi',
           entityId: String(a._id),
           severity,
           actionRef,
         });
+        deliveredKeys.add(deliveryKey);
       }
     }
   }
