@@ -199,7 +199,7 @@ export function useChatInbox({ userId, canReview, stores, onChanged }: {
     const command = normalize(text);
     const cancel = /^(?:huy|dung lai|thoi)$/.test(command);
     const list = !/\b(?:nay|do)\b/.test(command) && inboxIntent(text);
-    const decision = /^(?:(?:toi|minh) (?:muon |se )?)?(duyet|phe duyet|tu choi)(?: (?:ho so|de nghi)(?: tiep nhan)?(?: (?:nay|do))?| (?:muc|cai) (?:nay|do))?$/.exec(command);
+    const decision = /^(?:(?:toi|minh) (?:muon |se )?)?(duyet|phe duyet|tu choi)(?: (?:ho so|de nghi)(?: tiep nhan)?(?: (?:nay|do|(\d+)))?| (?:muc|cai|so) (?:nay|do|(\d+)))?$/.exec(command);
     const read = /^(?:danh dau |chuyen sang )?da doc(?: (?:thong bao|muc)(?: nay| do)?)?$/.test(command);
     const number = itemNumber(command);
     const hasContext = items.current.length > 0 || selected.current;
@@ -248,7 +248,10 @@ export function useChatInbox({ userId, canReview, stores, onChanged }: {
       if (list) { await showList(list, signal); return; }
       const current = selected.current;
       if (decision) {
-        const row = current?.onboarding;
+        const idxStr = decision[2] ?? decision[3];
+        const pickedItem = idxStr ? items.current[Number(idxStr) - 1] : undefined;
+        const pickedRow = pickedItem && 'onboarding' in pickedItem ? pickedItem.onboarding : undefined;
+        const row = pickedRow ?? current?.onboarding;
         if (!row || !canDecide(row)) { say('Hãy đọc một hồ sơ đang chờ bạn duyệt trước. Ví dụ, nhắn “hồ sơ tiếp nhận cần duyệt”, rồi chọn số hồ sơ.'); return; }
         review.current = { row, decision: decision[1] === 'tu choi' ? 'REJECT' : 'APPROVE' };
         say(review.current.decision === 'REJECT'

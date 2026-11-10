@@ -48,7 +48,7 @@ const rules: [RevenueIntent, RegExp][] = [
   ['accept', /(?:chap nhan|dong y|xac nhan nhan|tiep nhan|nhan).*(?:kpi|chi tieu|muc tieu|muc \d)|^(?:chap nhan|dong y|nhan)$/],
   ['publish', /(?:phat hanh|cong bo|gui giao).*(?:kpi|chi tieu|muc tieu|ban nhap|muc \d)|^phat hanh$/],
   ['draft', /(?:tao|them|giao|lap|gan).*(?:ban nhap|chi tieu|muc tieu|kpi)/],
-  ['edit', /(?:sua|doi|cap nhat).*(?:ban nhap|chi tieu|muc tieu)/],
+  ['edit', /(?:sua|doi|cap nhat|dat).*(?:ban nhap|chi tieu|muc tieu)/],
   ['pending', /can xu l[yi]|dang cho|cho toi xu l[yi]|con thieu|can lam gi|chua co sm|kiem tra nguoi phu trach/],
   ['detail', /chi tiet|^(?:doc|mo|xem|chon) (?:muc|so|cai|ho so|\d)|^(?:muc|so) \d|^\d+[.!?]*$/],
   ['help', /lam duoc gi|huong dan|tro giup|cach dung/],
@@ -58,7 +58,7 @@ export function detectRevenueIntent(text: string, inContext: boolean): RevenueIn
   const command = revenueText(revenueParts(text).instruction);
   const scoped = /\b(?:kpi doanh thu|chi tieu doanh thu|muc tieu doanh thu|ky doanh thu|muc tieu co so|thieu doanh thu thang goc)\b/.test(command);
   const periodCommand = /\b(?:tao|lap|mo|chot|dong|khoa) ky\b/.test(command) && /\b(?:thang|20\d{2}-|\d{1,2}\/20\d{2})/.test(command);
-  if (/\b(?:hieu suat|tiep nhan nhan vien|ho so tiep nhan|ho so cua toi|lich lam|thong bao|nghiem thu cong viec|thong tin nhan su)\b/.test(command) && !scoped) return null;
+  if (/\b(?:hieu suat|tiep nhan nhan vien|ho so tiep nhan|ho so cua toi|lich lam|phan ca|dang ky ca|doi ca|thong bao|nghiem thu cong viec|cong viec co thang diem|viec co thang diem|nhiem vu|thong tin nhan su|danh ba nhan su|danh sach nhan su|danh sach nhan vien|danh sach chi nhanh|danh sach cua hang|bao cao ban hang|doanh thu ban hang|doanh thu pos|uy quyen|so dien thoai|yeu cau sua ho so|yeu cau cap nhat ho so|xin bo sung nhan su|dieu chuyen|quy dinh|quy che|bieu mau|di tre|tien ket)\b/.test(command) && !scoped) return null;
   if (!scoped && !inContext && !periodCommand) return null;
   const match = rules.find(([, rule]) => rule.test(command));
   const readQuestion = /^(?:(?:toi muon|hay|cho (?:toi|minh)) )?(?:xem(?! (?:truoc|xet))|liet ke)\b/.test(command);

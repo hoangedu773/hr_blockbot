@@ -86,8 +86,8 @@ export function detectWorkPerfIntent(text: string, session?: Session): WorkPerfI
   const { instruction } = splitReason(text);
   const q = normalizeText(instruction);
 
-  // Never intercept policy/regulation questions, schedule, onboarding, or revenue KPI
-  if (/\b(?:quy dinh|quy che|huong dan|cach tinh|cong thuc|di tre|nghi le|cham cong|lich lam|ca truc|doi ca|tiep nhan nhan vien|ho so tiep nhan|kpi doanh thu|chi tieu doanh thu|doanh thu|tien ket)\b/.test(q)) {
+  // Never intercept policy/regulation questions, schedule, onboarding, revenue KPI, or ops/HR modules
+  if (/\b(?:quy dinh|quy che|bieu mau|huong dan|cach tinh|cong thuc|di tre|nghi le|cham cong|lich lam|phan ca|bang dang ky ca|dang ky ca|ca truc|doi ca|tiep nhan nhan vien|ho so tiep nhan|kpi doanh thu|chi tieu doanh thu|doanh thu|tien ket|bao cao ban hang|uy quyen|danh sach chi nhanh|danh sach cua hang|danh ba nhan su|danh sach nhan su|danh sach nhan vien|ho so cua toi|so dien thoai|yeu cau sua ho so|yeu cau cap nhat ho so|thong bao|xin bo sung nhan su|dieu chuyen)\b/.test(q)) {
     return null;
   }
 
@@ -98,8 +98,8 @@ export function detectWorkPerfIntent(text: string, session?: Session): WorkPerfI
   // unless the user asks for an action (tự nhận xét, kiến nghị, khiếu nại, phản hồi) or list/store/team view.
   const isSimpleOwnEvalRead = hasEvalScope
     && /\b(?:cua toi|cua minh|cua em|ca nhan)\b/.test(q)
-    && !/\b(?:tu nhan xet|kien nghi|khieu nai|phan hoi|cham diem|cong bo|chot|danh sach|cua hang|doi ngu|can xu ly|cho chấm)\b/.test(q);
-  if (isSimpleOwnEvalRead && !session) return null;
+    && !/\b(?:tu nhan xet|tu danh gia|kien nghi|khieu nai|phan hoi|cham diem|cong bo|chot|danh sach|cua hang|doi ngu|can xu ly|cho cham)\b/.test(q);
+  if (isSimpleOwnEvalRead) return null;
 
   if (!hasTaskScope && !hasEvalScope && !session) return null;
 
@@ -117,7 +117,7 @@ export function detectWorkPerfIntent(text: string, session?: Session): WorkPerfI
     if (/\b(?:giao viec|giao nhiem vu|phan cong|giao muc)\b/.test(q) && !/\bduoc giao\b/.test(q)) return 'task-assign';
     if (/\b(?:chi tiet|xem muc|doc muc|mo muc|muc \d|so \d)\b/.test(q) || /^(?:xem|mo|chon)?\s*\d+$/.test(q)) return 'task-detail';
     if (/\b(?:can xu ly|cho xu ly|cho nhan|cho nghiem thu|cho cham|bi tu choi)\b/.test(q)) return 'task-pending';
-    return 'task-list';
+    return hasTaskScope ? 'task-list' : null;
   }
 
   if (activeDomain === 'evaluation') {
@@ -130,7 +130,7 @@ export function detectWorkPerfIntent(text: string, session?: Session): WorkPerfI
     if (/\b(?:tu nhan xet|tu danh gia)\b/.test(q)) return 'eval-self-review';
     if (/\b(?:chi tiet|giai thich|xem muc|doc muc|mo muc|muc \d|so \d)\b/.test(q) || /^(?:xem|mo|chon)?\s*\d+$/.test(q)) return 'eval-detail';
     if (/\b(?:can xu ly|cho xu ly|cho cham|dang tranh chap|kien nghi nao|khieu nai nao)\b/.test(q)) return 'eval-pending';
-    return 'eval-list';
+    return hasEvalScope ? 'eval-list' : null;
   }
 
   return null;

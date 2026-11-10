@@ -396,8 +396,8 @@ export function canUseUnit(d: RevenueKpiDashboard, a: Assignment, intent: UnitIn
     case 'approve-adjustment': return a.status === 'ADJUSTMENT_REQUESTED'
       && (a.unitType === 'AREA' ? a.adjustment?.status === 'PENDING' : a.adjustment?.status === 'VERIFIED');
     case 'reject-adjustment': return a.status === 'ADJUSTMENT_REQUESTED';
-    case 'publish':
-    case 'edit': return a.status === 'DRAFT';
+    case 'publish': return a.status === 'DRAFT';
+    case 'edit': return ['DRAFT', 'HR_REVIEW', 'REFUSED', 'PENDING_ACCEPTANCE'].includes(a.status);
     case 'ai': return a.unitType === 'STORE' && a.status === 'DRAFT' && d.period.policy.aiProposalEnabled;
     case 'apply-ai': return a.unitType === 'STORE' && a.status === 'DRAFT' && a.aiProposal?.suggestedGrowthPercent != null;
     case 'responsibility': return a.unitType === 'STORE' && ['ACTIVE', 'PENDING_ACCEPTANCE'].includes(a.status);
@@ -419,7 +419,10 @@ export function* unitRevenuePlan(d: RevenueKpiDashboard, a: Assignment, intent: 
   const r = resultFor(d, a);
   const { instruction, note: supplied } = revenueParts(prompt);
   switch (intent) {
-    case 'edit': return yield* draftRevenuePlan(d, prompt, a);
+    case 'edit':
+      if (a.status === 'DRAFT') return yield* draftRevenuePlan(d, prompt, a);
+      intent = 'adjust-target';
+      break;
     case 'accept': return action(title, () => api.acceptRevenueKpiAssignment(a.id, command(a.version)), 'Đã chấp nhận KPI doanh thu.');
     case 'publish': return action(`${title} · ${revenueMoney(a.targetVnd)}`, () => api.publishRevenueKpiAssignment(a.id, command(a.version)), 'Đã phát hành KPI và gửi yêu cầu nhận cho người phụ trách.');
     case 'ai': return {

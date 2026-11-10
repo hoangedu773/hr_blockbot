@@ -40,16 +40,16 @@ const rules: [ScheduleIntent, RegExp][] = [
   ['cancel-change', /(?:huy|rut)\s+(?:yeu cau\s+|de nghi\s+)?(?:doi ca|nhan ca thay)/],
   ['review-change', /(?:duyet|dieu phoi|giao nguoi nhan|tu choi)\s+(?:yeu cau\s+|de nghi\s+)?(?:doi ca|nhan ca thay)/],
   ['requests', /(?:xem|danh sach|co|kiem tra)\s+(?:nhung\s+|cac\s+)?(?:yeu cau|de nghi|don)\s+(?:doi ca|nhan ca thay)|(?:yeu cau|de nghi)\s+doi ca(?:\s+nao|\s+trong tuan|\s+dang cho|\s+cua toi)?$/],
-  ['request-change', /(?:xin|muon|de nghi|nho)\s+(?:nguoi\s+|quan ly\s+|dong nghiep\s+)?(?:doi ca|nhan ca thay|thay ca|truc thay)|^doi ca\b|^nhan ca thay\b/],
-  ['shifts', /(?:danh muc|danh sach|cac|cau hinh|gio)\s+(?:ma\s+)?ca(?:\s+lam|\s+truc|\s+cua hang)?|^danh muc ca$/],
+  ['request-change', /(?:xin|muon|de nghi|nho)\s+(?:nguoi\s+|quan ly\s+|dong nghiep\s+)?(?:doi(?:\s+sang)?\s+ca|nhan ca thay|thay ca|truc thay)|^doi(?:\s+sang)?\s+ca\b|^nhan ca thay\b/],
+  ['shifts', /(?:danh muc|danh sach|cac|cau hinh|gio)\s+(?:ma\s+)?\bca\b(?:\s+lam|\s+truc|\s+cua hang)?|^danh muc ca$/],
   ['store-week', /(?:lich tuan|lich lam|lich phan ca|xem lich)\s+(?:cua hang|chi nhanh|quan|guta)|lich cửa hàng|lich tuan cua hang/],
   ['mine', /(?:lich lam|lich truc|ca lam|ca truc|lich)\s+(?:viec\s+)?(?:cua\s+)?(?:toi|minh|em|ca nhan)|(?:hom nay|ngay mai|tuan nay|tuan sau)\s+(?:toi|minh|em)\s+lam\s+ca\s+nao|^lich cua toi|^lich lam tuan/],
 ];
 
 export function detectScheduleIntent(text: string, inContext: boolean): ScheduleIntent | null {
   const command = scheduleText(scheduleParts(text).instruction);
-  // Exclude policy/document/KPI/onboarding queries so RAG & KPI handlers process them
-  if (/\b(?:bieu mau|quy dinh|quy che|chinh sach|tai lieu|di tre|nghi le|cham cong|tien ket|kpi|doanh thu|hieu suat|tiep nhan|ho so|ung vien)\b/.test(command)) {
+  // Exclude policy/document/KPI/onboarding/opsHr/tasks queries so RAG, KPI & OpsHr handlers process them
+  if (/\b(?:bieu mau|quy dinh|quy che|chinh sach|tai lieu|di tre|nghi le|cham cong|tien ket|kpi|doanh thu|hieu suat|tiep nhan|ho so|ung vien|cong viec co thang diem|viec co thang diem|nhiem vu|nghiem thu|bao cao ban hang|uy quyen|danh sach chi nhanh|danh sach cua hang|danh ba nhan su|danh sach nhan su|danh sach nhan vien|so dien thoai|thong bao|xin bo sung nhan su|dieu chuyen)\b/.test(command)) {
     return null;
   }
   const hasScheduleKeyword = /\b(?:lich lam|lich truc|lich tuan|lich cua toi|phan ca|dang ky ca|bang dang ky|doi ca|nhan ca thay|thay ca|danh muc ca|ma ca|ca lam|ca truc|ca sang|ca chieu|ca toi|ca a1|ca a2|ca b1|ca b2)\b/.test(command);

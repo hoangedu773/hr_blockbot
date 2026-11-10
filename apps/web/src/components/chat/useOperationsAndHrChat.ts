@@ -184,7 +184,7 @@ export function detectOpsHrIntent(raw: string, allowContext = false, lastDomain?
   }
 
   // 3. My Profile & Profile Changes (Hồ sơ của tôi)
-  if (/\b(?:duyet yeu cau sua ho so|hang doi duyet ho so|yeu cau cap nhat ho so|yeu cau doi thong tin ca nhan)\b/.test(q)) {
+  if (/\b(?:duyet yeu cau sua ho so|yeu cau sua ho so|sua ho so cho duyet|hang doi duyet ho so|yeu cau cap nhat ho so|yeu cau doi thong tin ca nhan)\b/.test(q)) {
     if (/\b(?:duyet|tu choi|xu ly)\b/.test(q) && /\b(?:muc \d+|so \d+|dau tien)\b/.test(q)) {
       return 'review-profile-change';
     }
