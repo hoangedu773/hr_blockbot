@@ -34,7 +34,13 @@ router.get('/scheduling/me', endpoint(async (req, res) => {
   const query = parse(z.object({ from: ScheduleDateSchema, to: ScheduleDateSchema }).strict(), req.query);
   res.json(await schedules.personalSchedule(req.user!, query.from, query.to, true));
 }));
-router.get('/scheduling/weeks/:weekId/partners', endpoint(async (req, res) => { res.json(await schedules.schedulePartners(req.user!, req.params.weekId)); }));
+router.get('/scheduling/weeks/:weekId/partners', endpoint(async (req, res) => {
+  const { assignmentId } = parse(z.object({ assignmentId: z.string().uuid().optional() }).strict(), req.query);
+  res.json(await schedules.schedulePartners(req.user!, req.params.weekId, assignmentId));
+}));
+router.get('/scheduling/weeks/:weekId/changes/:changeId/replacements', endpoint(async (req, res) => {
+  res.json(await schedules.scheduleReplacementCandidates(req.user!, req.params.weekId, req.params.changeId));
+}));
 router.post('/scheduling/weeks/:weekId/changes', endpoint(async (req, res) => { res.json(await schedules.createScheduleChange(req.user!, req.params.weekId, req.body)); }));
 router.post('/scheduling/weeks/:weekId/changes/:changeId', endpoint(async (req, res) => { res.json(await schedules.actScheduleChange(req.user!, req.params.weekId, req.params.changeId, req.body)); }));
 const registrationWeek = z.object({ weekStart: ScheduleDateSchema }).strict();

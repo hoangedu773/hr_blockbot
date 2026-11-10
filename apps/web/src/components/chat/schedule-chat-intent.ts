@@ -28,7 +28,7 @@ export type ScheduleIntent =
 
 const rules: [ScheduleIntent, RegExp][] = [
   ['help', /(?:huong dan|tro giup|cach dung|lam duoc gi).*(?:lich|phan ca|ca lam|doi ca)/],
-  ['publish-week', /(?:cong bo|phat hanh| khoa )(?:lich|tuan lich|lich tuan|lich lam)/],
+  ['publish-week', /(?:cong bo|phat hanh|khoa)\s+(?:lich|tuan lich)\b/],
   ['create-week', /(?:tao|khoi tao|lap)\s+(?:ban nhap\s+)?(?:lich tuan|tuan lich)/],
   ['approve-registration', /(?:duyet|chap thuan|dong y)\s+(?:tat ca\s+)?(?:dang ky ca|ca dang ky|bang dang ky)/],
   ['remove-registration', /(?:xoa|bo|huy)\s+(?:dang ky ca|ca dang ky)/],
@@ -40,7 +40,7 @@ const rules: [ScheduleIntent, RegExp][] = [
   ['cancel-change', /(?:huy|rut)\s+(?:yeu cau\s+|de nghi\s+)?(?:doi ca|nhan ca thay)/],
   ['review-change', /(?:duyet|dieu phoi|giao nguoi nhan|tu choi)\s+(?:yeu cau\s+|de nghi\s+)?(?:doi ca|nhan ca thay)/],
   ['requests', /(?:xem|danh sach|co|kiem tra)\s+(?:nhung\s+|cac\s+)?(?:yeu cau|de nghi|don)\s+(?:doi ca|nhan ca thay)|(?:yeu cau|de nghi)\s+doi ca(?:\s+nao|\s+trong tuan|\s+dang cho|\s+cua toi)?$/],
-  ['request-change', /(?:xin|muon|de nghi|nho)\s+(?:nguoi\s+|quan ly\s+|dong nghiep\s+)?(?:doi(?:\s+sang)?\s+ca|nhan ca thay|thay ca|truc thay)|^doi(?:\s+sang)?\s+ca\b|^nhan ca thay\b/],
+  ['request-change', /(?:xin|muon|de nghi|nho)\s+(?:nguoi\s+|quan ly\s+|dong nghiep\s+)?(?:doi(?:\s+sang)?\s+ca|nhan ca thay|thay ca|truc thay)|nho\s+(?:sm|quan ly)\s+(?:tim|bo tri)\s+nguoi.*(?:nhan ca|thay ca|doi ca)|^doi(?:\s+sang)?\s+ca\b|^nhan ca thay\b/],
   ['shifts', /(?:danh muc|danh sach|cac|cau hinh|gio)\s+(?:ma\s+)?\bca\b(?:\s+lam|\s+truc|\s+cua hang)?|^danh muc ca$/],
   ['store-week', /(?:lich tuan|lich lam|lich phan ca|xem lich)\s+(?:cua hang|chi nhanh|quan|guta)|lich cửa hàng|lich tuan cua hang/],
   ['mine', /(?:lich lam|lich truc|ca lam|ca truc|lich)\s+(?:viec\s+)?(?:cua\s+)?(?:toi|minh|em|ca nhan)|(?:hom nay|ngay mai|tuan nay|tuan sau)\s+(?:toi|minh|em)\s+lam\s+ca\s+nao|^lich cua toi|^lich lam tuan/],
@@ -53,7 +53,9 @@ export function detectScheduleIntent(text: string, inContext: boolean): Schedule
     return null;
   }
   const hasScheduleKeyword = /\b(?:lich lam|lich truc|lich tuan|lich cua toi|phan ca|dang ky ca|bang dang ky|doi ca|nhan ca thay|thay ca|danh muc ca|ma ca|ca lam|ca truc|ca sang|ca chieu|ca toi|ca a1|ca a2|ca b1|ca b2)\b/.test(command);
-  if (!hasScheduleKeyword && !inContext) return null;
+  // Short commands such as “đồng ý nhận ca” and “công bố lịch” match an exact rule.
+  if (!hasScheduleKeyword && !inContext && !rules.some(([intent, pattern]) =>
+    ['accept-change', 'decline-change', 'publish-week'].includes(intent) && pattern.test(command))) return null;
 
   for (const [intent, pattern] of rules) {
     if (pattern.test(command)) {
@@ -150,6 +152,13 @@ export function parseScheduleDate(text: string, fallbackWeekStart?: string): { d
   return { date: null, weekStart: baseMonday };
 }
 
+export function mentionsShiftCode(text: string, code: string): boolean {
+  const q = scheduleText(text), normalized = scheduleText(code);
+  if (!normalized) return false;
+  const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return q === normalized || new RegExp(`\\bca\\s+${escaped}(?![a-z0-9_-])`, 'i').test(q);
+}
+
 export function matchShiftFromText<T extends { id: string; code: string; name: string; intervals: { startMinute: number; endMinute: number }[] }>(
   text: string,
   shifts: T[]
@@ -158,30 +167,26 @@ export function matchShiftFromText<T extends { id: string; code: string; name: s
   const q = scheduleText(text);
   // Check explicit shift code (sort longest code first so A1 matches before A)
   const sorted = [...shifts].sort((a, b) => b.code.length - a.code.length);
-  for (const s of sorted) {
-    const codeNorm = scheduleText(s.code).replace(/[^a-z0-9]/g, '');
-    if (!codeNorm) continue;
-    const regex = new RegExp(`\\b(?:ca\\s+|ma\\s+ca\\s+)?${codeNorm}\\b`, 'i');
-    if (regex.test(q)) return s;
-  }
+  const exact = sorted.find(s => mentionsShiftCode(q, s.code));
+  if (exact) return exact;
   // Check natural language shift names
   if (/\bca\s+sang\b/.test(q)) {
     return shifts.find((s) => /sang/i.test(scheduleText(s.name)))
       ?? shifts.find((s) => /^a1?$/i.test(s.code))
       ?? shifts.find((s) => s.intervals[0]?.startMinute != null && s.intervals[0].startMinute <= 540)
-      ?? shifts[0];
+      ?? null;
   }
   if (/\bca\s+chieu\b/.test(q)) {
     return shifts.find((s) => /chieu/i.test(scheduleText(s.name)))
       ?? shifts.find((s) => /^b1?$/i.test(s.code))
       ?? shifts.find((s) => s.intervals[0]?.startMinute != null && s.intervals[0].startMinute >= 720 && s.intervals[0].startMinute <= 960)
-      ?? shifts[0];
+      ?? null;
   }
   if (/\bca\s+toi\b/.test(q)) {
     return shifts.find((s) => /toi|dem/i.test(scheduleText(s.name)))
       ?? shifts.find((s) => /^b2?$|^c/i.test(s.code))
       ?? shifts.find((s) => s.intervals[0]?.startMinute != null && s.intervals[0].startMinute >= 960)
-      ?? shifts[0];
+      ?? null;
   }
   if (/\bca\s+gay\b/.test(q)) {
     return shifts.find((s) => s.intervals.length > 1) ?? null;

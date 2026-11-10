@@ -155,20 +155,45 @@ export async function createWeek(user: AuthenticatedUser, storeId: string, weekS
   });
 }
 
-async function checkOverlaps(row: any, assignments: ScheduleAssignment[], publishedOnly = false) {
-  const others: any[] = await Week.find({ _id: { $ne: row._id }, weekStart: { $gte: datePlus(row.weekStart, -7), $lte: datePlus(row.weekStart, 7) },
-    $or: [{ 'draft.employeeId': { $in: assignments.map((a) => a.employeeId) } }, { 'published.employeeId': { $in: assignments.map((a) => a.employeeId) } }] }).limit(1001).lean();
+async function relatedAssignments(row: any, employeeIds: string[], publishedOnly: boolean): Promise<ScheduleAssignment[]> {
+  if (!employeeIds.length) return [];
+  const range = { $gte: datePlus(row.weekStart, -7), $lte: datePlus(row.weekStart, 7) };
+  const published = { 'published.employeeId': { $in: employeeIds } };
+  const others: any[] = await Week.find({ _id: { $ne: row._id }, weekStart: range,
+    ...(publishedOnly ? published : { $or: [{ 'draft.employeeId': { $in: employeeIds } }, published] }) }).limit(1001).lean();
   if (others.length > 1000) fail('SCHEDULE_READ_LIMIT', 'Chưa kiểm tra hết lịch liên quan.');
   others.forEach(verifySchedule);
-  const external = others.flatMap((w) => publishedOnly ? w.published : w.publishedAt ? w.published : w.draft);
+  return others.flatMap((w) => publishedOnly || w.publishedAt ? w.published : w.draft);
+}
+
+function overlaps(a: ScheduleAssignment, b: ScheduleAssignment) {
+  return assignmentTimes(a).some((x) => assignmentTimes(b).some((y) => x.start < y.end && y.start < x.end));
+}
+
+async function checkOverlaps(row: any, assignments: ScheduleAssignment[], publishedOnly = false) {
+  const external = await relatedAssignments(row, [...new Set(assignments.map(a => a.employeeId))], publishedOnly);
   for (let index = 0; index < assignments.length; index++) {
     const a = assignments[index];
     for (const b of [...assignments.slice(index + 1), ...external]) {
-      if (a.employeeId === b.employeeId && assignmentTimes(a).some((x) => assignmentTimes(b).some((y) => x.start < y.end && y.start < x.end)))
+      if (a.employeeId === b.employeeId && overlaps(a, b))
         fail('SCHEDULE_OVERLAP', 'Nhân viên có khoảng giờ trùng với ca khác. Kiểm tra cả ca qua đêm và cửa hàng khác.');
     }
   }
 }
+
+// Test the calendar after removing the original assignments, not the two shifts in isolation.
+function fitsChange(source: ScheduleAssignment, receiverId: string, schedule: ScheduleAssignment[], target?: ScheduleAssignment) {
+  const remaining = schedule.filter(a => a !== source && a !== target);
+  return !remaining.some(a => a.employeeId === receiverId && overlaps(source, a)
+    || target && a.employeeId === source.employeeId && overlaps(target, a));
+}
+
+async function respondingAccounts(employeeIds: string[]) {
+  const accounts = await UserModel.find({ employeeId: { $in: employeeIds.map(objectId) }, status: 'active',
+    'authorization.grants.capabilities': 'schedule_changes.respond' }).select('_id employeeId').lean();
+  return new Map(accounts.map(u => [String(u.employeeId), String(u._id)]));
+}
+
 async function validatePublication(actor: AuthenticatedUser, row: any, assignments: ScheduleAssignment[], retainExistingHours = false) {
   for (const a of assignments) {
     const old = row.published.find((p: ScheduleAssignment) => p.id === a.id);
@@ -317,7 +342,7 @@ export async function personalSchedule(user: AuthenticatedUser, from: string, to
     row_kind: 'employee', work_date: { $gte: from, $lte: to } }, { projection: { work_date: 1, shift_code: 1, schedule_type: 1 } }).sort({ work_date: 1, _id: 1 }).limit(501).toArray() : [];
   return { from, to, assignments, requests, legacyEntries: source.slice(0, 500).map((r) => ({ id: String(r._id), date: String(r.work_date), shiftCode: String(r.shift_code), sourceType: String(r.schedule_type) })), legacyTruncated: source.length > 500 };
 }
-export async function schedulePartners(user: AuthenticatedUser, weekId: string) {
+export async function schedulePartners(user: AuthenticatedUser, weekId: string, assignmentId?: string) {
   requireCapability(user, 'schedule_changes.request', { employeeId: user.employeeId });
   const row = await weekRow(weekId);
   if (!row.published.some((a: ScheduleAssignment) => a.employeeId === user.employeeId && future(a))) fail('RBAC_DENIED', 'Không có ca sắp tới của bạn trong tuần này.', 403);
@@ -325,10 +350,22 @@ export async function schedulePartners(user: AuthenticatedUser, weekId: string) 
   const people: any[] = await EmployeeModel.find({ storeId: row.storeId, status: 'active', storeMappingRef: { $type: 'string', $ne: '' }, lifecyclePendingRequestId: null })
     .select('fullName full_name employeeCode employee_code userId').sort({ fullName: 1 }).limit(1001).lean();
   if (people.length > 1000) fail('SCHEDULE_READ_LIMIT', 'Danh sách quá lớn.');
-  const users: any[] = await UserModel.find({ _id: { $in: people.map((p) => p.userId).filter(Boolean) }, status: 'active', 'authorization.grants.capabilities': 'schedule_changes.respond' }).select('_id employeeId').lean();
-  return { items: people.filter((p) => String(p._id) !== user.employeeId && users.some((u) => String(u.employeeId) === String(p._id) && String(u._id) === String(p.userId)))
-    .map((p) => ({ employeeId: String(p._id), fullName: p.fullName || p.full_name || '', employeeCode: p.employeeCode || p.employee_code || '',
-      assignments: row.published.filter((a: ScheduleAssignment) => a.employeeId === String(p._id) && future(a)).map((a: ScheduleAssignment) => ({ id: a.id, date: a.date, shiftCode: a.shiftCode, intervals: a.intervals })) })) };
+  const published: ScheduleAssignment[] = row.published;
+  const source = assignmentId ? published.find(a => a.id === assignmentId && a.employeeId === user.employeeId && future(a)) : undefined;
+  if (assignmentId && !source) fail('SCHEDULE_SOURCE_UNAVAILABLE', 'Chỉ đề nghị đổi ca sắp tới đã công bố của chính bạn.', 403);
+  if (source && occupied(row, source.id)) fail('SCHEDULE_CHANGE_PENDING', 'Ca này đã có yêu cầu đang chờ.');
+  const accounts = await respondingAccounts(people.map(p => String(p._id)));
+  const candidates = people.filter(p => p.userId && String(p._id) !== user.employeeId && accounts.get(String(p._id)) === String(p.userId));
+  const external = source ? await relatedAssignments(row, [source.employeeId, ...candidates.map(p => String(p._id))], true) : [];
+  const schedule = [...published, ...external];
+  return { weekVersion: row.version, items: candidates.map(p => {
+    const employeeId = String(p._id);
+    const assignments = published.filter(a => a.employeeId === employeeId && future(a) && (!source ||
+      !occupied(row, a.id) && digest(assignmentTimes(a)) !== digest(assignmentTimes(source)) && fitsChange(source, employeeId, schedule, a)));
+    return { employeeId, fullName: p.fullName || p.full_name || '', employeeCode: p.employeeCode || p.employee_code || '',
+      canCover: !source || fitsChange(source, employeeId, schedule),
+      assignments: assignments.map(({ id, date, shiftCode, intervals }) => ({ id, date, shiftCode, intervals })) };
+  }) };
 }
 
 async function participant(employeeId: string, storeId: string, cap: 'schedule_changes.request' | 'schedule_changes.respond') {
@@ -372,6 +409,26 @@ function independentReviewer(actor: AuthenticatedUser, row: any, r: ScheduleChan
   if ([r.requesterEmployeeId, r.receiverEmployeeId].includes(actor.employeeId ?? '')) fail('SELF_APPROVAL', 'Người tham gia không tự điều phối/duyệt ca của mình.', 403);
   authorizeStore(actor, String(row.storeId), 'schedules.manage');
 }
+export async function scheduleReplacementCandidates(actor: AuthenticatedUser, weekId: string, changeId: string) {
+  const row = await weekRow(weekId);
+  authorizeStore(actor, String(row.storeId), 'schedules.manage');
+  const r = row.requests.find((item: ScheduleChange) => item.id === String(objectId(changeId))) as ScheduleChange | undefined;
+  if (!r || r.policyVersion !== 2 || r.kind !== 'COVER' || r.arrangement !== 'MANAGER' || r.status !== 'PENDING_MANAGER')
+    return fail('RESOURCE_NOT_FOUND', 'Không có yêu cầu nhận ca thay đang chờ quản lý điều phối.', 404);
+  independentReviewer(actor, row, r);
+  await eligiblePerson(actor, String(row.storeId), r.requesterEmployeeId);
+  assertChangeSnapshot(row, r);
+  const roster = (await scheduleRoster(actor, String(row.storeId))).items
+    .filter(p => p.employeeId !== actor.employeeId && p.employeeId !== r.requesterEmployeeId);
+  const accounts = await respondingAccounts(roster.map(p => p.employeeId));
+  const people = await EmployeeModel.find({ _id: { $in: roster.map(p => objectId(p.employeeId)) } }).select('userId').lean();
+  const linked = new Set(people.filter(p => p.userId && accounts.get(String(p._id)) === String(p.userId)).map(p => String(p._id)));
+  const candidates = roster.filter(p => linked.has(p.employeeId));
+  const external = await relatedAssignments(row, candidates.map(p => p.employeeId), true);
+  const schedule = [...row.published, ...external];
+  return { weekVersion: row.version, items: candidates.filter(p => fitsChange(r.source, p.employeeId, schedule)) };
+}
+
 async function storeSmNotices(row: any, r: ScheduleChange) {
   const users: any[] = await UserModel.find({ status: 'active', 'authorization.profile': 'sm' }).select('_id employeeId role securityVersion').limit(1001).lean();
   if (users.length > 1000) fail('SCHEDULE_READ_LIMIT', 'Chưa kiểm tra hết SM nhận thông báo.');

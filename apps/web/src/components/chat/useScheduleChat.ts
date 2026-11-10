@@ -17,6 +17,7 @@ import {
   formatShiftIntervals,
   formatVietnameseDate,
   matchShiftFromText,
+  mentionsShiftCode,
   mondayOf,
   parseScheduleDate,
   scheduleParts,
@@ -26,7 +27,7 @@ import {
 
 type Turn = { sender: 'user' | 'assistant'; text: string };
 type Plan = { summary: string; readOnly?: boolean; execute: () => Promise<string> };
-type Step = Generator<string, Plan, string>;
+type Step = Generator<string, Plan, string> | AsyncGenerator<string, Plan, string>;
 type Decision = { step: Step } | { plan: Plan };
 
 type SessionState = {
@@ -86,6 +87,38 @@ function pickIndex<T>(text: string, items: T[]): T | null {
   return null;
 }
 
+type ShiftOption = Pick<ScheduleAssignment, 'id' | 'date' | 'shiftCode' | 'intervals'>;
+type ChangePartner = { employeeId: string; fullName: string; employeeCode: string; canCover: boolean; assignments: ShiftOption[] };
+
+function shiftLabel(a: ShiftOption) {
+  return `${formatVietnameseDate(a.date)} · Ca ${a.shiftCode} (${formatShiftIntervals(a.intervals)})`;
+}
+
+function pickShift<T extends ShiftOption>(text: string, items: T[], weekStart: string) {
+  const indexed = pickIndex(text, items);
+  if (indexed) return indexed;
+  const date = parseScheduleDate(text, weekStart).date;
+  const q = scheduleText(text).replace(/\bnhan ca thay\s+/g, 'nhan ca ');
+  const byCode = items.filter(a => mentionsShiftCode(q, a.shiftCode));
+  const explicitCode = q.match(/\bca\s+([a-z0-9_-]{1,20})\s+(?:ngay|thu|tuan|20\d{2}-)/)?.[1];
+  if (!byCode.length && explicitCode && !/^(?:sang|chieu|toi|dem|lam|truc|gay|thay)$/.test(explicitCode)) return null;
+  const candidates = (byCode.length ? byCode : items).filter(a => !date || date === a.date);
+  return (date || byCode.length) && candidates.length === 1 ? candidates[0] : null;
+}
+
+function pickColleague<T extends { fullName: string; employeeCode: string }>(text: string, items: T[]) {
+  const indexed = pickIndex(text, items);
+  if (indexed) return indexed;
+  const q = scheduleText(text).replace(/[.!?]+$/, '');
+  if (!q) return null;
+  const matches = items.filter(p => {
+    const full = scheduleText(p.fullName), code = scheduleText(p.employeeCode);
+    return q === code || q === full || (` ${q} `).includes(` ${full} `) ||
+      (q.length >= 3 && (` ${full} `).includes(` ${q} `));
+  });
+  return matches.length === 1 ? matches[0] : null;
+}
+
 export function useScheduleChat({
   grants,
   onChanged,
@@ -138,6 +171,7 @@ export function useScheduleChat({
     setBusy(true);
 
     async function advance(result: IteratorResult<string, Plan>, step: Step) {
+      if (signal.aborted) return;
       if (result.done) {
         if (result.value.readOnly) {
           say(await result.value.execute());
@@ -160,11 +194,11 @@ export function useScheduleChat({
       }
       if (pending && 'step' in pending) {
         decision.current = undefined;
-        await advance(pending.step.next(text), pending.step);
+        await advance(await pending.step.next(text), pending.step);
         return;
       }
       if (pending && 'plan' in pending) {
-        if (/^(?:toi\s+)?(?:xac nhan(?:\s+thuc hien)?|dong y|tien hanh|thuc hien|gui)$/.test(q)) {
+        if (/^(?:toi\s+)?(?:xac nhan(?:\s+(?:thuc hien|gui))?|dong y|tien hanh|thuc hien|gui)$/.test(q)) {
           decision.current = undefined;
           const out = await pending.plan.execute();
           say(out);
@@ -413,7 +447,7 @@ export function useScheduleChat({
 
         function* registerStep(): Step {
           let chosenDate = initialDate;
-          if (!chosenDate) {
+          while (!chosenDate) {
             const dayOptions = Array.from({ length: 7 }, (_, i) => addDays(targetWeek, i)).filter((d) => d >= todayLocal());
             const reply = yield [
               `Đăng ký ca làm tại ${activeBoard.storeName} (Tuần ${targetWeek} – ${addDays(targetWeek, 6)}).`,
@@ -422,16 +456,16 @@ export function useScheduleChat({
             ].join('\n');
             const byIndex = pickIndex(reply, dayOptions);
             const byParsed = parseScheduleDate(reply, targetWeek).date;
-            chosenDate = byIndex ?? (byParsed && dayOptions.includes(byParsed) ? byParsed : dayOptions[0]);
+            chosenDate = byIndex ?? (byParsed && dayOptions.includes(byParsed) ? byParsed : null);
           }
           let chosenShift = initialShift;
-          if (!chosenShift) {
+          while (!chosenShift) {
             const reply = yield [
               `Đã chọn ngày ${formatVietnameseDate(chosenDate)}.`,
               'Bạn muốn đăng ký mã ca nào? Chọn số thứ tự hoặc nhắn mã ca:',
               ...activeBoard.shifts.map((s, i) => `${i + 1}. Ca ${s.code} · ${s.name} (${formatShiftIntervals(s.intervals)})`),
             ].join('\n');
-            chosenShift = pickIndex(reply, activeBoard.shifts) ?? matchShiftFromText(reply, activeBoard.shifts) ?? activeBoard.shifts[0];
+            chosenShift = pickIndex(reply, activeBoard.shifts) ?? matchShiftFromText(reply, activeBoard.shifts);
           }
           const finalDate = chosenDate!;
           const finalShift = chosenShift!;
@@ -459,7 +493,7 @@ export function useScheduleChat({
         }
 
         const step = registerStep();
-        await advance(step.next(), step);
+        await advance(await step.next(), step);
         return;
       }
 
@@ -482,8 +516,13 @@ export function useScheduleChat({
           say(`Tại ${store.name} (tuần ${targetWeek}), hiện không có đăng ký ca nào đang chờ bạn duyệt.`);
           return;
         }
+        const bulk = /\b(?:tat ca|hang loat|toan bo)\b/.test(scheduleText(instruction));
         const single = pickIndex(instruction, board.items);
-        const toApprove = single && pendingItems.some((p) => p.id === single.id) ? [single] : pendingItems;
+        const toApprove = bulk ? pendingItems : single ? pendingItems.filter(p => p.id === single.id) : pendingItems.length === 1 ? pendingItems : [];
+        if (!toApprove.length) {
+          say('Hãy chọn một đăng ký theo số trong bảng (“duyệt đăng ký ca mục 2”) hoặc nhắn “duyệt tất cả đăng ký ca” để xem trước cả danh sách.');
+          return;
+        }
         const plan: Plan = {
           summary: [
             `Bản xem trước duyệt đăng ký ca · ${store.name} (Tuần ${targetWeek}):`,
@@ -493,7 +532,7 @@ export function useScheduleChat({
           execute: async () => {
             let count = 0;
             for (const item of toApprove) {
-              await requestJson(`/scheduling/stores/${store.id}/registrations/${item.id}`, {
+              try { await requestJson(`/scheduling/stores/${store.id}/registrations/${item.id}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -501,7 +540,10 @@ export function useScheduleChat({
                   expectedVersion: item.version,
                   action: 'APPROVE',
                 }),
-              });
+              }); } catch (error) {
+                if (count === 0) throw error;
+                return `Đã duyệt ${count}/${toApprove.length} đăng ký rồi dừng ở mục ${count + 1}: ${error instanceof Error ? error.message : 'Chưa duyệt được'}. Hãy xem lại bảng trước khi tiếp tục.`;
+              }
               count++;
             }
             return `Đã duyệt thành công ${count} đăng ký ca và đưa vào bản nháp lịch tuần ${targetWeek} tại ${store.name}.`;
@@ -577,7 +619,7 @@ export function useScheduleChat({
           };
         }
         const step = addStep();
-        await advance(step.next(), step);
+        await advance(await step.next(), step);
         return;
       }
 
@@ -678,57 +720,101 @@ export function useScheduleChat({
           say(`Bạn chưa có ca đã công bố nào sắp tới trong khoảng ${weekStart} – ${to} để xin đổi ca.`);
           return;
         }
-        const preselectedByIdx = pickIndex(instruction, mine.assignments);
-        const preselectedByDate = parsedDate.date ? upcoming.find((a) => a.date === parsedDate.date) : null;
-        const initialAssignment = (preselectedByIdx && futureAssignment(preselectedByIdx) ? preselectedByIdx : null) ?? preselectedByDate ?? null;
-
-        function* requestChangeStep(): Step {
+        const priorOptions = (session.current.myAssignments ?? upcoming).filter(futureAssignment);
+        const pickedFromList = pickIndex(instruction, priorOptions);
+        const initialAssignment = pickedFromList && upcoming.some(a => a.id === pickedFromList.id && a.weekId === pickedFromList.weekId)
+          ? pickedFromList : pickShift(instruction.split(/\s+(?:với|voi)\s+/i)[0], upcoming, weekStart);
+        const command = scheduleText(instruction);
+        const partnerHint = instruction.match(/\s+(?:với|voi|cho)\s+(.+)$/i)?.[1]?.trim();
+        const inferredMode = /\b(?:nho quan ly|nho sm|chua co nguoi|tim nguoi|bo tri nguoi)\b/.test(command) ? 'MANAGER'
+          : /\bdoi ca\b.*\bvoi\b|\bdoi ca hai chieu\b/.test(command) ? 'SWAP'
+          : partnerHint && /\b(?:nhan ca thay|thay ca)\b/.test(command) ? 'COVER' : null;
+        function modeFrom(text: string) {
+          const q = scheduleText(text);
+          if (/^(?:1|doi(?: ca)?(?: hai chieu)?|hoan doi)$/.test(q)) return 'SWAP';
+          if (/^(?:2|nhan(?: ca)? thay|da co nguoi)$/.test(q)) return 'COVER';
+          if (/^(?:3|nho (?:sm|quan ly)(?: tim nguoi)?|chua co nguoi)$/.test(q)) return 'MANAGER';
+          return null;
+        }
+        async function* requestChangeStep(): AsyncGenerator<string, Plan, string> {
           let chosen = initialAssignment;
-          if (!chosen) {
-            const reply = yield [
-              'Bạn muốn xin đổi hoặc nhờ nhận thay cho ca nào? Chọn số thứ tự:',
-              ...upcoming.map((a, i) => `${i + 1}. ${formatVietnameseDate(a.date)} · Ca ${a.shiftCode} (${formatShiftIntervals(a.intervals)}) · ${a.storeName}`),
-            ].join('\n');
-            chosen = pickIndex(reply, upcoming)
-              ?? upcoming.find((a) => a.date === parseScheduleDate(reply, weekStart).date)
-              ?? upcoming[0];
+          while (!chosen) {
+            const reply = yield ['Bạn muốn xin đổi hoặc nhờ nhận thay cho ca nào? Chọn số thứ tự hoặc ngày và mã ca:',
+              ...upcoming.map((a, i) => `${i + 1}. ${shiftLabel(a)} · ${a.storeName}`)].join('\n');
+            chosen = pickShift(reply, upcoming, weekStart);
+          }
+          let mode = inferredMode;
+          const modeQuestion = 'Anh/chị muốn xử lý thế nào?\n1. Đổi ca hai chiều với đồng nghiệp\n2. Nhờ đồng nghiệp đã chọn nhận thay\n3. Nhờ SM tìm người nhận thay';
+          while (!mode) mode = modeFrom(yield modeQuestion);
+          let partner: ChangePartner | null = null;
+          let target: ShiftOption | null = null;
+          let expectedVersion = chosen.weekVersion;
+          if (mode !== 'MANAGER') {
+            const choices = await requestJson<{ weekVersion: number; items: ChangePartner[] }>(
+              `/scheduling/weeks/${chosen.weekId}/partners?assignmentId=${encodeURIComponent(chosen.id)}`, { signal });
+            expectedVersion = choices.weekVersion;
+            const eligible = choices.items.filter(p => mode === 'SWAP' ? p.assignments.length > 0 : p.canCover);
+            if (!eligible.length) {
+              const reply = yield 'Không tìm thấy đồng nghiệp và ca phù hợp, không chồng giờ. Gõ “nhờ SM” để tìm người nhận thay hoặc “hủy” để dừng.';
+              if (modeFrom(reply) !== 'MANAGER') throw new Error('Chưa gửi đề nghị. Bạn có thể bắt đầu lại và chọn nhờ SM.');
+              mode = 'MANAGER';
+            } else {
+              partner = partnerHint ? pickColleague(partnerHint, eligible) : null;
+              while (!partner) {
+                const reply = yield ['Chọn đồng nghiệp theo tên, mã nhân viên hoặc số thứ tự. Danh sách đã lọc ca chồng giờ:',
+                  ...eligible.map((p, i) => `${i + 1}. ${p.fullName} · ${p.employeeCode}`)].join('\n');
+                if (/^(?:nho (?:sm|quan ly)(?: tim nguoi)?|chua co nguoi)$/.test(scheduleText(reply))) { mode = 'MANAGER'; partner = null; break; }
+                partner = pickColleague(reply, eligible);
+              }
+              if (mode === 'SWAP' && partner) {
+                while (!target) {
+                  const reply = yield [`Bạn muốn nhận lại ca nào của ${partner.fullName}? Chỉ hiện ca không làm chồng giờ lịch của hai người:`,
+                    ...partner.assignments.map((a, i) => `${i + 1}. ${shiftLabel(a)}`)].join('\n');
+                  target = pickShift(reply, partner.assignments, mondayOf(chosen.date));
+                }
+              }
+            }
           }
           let reason = extractedReason;
-          if (!reason || reason.length < 5) {
-            const rReply = yield `Đã chọn ca ${chosen.shiftCode} ngày ${formatVietnameseDate(chosen.date)}. Vui lòng nhập lý do xin đổi / nhờ nhận ca thay (tối thiểu 5 ký tự):`;
-            reason = rReply.trim().length >= 5 ? rReply.trim() : 'Bận việc cá nhân đột xuất, xin hỗ trợ đổi ca';
-          }
-          const finalAssignment = chosen!;
-          const finalReason = reason;
+          while (reason.length < 5 || reason.length > 500) reason = (yield 'Nhập lý do đổi hoặc nhờ nhận ca thay (5–500 ký tự):').trim();
+          const finalAssignment = chosen;
+          const finalTarget = target;
+          const finalPartner = partner;
+          const manager = mode === 'MANAGER';
+          const label = mode === 'SWAP' ? 'Đổi ca hai chiều' : manager ? 'Nhờ quản lý tìm người nhận thay' : 'Nhờ đồng nghiệp nhận ca thay';
+          const urgent = [finalAssignment, ...(finalTarget ? [finalTarget] : [])].some(a =>
+            a.intervals.some(p => Date.parse(a.date + 'T00:00:00+07:00') + p.startMinute * 60000 - Date.now() < 86400000));
+          const clientRequestId = crypto.randomUUID();
           return {
             summary: [
               'Bản xem trước yêu cầu đổi / nhận ca thay:',
               `• Cửa hàng: ${finalAssignment.storeName}`,
-              `• Ca của bạn: ${formatVietnameseDate(finalAssignment.date)} · Ca ${finalAssignment.shiftCode} (${formatShiftIntervals(finalAssignment.intervals)})`,
-              '• Hình thức: Nhờ quản lý điều phối người nhận ca thay (COVER)',
-              `• Lý do: ${finalReason}`,
+              `• Ca của bạn: ${shiftLabel(finalAssignment)}`,
+              `• Hình thức: ${label}`,
+              ...(finalPartner ? [`• Đồng nghiệp: ${finalPartner.fullName}`] : []),
+              ...(finalTarget ? [`• Ca bạn nhận lại: ${shiftLabel(finalTarget)}`] : []),
+              ...(urgent ? ['• Còn dưới 24 giờ: quản lý phải xử lý trước.'] : []),
+              `• Lý do: ${reason}`,
             ].join('\n'),
             execute: async () => {
-              await requestJson(`/scheduling/weeks/${finalAssignment.weekId}/changes`, {
+              const result = await requestJson<{ request: ScheduleChange }>(`/scheduling/weeks/${finalAssignment.weekId}/changes`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  expectedVersion: finalAssignment.weekVersion,
-                  clientRequestId: crypto.randomUUID(),
-                  assignmentId: finalAssignment.id,
-                  arrangement: 'MANAGER',
-                  kind: 'COVER',
-                  receiverEmployeeId: null,
-                  reason: finalReason,
+                  expectedVersion, clientRequestId, assignmentId: finalAssignment.id,
+                  arrangement: manager ? 'MANAGER' : 'DIRECT',
+                  kind: finalTarget ? 'SWAP' : 'COVER',
+                  receiverEmployeeId: finalPartner?.employeeId ?? null,
+                  ...(finalTarget ? { targetAssignmentId: finalTarget.id } : {}), reason,
                 }),
               });
-              return `Đã gửi yêu cầu nhờ nhận thay ca ${finalAssignment.shiftCode} ngày ${formatVietnameseDate(finalAssignment.date)} đến quản lý cửa hàng ${finalAssignment.storeName}.`;
+              return `Đã gửi yêu cầu: ${label}. ${CHANGE_STATUS_LABELS[result.request.status] ?? result.request.status}.`;
             },
           };
         }
 
         const step = requestChangeStep();
-        await advance(step.next(), step);
+        await advance(await step.next(), step);
         return;
       }
 
@@ -738,9 +824,11 @@ export function useScheduleChat({
         const mine = await requestJson<PersonalSchedule>(`/scheduling/me?from=${weekStart}&to=${to}`);
         const targetAction = intent === 'accept-change' ? 'ACCEPT' : intent === 'decline-change' ? 'DECLINE' : 'CANCEL';
         const candidates = mine.requests.filter((r) =>
+          (!parsedDate.date || r.source.date === parsedDate.date || r.target?.date === parsedDate.date) &&
+          (
           targetAction === 'CANCEL'
             ? r.requesterEmployeeId === access.employeeId && ['PENDING_MANAGER', 'PENDING_RECEIVER', 'PENDING_REQUESTER', 'READY_FOR_REVIEW'].includes(r.status)
-            : r.receiverEmployeeId === access.employeeId && r.status === 'PENDING_RECEIVER'
+            : r.receiverEmployeeId === access.employeeId && r.status === 'PENDING_RECEIVER')
         );
         if (!candidates.length) {
           say(
@@ -750,8 +838,26 @@ export function useScheduleChat({
           );
           return;
         }
-        const picked = pickIndex(instruction, candidates) ?? candidates[0];
-        const reason = extractedReason.length >= 5
+        let picked = pickIndex(instruction, candidates);
+        if (!picked && candidates.length > 1) {
+          function* chooseRequest(): Generator<string, Plan, string> {
+            let choice: typeof candidates[number] | null = null;
+            while (!choice) choice = pickIndex(yield ['Bạn muốn xử lý yêu cầu nào? Chọn số thứ tự:',
+              ...candidates.map((r, i) => `${i + 1}. ${r.source.employeeName} · ${shiftLabel(r.source)}`)].join('\n'), candidates);
+            return responsePlan(choice);
+          }
+          const step = chooseRequest();
+          await advance(step.next(), step);
+          return;
+        }
+        picked ??= candidates[0];
+        const plan = responsePlan(picked);
+        decision.current = { plan };
+        say(planned(plan));
+        return;
+
+        function responsePlan(picked: typeof candidates[number]): Plan {
+          const reason = extractedReason.length >= 5
           ? extractedReason
           : targetAction === 'ACCEPT'
             ? 'Đồng ý nhận ca hỗ trợ đồng nghiệp qua trợ lý chat'
@@ -760,15 +866,16 @@ export function useScheduleChat({
               : 'Hủy yêu cầu đổi ca theo kế hoạch cá nhân';
         const label = targetAction === 'ACCEPT' ? 'Đồng ý nhận / đổi ca' : targetAction === 'DECLINE' ? 'Từ chối nhận ca' : 'Hủy yêu cầu đổi ca';
 
-        const plan: Plan = {
+        return {
           summary: [
             `Bản xem trước: ${label}`,
             `• Ca làm: ${formatVietnameseDate(picked.source.date)} · Ca ${picked.source.shiftCode} (${formatShiftIntervals(picked.source.intervals)})`,
             `• Người đề nghị: ${picked.source.employeeName}`,
+            ...(picked.target ? [`• Ca đổi lại: ${shiftLabel(picked.target)}`] : []),
             `• Ghi chú xử lý: ${reason}`,
-          ].join('\n'),
+          ].join('\n  '),
           execute: async () => {
-            await requestJson(`/scheduling/weeks/${picked.weekId}/changes/${picked.id}`, {
+            const result = await requestJson<{ request: ScheduleChange }>(`/scheduling/weeks/${picked.weekId}/changes/${picked.id}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -777,12 +884,10 @@ export function useScheduleChat({
                 reason,
               }),
             });
-            return `Đã thực hiện: ${label} đối với ca ${picked.source.shiftCode} ngày ${formatVietnameseDate(picked.source.date)}.`;
+            return `Đã thực hiện: ${label}. ${CHANGE_STATUS_LABELS[result.request.status] ?? result.request.status}.`;
           },
         };
-        decision.current = { plan };
-        say(planned(plan));
-        return;
+        }
       }
 
       // 12. QUẢN LÝ DUYỆT / ĐIỀU PHỐI YÊU CẦU ĐỔI CA (review-change)
@@ -791,74 +896,60 @@ export function useScheduleChat({
           say('Chỉ Quản lý cửa hàng (SM) hoặc Quản lý khu vực (AM) có quyền điều phối / duyệt yêu cầu đổi ca.');
           return;
         }
-        const [{ week }, rosterRes] = await Promise.all([
-          requestJson<{ week: OperationalScheduleWeek | null }>(`/scheduling/stores/${store.id}/week?weekStart=${weekStart}`),
-          requestJson<{ items: { employeeId: string; fullName: string; employeeCode: string }[] }>(`/scheduling/stores/${store.id}/roster`),
-        ]);
-        const pendingReqs = (week?.requests ?? []).filter((r) => r.status === 'PENDING_MANAGER' || r.status === 'READY_FOR_REVIEW');
+        const { week } = await requestJson<{ week: OperationalScheduleWeek | null }>(
+          `/scheduling/stores/${store.id}/week?weekStart=${weekStart}`, { signal });
+        const pendingReqs = (week?.requests ?? []).filter(r =>
+          (r.status === 'PENDING_MANAGER' || r.status === 'READY_FOR_REVIEW') &&
+          r.requesterEmployeeId !== access.employeeId && r.receiverEmployeeId !== access.employeeId);
         if (!week || !pendingReqs.length) {
-          say(`Tại ${store.name} (tuần ${weekStart}), hiện không có yêu cầu đổi ca nào đang chờ quản lý xử lý.`);
+          say(`Tại ${store.name} (tuần ${weekStart}), hiện không có yêu cầu đổi ca nào đang chờ bạn xử lý.`);
           return;
         }
+        const storeName = store.name;
+        const selectedWeek = week;
         const isReject = /\btu choi\b/.test(scheduleText(instruction));
-        const picked = pickIndex(instruction, pendingReqs) ?? pendingReqs[0];
-        const reason = extractedReason.length >= 5
-          ? extractedReason
-          : isReject
-            ? 'Không đủ nhân sự thay thế trong khung giờ này'
-            : 'Quản lý điều phối nhân sự nhận ca thay';
-
-        if (isReject) {
-          const plan: Plan = {
+        const reason = extractedReason.length >= 5 ? extractedReason
+          : isReject ? 'Không đủ nhân sự thay thế trong khung giờ này' : 'Quản lý điều phối nhân sự nhận ca thay';
+        async function* reviewChangeStep(): AsyncGenerator<string, Plan, string> {
+          let picked = pickIndex(instruction, pendingReqs) ?? (pendingReqs.length === 1 ? pendingReqs[0] : null);
+          while (!picked) picked = pickIndex(yield ['Chọn yêu cầu đổi ca cần xử lý:',
+            ...pendingReqs.map((r, i) => `${i + 1}. ${r.source.employeeName} · ${shiftLabel(r.source)}`)].join('\n'), pendingReqs);
+          const finalRequest = picked;
+          const action = isReject ? 'REJECT' : picked.kind === 'COVER' && picked.arrangement === 'MANAGER' ? 'SELECT' : 'APPROVE';
+          let receiverId = picked.receiverEmployeeId;
+          let receiverName = picked.receiverName;
+          let expectedVersion = selectedWeek.version;
+          if (action === 'SELECT') {
+            const replacements = await requestJson<{ weekVersion: number; items: ChangePartner[] }>(
+              `/scheduling/weeks/${selectedWeek.id}/changes/${picked.id}/replacements`);
+            expectedVersion = replacements.weekVersion;
+            if (!replacements.items.length) throw new Error('Không có nhân viên phù hợp để nhận thay ca này.');
+            let receiver: ChangePartner | null = null;
+            while (!receiver) receiver = pickColleague(yield ['Chọn người nhận ca thay theo tên, mã nhân viên hoặc số thứ tự:',
+              ...replacements.items.map((p, i) => `${i + 1}. ${p.fullName} · ${p.employeeCode}`)].join('\n'), replacements.items);
+            receiverId = receiver.employeeId;
+            receiverName = receiver.fullName;
+          }
+          return {
             summary: [
-              `Bản xem trước từ chối yêu cầu đổi ca · ${store.name}:`,
-              `• Người đề nghị: ${picked.source.employeeName} · Ca ${picked.source.shiftCode} ngày ${picked.source.date}`,
-              `• Lý do từ chối: ${reason}`,
+              `Bản xem trước ${isReject ? 'từ chối' : 'điều phối'} yêu cầu đổi ca · ${storeName}:`,
+              `• Ca gốc: ${finalRequest.source.employeeName} · ${shiftLabel(finalRequest.source)}`,
+              ...(finalRequest.target ? [`• Ca đổi lại: ${shiftLabel(finalRequest.target)}`] : []),
+              ...(!isReject && receiverName ? [`• Người nhận: ${receiverName}`] : []),
+              `• Ghi chú: ${reason}`,
             ].join('\n'),
             execute: async () => {
-              await requestJson(`/scheduling/weeks/${week.id}/changes/${picked.id}`, {
+              const result = await requestJson<{ request: ScheduleChange }>(`/scheduling/weeks/${selectedWeek.id}/changes/${finalRequest.id}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ expectedVersion: week.version, action: 'REJECT', reason }),
+                body: JSON.stringify({ expectedVersion, action, ...(action === 'SELECT' ? { receiverEmployeeId: receiverId } : {}), reason }),
               });
-              return `Đã từ chối yêu cầu đổi ca ngày ${picked.source.date} của ${picked.source.employeeName}.`;
+              return `Đã xử lý yêu cầu đổi ca. ${CHANGE_STATUS_LABELS[result.request.status] ?? result.request.status}.`;
             },
           };
-          decision.current = { plan };
-          say(planned(plan));
-          return;
         }
-
-        const eligibleReceivers = rosterRes.items.filter(
-          (p) => p.employeeId !== picked.requesterEmployeeId && p.employeeId !== access.employeeId
-        );
-        const receiverId = picked.receiverEmployeeId ?? eligibleReceivers[0]?.employeeId;
-        const receiverName = picked.receiverName ?? eligibleReceivers[0]?.fullName ?? 'Nhân viên thay thế';
-        const actionType = picked.kind === 'COVER' && picked.arrangement === 'MANAGER' ? 'SELECT' : 'APPROVE';
-
-        const plan: Plan = {
-          summary: [
-            `Bản xem trước điều phối yêu cầu đổi ca · ${store.name}:`,
-            `• Ca gốc: ${picked.source.employeeName} · Ngày ${picked.source.date} · Ca ${picked.source.shiftCode}`,
-            `• Người nhận thay: ${receiverName}`,
-            `• Ghi chú: ${reason}`,
-          ].join('\n'),
-          execute: async () => {
-            await requestJson(`/scheduling/weeks/${week.id}/changes/${picked.id}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                expectedVersion: week.version,
-                action: actionType,
-                ...(actionType === 'SELECT' ? { receiverEmployeeId: receiverId } : {}),
-                reason,
-              }),
-            });
-            return `Đã điều phối yêu cầu đổi ca ngày ${picked.source.date} cho ${receiverName} (chờ người nhận xác nhận).`;
-          },
-        };
-        decision.current = { plan };
-        say(planned(plan));
+        const step = reviewChangeStep();
+        await advance(await step.next(), step);
         return;
       }
 

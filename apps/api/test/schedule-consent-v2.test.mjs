@@ -117,6 +117,41 @@ test('identical swap hours / overlapping receiving commitments reject; concurren
   assert.deepEqual(values.map(v => v.status).sort(), [200, 409]);
   assert.equal((await reload(b)).history.filter(h => h.action === 'CHANGE_CONSENT_APPLIED').length, 1);
 });
+test('eligible swaps check both calendars after releasing both shifts; manager sees only free replacements', async () => {
+  const b = await board(), base = datePlus(b.week.weekStart, 140), store = String(f.stores[0]._id);
+  const shiftId = async (code, startMinute) => (await call('sm', `/scheduling/stores/${store}/shifts`, {
+    expectedVersion: 0, definition: { code, name: code, active: true, intervals: [{ startMinute, endMinute: startMinute + 120 }] },
+  })).body.id;
+  const early = await shiftId('FILTER-8', 480), late = await shiftId('FILTER-9', 540);
+  let week = (await call('sm', `/scheduling/stores/${store}/weeks`, { weekStart: base })).body;
+  const next = datePlus(base, 1);
+  const [source, target, alternate] = [
+    { id: randomUUID(), employeeId: eid('staff'), date: base, shiftId: early },
+    { id: randomUUID(), employeeId: eid('ptch'), date: base, shiftId: late },
+    { id: randomUUID(), employeeId: eid('ptch'), date: next, shiftId: early },
+  ];
+  const occupied = { id: randomUUID(), employeeId: eid('staff'), date: next, shiftId: late };
+  const draft = await call('sm', `/scheduling/weeks/${week.id}/draft`, {
+    expectedVersion: week.version, reason: 'Owned filter regression', assignments: [source, target, alternate, occupied],
+  });
+  assert.equal(draft.status, 200, JSON.stringify(draft.body));
+  week = (await call('sm', `/scheduling/weeks/${week.id}/publish`, { expectedVersion: draft.body.version, reason: 'Owned filter publication' })).body;
+  const path = `/scheduling/weeks/${week.id}/partners?assignmentId=${source.id}`;
+  const options = await call('staff', path);
+  assert.equal(options.status, 200, JSON.stringify(options.body));
+  const partner = options.body.items.find(item => item.employeeId === eid('ptch'));
+  assert.equal(partner.canCover, false);
+  assert.deepEqual(partner.assignments.map(a => a.id), [target.id]);
+  assert.equal((await call('staffB', path)).status, 403);
+  const requestBoard = { id: week.id, source: occupied };
+  const made = await request(requestBoard, { arrangement: 'MANAGER', receiverEmployeeId: null });
+  assert.equal(made.status, 200, JSON.stringify(made.body));
+  const replacements = `/scheduling/weeks/${week.id}/changes/${made.body.request.id}/replacements`;
+  const eligible = await call('sm', replacements);
+  assert.equal(eligible.status, 200, JSON.stringify(eligible.body));
+  assert.equal(eligible.body.items.some(item => item.employeeId === eid('ptch')), false);
+  assert.equal((await call('staffB', replacements)).status, 403);
+});
 test('persisted pre-V2 request retains old independent manager approval, not silently waived', async () => {
   const b = await board(), made = await request(b), row = await OperationalWeekModel.findById(b.id).lean();
   // Isolated import fixture of an existing V1 request: never a runtime downgrade API.

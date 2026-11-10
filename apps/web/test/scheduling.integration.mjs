@@ -63,6 +63,17 @@ async function respond(page, button, reason, targetId) {
   await dialog.getByLabel('Lý do / phản hồi', { exact: true }).fill(reason);
   await dialog.getByRole('button', { name: 'Xác nhận phản hồi', exact: true }).click(); await dialog.waitFor({ state: 'hidden' });
 }
+async function chat(page, prompt, expectation) {
+  const replies = page.locator('.guta-chat-message[data-sender="assistant"]');
+  const n = await replies.count();
+  await page.getByRole('textbox', { name: 'Tin nhắn cho Guta AI' }).fill(prompt);
+  await page.getByRole('button', { name: 'Gửi', exact: true }).click();
+  const reply = replies.nth(n);
+  await reply.waitFor();
+  const text = await reply.innerText();
+  assert.match(text, expectation, `Chat reply to "${prompt}"`);
+  return text;
+}
 try {
   await connectDB(); fixture = await authorizationV1Fixture(); await NotificationModel.init();
   for (const profile of ['sm', 'am', 'staff', 'ptch']) {
@@ -140,6 +151,51 @@ try {
   await manager.locator('summary', { hasText: 'Thông báo lịch làm' }).click();
   await manager.getByText(/Đã đổi ca: Isolated V1 staff/).waitFor();
   await manager.screenshot({ path: path.join(output, 'consent-and-manager-notices.png') });
+  // Same real UI/API, now drive the entire registration and two consent paths from chat.
+  const next = datePlus(weekStart, 7), tue = datePlus(next, 1), wed = datePlus(next, 2);
+  for (const page of [manager, employee, receiver]) await page.locator('nav a.crm-copilot').click();
+  await chat(manager, `Tạo lịch tuần ${next}`, /Khởi tạo bản nháp/);
+  await chat(manager, 'Xác nhận', /Đã khởi tạo bản nháp/);
+  for (const [page, shift, date] of [[employee, 'SYNTH-A', next], [receiver, 'SYNTH-NIGHT', tue], [employee, 'SYNTH-A', wed], [receiver, 'SYNTH-A', wed]]) {
+    await chat(page, `Đăng ký ca ${shift} ngày ${date}`, /Bản xem trước đăng ký ca/);
+    await chat(page, 'Xác nhận', /Đã gửi đăng ký ca/);
+  }
+  for (const page of [employee, receiver]) {
+    const listed = await chat(page, `Bảng đăng ký ca tuần ${next}`, /Đang mở đăng ký/);
+    assert.match(listed, /Isolated V1 staff/);
+    assert.match(listed, /Isolated V1 ptch/);
+  }
+  await chat(manager, `Duyệt đăng ký ca tuần ${next}`, /chọn một đăng ký/);
+  await chat(manager, `Duyệt tất cả đăng ký ca tuần ${next}`, /Số lượng duyệt: 4/);
+  await chat(manager, 'Xác nhận', /Đã duyệt thành công 4/);
+  await chat(manager, `Công bố lịch tuần ${next}`, /Bản xem trước công bố/);
+  await chat(manager, 'Xác nhận', /Đã công bố chính thức/);
+  const options = await chat(employee, `Đổi ca SYNTH-A ngày ${next} với Isolated V1 ptch`, /Bạn muốn nhận lại ca nào/);
+  assert.match(options, /SYNTH-NIGHT/);
+  assert.doesNotMatch(options, /SYNTH-A/); // Taking B's Wednesday ca would overlap A's Wednesday ca.
+  await chat(employee, '1', /Nhập lý do/);
+  const preview = await chat(employee, 'Mình có việc gia đình', /Ca bạn nhận lại.*SYNTH-NIGHT/);
+  assert.match(preview, /Ca của bạn.*SYNTH-A/);
+  const query = () => OperationalWeekModel.findOne({ weekStart: next }).lean();
+  assert.equal((await query()).requests.length, 0);
+  await chat(employee, 'Xác nhận gửi', /Chờ người nhận/i);
+  await chat(receiver, 'Đồng ý đổi ca', /Ca đổi lại.*SYNTH-NIGHT/);
+  await chat(receiver, 'Xác nhận', /Đã áp dụng vào lịch công bố/);
+  await chat(employee, `Lịch làm của tôi tuần ${next}`, /SYNTH-NIGHT/);
+  await chat(receiver, `Lịch làm của tôi tuần ${next}`, /SYNTH-A/);
+  assert.ok(await NotificationModel.exists({ userId: fixture.actors.sm.user._id, entityId: String((await query())._id), body: /Đã đổi ca/ }));
+  await chat(employee, `Nhờ SM tìm người nhận ca thay SYNTH-NIGHT ngày ${tue} vì có lịch cá nhân`, /Nhờ quản lý tìm người nhận thay/);
+  await chat(employee, 'Xác nhận', /Chờ quản lý/i);
+  await chat(manager, `Điều phối yêu cầu đổi ca tuần ${next}`, /Chọn người nhận ca thay/);
+  await chat(manager, 'Isolated V1 ptch', /Người nhận: Isolated V1 ptch/);
+  await chat(manager, 'Xác nhận', /Chờ người nhận/i);
+  await chat(receiver, 'Đồng ý nhận ca', /Ca làm.*SYNTH-NIGHT/);
+  await chat(receiver, 'Xác nhận', /Đã áp dụng vào lịch công bố/);
+  const final = await query();
+  verifySchedule(final);
+  assert.deepEqual(final.requests.map(r => r.completionMode), ['CONSENT', 'MANAGER']);
+  assert.equal(final.published.find(a => a.shiftCode === 'SYNTH-NIGHT').employeeId, String(fixture.actors.ptch.employee._id));
+  console.log('PASS chatbot registration, batch approval, publication, conflict filtering, direct swap and manager cover');
   await employee.setViewportSize({ width: 390, height: 844 }); await employee.screenshot({ path: path.join(output, 'personal-mobile.png') });
   assert.ok(await employee.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
   assert.deepEqual(errors, []);
