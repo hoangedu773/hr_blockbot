@@ -820,8 +820,10 @@ export function useScheduleChat({
 
       // 11. ĐỒNG Ý / TỪ CHỐI / HỦY YÊU CẦU ĐỔI CA (accept-change, decline-change, cancel-change)
       if (intent === 'accept-change' || intent === 'decline-change' || intent === 'cancel-change') {
-        const to = addDays(weekStart, 13);
-        const mine = await requestJson<PersonalSchedule>(`/scheduling/me?from=${weekStart}&to=${to}`);
+        const specified = parsedDate.date || /\btuan\s+(?:nay|sau|toi|ke|truoc|qua|roi|hien tai)\b/.test(scheduleText(instruction));
+        const from = specified ? weekStart : mondayOf(todayLocal());
+        const to = addDays(from, specified ? 6 : 41);
+        const mine = await requestJson<PersonalSchedule>(`/scheduling/me?from=${from}&to=${to}`);
         const targetAction = intent === 'accept-change' ? 'ACCEPT' : intent === 'decline-change' ? 'DECLINE' : 'CANCEL';
         const candidates = mine.requests.filter((r) =>
           (!parsedDate.date || r.source.date === parsedDate.date || r.target?.date === parsedDate.date) &&
@@ -833,8 +835,8 @@ export function useScheduleChat({
         if (!candidates.length) {
           say(
             targetAction === 'CANCEL'
-              ? 'Bạn không có yêu cầu đổi ca nào đang chờ để hủy.'
-              : 'Hiện bạn không có lời mời nhận / đổi ca nào đang chờ bạn xác nhận.'
+              ? `Không thấy yêu cầu đổi ca đang chờ hủy trong khoảng ${from} – ${to}.`
+              : `Không thấy lời mời nhận / đổi ca đang chờ bạn xác nhận trong khoảng ${from} – ${to}. Nếu ca nằm ngoài khoảng này, hãy nhắn kèm ngày của ca.`
           );
           return;
         }

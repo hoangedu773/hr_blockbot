@@ -179,6 +179,8 @@ try {
   const query = () => OperationalWeekModel.findOne({ weekStart: next }).lean();
   assert.equal((await query()).requests.length, 0);
   await chat(employee, 'Xác nhận gửi', /Chờ người nhận/i);
+  // A recipient can open a fresh conversation without knowing the date of the new request.
+  await receiver.getByRole('button', { name: 'Hội thoại mới', exact: true }).click();
   await chat(receiver, 'Đồng ý đổi ca', /Ca đổi lại.*SYNTH-NIGHT/);
   await chat(receiver, 'Xác nhận', /Đã áp dụng vào lịch công bố/);
   await chat(employee, `Lịch làm của tôi tuần ${next}`, /SYNTH-NIGHT/);
