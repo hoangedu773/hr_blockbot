@@ -246,6 +246,10 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
     ...(isHrUser ? [{ label: 'Duyệt yêu cầu nhân sự', prompt: 'Duyệt yêu cầu nhân sự' }] : []),
     ...(user?.authorization?.capabilities?.some(cap => cap === 'revenue_kpi.read_self' || cap === 'revenue_kpi.read_scope')
       ? [{ label: 'KPI doanh thu tháng này', prompt: 'KPI doanh thu tháng này' }] : []),
+    ...(user?.authorization?.capabilities?.includes('projects.assign')
+      ? [{ label: 'Gợi ý người bằng PhoBERT', prompt: 'Ai phù hợp với công việc kiểm kê quầy pha chế cuối ca?' }] : []),
+    ...(user?.authorization?.capabilities?.some(cap => cap === 'projects.assign' || cap === 'assignment.respond' || cap === 'reports.submit' || cap === 'reports.review')
+      ? [{ label: 'Công việc & nghiệm thu', prompt: 'Danh sách công việc thường' }] : []),
     ...(user?.authorization?.capabilities?.some(cap => cap === 'task.respond' || cap === 'task.manage' || cap === 'performance_kpi.read_self' || cap === 'performance_kpi.read_scope')
       ? [
           { label: 'Công việc có thang điểm', prompt: 'Danh sách công việc có thang điểm tháng này' },

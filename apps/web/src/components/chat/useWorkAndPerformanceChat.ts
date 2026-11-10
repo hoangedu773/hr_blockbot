@@ -1,22 +1,60 @@
 import { useEffect, useRef, useState } from 'react';
-import type { AuthorizationCapability, PerformanceEvaluation, TaskInstance } from '@hr-blockbot/contracts';
+import type {
+  AssignmentCandidate,
+  AuthorizationCapability,
+  F4Suggestions,
+  PerformanceEvaluation,
+  Project,
+  Report,
+  TaskInstance,
+} from '@hr-blockbot/contracts';
 import * as api from '../../services/performance-kpi-api';
-import { fetchMe, newClientMessageId } from '../../services/api';
+import {
+  assignProject,
+  createProject,
+  fetchMe,
+  fetchProjectById,
+  fetchProjectReports,
+  fetchProjects,
+  fetchReplacementCandidates,
+  newClientMessageId,
+  respondAssignment,
+  reviewReport,
+  submitReport,
+  transitionProject,
+  updateProjectProgress,
+} from '../../services/api';
 import { performanceDate, performanceLabels, performanceNumber } from '../TaskDetailView';
 
 type Turn = { sender: 'user' | 'assistant'; text: string };
 type Step<T> = Generator<string, T, string>;
 type Plan = { summary: string; readOnly?: boolean; execute: () => Promise<string> };
-type Decision = { step: Step<Plan> } | { plan: Plan };
+type Decision =
+  | { step: Step<Plan>; optional?: boolean; canAcceptInput?: (text: string) => boolean }
+  | { plan: Plan };
 type Session = {
-  domain: 'task' | 'evaluation';
+  domain: 'project' | 'task' | 'evaluation';
   period: string;
+  projectIds: string[];
   taskIds: string[];
   evaluationIds: string[];
   selectedId?: string;
 };
 
-type WorkPerfIntent =
+export type WorkPerfIntent =
+  | 'project-list'
+  | 'project-pending'
+  | 'project-detail'
+  | 'project-suggest'
+  | 'project-create'
+  | 'project-assign'
+  | 'project-accept'
+  | 'project-decline'
+  | 'project-start'
+  | 'project-progress'
+  | 'project-submit'
+  | 'project-review'
+  | 'project-rework'
   | 'task-list'
   | 'task-pending'
   | 'task-detail'
@@ -39,17 +77,46 @@ type WorkPerfIntent =
   | 'eval-appeal-decision'
   | 'help';
 
+const PROJECT_STATUS_LABELS: Record<string, string> = {
+  DRAFT: 'Bản nháp',
+  ASSIGNED: 'Đã giao',
+  IN_PROGRESS: 'Đang thực hiện',
+  PENDING_REVIEW: 'Chờ nghiệm thu',
+  COMPLETED: 'Hoàn thành',
+};
+
+const ASSIGNMENT_STATUS_LABELS: Record<string, string> = {
+  PENDING_ACCEPTANCE: 'Chờ nhân viên tiếp nhận',
+  ACCEPTED: 'Đã nhận việc',
+  MANAGER_REVIEW: 'Chờ quản lý xem xét',
+  HANDOVER_PENDING: 'Đang chờ bàn giao',
+};
+
 function normalizeText(text: string) {
   return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/đ/g, 'd').trim().replace(/\s+/g, ' ');
 }
 
 function splitReason(text: string) {
-  const parts = /^(.+?)(?:[\s,;]+(?:lý do|ly do|ghi chú|ghi chu|nội dung|noi dung|nhận xét|nhan xet)\s*[:=]\s*|\s+(?:bởi vì|vì|vi)\s+(?!sao\b))(.+)$/is.exec(text);
-  return { instruction: (parts?.[1] ?? text).trim(), note: parts?.[2]?.trim() ?? '' };
+  const parts = /^(.+?)(?:[\s,;]+(?:lý do|ly do|ghi chú|ghi chu|nội dung|noi dung|nhận xét|nhan xet|báo cáo|bao cao)\s*[:=]\s*|\s+(?:bởi vì|vì|vi)\s+(?!sao\b))(.+)$/is.exec(text);
+  if (parts) {
+    return { instruction: parts[1].trim(), note: parts[2].trim() };
+  }
+  const colonReport = /^((?:nộp|nop|gửi|gui|báo cáo|bao cao|nghiệm thu|nghiem thu|duyệt|duyet|yêu cầu làm lại|yeu cau lam lai|trả lại|tra lai|từ chối|tu choi)\b[^:]{3,160}):\s+(.+)$/is.exec(text);
+  if (colonReport) {
+    return { instruction: colonReport[1].trim(), note: colonReport[2].trim() };
+  }
+  return { instruction: text.trim(), note: '' };
 }
 
 function currentMonthVN() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit' }).format(new Date()).slice(0, 7);
+}
+
+function formatDateVN(iso?: string | null) {
+  if (!iso) return 'Chưa đặt hạn';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric' }).format(d);
 }
 
 function resolvePeriod(text: string, fallback: string) {
@@ -69,17 +136,122 @@ function resolvePeriod(text: string, fallback: string) {
 
 function pickChoice<T>(text: string, items: T[], label: (item: T) => string): T[] {
   const q = normalizeText(text).replace(/[.?!]+$/, '').trim();
-  const numMatch = q.match(/^(?:(?:chon|xem|doc|mo|nhan|nop|giao|cham|nghiem thu|tu choi|xu ly|phan hoi|cong bo|chot) )?(?:(?:muc|so|cai|nhiem vu|cong viec|ho so) )?(\d+)$/)
-    ?? q.match(/\b(?:muc|so|nhiem vu|cong viec|ho so) (\d+)\b/);
+  const numMatch = q.match(/^(?:(?:chon|xem|doc|mo|nhan|nop|giao|cham|nghiem thu|tu choi|xu ly|phan hoi|cong bo|chot|bat dau|lam lai|ung vien) )?(?:(?:muc|so|cai|nhiem vu|cong viec|ho so|ung vien) )?(\d+)$/)
+    ?? q.match(/\b(?:muc|so|nhiem vu|cong viec|ho so|ung vien) (\d+)\b/);
   if (numMatch) {
     const picked = items[Number(numMatch[1]) - 1];
     return picked ? [picked] : [];
   }
-  if (/\b(?:muc|so|cai|ho so|nhiem vu) dau tien\b/.test(q)) return items.slice(0, 1);
+  if (/\b(?:muc|so|cai|ho so|nhiem vu|cong viec|ung vien) dau tien\b/.test(q)) return items.slice(0, 1);
   return items.filter(item => {
     const l = normalizeText(label(item));
     return l.length > 2 && (q.includes(l) || (q.length > 3 && l.includes(q)));
   });
+}
+
+function extractProjectSearchTitle(text: string): string {
+  const cleaned = text
+    .replace(/[?!.]+$/g, '')
+    .replace(/^(?:cho\s+(?:tôi|toi|mình|minh|anh|em)\s+(?:hỏi|hoi|xem|biết|biet)\s+)?/iu, '')
+    .replace(/^(?:ai\s+(?:là\s+người\s+|la\s+nguoi\s+)?(?:phù\s+hợp|phu\s+hop)\s+(?:nhất\s+|nhat\s+)?(?:với|voi|cho|làm|lam|nhận|nhan)\s+(?:công\s+việc|cong\s+viec|việc|viec)\s+)/iu, '')
+    .replace(/^(?:(?:gợi\s+ý|goi\s+y)\s+(?:người|nguoi|nhân\s+sự|nhan\s+su|ứng\s+viên|ung\s+vien)(?:\s+(?:bằng|bang)\s+phobert)?\s*(?:cho|với|voi|nhận|nhan|làm|lam)?\s*(?:công\s+việc|cong\s+viec|việc|viec)?\s*)/iu, '')
+    .replace(/^(?:phobert\s+(?:gợi\s+ý|goi\s+y)\s+(?:cho\s+)?(?:công\s+việc|cong\s+viec|việc|viec)?\s*)/iu, '')
+    .replace(/^(?:(?:tạo|tao|thêm|them)\s+(?:bản\s+diễn\s+tập\s+|ban\s+dien\s+tap\s+)?(?:công\s+việc(?:\s+thường|\s+mới)?|cong\s+viec(?:\s+thuong|\s+moi)?|việc(?:\s+mới)?|viec(?:\s+moi)?)\s*[:=-]?\s*)/iu, '')
+    .replace(/^(?:giao|phân\s+công|phan\s+cong|nhận|nhan|tiếp\s+nhận|tiep\s+nhan|đồng\s+ý\s+nhận|dong\s+y\s+nhan|bắt\s+đầu(?:\s+làm|\s+thực\s+hiện)?|bat\s+dau(?:\s+lam|\s+thuc\s+hien)?|thực\s+hiện|thuc\s+hien|cập\s+nhật\s+tiến\s+độ|cap\s+nhat\s+tien\s+do|tiến\s+độ|tien\s+do|nộp\s+báo\s+cáo|nop\s+bao\s+cao|gửi\s+báo\s+cáo|gui\s+bao\s+cao|báo\s+cáo\s+hoàn\s+thành|bao\s+cao\s+hoan\s+thanh|nộp|nop|nghiệm\s+thu|nghiem\s+thu|duyệt\s+báo\s+cáo|duyet\s+bao\s+cao|hoàn\s+thành\s+nghiệm\s+thu|hoan\s+thanh\s+nghiem\s+thu|yêu\s+cầu\s+làm\s+lại|yeu\s+cau\s+lam\s+lai|trả\s+lại\s+báo\s+cáo|tra\s+lai\s+bao\s+cao|từ\s+chối\s+nghiệm\s+thu|tu\s+choi\s+nghiem\s+thu|từ\s+chối|tu\s+choi|xem\s+chi\s+tiết|xem\s+chi\s+tiet|chi\s+tiết|chi\s+tiet)\s+(?:công\s+việc(?:\s+thường)?|cong\s+viec(?:\s+thuong)?|việc|viec|báo\s+cáo\s+công\s+việc|bao\s+cao\s+cong\s+viec)?\s*[:=-]?\s*/iu, '')
+    .replace(/\s+(?:cho|với|voi)\s+[A-ZÀ-Ỹa-zà-ỹ\s]{2,40}$/u, '')
+    .replace(/\s+\d{1,3}\s*%$/i, '')
+    .trim();
+  return cleaned.replace(/^[“"'`]+|[”"'`]+$/g, '').trim();
+}
+
+function stripBracketPrefix(title: string) {
+  return title.replace(/^\s*\[[^\]]+\]\s*/, '').trim();
+}
+
+function matchProjectsByInstruction(instruction: string, projects: Project[], selectedId?: string): Project[] {
+  const numPick = pickChoice(instruction, projects, p => p.title);
+  const qNorm = normalizeText(instruction);
+  if (/^(?:(?:chon|xem|doc|mo|nhan|nop|giao|nghiem thu|bat dau|lam lai|tu choi) )?(?:(?:muc|so|cai|cong viec) )?\d+$/.test(qNorm) || /\b(?:muc|so) \d+\b/.test(qNorm)) {
+    return numPick;
+  }
+  if (/\b(?:cong viec nay|viec nay|muc nay|vua tao)\b/.test(qNorm) && selectedId) {
+    const sel = projects.find(p => p.id === selectedId);
+    if (sel) return [sel];
+  }
+
+  const rawTarget = extractProjectSearchTitle(instruction);
+  const targetNorm = normalizeText(rawTarget);
+  const bracketMatch = rawTarget.match(/\[([^\]]+)\]/);
+  const bracketTagNorm = bracketMatch ? normalizeText(bracketMatch[1]) : '';
+
+  if (bracketTagNorm) {
+    const exactBracket = projects.filter(p => normalizeText(p.title).includes(`[${bracketTagNorm}]`));
+    if (exactBracket.length) {
+      if (targetNorm.length > bracketTagNorm.length + 2) {
+        const refined = exactBracket.filter(p => normalizeText(p.title).includes(targetNorm));
+        if (refined.length) return refined;
+      }
+      return exactBracket;
+    }
+  }
+
+  if (targetNorm && targetNorm.length >= 3) {
+    const direct = projects.filter(p => {
+      const full = normalizeText(p.title);
+      const base = normalizeText(stripBracketPrefix(p.title));
+      return full.includes(targetNorm) || targetNorm.includes(full) || (base.length >= 3 && (base.includes(targetNorm) || targetNorm.includes(base)));
+    });
+    if (direct.length) return direct;
+  }
+
+  return projects.filter(p => {
+    const base = normalizeText(stripBracketPrefix(p.title));
+    return base.length >= 4 && qNorm.includes(base);
+  });
+}
+
+function formatPhoBertSuggestions(project: Project, advice: F4Suggestions): string {
+  const statusLabel = PROJECT_STATUS_LABELS[project.status] ?? project.status;
+  const sourceLine = advice.source === 'PHOBERT'
+    ? `• Nguồn mô hình: ${advice.model ?? 'vinai/phobert-base'} (revision ${advice.revision ?? 'main'}) · Chế độ: PHOBERT (mô hình chạy thật) · Trọng số ngữ nghĩa α=${advice.semanticWeight ?? 0.5}`
+    : `• Nguồn gợi ý: ${advice.source} (Trạng thái: ${advice.status})`;
+
+  const header = [
+    `Kết quả gợi ý ứng viên cho công việc: “${project.title}”`,
+    `• Trạng thái công việc: ${statusLabel} · Phiên bản v${project.version}`,
+    `• Kỹ năng yêu cầu: ${project.requiredSkills.length ? project.requiredSkills.join(', ') : 'Chưa khai báo'}`,
+    sourceLine,
+    `• Phạm vi đánh giá: ${advice.candidatesConsidered} nhân sự đủ điều kiện tại cửa hàng`,
+  ];
+
+  if (!advice.items.length) {
+    header.push('\nHiện không có ứng viên nào trong danh sách gợi ý tự động. Quản lý có thể chọn nhân sự thủ công.');
+    return header.join('\n');
+  }
+
+  const candidateLines = advice.items.map((c, idx) => {
+    const scoreText = c.suitabilityScore !== null ? `${c.suitabilityScore}/100` : 'Chưa đủ dữ liệu kỹ năng';
+    const exactPct = c.skillScore !== null ? `${Math.round(c.skillScore * 100)}%` : '—';
+    const semPct = c.semanticScore !== null ? `${Math.round(c.semanticScore * 100)}%` : '—';
+    const matchedText = c.matchedSkills.length ? c.matchedSkills.join(', ') : 'Chưa có';
+    const missingText = c.missingSkills.length ? ` · Kỹ năng đối sánh ngữ nghĩa: ${c.missingSkills.join(', ')}` : '';
+    const evidenceText = c.semanticEvidence.length
+      ? c.semanticEvidence.map(pair => `${pair.required} ↔ ${pair.matched ?? '—'} (cosine ${pair.cosine.toFixed(4)})`).join('; ')
+      : 'Không có cặp đối sánh';
+    const missingNote = c.missingData.length ? ` (${c.missingData.join(' ')})` : '';
+    return [
+      `${idx + 1}. ${c.fullName} — Điểm phù hợp: ${scoreText} (Khớp chính xác: ${exactPct} · Ngữ nghĩa PhoBERT: ${semPct})`,
+      `   • Kỹ năng khớp: ${matchedText}${missingText}`,
+      `   • Đối sánh ngữ nghĩa (${advice.model ?? 'vinai/phobert-base'}): ${evidenceText}`,
+      `   • Lý do gợi ý: ${c.explanation}${missingNote}`,
+    ].join('\n');
+  });
+
+  return [
+    ...header,
+    '',
+    ...candidateLines,
+  ].join('\n');
 }
 
 export function detectWorkPerfIntent(text: string, session?: Session): WorkPerfIntent | null {
@@ -91,8 +263,16 @@ export function detectWorkPerfIntent(text: string, session?: Session): WorkPerfI
     return null;
   }
 
-  const hasTaskScope = /\b(?:cong viec co thang diem|viec co thang diem|cong viec can nghiem thu|viec can nghiem thu|nghiem thu cong viec|nhiem vu kpi|nhiem vu co thang diem|nhiem vu duoc giao|nhiem vu cua toi|nhiem vu thang|giao nhiem vu|nhan nhiem vu|nop nhiem vu|nghiem thu nhiem vu)\b/.test(q);
+  // Scored KPI tasks explicitly mention "có thang điểm" or "nhiệm vụ"
+  const hasScoredTaskScope = /\b(?:cong viec co thang diem|viec co thang diem|nhiem vu kpi|nhiem vu co thang diem|nhiem vu duoc giao|nhiem vu cua toi|nhiem vu thang|giao nhiem vu|nhan nhiem vu|nop nhiem vu|nghiem thu nhiem vu|cham nhiem vu|danh gia nhiem vu)\b/.test(q);
   const hasEvalScope = /\b(?:kpi hieu suat|danh gia hieu suat|diem hieu suat)\b/.test(q);
+
+  // Regular work (Công việc & nghiệm thu) + PhoBERT candidate suggestion
+  const hasPhoBertSuggest = /\b(?:ai phu hop|nguoi phu hop|ung vien phu hop|goi y nguoi|goi y nhan su|goi y ung vien|phobert|de xuat nguoi|de xuat ung vien)\b/.test(q);
+  const hasRegularProjectScope = !hasScoredTaskScope && (
+    hasPhoBertSuggest ||
+    /\b(?:cong viec thuong|cong viec va nghiem thu|tao cong viec|tao ban dien tap|them cong viec|giao cong viec|phan cong cong viec|nhan cong viec|tiep nhan cong viec|bat dau cong viec|bat dau lam cong viec|thuc hien cong viec|cap nhat tien do cong viec|tien do cong viec|nop bao cao|gui bao cao|bao cao hoan thanh|duyet bao cao|yeu cau lam lai|tra lai bao cao|tu choi nghiem thu|nghiem thu cong viec|cong viec can nghiem thu|viec can nghiem thu|danh sach cong viec|cong viec cua toi|cong viec cua hang|cong viec ban nhap|kiem ke quay pha che cuoi ca|demo bv f4|dien tap)\b/.test(q)
+  );
 
   // Let single personal KPI summary ("KPI hiệu suất của tôi") go to backend `/api/chat/stream` so it renders the native performanceKpi card,
   // unless the user asks for an action (tự nhận xét, kiến nghị, khiếu nại, phản hồi) or list/store/team view.
@@ -101,11 +281,33 @@ export function detectWorkPerfIntent(text: string, session?: Session): WorkPerfI
     && !/\b(?:tu nhan xet|tu danh gia|kien nghi|khieu nai|phan hoi|cham diem|cong bo|chot|danh sach|cua hang|doi ngu|can xu ly|cho cham)\b/.test(q);
   if (isSimpleOwnEvalRead) return null;
 
-  if (!hasTaskScope && !hasEvalScope && !session) return null;
+  if (!hasRegularProjectScope && !hasScoredTaskScope && !hasEvalScope && !session) return null;
 
   if (/\b(?:tro giup|huong dan thao tac|lam duoc gi)\b/.test(q)) return 'help';
 
-  const activeDomain = hasTaskScope ? 'task' : hasEvalScope ? 'evaluation' : session?.domain;
+  const activeDomain = hasRegularProjectScope
+    ? 'project'
+    : hasScoredTaskScope
+      ? 'task'
+      : hasEvalScope
+        ? 'evaluation'
+        : session?.domain;
+
+  if (activeDomain === 'project') {
+    if (hasPhoBertSuggest) return 'project-suggest';
+    if (/\b(?:tao cong viec|tao ban dien tap|them cong viec|tao viec moi|tao moi cong viec)\b/.test(q)) return 'project-create';
+    if (/\b(?:yeu cau lam lai|lam lai|tra lai bao cao|tu choi nghiem thu|bac bao cao)\b/.test(q)) return 'project-rework';
+    if (/\b(?:nghiem thu|duyet bao cao|hoan thanh nghiem thu)\b/.test(q) && !/\b(?:can nghiem thu|cho nghiem thu|cong viec va nghiem thu)\b/.test(q)) return 'project-review';
+    if (/\b(?:nop bao cao|gui bao cao|bao cao hoan thanh|nop cong viec|nop ket qua|nop muc)\b/.test(q)) return 'project-submit';
+    if (/\b(?:bat dau|trien khai|chuyen sang dang thuc hien)\b/.test(q)) return 'project-start';
+    if (/\b(?:cap nhat tien do|tien do)\b/.test(q)) return 'project-progress';
+    if (/\b(?:tu choi|khong nhan)\b/.test(q)) return 'project-decline';
+    if (/\b(?:chap nhan|dong y nhan|tiep nhan|nhan cong viec|nhan viec|nhan muc)\b/.test(q) && !/\bcho nhan\b/.test(q)) return 'project-accept';
+    if (/\b(?:giao cong viec|giao viec|phan cong|giao muc|giao cho)\b/.test(q) && !/\bduoc giao\b/.test(q)) return 'project-assign';
+    if (/\b(?:chi tiet|xem muc|doc muc|mo muc|muc \d|so \d)\b/.test(q) || /^(?:xem|mo|chon)?\s*\d+$/.test(q)) return 'project-detail';
+    if (/\b(?:can xu ly|cho xu ly|cho nhan|cho nghiem thu|can nghiem thu)\b/.test(q)) return 'project-pending';
+    return hasRegularProjectScope ? 'project-list' : null;
+  }
 
   if (activeDomain === 'task') {
     if (/\b(?:xu ly tu choi|duyet tu choi|bac tu choi)\b/.test(q)) return 'task-refusal-decision';
@@ -117,7 +319,7 @@ export function detectWorkPerfIntent(text: string, session?: Session): WorkPerfI
     if (/\b(?:giao viec|giao nhiem vu|phan cong|giao muc)\b/.test(q) && !/\bduoc giao\b/.test(q)) return 'task-assign';
     if (/\b(?:chi tiet|xem muc|doc muc|mo muc|muc \d|so \d)\b/.test(q) || /^(?:xem|mo|chon)?\s*\d+$/.test(q)) return 'task-detail';
     if (/\b(?:can xu ly|cho xu ly|cho nhan|cho nghiem thu|cho cham|bi tu choi)\b/.test(q)) return 'task-pending';
-    return hasTaskScope ? 'task-list' : null;
+    return hasScoredTaskScope ? 'task-list' : null;
   }
 
   if (activeDomain === 'evaluation') {
@@ -134,6 +336,28 @@ export function detectWorkPerfIntent(text: string, session?: Session): WorkPerfI
   }
 
   return null;
+}
+
+function describeProject(p: Project, reportList: Report[] = []) {
+  const statusLabel = PROJECT_STATUS_LABELS[p.status] ?? p.status;
+  const assignLabel = p.assignmentStatus ? (ASSIGNMENT_STATUS_LABELS[p.assignmentStatus] ?? p.assignmentStatus) : 'Chưa phân công';
+  const lines = [
+    `${p.title} · Phiên bản v${p.version}`,
+    `• Trạng thái: ${statusLabel} (${assignLabel}) · Tiến độ: ${p.progress}%`,
+    `• Người nhận: ${p.assigneeName || (p.assigneeId ? 'Đã phân công' : 'Chưa giao')} · Hạn hoàn thành: ${formatDateVN(p.dueDate)}`,
+    `• Kỹ năng yêu cầu: ${p.requiredSkills.length ? p.requiredSkills.join(', ') : 'Chưa khai báo'}`,
+    p.description ? `• Mô tả: ${p.description}` : '',
+  ].filter(Boolean);
+
+  if (reportList.length) {
+    const latest = reportList[0];
+    lines.push(`• Báo cáo gần nhất (${latest.status}): “${latest.content}”${latest.reason ? ` · Nhận xét duyệt: ${latest.reason}` : ''}`);
+  }
+  const latestAudit = p.assignmentAudit?.[p.assignmentAudit.length - 1];
+  if (latestAudit) {
+    lines.push(`• Kiểm toán bất biến: Block #${latestAudit.sequence} (${latestAudit.type}) · SHA-256 ${latestAudit.hash.slice(0, 12)}...`);
+  }
+  return lines.join('\n');
 }
 
 function describeTask(t: TaskInstance, names: Record<string, string>) {
@@ -192,6 +416,21 @@ export function useWorkAndPerformanceChat({
   function send(text: string, append: (turn: Turn) => void, allowContext = true) {
     const activeSession = allowContext ? session.current : undefined;
     const intent = detectWorkPerfIntent(text, activeSession);
+    const q = normalizeText(text).replace(/[.!?]+$/, '');
+
+    // If an optional follow-up step is active (e.g., choosing a PhoBERT candidate after viewing suggestions),
+    // and the user instead types a new command or switches to another chat domain, release the optional step cleanly.
+    if (decision.current && 'step' in decision.current && decision.current.optional) {
+      const isCancel = /^(?:huy|huy thao tac|dung lai|bo qua|thoi)$/.test(q);
+      const acceptedByStep = decision.current.canAcceptInput ? decision.current.canAcceptInput(text) : false;
+      if (!isCancel && !acceptedByStep) {
+        decision.current = undefined;
+      }
+    }
+
+    if (!allowContext && !intent) {
+      return false;
+    }
     if (!intent && !decision.current) return false;
     if (inFlight.current) return true;
 
@@ -201,12 +440,15 @@ export function useWorkAndPerformanceChat({
     const say = (reply: string) => {
       if (!signal.aborted) append({ sender: 'assistant', text: reply });
     };
-    const q = normalizeText(text).replace(/[.!?]+$/, '');
     const { instruction, note } = splitReason(text);
     append({ sender: 'user', text });
     setBusy(true);
 
-    async function advance(result: IteratorResult<string, Plan>, step: Step<Plan>) {
+    async function advance(
+      result: IteratorResult<string, Plan>,
+      step: Step<Plan>,
+      options?: { optional?: boolean; canAcceptInput?: (input: string) => boolean },
+    ) {
       if (result.done) {
         if (result.value.readOnly) {
           say(await result.value.execute());
@@ -215,7 +457,7 @@ export function useWorkAndPerformanceChat({
         decision.current = { plan: result.value };
         say(`${result.value.summary}\n\nNhắn “xác nhận” để thực hiện hoặc “hủy” để dừng.`);
       } else {
-        decision.current = { step };
+        decision.current = { step, optional: options?.optional, canAcceptInput: options?.canAcceptInput };
         say(result.value);
       }
     }
@@ -246,14 +488,525 @@ export function useWorkAndPerformanceChat({
       if (!intent) return;
       if (intent === 'help') {
         say([
-          'Bạn có thể thao tác tự nhiên với Công việc & nghiệm thu và KPI hiệu suất:',
-          '• Công việc: “Danh sách công việc có thang điểm”, “Việc nào chờ nhận?”, “Nhận mục 1”, “Từ chối mục 1 lý do: ...”, “Tiến độ mục 1”, “Nộp mục 1 lý do: ...”, “Giao mục 1”, “Nghiệm thu mục 1”.',
-          '• KPI hiệu suất: “Danh sách KPI hiệu suất tháng này”, “KPI hiệu suất cần xử lý”, “Tự nhận xét KPI hiệu suất”, “Kiến nghị KPI hiệu suất”, “Phản hồi kiến nghị mục 1”, “Khiếu nại KPI hiệu suất”, “Chấm điểm KPI hiệu suất mục 1”.',
+          'Bạn có thể thao tác tự nhiên với Công việc & nghiệm thu (công việc thường + PhoBERT), Công việc có thang điểm và KPI hiệu suất:',
+          '• Công việc thường & PhoBERT: “Ai phù hợp với công việc kiểm kê quầy pha chế cuối ca?”, “Tạo công việc ...”, “Giao công việc ...”, “Nhận công việc ...”, “Bắt đầu công việc ...”, “Nộp báo cáo công việc ...: <nội dung>”, “Nghiệm thu công việc ...”, “Yêu cầu làm lại công việc ... lý do: <lý do>”.',
+          '• Công việc có thang điểm: “Danh sách công việc có thang điểm”, “Việc có thang điểm nào cần xử lý?”.',
+          '• KPI hiệu suất: “Danh sách KPI hiệu suất tháng này”, “KPI hiệu suất cần xử lý”, “Tự nhận xét KPI hiệu suất”, “Kiến nghị KPI hiệu suất”, “Khiếu nại KPI hiệu suất”.',
         ].join('\n'));
         return;
       }
 
       const period = resolvePeriod(instruction, session.current?.period ?? currentMonthVN());
+
+      // ---- REGULAR PROJECT DOMAIN (Công việc & nghiệm thu + PhoBERT) ----
+      if (intent.startsWith('project-')) {
+        const [{ items: allProjects }, me] = await Promise.all([
+          fetchProjects({ limit: 50 }),
+          fetchMe(),
+        ]);
+        if (signal.aborted) return;
+        const employeeId = me.employeeId ?? undefined;
+
+        const current: Session = session.current?.domain === 'project'
+          ? session.current
+          : { domain: 'project', period, projectIds: [], taskIds: [], evaluationIds: [] };
+        session.current = current;
+
+        if (intent === 'project-create') {
+          if (!can('projects.create')) {
+            say('Tài khoản của bạn chưa có quyền tạo công việc mới (`projects.create`).');
+            return;
+          }
+          const creatableStore = me.authorization?.stores?.find(s => s.capabilities.includes('projects.create') && s.departmentId)
+            ?? me.authorization?.stores?.find(s => s.departmentId);
+          if (!creatableStore || !creatableStore.departmentId) {
+            say('Không tìm thấy cửa hàng/phòng ban hợp lệ để tạo công việc mới.');
+            return;
+          }
+          const targetStore = {
+            id: creatableStore.id,
+            name: creatableStore.name,
+            departmentId: creatableStore.departmentId,
+          };
+
+          // Parse inline fields or match template project
+          const rawAfterVerb = extractProjectSearchTitle(instruction);
+          const inlineTitle = rawAfterVerb
+            .replace(/\s*(?:theo mau|nhu mau|ban dien tap).*$/i, '')
+            .replace(/\s*;\s*(?:mo ta|mô tả|ky nang|kỹ năng|han|hạn)\s*[:=].*$/i, '')
+            .trim();
+
+          const baseRefQuery = stripBracketPrefix(inlineTitle || rawAfterVerb);
+          const refProject = allProjects.find(p => {
+            const pBase = normalizeText(stripBracketPrefix(p.title));
+            const qBase = normalizeText(baseRefQuery);
+            return qBase.length >= 4 && (pBase.includes(qBase) || qBase.includes(pBase));
+          }) ?? allProjects.find(p => normalizeText(p.title).includes('kiem ke quay pha che cuoi ca'));
+
+          const descMatch = /(?:mô tả|mo ta)\s*[:=]\s*([^;]+)/i.exec(text);
+          const skillsMatch = /(?:kỹ năng|ky nang)\s*[:=]\s*([^;]+)/i.exec(text);
+          const dueMatch = /(?:hạn|han)\s*[:=]\s*(\d{4}-\d{2}-\d{2})/i.exec(text);
+
+          function* createProjectFlow(): Step<Plan> {
+            let title = inlineTitle;
+            while (title.trim().length < 3) {
+              title = (yield 'Bạn hãy nhập tiêu đề công việc thường cần tạo (ví dụ: “[DIỄN TẬP CHAT] Kiểm kê quầy pha chế cuối ca”):').trim();
+            }
+            const matchedTemplate = refProject ?? allProjects.find(p => {
+              const pBase = normalizeText(stripBracketPrefix(p.title));
+              const tBase = normalizeText(stripBracketPrefix(title));
+              return tBase.length >= 4 && (pBase.includes(tBase) || tBase.includes(pBase));
+            });
+
+            let description = descMatch?.[1]?.trim() ?? matchedTemplate?.description ?? '';
+            while (description.trim().length < 5) {
+              description = (yield `Nhập mô tả chi tiết cho công việc “${title}”:`).trim();
+            }
+
+            let requiredSkills = skillsMatch
+              ? skillsMatch[1].split(',').map(s => s.trim()).filter(Boolean)
+              : (matchedTemplate?.requiredSkills?.length ? [...matchedTemplate.requiredSkills] : []);
+            while (!requiredSkills.length) {
+              const skillsReply = (yield `Nhập các kỹ năng yêu cầu cho công việc “${title}” (cách nhau bởi dấu phẩy, ví dụ: Bán hàng, Pha đồ uống, Kiểm kê nguyên vật liệu):`).trim();
+              requiredSkills = skillsReply.split(',').map(s => s.trim()).filter(Boolean);
+            }
+
+            const dueDateIso = dueMatch?.[1]
+              ? new Date(`${dueMatch[1]}T10:00:00.000Z`).toISOString()
+              : (matchedTemplate?.dueDate ?? new Date('2026-11-30T10:00:00.000Z').toISOString());
+
+            return {
+              summary: [
+                `Xác nhận tạo công việc mới trong Công việc & nghiệm thu:`,
+                `• Tiêu đề: ${title}`,
+                `• Cửa hàng: ${targetStore.name}`,
+                `• Kỹ năng yêu cầu: ${requiredSkills.join(', ')}`,
+                `• Hạn hoàn thành: ${formatDateVN(dueDateIso)}`,
+                `• Mô tả: ${description}`,
+              ].join('\n'),
+              execute: async () => {
+                const created = await createProject({
+                  title,
+                  description,
+                  requiredSkills,
+                  dueDate: dueDateIso,
+                  departmentId: targetStore.departmentId,
+                  storeId: targetStore.id,
+                });
+                current.selectedId = created.id;
+                current.projectIds = [created.id, ...current.projectIds.filter(id => id !== created.id)];
+                return [
+                  `Đã tạo công việc “${title}” thành công.`,
+                  `• Mã công việc: ${created.id}`,
+                  `• Trạng thái: ${PROJECT_STATUS_LABELS[created.status] ?? created.status} · Phiên bản v${created.version}`,
+                  `• Kỹ năng yêu cầu: ${requiredSkills.join(', ')}`,
+                  `\nBạn có thể hỏi ngay: “Ai phù hợp với công việc ${title}?” để chạy mô hình PhoBERT gợi ý ứng viên và giao việc.`,
+                ].join('\n');
+              },
+            };
+          }
+
+          const step = createProjectFlow();
+          await advance(step.next(), step);
+          return;
+        }
+
+        if (intent === 'project-list' || intent === 'project-pending') {
+          const filtered = allProjects.filter(p => {
+            if (/\b(?:cua toi|cua minh|cua em)\b/.test(q) && p.assigneeId !== employeeId) return false;
+            if (/\bban nhap\b/.test(q) && p.status !== 'DRAFT') return false;
+            if (/\bcho nhan\b/.test(q) && !(p.status === 'ASSIGNED' && p.assignmentStatus === 'PENDING_ACCEPTANCE')) return false;
+            if (/\b(?:cho nghiem thu|can nghiem thu)\b/.test(q) && p.status !== 'PENDING_REVIEW') return false;
+            if (intent === 'project-pending') {
+              if (p.assigneeId === employeeId && ['ASSIGNED', 'IN_PROGRESS'].includes(p.status)) return true;
+              if (can('reports.review') && p.status === 'PENDING_REVIEW') return true;
+              if (can('projects.assign') && p.status === 'DRAFT') return true;
+              return false;
+            }
+            return true;
+          });
+          current.projectIds = filtered.map(p => p.id);
+          current.selectedId = filtered.length === 1 ? filtered[0].id : current.selectedId;
+          if (!filtered.length) {
+            say('Hiện không có công việc thường nào phù hợp bộ lọc trong Công việc & nghiệm thu.');
+            return;
+          }
+          say([
+            `Công việc & nghiệm thu (${filtered.length} công việc):`,
+            ...filtered.slice(0, 15).map((p, i) => {
+              const statusLabel = PROJECT_STATUS_LABELS[p.status] ?? p.status;
+              const assignLabel = p.assignmentStatus ? ` (${ASSIGNMENT_STATUS_LABELS[p.assignmentStatus] ?? p.assignmentStatus})` : '';
+              const who = p.assigneeName || (p.assigneeId === employeeId ? 'Bạn' : p.assigneeId ? 'Đã giao' : 'Chưa giao');
+              return `${i + 1}. ${p.title} · ${statusLabel}${assignLabel} · Người nhận: ${who} · Tiến độ ${p.progress}%`;
+            }),
+            '\nNhắn “xem mục 1”, “ai phù hợp với công việc ...”, “nhận mục 1”, “bắt đầu mục 1”, “nộp báo cáo mục 1: ...” hoặc “nghiệm thu mục 1”.',
+          ].join('\n'));
+          return;
+        }
+
+        // Resolve target project for project-suggest, project-assign, project-accept, project-start, project-progress, project-submit, project-review, project-rework, project-detail
+        const ordered = current.projectIds.map(id => allProjects.find(p => p.id === id)).filter((p): p is Project => !!p);
+        const pool = ordered.length ? [...ordered, ...allProjects.filter(p => !current.projectIds.includes(p.id))] : allProjects;
+        const matched = matchProjectsByInstruction(instruction, pool, current.selectedId);
+
+        let selected: Project | undefined;
+        if (matched.length === 1) {
+          selected = matched[0];
+        } else if (matched.length > 1) {
+          // Filter by appropriate state for the requested action
+          const preferredByIntent = matched.filter(p => {
+            if (intent === 'project-suggest' || intent === 'project-assign') return p.status === 'DRAFT';
+            if (intent === 'project-accept' || intent === 'project-decline') return p.status === 'ASSIGNED' && p.assignmentStatus === 'PENDING_ACCEPTANCE';
+            if (intent === 'project-start') return p.status === 'ASSIGNED' || p.status === 'IN_PROGRESS';
+            if (intent === 'project-progress' || intent === 'project-submit') return p.status === 'IN_PROGRESS' || p.status === 'ASSIGNED';
+            if (intent === 'project-review' || intent === 'project-rework') return p.status === 'PENDING_REVIEW';
+            return true;
+          });
+          const stateCandidates = preferredByIntent.length ? preferredByIntent : matched.filter(p => {
+            if (intent === 'project-suggest') return ['DRAFT', 'ASSIGNED', 'IN_PROGRESS'].includes(p.status);
+            return true;
+          });
+          selected = (current.selectedId ? stateCandidates.find(p => p.id === current.selectedId) : undefined)
+            ?? stateCandidates[0]
+            ?? matched[0];
+        } else {
+          selected = (current.selectedId ? allProjects.find(p => p.id === current.selectedId) : undefined)
+            ?? (pool.length === 1 ? pool[0] : undefined);
+        }
+
+        if (!selected) {
+          current.projectIds = pool.slice(0, 15).map(p => p.id);
+          say([
+            'Bạn muốn thao tác trên công việc nào trong Công việc & nghiệm thu?',
+            ...pool.slice(0, 10).map((p, i) => `${i + 1}. ${p.title} · ${PROJECT_STATUS_LABELS[p.status] ?? p.status}`),
+            'Hãy nhắn kèm số thứ tự hoặc tên công việc.',
+          ].join('\n'));
+          return;
+        }
+        current.selectedId = selected.id;
+        if (!current.projectIds.includes(selected.id)) {
+          current.projectIds = [selected.id, ...current.projectIds];
+        }
+
+        if (intent === 'project-detail') {
+          const [fresh, reportsList] = await Promise.all([
+            fetchProjectById(selected.id),
+            fetchProjectReports(selected.id).catch((): Report[] => []),
+          ]);
+          if (signal.aborted) return;
+          say(describeProject(fresh, reportsList));
+          return;
+        }
+
+        if (intent === 'project-suggest' || intent === 'project-assign') {
+          if (!can('projects.assign')) {
+            say('Tài khoản của bạn chưa có quyền phân công / xem gợi ý ứng viên (`projects.assign`).');
+            return;
+          }
+          const fresh = await fetchProjectById(selected.id);
+          if (signal.aborted) return;
+          if (!['DRAFT', 'ASSIGNED', 'IN_PROGRESS'].includes(fresh.status)) {
+            say(`Công việc “${fresh.title}” đang ở trạng thái ${PROJECT_STATUS_LABELS[fresh.status] ?? fresh.status}, không còn ở trạng thái cần phân công.`);
+            return;
+          }
+          const advice = await fetchReplacementCandidates(fresh.id);
+          if (signal.aborted) return;
+
+          const pickCandidate = (input: string, items: AssignmentCandidate[]) => pickChoice(input, items, c => c.fullName);
+          // Check if SM already named the assignee in a `project-assign` command
+          const preselected = intent === 'project-assign' ? pickCandidate(instruction, advice.items)[0] : undefined;
+
+          function* suggestAndAssignFlow(): Step<Plan> {
+            let chosen = preselected;
+            while (!chosen) {
+              const promptMsg = [
+                formatPhoBertSuggestions(fresh, advice),
+                '',
+                fresh.status === 'DRAFT'
+                  ? 'Bạn muốn chọn ứng viên nào để giao việc? Nhắn số thứ tự (ví dụ “1” hoặc “chọn 1”) hoặc tên nhân viên để xem trước lệnh giao việc, hoặc “hủy” nếu chỉ xem gợi ý.'
+                  : 'Công việc này đã có người nhận. Nhắn “hủy” để đóng bảng gợi ý.',
+              ].join('\n');
+              const reply = yield promptMsg;
+              chosen = pickCandidate(reply, advice.items)[0];
+            }
+            const modelBadge = advice.source === 'PHOBERT'
+              ? `${advice.model ?? 'vinai/phobert-base'} · revision ${advice.revision}`
+              : advice.source;
+            return {
+              summary: [
+                `Xác nhận giao công việc thường trong Công việc & nghiệm thu:`,
+                `• Công việc: ${fresh.title} (Phiên bản v${fresh.version})`,
+                `• Nhân viên được chọn: ${chosen.fullName}`,
+                `• Điểm phù hợp: ${chosen.suitabilityScore !== null ? `${chosen.suitabilityScore}/100` : 'Chọn thủ công'} · Nguồn gợi ý: ${modelBadge}`,
+                `• Kỹ năng khớp: ${chosen.matchedSkills.length ? chosen.matchedSkills.join(', ') : 'Đối sánh ngữ nghĩa'}`,
+              ].join('\n'),
+              execute: async () => {
+                const latest = await fetchProjectById(fresh.id);
+                const assigned = await assignProject(latest.id, {
+                  assigneeId: chosen!.employeeId,
+                  expectedVersion: latest.version,
+                });
+                const updatedProj = await fetchProjectById(fresh.id);
+                return [
+                  `Đã giao công việc “${updatedProj.title}” cho ${updatedProj.assigneeName || chosen!.fullName}.`,
+                  `• Trạng thái: ${PROJECT_STATUS_LABELS[updatedProj.status] ?? assigned.status} (${ASSIGNMENT_STATUS_LABELS[updatedProj.assignmentStatus ?? ''] ?? updatedProj.assignmentStatus ?? 'Chờ nhân viên tiếp nhận'})`,
+                  `• Phiên bản: v${updatedProj.version}`,
+                  `• Nguồn gợi ý đã tham chiếu: ${modelBadge}`,
+                ].join('\n');
+              },
+            };
+          }
+
+          const step = suggestAndAssignFlow();
+          await advance(step.next(), step, {
+            optional: intent === 'project-suggest',
+            canAcceptInput: (input) => pickCandidate(input, advice.items).length > 0,
+          });
+          return;
+        }
+
+        if (intent === 'project-accept') {
+          const fresh = await fetchProjectById(selected.id);
+          if (signal.aborted) return;
+          if (fresh.status !== 'ASSIGNED') {
+            say(`Công việc “${fresh.title}” hiện đang ở trạng thái ${PROJECT_STATUS_LABELS[fresh.status] ?? fresh.status}, không ở trạng thái chờ nhận việc.`);
+            return;
+          }
+          const alsoStart = /\bva bat dau\b/.test(q);
+          const plan: Plan = {
+            summary: `Xác nhận tiếp nhận${alsoStart ? ' và bắt đầu thực hiện' : ''} công việc “${fresh.title}” (Hạn hoàn thành: ${formatDateVN(fresh.dueDate)} · Phiên bản v${fresh.version}).`,
+            execute: async () => {
+              const accepted = await respondAssignment(fresh.id, {
+                action: 'ACCEPT',
+                expectedVersion: fresh.version,
+              });
+              if (alsoStart) {
+                const started = await transitionProject(accepted.id, {
+                  targetStatus: 'IN_PROGRESS',
+                  expectedVersion: accepted.version,
+                });
+                return `Đã tiếp nhận và bắt đầu thực hiện công việc “${accepted.title}” · Trạng thái: ${PROJECT_STATUS_LABELS[started.status] ?? started.status} · Phiên bản v${started.version}.`;
+              }
+              return `Đã tiếp nhận công việc “${accepted.title}” · Trạng thái: ${PROJECT_STATUS_LABELS[accepted.status] ?? accepted.status} (${ASSIGNMENT_STATUS_LABELS[accepted.assignmentStatus ?? ''] ?? accepted.assignmentStatus}) · Phiên bản v${accepted.version}.\nBạn có thể nhắn “Bắt đầu công việc ${accepted.title}” để chuyển sang trạng thái Đang thực hiện.`;
+            },
+          };
+          decision.current = { plan };
+          say(`${plan.summary}\n\nNhắn “xác nhận” để thực hiện hoặc “hủy” để dừng.`);
+          return;
+        }
+
+        if (intent === 'project-decline') {
+          const fresh = await fetchProjectById(selected.id);
+          if (signal.aborted) return;
+          function* declineFlow(): Step<Plan> {
+            let reason = note;
+            while (reason.trim().length < 3) {
+              reason = (yield `Bạn hãy nhập lý do từ chối nhận công việc “${fresh.title}”:`).trim();
+            }
+            return {
+              summary: `Xác nhận từ chối nhận công việc “${fresh.title}” với lý do: “${reason}”.`,
+              execute: async () => {
+                const latest = await fetchProjectById(fresh.id);
+                const updated = await respondAssignment(latest.id, {
+                  action: 'DECLINE',
+                  reason,
+                  expectedVersion: latest.version,
+                });
+                return `Đã gửi phản hồi từ chối công việc “${updated.title}”. Trạng thái phân công: ${ASSIGNMENT_STATUS_LABELS[updated.assignmentStatus ?? ''] ?? updated.assignmentStatus}.`;
+              },
+            };
+          }
+          const step = declineFlow();
+          await advance(step.next(), step);
+          return;
+        }
+
+        if (intent === 'project-start') {
+          const fresh = await fetchProjectById(selected.id);
+          if (signal.aborted) return;
+          if (fresh.status === 'IN_PROGRESS') {
+            say(`Công việc “${fresh.title}” đã ở trạng thái Đang thực hiện (${fresh.progress}%). Bạn có thể nhắn “Nộp báo cáo công việc ${fresh.title}: <nội dung>”.`);
+            return;
+          }
+          if (fresh.status !== 'ASSIGNED') {
+            say(`Công việc “${fresh.title}” đang ở trạng thái ${PROJECT_STATUS_LABELS[fresh.status] ?? fresh.status}, không thể chuyển sang Đang thực hiện.`);
+            return;
+          }
+          const plan: Plan = {
+            summary: `Xác nhận bắt đầu thực hiện công việc “${fresh.title}” (chuyển trạng thái sang Đang thực hiện - IN_PROGRESS · Phiên bản v${fresh.version}).`,
+            execute: async () => {
+              let currentProj = await fetchProjectById(fresh.id);
+              if (currentProj.status === 'ASSIGNED' && currentProj.assignmentStatus !== 'ACCEPTED') {
+                currentProj = await respondAssignment(currentProj.id, {
+                  action: 'ACCEPT',
+                  expectedVersion: currentProj.version,
+                });
+              }
+              const started = await transitionProject(currentProj.id, {
+                targetStatus: 'IN_PROGRESS',
+                expectedVersion: currentProj.version,
+              });
+              return `Đã bắt đầu thực hiện công việc “${currentProj.title}” · Trạng thái: ${PROJECT_STATUS_LABELS[started.status] ?? started.status} (${started.status}) · Tiến độ: ${currentProj.progress}% · Phiên bản v${started.version}.\nKhi hoàn tất, bạn hãy nhắn “Nộp báo cáo công việc ${currentProj.title}: <nội dung báo cáo>”.`;
+            },
+          };
+          decision.current = { plan };
+          say(`${plan.summary}\n\nNhắn “xác nhận” để thực hiện hoặc “hủy” để dừng.`);
+          return;
+        }
+
+        if (intent === 'project-progress') {
+          const fresh = await fetchProjectById(selected.id);
+          if (signal.aborted) return;
+          const pctMatch = text.match(/(\d{1,3})\s*%/);
+          const targetPct = pctMatch ? Math.min(100, Math.max(0, Number(pctMatch[1]))) : Math.min(100, (fresh.progress || 0) + 50);
+          const plan: Plan = {
+            summary: `Xác nhận cập nhật tiến độ công việc “${fresh.title}” từ ${fresh.progress}% lên ${targetPct}%.`,
+            execute: async () => {
+              let currentProj = await fetchProjectById(fresh.id);
+              let expectedVer = currentProj.version;
+              if (currentProj.status === 'ASSIGNED') {
+                if (currentProj.assignmentStatus !== 'ACCEPTED') {
+                  currentProj = await respondAssignment(currentProj.id, { action: 'ACCEPT', expectedVersion: expectedVer });
+                  expectedVer = currentProj.version;
+                }
+                const tr = await transitionProject(currentProj.id, { targetStatus: 'IN_PROGRESS', expectedVersion: expectedVer });
+                expectedVer = tr.version;
+              }
+              const updated = await updateProjectProgress(currentProj.id, {
+                progress: targetPct,
+                expectedVersion: expectedVer,
+              });
+              return `Đã cập nhật tiến độ công việc “${currentProj.title}” lên ${updated.progress}% (Phiên bản v${updated.version}).`;
+            },
+          };
+          decision.current = { plan };
+          say(`${plan.summary}\n\nNhắn “xác nhận” để thực hiện hoặc “hủy” để dừng.`);
+          return;
+        }
+
+        if (intent === 'project-submit') {
+          const fresh = await fetchProjectById(selected.id);
+          if (signal.aborted) return;
+          function* submitProjectReportFlow(): Step<Plan> {
+            let content = note;
+            while (content.trim().length < 5) {
+              content = (yield `Bạn hãy nhập nội dung báo cáo hoàn thành cho công việc “${fresh.title}” (tối thiểu 5 ký tự):`).trim();
+            }
+            const urlMatches = content.match(/https?:\/\/[^\s,;]+/gi) ?? [];
+            return {
+              summary: [
+                `Xác nhận nộp báo cáo nghiệm thu cho công việc “${fresh.title}”:`,
+                `• Nội dung báo cáo: “${content}”`,
+                urlMatches.length ? `• Liên kết đính kèm: ${urlMatches.join(', ')}` : '',
+              ].filter(Boolean).join('\n'),
+              execute: async () => {
+                let currentProj = await fetchProjectById(fresh.id);
+                let expectedVer = currentProj.version;
+                if (currentProj.status === 'ASSIGNED') {
+                  if (currentProj.assignmentStatus !== 'ACCEPTED') {
+                    currentProj = await respondAssignment(currentProj.id, { action: 'ACCEPT', expectedVersion: expectedVer });
+                    expectedVer = currentProj.version;
+                  }
+                  const tr = await transitionProject(currentProj.id, { targetStatus: 'IN_PROGRESS', expectedVersion: expectedVer });
+                  expectedVer = tr.version;
+                }
+                const res = await submitReport(currentProj.id, {
+                  content,
+                  attachments: urlMatches,
+                  expectedVersion: expectedVer,
+                });
+                return [
+                  `Đã nộp báo cáo công việc “${currentProj.title}” thành công.`,
+                  `• Mã báo cáo: ${res.reportId}`,
+                  `• Trạng thái công việc: ${PROJECT_STATUS_LABELS[res.status] ?? res.status} (${res.status}) · Phiên bản v${res.version}`,
+                  `• Chờ Quản lý cửa hàng (SM) kiểm tra và nghiệm thu.`,
+                ].join('\n');
+              },
+            };
+          }
+          const step = submitProjectReportFlow();
+          await advance(step.next(), step);
+          return;
+        }
+
+        if (intent === 'project-review' || intent === 'project-rework') {
+          if (!can('reports.review')) {
+            say('Tài khoản của bạn chưa có quyền duyệt báo cáo nghiệm thu (`reports.review`).');
+            return;
+          }
+          const [fresh, reportsList] = await Promise.all([
+            fetchProjectById(selected.id),
+            fetchProjectReports(selected.id),
+          ]);
+          if (signal.aborted) return;
+          const pendingReport = reportsList.find((r: Report) => r.status === 'PENDING');
+          if (fresh.status !== 'PENDING_REVIEW' || !pendingReport) {
+            say(`Công việc “${fresh.title}” hiện đang ở trạng thái ${PROJECT_STATUS_LABELS[fresh.status] ?? fresh.status} và không có báo cáo nào đang chờ duyệt (PENDING).`);
+            return;
+          }
+          const targetReport = pendingReport;
+
+          if (intent === 'project-rework') {
+            function* reworkFlow(): Step<Plan> {
+              let reason = note;
+              while (reason.trim().length < 3) {
+                reason = (yield `Bạn hãy nhập lý do yêu cầu làm lại đối với báo cáo công việc “${fresh.title}”:`).trim();
+              }
+              return {
+                summary: [
+                  `Xác nhận YÊU CẦU LÀM LẠI (REJECT) báo cáo công việc “${fresh.title}”:`,
+                  `• Báo cáo của nhân viên: “${targetReport.content}”`,
+                  `• Lý do yêu cầu làm lại: “${reason}”`,
+                ].join('\n'),
+                execute: async () => {
+                  const latest = await fetchProjectById(fresh.id);
+                  const res = await reviewReport(targetReport.id, {
+                    action: 'REJECT',
+                    reason,
+                    expectedVersion: latest.version,
+                  });
+                  return [
+                    `Đã gửi yêu cầu làm lại cho công việc “${fresh.title}”.`,
+                    `• Trạng thái công việc: ${PROJECT_STATUS_LABELS[res.projectStatus] ?? res.projectStatus} (${res.projectStatus}) · Phiên bản v${res.version}`,
+                    `• Lý do phản hồi: “${reason}”`,
+                  ].join('\n');
+                },
+              };
+            }
+            const step = reworkFlow();
+            await advance(step.next(), step);
+            return;
+          }
+
+          const reviewReason = note.trim().length >= 2 ? note.trim() : 'Đã kiểm tra báo cáo và nghiệm thu đạt yêu cầu vận hành cuối ca.';
+          const plan: Plan = {
+            summary: [
+              `Xác nhận NGHIỆM THU ĐẠT (APPROVE) báo cáo công việc “${fresh.title}”:`,
+              `• Người thực hiện: ${fresh.assigneeName || 'Nhân viên được giao'}`,
+              `• Nội dung báo cáo: “${pendingReport.content}”`,
+              `• Nhận xét nghiệm thu: “${reviewReason}”`,
+            ].join('\n'),
+            execute: async () => {
+              const latest = await fetchProjectById(fresh.id);
+              const res = await reviewReport(pendingReport.id, {
+                action: 'APPROVE',
+                reason: reviewReason,
+                expectedVersion: latest.version,
+              });
+              const completedProj = await fetchProjectById(fresh.id);
+              return [
+                `Đã nghiệm thu hoàn tất công việc “${completedProj.title}”.`,
+                `• Trạng thái cuối: ${PROJECT_STATUS_LABELS[completedProj.status] ?? res.projectStatus} (${completedProj.status})`,
+                `• Tiến độ: ${completedProj.progress}% · Phiên bản v${completedProj.version}`,
+                `• Nhận xét nghiệm thu: “${reviewReason}”`,
+              ].join('\n');
+            },
+          };
+          decision.current = { plan };
+          say(`${plan.summary}\n\nNhắn “xác nhận” để thực hiện hoặc “hủy” để dừng.`);
+          return;
+        }
+      }
 
       // ---- TASK DOMAIN ----
       if (intent.startsWith('task-')) {
@@ -268,7 +1021,7 @@ export function useWorkAndPerformanceChat({
 
         const current: Session = session.current?.domain === 'task' && session.current.period === period
           ? session.current
-          : { domain: 'task', period, taskIds: [], evaluationIds: [] };
+          : { domain: 'task', period, projectIds: [], taskIds: [], evaluationIds: [] };
         session.current = current;
 
         if (intent === 'task-list' || intent === 'task-pending') {
@@ -533,7 +1286,7 @@ export function useWorkAndPerformanceChat({
 
       const current: Session = session.current?.domain === 'evaluation' && session.current.period === period
         ? session.current
-        : { domain: 'evaluation', period, taskIds: [], evaluationIds: [] };
+        : { domain: 'evaluation', period, projectIds: [], taskIds: [], evaluationIds: [] };
       session.current = current;
 
       if (intent === 'eval-list' || intent === 'eval-pending') {
