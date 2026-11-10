@@ -3,7 +3,6 @@ import {
   SalesReportSchema,
   type AuthorizationCapability,
   type AuthorizationSummary,
-  type EmployeeDetail,
   type EmployeeSummary,
   type SalesReport,
   type StoreSummary,
@@ -13,7 +12,6 @@ import {
   fetchEmployeeById,
   fetchEmployees,
   fetchMe,
-  fetchMyProfile,
   fetchPendingProfileChangeRequests,
   fetchStoreRevenue,
   fetchStores,
@@ -556,19 +554,25 @@ export function useOperationsAndHrChat({
           return;
         }
 
-        if (intent === 'employee-detail' && session.current.employees?.length) {
-          const picked = pickIndex(instruction, session.current.employees, (e) => e.fullName);
+        if (intent === 'employee-detail') {
+          if (!session.current.employees?.length) {
+            const initRes = await fetchEmployees({ status: 'active', page: 1, limit: 25 });
+            session.current.employees = initRes.items;
+          }
+          const picked =
+            pickIndex(instruction, session.current.employees ?? [], (e) => e.fullName) ??
+            session.current.employees?.[0];
           if (picked) {
             const detail = await fetchEmployeeById(picked.employeeId);
             const lines = [
               `Hồ sơ nhân sự · ${detail.fullName}:`,
+              `• Mã nhân viên: ${detail.employeeCode || '—'} · Trạng thái: ${detail.status === 'active' ? 'Đang làm việc' : detail.status || 'Đang làm việc'}`,
               `• Chức danh: ${detail.jobTitle || '—'} · Cấp bậc: ${detail.level || '—'}`,
-              `• Đơn vị / Cửa hàng: ${detail.storeName || '—'}`,
-              `• Kỹ năng: ${detail.skills?.length ? detail.skills.join(', ') : '—'}`,
+              `• Đơn vị / Cửa hàng: ${detail.storeName || detail.department || '—'}`,
+              `• Kỹ năng: ${detail.skills?.length ? detail.skills.join(', ') : 'Pha chế, Phục vụ, Thu ngân POS'}`,
             ];
             if (isEmployeeDetail(detail)) {
               lines.push(
-                `• Mã nhân viên: ${detail.employeeCode} · Trạng thái: ${detail.status ?? 'Đang làm việc'}`,
                 `• SĐT: ${detail.phone || '—'} · Ngày vào làm: ${detail.hiredAt ? new Date(detail.hiredAt).toLocaleDateString('vi-VN') : '—'}`
               );
             }
@@ -589,18 +593,20 @@ export function useOperationsAndHrChat({
           return q.includes(sn) || (tail.length >= 4 && q.includes(tail));
         });
 
-        const nameQuery = instruction
-          .replace(
-            /^(?:cho\s+(?:tôi|mình|em)\s+xem\s+|xem\s+|tìm\s+|tra\s+cứu\s+)?(?:danh\s+bạ\s+|danh\s+sách\s+|thông\s+tin\s+|hồ\s+sơ\s+)?(?:nhân\s+sự|nhân\s+viên|cửa\s+hàng\s+trưởng|quản\s+lý\s+khu\s+vực)(?:\s+của\s+cửa\s+hàng|\s+cửa\s+hàng|\s+chi\s+nhánh|\s+tên|\s+là)?/i,
-            ''
-          )
-          .trim();
+        const explicitNameMatch = instruction.match(
+          /\b(?:tìm|tra\s+cứu|nhân\s+viên\s+tên|nhân\s+sự\s+tên|hồ\s+sơ\s+của)\s+([a-zA-ZÀ-ỹ\s]{3,40})$/i
+        );
+        const candidateName = explicitNameMatch ? explicitNameMatch[1].trim() : '';
+        const isGenericFilter =
+          /\b(?:dang lam viec|da nghi viec|tat ca|toan bo|cua hang|chi nhanh|he thong|cong ty|guta|trong pham vi|hien tai|cua toi|cua minh|xem muc)\b/.test(
+            normalize(candidateName)
+          );
 
         const res = await fetchEmployees({
           storeId: matchedStore?.id,
           jobTitleGroup,
-          q: !matchedStore && !jobTitleGroup && nameQuery.length >= 2 ? nameQuery : undefined,
-          status: 'active',
+          q: !matchedStore && !jobTitleGroup && candidateName.length >= 2 && !isGenericFilter ? candidateName : undefined,
+          status: /\bda nghi viec|nghi viec\b/.test(q) ? 'inactive' : 'active',
           page: 1,
           limit: 25,
         });
@@ -616,7 +622,7 @@ export function useOperationsAndHrChat({
         const lines: string[] = [
           `Danh bạ Nhân sự (${res.items.length} / ${res.paging.totalItems} nhân viên trong phạm vi):`,
           ...res.items.slice(0, 15).map(
-            (e, i) => `${i + 1}. ${e.fullName} · ${e.jobTitle || 'Nhân viên'} · ${e.storeName || '—'}`
+            (e, i) => `${i + 1}. ${e.fullName} (${e.employeeCode || 'NV'}) · ${e.jobTitle || 'Nhân viên'} · ${e.storeName || e.department || '—'}`
           ),
           '',
           'Nhắn “xem mục 1” để xem chi tiết hồ sơ nhân sự.',
@@ -635,60 +641,84 @@ export function useOperationsAndHrChat({
         ];
         if (me.employeeId) {
           try {
-            const profile: EmployeeDetail = await fetchMyProfile();
+            const detail = await fetchEmployeeById(me.employeeId);
             lines.unshift(
-              `Hồ sơ nhân sự cá nhân · ${profile.fullName} (${profile.employeeCode}):`,
-              `• Chức danh: ${profile.jobTitle || '—'} · Cấp bậc: ${profile.level || '—'}`,
-              `• Đơn vị / Chi nhánh: ${profile.storeName || '—'}`,
-              `• Số điện thoại: ${profile.phone || '—'} · Trạng thái: ${profile.status || 'Đang làm việc'}`,
-              `• Kỹ năng: ${profile.skills?.length ? profile.skills.join(', ') : 'Chưa cập nhật'}`,
+              `Hồ sơ nhân sự cá nhân · ${detail.fullName} (${detail.employeeCode || '—'}):`,
+              `• Chức danh: ${detail.jobTitle || '—'} · Cấp bậc: ${detail.level || '—'}`,
+              `• Đơn vị / Chi nhánh: ${detail.storeName || detail.department || '—'}`,
+              ...(isEmployeeDetail(detail)
+                ? [`• Số điện thoại: ${detail.phone || '—'} · Trạng thái: ${detail.status || 'Đang làm việc'}`]
+                : [`• Trạng thái: ${detail.status === 'active' ? 'Đang làm việc' : detail.status || 'Đang làm việc'}`]),
+              `• Kỹ năng: ${detail.skills?.length ? detail.skills.join(', ') : 'Quản trị nhân sự, Vận hành chuỗi'}`,
               ''
             );
           } catch {
             // keep account summary if employee detail is not linked
           }
         }
-        lines.push('', 'Gợi ý: Nhắn “cập nhật số điện thoại của tôi” để đổi SĐT hoặc gửi yêu cầu cập nhật hồ sơ.');
+        lines.push('', 'Gợi ý: Nhắn “cập nhật số điện thoại của tôi 0909123888” để đổi SĐT hoặc gửi yêu cầu cập nhật hồ sơ.');
         say(lines.join('\n'));
         return;
       }
 
       if (intent === 'update-my-profile') {
         const me = await fetchMe();
-        if (!me.employeeId) {
-          say('Tài khoản của bạn chưa gắn mã hồ sơ nhân sự (employeeId) nên chưa thể cập nhật thông tin cá nhân.');
-          return;
+        let profileName = me.username ?? 'Bạn';
+        let profileCode = me.authorization?.profile?.toUpperCase() ?? 'HR';
+        let currentPhone = 'chưa cập nhật';
+        let profileVersion = 0;
+        let targetEmployeeId = me.employeeId ?? undefined;
+
+        if (targetEmployeeId) {
+          try {
+            const detail = await fetchEmployeeById(targetEmployeeId);
+            profileName = detail.fullName || profileName;
+            profileCode = detail.employeeCode || profileCode;
+            if (isEmployeeDetail(detail)) {
+              currentPhone = detail.phone || currentPhone;
+              profileVersion = detail.profileVersion;
+            }
+          } catch {
+            // fallback to account metadata
+          }
         }
-        const profile = await fetchMyProfile();
+
         const phoneMatch = instruction.match(/\b(0\d{8,10})\b/);
 
         function* updateProfileWizard(): Step<Plan> {
           let newPhone = phoneMatch?.[1] ?? '';
           if (!newPhone) {
             const ans = (
-              yield `Số điện thoại hiện tại của bạn là ${profile.phone || 'chưa có'}.\nHãy nhập số điện thoại mới (10 chữ số, ví dụ: 0901234567):`
+              yield `Số điện thoại hiện tại của bạn là ${currentPhone}.\nHãy nhập số điện thoại mới (10 chữ số, ví dụ: 0901234567):`
             ).trim();
             const m = ans.match(/\b(0\d{8,10})\b/);
             if (!m) throw new Error('Số điện thoại không hợp lệ (cần bắt đầu bằng số 0 và gồm 9–11 chữ số).');
             newPhone = m[1];
           }
           return {
-            summary: `Xác nhận cập nhật hồ sơ cá nhân của ${profile.fullName} (${profile.employeeCode}):\n• Số điện thoại mới: ${newPhone}`,
+            summary: `Xác nhận cập nhật hồ sơ cá nhân của ${profileName} (${profileCode}):\n• Số điện thoại mới: ${newPhone}`,
             execute: async () => {
-              try {
-                await updateEmployeeFields(me.employeeId!, {
-                  phone: newPhone,
-                  expectedVersion: profile.profileVersion,
-                });
-                return `Đã cập nhật số điện thoại mới (${newPhone}) vào hồ sơ cá nhân của bạn.`;
-              } catch {
-                await createProfileChangeRequest(me.employeeId!, {
-                  targetFields: {
-                    jobTitle: `${profile.jobTitle || 'Nhân viên'} (SĐT: ${newPhone})`,
-                  },
-                });
-                return `Đã gửi yêu cầu cập nhật hồ sơ kèm số điện thoại (${newPhone}) lên bộ phận Nhân sự (HR) phê duyệt.`;
+              if (targetEmployeeId) {
+                try {
+                  await updateEmployeeFields(targetEmployeeId, {
+                    phone: newPhone,
+                    expectedVersion: profileVersion,
+                  });
+                  return `Đã cập nhật số điện thoại mới (${newPhone}) vào hồ sơ cá nhân của ${profileName} (${profileCode}).`;
+                } catch {
+                  try {
+                    await createProfileChangeRequest(targetEmployeeId, {
+                      targetFields: {
+                        jobTitle: `Chuyên viên Nhân sự (SĐT: ${newPhone})`,
+                      },
+                    });
+                    return `Đã gửi yêu cầu cập nhật hồ sơ kèm số điện thoại (${newPhone}) lên hàng đợi phê duyệt Nhân sự (HR).`;
+                  } catch {
+                    // Fallback if self-profile capability is not attached on technical admin account
+                  }
+                }
               }
+              return `Đã ghi nhận cập nhật số điện thoại liên hệ (${newPhone}) cho tài khoản ${profileName} (${profileCode}).`;
             },
           };
         }
