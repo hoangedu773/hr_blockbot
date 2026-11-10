@@ -7,6 +7,7 @@ import type {
   Project,
   Report,
   TaskInstance,
+  TaskTemplate,
 } from '@hr-blockbot/contracts';
 import * as api from '../../services/performance-kpi-api';
 import {
@@ -28,7 +29,7 @@ import { performanceDate, performanceLabels, performanceNumber } from '../TaskDe
 
 type Turn = { sender: 'user' | 'assistant'; text: string };
 type Step<T> = Generator<string, T, string>;
-type Plan = { summary: string; readOnly?: boolean; execute: () => Promise<string> };
+type Plan = { summary: string; readOnly?: boolean; execute: (signal: AbortSignal) => Promise<string> };
 type Decision =
   | { step: Step<Plan>; optional?: boolean; canAcceptInput?: (text: string) => boolean }
   | { plan: Plan };
@@ -58,6 +59,11 @@ export type WorkPerfIntent =
   | 'task-list'
   | 'task-pending'
   | 'task-detail'
+  | 'task-create'
+  | 'task-suggest'
+  | 'task-template-propose'
+  | 'task-template-review'
+  | 'task-rework'
   | 'task-assign'
   | 'task-accept'
   | 'task-refuse'
@@ -210,16 +216,16 @@ function matchProjectsByInstruction(instruction: string, projects: Project[], se
   });
 }
 
-function formatPhoBertSuggestions(project: Project, advice: F4Suggestions): string {
-  const statusLabel = PROJECT_STATUS_LABELS[project.status] ?? project.status;
+function formatPhoBertSuggestions(project: { title: string; status: string; version: number; requiredSkills?: string[] }, advice: F4Suggestions): string {
+  const statusLabel = PROJECT_STATUS_LABELS[project.status] ?? performanceLabels[project.status] ?? project.status;
   const sourceLine = advice.source === 'PHOBERT'
-    ? `• Nguồn mô hình: ${advice.model ?? 'vinai/phobert-base'} (revision ${advice.revision ?? 'main'}) · Chế độ: PHOBERT (mô hình chạy thật) · Trọng số ngữ nghĩa α=${advice.semanticWeight ?? 0.5}`
+    ? `• Nguồn mô hình: ${advice.model} (revision ${advice.revision}) · Chế độ: PHOBERT (mô hình chạy thật) · Trọng số ngữ nghĩa α=${advice.semanticWeight}`
     : `• Nguồn gợi ý: ${advice.source} (Trạng thái: ${advice.status})`;
 
   const header = [
     `Kết quả gợi ý ứng viên cho công việc: “${project.title}”`,
     `• Trạng thái công việc: ${statusLabel} · Phiên bản v${project.version}`,
-    `• Kỹ năng yêu cầu: ${project.requiredSkills.length ? project.requiredSkills.join(', ') : 'Chưa khai báo'}`,
+    `• Kỹ năng yêu cầu: ${project.requiredSkills?.length ? project.requiredSkills.join(', ') : 'Chưa khai báo'}`,
     sourceLine,
     `• Phạm vi đánh giá: ${advice.candidatesConsidered} nhân sự đủ điều kiện tại cửa hàng`,
   ];
@@ -234,15 +240,15 @@ function formatPhoBertSuggestions(project: Project, advice: F4Suggestions): stri
     const exactPct = c.skillScore !== null ? `${Math.round(c.skillScore * 100)}%` : '—';
     const semPct = c.semanticScore !== null ? `${Math.round(c.semanticScore * 100)}%` : '—';
     const matchedText = c.matchedSkills.length ? c.matchedSkills.join(', ') : 'Chưa có';
-    const missingText = c.missingSkills.length ? ` · Kỹ năng đối sánh ngữ nghĩa: ${c.missingSkills.join(', ')}` : '';
+    const missingText = c.missingSkills.length ? ` · Chưa khớp chính xác: ${c.missingSkills.join(', ')}` : '';
     const evidenceText = c.semanticEvidence.length
       ? c.semanticEvidence.map(pair => `${pair.required} ↔ ${pair.matched ?? '—'} (cosine ${pair.cosine.toFixed(4)})`).join('; ')
       : 'Không có cặp đối sánh';
     const missingNote = c.missingData.length ? ` (${c.missingData.join(' ')})` : '';
     return [
-      `${idx + 1}. ${c.fullName} — Điểm phù hợp: ${scoreText} (Khớp chính xác: ${exactPct} · Ngữ nghĩa PhoBERT: ${semPct})`,
+      `${idx + 1}. ${c.fullName} — Điểm phù hợp: ${scoreText} (Khớp chính xác: ${exactPct} · Ngữ nghĩa: ${semPct})`,
       `   • Kỹ năng khớp: ${matchedText}${missingText}`,
-      `   • Đối sánh ngữ nghĩa (${advice.model ?? 'vinai/phobert-base'}): ${evidenceText}`,
+      `   • Đối sánh ngữ nghĩa: ${evidenceText}`,
       `   • Lý do gợi ý: ${c.explanation}${missingNote}`,
     ].join('\n');
   });
@@ -264,7 +270,10 @@ export function detectWorkPerfIntent(text: string, session?: Session): WorkPerfI
   }
 
   // Scored KPI tasks explicitly mention "có thang điểm" or "nhiệm vụ"
-  const hasScoredTaskScope = /\b(?:cong viec co thang diem|viec co thang diem|nhiem vu kpi|nhiem vu co thang diem|nhiem vu duoc giao|nhiem vu cua toi|nhiem vu thang|giao nhiem vu|nhan nhiem vu|nop nhiem vu|nghiem thu nhiem vu|cham nhiem vu|danh gia nhiem vu)\b/.test(q);
+  const templateAction = /\b(?:goi y|de xuat) (?:mau|thang) (?:cham|diem)\b/.test(q) ? 'task-template-propose'
+    : /\b(?:duyet|cong bo|tu choi) mau (?:cham|thang diem)\b/.test(q) ? 'task-template-review' : null;
+  if (templateAction) return templateAction;
+  const hasScoredTaskScope = /\b(?:cong viec co thang diem|viec co thang diem|cong viec tinh kpi|nhiem vu kpi|nhiem vu co thang diem|nhiem vu duoc giao|nhiem vu cua toi|nhiem vu thang|giao nhiem vu|nhan nhiem vu|nop nhiem vu|nghiem thu nhiem vu|cham nhiem vu|danh gia nhiem vu)\b/.test(q);
   const hasEvalScope = /\b(?:kpi hieu suat|danh gia hieu suat|diem hieu suat)\b/.test(q);
 
   // Regular work (Công việc & nghiệm thu) + PhoBERT candidate suggestion
@@ -310,8 +319,11 @@ export function detectWorkPerfIntent(text: string, session?: Session): WorkPerfI
   }
 
   if (activeDomain === 'task') {
+    if (hasPhoBertSuggest) return 'task-suggest';
+    if (/^(?:tao|them)\b/.test(q) && hasScoredTaskScope) return 'task-create';
+    if (/\b(?:yeu cau lam lai|tra lai)\b/.test(q)) return 'task-rework';
     if (/\b(?:xu ly tu choi|duyet tu choi|bac tu choi)\b/.test(q)) return 'task-refusal-decision';
-    if (/\b(?:nghiem thu|cham diem|cham nhiem vu|danh gia nhiem vu)\b/.test(q) && !/\bcan nghiem thu\b/.test(q)) return 'task-evaluate';
+    if (/\b(?:nghiem thu|cham diem|cham nhiem vu|danh gia nhiem vu)\b/.test(q) && !/\b(?:can nghiem thu|cho nghiem thu|cho cham)\b/.test(q)) return 'task-evaluate';
     if (/\b(?:nop|gui ket qua|bao cao hoan thanh)\b/.test(q)) return 'task-submit';
     if (/\b(?:tien do|hoan thanh cac buoc|cap nhat buoc)\b/.test(q)) return 'task-progress';
     if (/\b(?:tu choi|khong nhan)\b/.test(q)) return 'task-refuse';
@@ -451,7 +463,7 @@ export function useWorkAndPerformanceChat({
     ) {
       if (result.done) {
         if (result.value.readOnly) {
-          say(await result.value.execute());
+          say(await result.value.execute(signal));
           return;
         }
         decision.current = { plan: result.value };
@@ -480,7 +492,7 @@ export function useWorkAndPerformanceChat({
           return;
         }
         decision.current = undefined;
-        say(await pending.plan.execute());
+        say(await pending.plan.execute(signal));
         if (!signal.aborted) onChanged();
         return;
       }
@@ -490,7 +502,7 @@ export function useWorkAndPerformanceChat({
         say([
           'Bạn có thể thao tác tự nhiên với Công việc & nghiệm thu (công việc thường + PhoBERT), Công việc có thang điểm và KPI hiệu suất:',
           '• Công việc thường & PhoBERT: “Ai phù hợp với công việc kiểm kê quầy pha chế cuối ca?”, “Tạo công việc ...”, “Giao công việc ...”, “Nhận công việc ...”, “Bắt đầu công việc ...”, “Nộp báo cáo công việc ...: <nội dung>”, “Nghiệm thu công việc ...”, “Yêu cầu làm lại công việc ... lý do: <lý do>”.',
-          '• Công việc có thang điểm: “Danh sách công việc có thang điểm”, “Việc có thang điểm nào cần xử lý?”.',
+          '• Công việc có thang điểm: “Tạo công việc có thang điểm”, “PhoBERT gợi ý người cho công việc có thang điểm”, “Danh sách công việc có thang điểm”, “Nghiệm thu mục 1”. Mẫu mới: “AI đề xuất thang điểm”, rồi HR nhắn “Duyệt mẫu chấm”.',
           '• KPI hiệu suất: “Danh sách KPI hiệu suất tháng này”, “KPI hiệu suất cần xử lý”, “Tự nhận xét KPI hiệu suất”, “Kiến nghị KPI hiệu suất”, “Khiếu nại KPI hiệu suất”.',
         ].join('\n'));
         return;
@@ -1008,6 +1020,160 @@ export function useWorkAndPerformanceChat({
         }
       }
 
+      if (intent === 'task-create' || intent === 'task-template-propose') {
+        if (!can('task.manage')) {
+          say('Tài khoản của bạn chưa có quyền tạo công việc hoặc đề xuất mẫu chấm.');
+          return;
+        }
+        const me = await fetchMe();
+        if (signal.aborted) return;
+        const stores = (me.authorization?.stores ?? []).filter(store => store.capabilities.includes('task.manage'));
+        if (!stores.length) {
+          say('Không có cửa hàng được cấp quyền tạo công việc có thang điểm.');
+          return;
+        }
+        const proposing = intent === 'task-template-propose';
+        const templates = proposing ? [] : (await api.performanceTemplates()).items;
+        if (signal.aborted) return;
+
+        function* intake(): Step<Plan> {
+          let store = stores.length === 1 ? stores[0] : undefined;
+          while (!store) {
+            const reply = yield ['Chọn cửa hàng bằng số hoặc tên:', ...stores.map((s, i) => `${i + 1}. ${s.name}`)].join('\n');
+            const matches = pickChoice(reply, stores, s => s.name);
+            if (matches.length === 1) store = matches[0];
+          }
+          const storeId = store.id;
+          const titlePrompt = proposing ? 'Nhập tên mẫu chấm muốn đề xuất.' : 'Nhập tiêu đề công việc có thang điểm.';
+          let title = instruction.match(/:\s*(.+)$/s)?.[1]?.trim() ?? '';
+          while (title.length < 3 || title.length > 200) title = (yield `${titlePrompt} (3–200 ký tự)`).trim();
+          let description = '';
+          while (!description) description = (yield `Mô tả công việc “${title}” để ${proposing ? 'AI đề xuất thang chấm' : 'nhân viên biết cần làm gì'}.`).trim();
+          let dueAt = '';
+          while (!dueAt) {
+            const reply = (yield `Nhập ${proposing ? 'ngày dự kiến áp dụng mẫu' : 'hạn hoàn thành'} theo YYYY-MM-DD.`).trim();
+            const date = new Date(reply + 'T23:59:59+07:00');
+            if (/^20\d{2}-\d{2}-\d{2}$/.test(reply) && Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === reply) dueAt = date.toISOString();
+          }
+          const taskPeriod = dueAt.slice(0, 7);
+          if (proposing) {
+            const roles = [{ code: 'STAFF', label: 'Nhân viên' }, { code: 'PTCH', label: 'PTCH' }, { code: 'SM', label: 'SM' }] as const;
+            let role: typeof roles[number] | undefined;
+            while (!role) {
+              const reply = yield 'Chọn người dùng mẫu: 1. Nhân viên · 2. PTCH · 3. SM.';
+              const matches = pickChoice(reply, [...roles], r => r.label);
+              if (matches.length === 1) role = matches[0];
+            }
+            const roleCode = role.code;
+            return {
+              summary: '',
+              readOnly: true,
+              execute: async executionSignal => {
+                const suggestion = await api.performanceSuggest({ title, description, storeId, templateCode: null, role: roleCode });
+                if (executionSignal.aborted) return '';
+                const content = { ...suggestion.content, name: title, effectiveFrom: taskPeriod, effectiveTo: null };
+                const clientRequestId = newClientMessageId();
+                decision.current = { plan: {
+                  summary: '',
+                  execute: async () => {
+                    const template = await api.performancePost<TaskTemplate>('/tasks/templates/proposals', {
+                      storeId, content, reason: 'Đề nghị HR duyệt mẫu chấm cho công việc.', expectedVersion: 0, clientRequestId,
+                    });
+                    return `Đã gửi mẫu “${template.content.name}” cho HR duyệt. Mã mẫu: ${template.id}.`;
+                  },
+                } };
+                return [suggestion.degraded ? 'Mẫu dự phòng để HR xem xét' : 'Mẫu chấm đề xuất', `• ${title} · ${store.name} · Kỳ ${taskPeriod}`,
+                  ...content.steps.map(step => `• Bước: ${step.name} (${step.progressWeightPercent}%)`),
+                  ...content.qualityCriteria.map(c => `• Tiêu chí: ${c.name} (${c.maxScore} điểm)`),
+                  `Bằng chứng: ${content.requiredEvidence.map(e => e.name).join(', ') || 'Theo tiêu chí'}`,
+                  'Nhắn “xác nhận” để gửi HR duyệt hoặc “hủy”.'].join('\n');
+              },
+            };
+          }
+          const published = templates.filter(t => t.status === 'PUBLISHED' && (!t.proposalStoreId || t.proposalStoreId === storeId)
+            && t.content.effectiveFrom <= taskPeriod && (!t.content.effectiveTo || taskPeriod <= t.content.effectiveTo));
+          if (!published.length) return { summary: '', readOnly: true, execute: async () =>
+            'Kỳ này chưa có mẫu chấm đã công bố cho cửa hàng. Nhắn “AI đề xuất thang điểm” để chuẩn bị mẫu và gửi HR duyệt.' };
+          let template: TaskTemplate | undefined;
+          while (!template) {
+            const reply = yield ['Chọn mẫu đã công bố bằng số hoặc tên:', ...published.map((t, i) => `${i + 1}. ${t.content.name} (v${t.templateVersion})`)].join('\n');
+            const matches = pickChoice(reply, published, t => t.content.name);
+            if (matches.length === 1) template = matches[0];
+          }
+          let weight = NaN;
+          while (!Number.isFinite(weight) || weight < 5 || weight > 50) {
+            const reply = yield 'Nhập mức quan trọng của nhiệm vụ từ 5 đến 50%. Ví dụ: 25.';
+            weight = Number(reply.trim().replace(/%$/, '').replace(',', '.'));
+          }
+          let requiredSkills: string[] | undefined;
+          while (!requiredSkills) {
+            const reply = (yield 'Nhập kỹ năng yêu cầu, cách nhau bằng dấu phẩy. Nhắn “bỏ trống” nếu không cần.').trim();
+            const skills = normalizeText(reply) === 'bo trong' ? [] : [...new Set(reply.split(',').map(s => s.trim()).filter(Boolean))];
+            if (skills.length <= 30 && skills.every(skill => skill.length <= 100)) requiredSkills = skills;
+          }
+          const clientRequestId = newClientMessageId();
+          const templateId = template.id;
+          return {
+            summary: [`Xác nhận tạo công việc có thang điểm “${title}”`, `• ${store.name} · Hạn ${formatDateVN(dueAt)} · Trọng số ${weight}%`,
+              `• Mô tả: ${description}`, `• Mẫu: ${template.content.name} · ${template.content.qualityCriteria.map(c => `${c.name} ${c.maxScore} điểm`).join(' · ')}`,
+              `• Kỹ năng: ${requiredSkills.join(', ') || 'Không yêu cầu'}`].join('\n'),
+            execute: async executionSignal => {
+              const created = await api.performancePost<TaskInstance>('/tasks', {
+                storeId, title, description, dueAt, templateId, requiredSkills, taskWeightPercent: weight, expectedVersion: 0, clientRequestId,
+              });
+              if (!executionSignal.aborted) session.current = { domain: 'task', period: created.kpiPeriod, projectIds: [], taskIds: [created.id], evaluationIds: [], selectedId: created.id };
+              return `Đã tạo công việc có thang điểm “${created.title}” · Bản nháp · v${created.version}.\nNhắn “PhoBERT gợi ý người cho công việc có thang điểm này” để chọn người giao việc.`;
+            },
+          };
+        }
+        const step = intake();
+        await advance(step.next(), step);
+        return;
+      }
+
+      if (intent === 'task-template-review') {
+        if (!can('performance_kpi.policy_manage')) {
+          say('Tài khoản của bạn chưa có quyền duyệt mẫu chấm.');
+          return;
+        }
+        const pending = (await api.performanceTemplates()).items.filter(t => t.status === 'DRAFT' && t.proposalStoreId);
+        if (signal.aborted) return;
+        if (!pending.length) {
+          say('Không có mẫu chấm cửa hàng nào đang chờ HR duyệt trong phạm vi của bạn.');
+          return;
+        }
+        const action = q.startsWith('tu choi') ? 'reject' : 'publish';
+        function* reviewTemplate(): Step<Plan> {
+          let template: TaskTemplate | undefined;
+          while (!template) {
+            const reply = yield ['Chọn đề xuất mẫu chấm cần xử lý bằng số hoặc tên:', ...pending.map((t, i) => `${i + 1}. ${t.content.name} · Kỳ ${t.content.effectiveFrom}`)].join('\n');
+            const matches = pickChoice(reply, pending, t => t.content.name);
+            if (matches.length === 1) template = matches[0];
+          }
+          const selected = template;
+          const label = action === 'publish' ? 'Công bố' : 'Từ chối';
+          const details = [`${selected.content.name} · Hiệu lực từ ${selected.content.effectiveFrom}`,
+            ...selected.content.steps.map(step => `• Bước: ${step.name} (${step.progressWeightPercent}%)`),
+            ...selected.content.qualityCriteria.map(c => `• Tiêu chí: ${c.name} (${c.maxScore} điểm)`),
+            `Bằng chứng yêu cầu: ${selected.content.requiredEvidence.map(e => e.name).join(', ') || 'Theo tiêu chí'}`].join('\n');
+          let reason = note;
+          while (reason.length < 5) reason = (yield `${details}\nNhập lý do và căn cứ để ${label.toLocaleLowerCase('vi')} mẫu.`).trim();
+          const clientRequestId = newClientMessageId();
+          return {
+            summary: `${label} mẫu “${selected.content.name}” · ${reason}`,
+            execute: async () => {
+              const updated = await api.performancePost<TaskTemplate>(`/tasks/templates/${selected.id}/${action}`, {
+                reason, evidenceRefs: [reason], expectedVersion: selected.version, clientRequestId,
+              });
+              return `Mẫu “${updated.content.name}” · ${updated.status === 'PUBLISHED' ? 'Đã công bố' : 'Đã từ chối'}.`;
+            },
+          };
+        }
+        const step = reviewTemplate();
+        await advance(step.next(), step);
+        return;
+      }
+
       // ---- TASK DOMAIN ----
       if (intent.startsWith('task-')) {
         const [{ items: tasks }, me, catalog] = await Promise.all([
@@ -1059,9 +1225,11 @@ export function useWorkAndPerformanceChat({
         const ordered = current.taskIds.map(id => tasks.find(t => t.id === id)).filter((t): t is TaskInstance => !!t);
         const candidates = ordered.length ? ordered : tasks;
         const picked = pickChoice(instruction, candidates, t => t.title);
-        const selected = picked[0] ?? (current.selectedId ? tasks.find(t => t.id === current.selectedId) : undefined) ?? (candidates.length === 1 ? candidates[0] : undefined);
+        const hasExplicitNumber = /\b(?:muc|so|nhiem vu|cong viec) \d+\b/.test(q);
+        const target = picked.length === 1 ? picked[0] : picked.length || hasExplicitNumber ? undefined
+          : (current.selectedId ? tasks.find(t => t.id === current.selectedId) : undefined) ?? (candidates.length === 1 ? candidates[0] : undefined);
 
-        if (!selected) {
+        if (!target) {
           current.taskIds = candidates.map(t => t.id);
           say([
             `Bạn muốn thao tác trên nhiệm vụ nào trong kỳ ${period}?`,
@@ -1070,6 +1238,7 @@ export function useWorkAndPerformanceChat({
           ].join('\n'));
           return;
         }
+        const selected = target;
         current.selectedId = selected.id;
 
         if (intent === 'task-detail') {
@@ -1175,6 +1344,55 @@ export function useWorkAndPerformanceChat({
           return;
         }
 
+        if (intent === 'task-suggest') {
+          if (!can('task.assign')) {
+            say('Tài khoản của bạn chưa có quyền gợi ý người nhận cho công việc có thang điểm.');
+            return;
+          }
+          if (selected.status !== 'DRAFT') {
+            say('Hãy chọn một công việc có thang điểm đang ở trạng thái bản nháp.');
+            return;
+          }
+          if (!selected.requiredSkills?.length) {
+            say('Công việc chưa có kỹ năng yêu cầu. Quản lý có thể chọn người thủ công bằng “giao mục” kèm số thứ tự.');
+            return;
+          }
+          const advice = await api.suggestTaskCandidates(selected.id);
+          if (signal.aborted) return;
+          if (advice.projectVersion !== selected.version) {
+            say('Công việc đã thay đổi. Hãy hỏi lại để lấy gợi ý mới.');
+            return;
+          }
+          const output = formatPhoBertSuggestions(selected, advice);
+          if (!advice.items.length) {
+            say(output);
+            return;
+          }
+          function* chooseSuggested(): Step<Plan> {
+            let chosen: F4Suggestions['items'][number] | undefined;
+            while (!chosen) {
+              const reply = yield output + '\nNhắn số thứ tự hoặc tên để chọn người, hoặc “hủy”.';
+              const matches = pickChoice(reply, advice.items, c => c.fullName);
+              if (matches.length === 1) chosen = matches[0];
+            }
+            const candidate = chosen;
+            const clientRequestId = newClientMessageId();
+            return {
+              summary: `Giao công việc có thang điểm “${selected.title}” cho ${candidate.fullName} · Gợi ý tham khảo: ${advice.source}.`,
+              execute: async () => {
+                const updated = await api.performanceTaskAction(selected.id, 'assign', {
+                  expectedVersion: selected.version, clientRequestId, assigneeEmployeeId: candidate.employeeId,
+                  reason: 'Quản lý xác nhận chọn người thực hiện sau khi xem gợi ý.',
+                });
+                return `Đã giao nhiệm vụ “${updated.title}” cho ${candidate.fullName}. Trạng thái: ${performanceLabels[updated.status] ?? updated.status}.`;
+              },
+            };
+          }
+          const step = chooseSuggested();
+          await advance(step.next(), step, { optional: true, canAcceptInput: input => pickChoice(input, advice.items, c => c.fullName).length > 0 });
+          return;
+        }
+
         if (intent === 'task-assign') {
           const storeEmployees = catalog.employees.filter(e => e.storeId === selected.storeId && e.role !== 'SM');
           function* assignFlow(): Step<Plan> {
@@ -1236,39 +1454,78 @@ export function useWorkAndPerformanceChat({
           return;
         }
 
-        if (intent === 'task-evaluate') {
-          const activeSeg = selected.responsibilitySegments.find(s => s.status !== 'RELEASED') ?? selected.responsibilitySegments[0];
-          if (!activeSeg) {
-            say('Nhiệm vụ chưa có đoạn trách nhiệm hợp lệ để nghiệm thu.');
+        if (intent === 'task-evaluate' || intent === 'task-rework') {
+          if (!can('task.evaluate')) {
+            say('Tài khoản của bạn chưa có quyền nghiệm thu công việc có thang điểm.');
             return;
           }
+          if (selected.status !== 'PENDING_REVIEW') {
+            say('Chỉ nghiệm thu trong Chat khi công việc đang chờ nghiệm thu.');
+            return;
+          }
+          const task = selected;
+          const segments = task.responsibilitySegments.filter(s => s.status !== 'RELEASED' && s.submittedAt);
+          if (!segments.length) {
+            say('Nhiệm vụ chưa có phần trách nhiệm đã nộp để nghiệm thu.');
+            return;
+          }
+          const outcome = intent === 'task-rework' ? 'REWORK' : 'CONFIRM';
           function* evaluateTaskFlow(): Step<Plan> {
+            let segment = segments.length === 1 ? segments[0] : undefined;
+            while (!segment) {
+              const reply = yield ['Chọn phần trách nhiệm cần chấm:', ...segments.map((s, i) => `${i + 1}. ${names[s.employeeId] ?? 'Nhân viên'} · ${s.workScope} (${s.weightSharePercent}%)`)].join('\n');
+              const matches = pickChoice(reply, segments, s => s.workScope);
+              if (matches.length === 1) segment = matches[0];
+            }
+            const reviewedSegment = segment;
+            const evidenceRefs = reviewedSegment.evidenceRefs;
+            const criteria = task.templateSnapshot.qualityCriteria;
+            const criteriaScores: { code: string; score: number; comment: string; evidenceRefs: string[] }[] = [];
+            let workCompletedPercent = NaN;
+            while (!Number.isFinite(workCompletedPercent) || workCompletedPercent < 0 || workCompletedPercent > 100) {
+              const reply = yield `Tiến độ đã báo: ${task.progressPercent}%. Bằng chứng nhân viên đã nộp:\n${evidenceRefs.join('\n') || 'Chưa có'}\nNhập % phạm vi thực tế đã xác minh (0–100).`;
+              const value = reply.trim().replace(/%$/, '').replace(',', '.');
+              if (/^\d+(?:\.\d{1,2})?$/.test(value)) workCompletedPercent = Number(value);
+            }
+            let lateReason: string | null = null;
+            if (reviewedSegment.submittedAt && Date.parse(reviewedSegment.submittedAt) > Date.parse(task.extendedDueAt ?? task.dueAt)) {
+              do { lateReason = (yield 'Kết quả nộp sau hạn. Nhập nguyên nhân nộp muộn đã xác minh (ít nhất 5 ký tự).').trim(); }
+              while (lateReason.length < 5);
+            }
+            for (const criterion of criteria) {
+              const max = criterion.code === 'completeness' ? Math.floor(criterion.maxScore * workCompletedPercent) / 100 : criterion.maxScore;
+              while (true) {
+                const reply = yield `${criterion.name} (0–${max} điểm). Nhập “điểm | lý do”, ví dụ “${max} | Đã đối chiếu với biên bản”.`;
+                const separator = reply.indexOf('|');
+                if (separator < 1) continue;
+                const raw = reply.slice(0, separator).trim().replace(',', '.');
+                const comment = reply.slice(separator + 1).trim();
+                const score = Number(raw);
+                if (!/^\d+(?:\.\d{1,2})?$/.test(raw) || score < 0 || score > max || comment.length < 5) continue;
+                criteriaScores.push({ code: criterion.code, score, comment, evidenceRefs });
+                break;
+              }
+            }
             let reason = note;
             while (reason.trim().length < 5) {
-              reason = (yield `Nhập nhận xét nghiệm thu và căn cứ bằng chứng cho nhiệm vụ “${selected.title}” (tối thiểu 5 ký tự):`).trim();
+              reason = (yield 'Nhập nhận xét tổng hợp và căn cứ nghiệm thu.').trim();
             }
-            const criteriaScores = selected.templateSnapshot.qualityCriteria.map(c => ({
-              code: c.code,
-              score: c.maxScore,
-              comment: reason,
-              evidenceRefs: [reason],
-            }));
+            const total = criteriaScores.reduce((sum, entry) => sum + entry.score, 0);
+            const clientRequestId = newClientMessageId();
             return {
-              summary: `Nghiệm thu xác nhận hoàn thành nhiệm vụ “${selected.title}” (100/100 điểm rubric) · Nhận xét: “${reason}”.`,
+              summary: [`${outcome === 'REWORK' ? 'Yêu cầu làm lại' : 'Xác nhận nghiệm thu'} “${task.title}” · ${performanceNumber(total)}/100 điểm rubric`,
+                ...criteriaScores.map((entry, i) => `• ${criteria[i].name}: ${entry.score}/${criteria[i].maxScore} · ${entry.comment}`),
+                `• Phạm vi đã xác minh: ${workCompletedPercent}%`,
+                ...(lateReason ? [`• Lý do nộp muộn: ${lateReason}`] : []),
+                `• Nhận xét: ${reason}`].join('\n'),
               execute: async () => {
-                const updated = await api.performanceTaskAction(selected.id, 'evaluate', {
-                  expectedVersion: selected.version,
-                  clientRequestId: newClientMessageId(),
-                  segmentId: activeSeg.segmentId,
-                  criteriaScores,
-                  workCompletedPercent: 100,
-                  outcome: 'CONFIRM',
-                  employeeFault: false,
-                  lateReason: null,
-                  reason,
-                  evidenceRefs: [reason],
+                const updated = await api.performanceTaskAction(task.id, 'evaluate', {
+                  expectedVersion: task.version, clientRequestId, segmentId: reviewedSegment.segmentId,
+                  criteriaScores, workCompletedPercent, outcome, employeeFault: false, lateReason,
+                  reason, evidenceRefs: evidenceRefs.length ? evidenceRefs : [reason],
                 });
-                return `Đã nghiệm thu nhiệm vụ “${updated.title}” · Trạng thái: ${performanceLabels[updated.status] ?? updated.status}.`;
+                const evaluation = updated.evaluations[updated.evaluations.length - 1];
+                return `${outcome === 'REWORK' ? 'Đã yêu cầu làm lại' : 'Đã nghiệm thu nhiệm vụ'} “${updated.title}” · ${performanceNumber(evaluation?.totalScore)}/100 điểm · ${performanceLabels[updated.status] ?? updated.status}.`;
               },
             };
           }

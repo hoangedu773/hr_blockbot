@@ -250,6 +250,10 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
       ? [{ label: 'Gợi ý người bằng PhoBERT', prompt: 'Ai phù hợp với công việc kiểm kê quầy pha chế cuối ca?' }] : []),
     ...(user?.authorization?.capabilities?.some(cap => cap === 'projects.assign' || cap === 'assignment.respond' || cap === 'reports.submit' || cap === 'reports.review')
       ? [{ label: 'Công việc & nghiệm thu', prompt: 'Danh sách công việc thường' }] : []),
+    ...(user?.authorization?.capabilities?.includes('task.manage')
+      ? [{ label: 'Tạo công việc có thang điểm', prompt: 'Tạo công việc có thang điểm' }] : []),
+    ...(user?.authorization?.capabilities?.includes('performance_kpi.policy_manage')
+      ? [{ label: 'Duyệt mẫu chấm', prompt: 'Duyệt mẫu chấm' }] : []),
     ...(user?.authorization?.capabilities?.some(cap => cap === 'task.respond' || cap === 'task.manage' || cap === 'performance_kpi.read_self' || cap === 'performance_kpi.read_scope')
       ? [
           { label: 'Công việc có thang điểm', prompt: 'Danh sách công việc có thang điểm tháng này' },
