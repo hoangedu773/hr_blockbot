@@ -2246,6 +2246,13 @@ html:not(.dark) .cash-delta-value {
     transform: none;
     filter: none;
   }
+
+  html.js .guta-demo-scroll [data-enter] {
+    opacity: 1;
+    transform: none;
+    filter: none;
+    transition: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
