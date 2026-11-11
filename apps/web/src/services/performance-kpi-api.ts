@@ -27,7 +27,14 @@ export type PendingPerformanceMigration = {
   policyId: string | null; blockedReason: string | null; canConvert: boolean;
   selfReview: string | null; managerReview: string | null; managerScore: number | null;
 };
-export const performanceMigrations = (period: string) =>
-  requestJson<{ items: PendingPerformanceMigration[] }>('/performance-kpi/migrations/' + period);
+export async function performanceMigrations(period: string) {
+  const result = await requestJson<{ items: PendingPerformanceMigration[] }>('/performance-kpi/migrations/' + period);
+  return { items: result.items.map(item => ({
+    ...item,
+    blockedReason: item.blockedReason === 'Capability, approved grant or canonical resource scope is missing'
+      ? 'HR cần xác minh cửa hàng và phạm vi quản lý của nhân viên.'
+      : item.blockedReason,
+  })) };
+}
 export const performanceConvertEvaluation = (id: string, body: unknown) =>
   performancePost<PerformanceEvaluation>('/performance-kpi/migrations/' + id + '/convert', body);

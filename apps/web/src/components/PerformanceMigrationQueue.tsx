@@ -37,6 +37,12 @@ export function PerformanceMigrationQueue({ period, onConverted }: { period: str
     {error && <p role="alert">{error}</p>}
     {items.map(item => <article key={item.id}>
       <p><strong>{item.employeeName}</strong> · {item.canConvert ? 'Sẵn sàng chuyển' : item.blockedReason}</p>
+      {(item.selfReview || item.managerReview || item.managerScore != null) && <details>
+        <summary>Nhận xét đã lưu</summary>
+        <p>Tự nhận xét · {item.selfReview ?? 'Chưa có'}</p>
+        <p>Nhận xét quản lý · {item.managerReview ?? 'Chưa có'}</p>
+        <p>Điểm quản lý tham khảo · {item.managerScore ?? 'Chưa có'}</p>
+      </details>}
       {item.canConvert && <button type="button" className="btn" disabled={busy} onClick={() => setSelected(item)}>Xem trước chuyển hồ sơ</button>}
     </article>)}
     {selected && <div className="pf-card" role="region" aria-label="Xem trước chuyển hồ sơ">
