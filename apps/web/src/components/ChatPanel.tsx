@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { AppIcon } from './ui/AppIcon';
 import { RevenueKpiOpenActionSchema, type Citation, type RevenueKpiOpenAction } from '@hr-blockbot/contracts';
 import { useAuth } from '../context/AuthContext';
 import { createConversation } from '../services/api';
@@ -488,7 +489,8 @@ export const ChatPanel: React.FC = () => {
                       onClick={() => setOpenCitation(citation)}
                       title={`${citation.document} · ${citation.version} · Điều ${citation.article}`}
                     >
-                      📄 {citation.document} · {citation.version} · Điều {citation.article}
+                      <AppIcon name="document" size={14} style={{ marginRight: '5px' }} />
+                      {citation.document} · {citation.version} · Điều {citation.article}
                     </button>
                   ))}
                 </div>

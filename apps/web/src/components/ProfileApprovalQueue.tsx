@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { fetchMe, PendingChangeRequestItem } from '../services/api';
 import { fetchMe as getMe, fetchProfileApprovalPage, reviewProfileChangeRequest } from '../services/api';
 import { CrmDialog } from './ui/CrmDialog';
+import { AppIcon } from './ui/AppIcon';
 import { useAuth } from '../context/AuthContext';
 import { useAuthorization } from '../context/useAuthorization';
 
@@ -126,8 +127,9 @@ export function ProfileApprovalQueue() {
     >
       <header className="crm-work-heading" style={{ marginBottom: '12px' }}>
         <div>
-          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#f8fafc' }}>
-            📋 Hàng đợi duyệt thay đổi hồ sơ nhân sự
+          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <AppIcon name="clipboard" size={18} />
+            <span>Hàng đợi duyệt thay đổi hồ sơ nhân sự</span>
           </h3>
           <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#94a3b8' }}>
             Đối chiếu giá trị cũ/mới. Không tự duyệt hồ sơ của mình; từ chối phải có lý do.
@@ -145,7 +147,7 @@ export function ProfileApprovalQueue() {
               setPage(1);
             }}
           >
-            <option value="PENDING">⏳ Chờ duyệt</option>
+            <option value="PENDING">Chờ duyệt</option>
             <option value="APPROVED">✓ Đã duyệt</option>
             <option value="REJECTED">✕ Đã từ chối</option>
           </select>
@@ -189,8 +191,9 @@ export function ProfileApprovalQueue() {
             >
               <div>
                 <strong style={{ fontSize: '14px', color: '#f8fafc' }}>{item.employeeName}</strong>
-                <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
-                  🕒 {new Date(item.request.requestedAt).toLocaleString('vi-VN')} · Trường thay đổi:{' '}
+                <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                  <AppIcon name="clock" size={14} />
+                  <span>{new Date(item.request.requestedAt).toLocaleString('vi-VN')} · Trường thay đổi:{' '}</span>
                   <span style={{ color: '#60a5fa', fontWeight: 600 }}>
                     {Object.keys(item.request.targetFields)
                       .map((key) => fieldName[key] || key)
@@ -265,13 +268,15 @@ export function ProfileApprovalQueue() {
             </div>
 
             {!independent && (
-              <p role="status" style={{ fontSize: '12px', color: '#fbbf24', margin: 0 }}>
-                ⚠️ Không tự duyệt yêu cầu do mình lập hoặc hồ sơ của mình; cần HR độc lập có grant review phù hợp.
+              <p role="status" style={{ fontSize: '12px', color: '#fbbf24', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <AppIcon name="alert" size={16} />
+                <span>Không tự duyệt yêu cầu do mình lập hoặc hồ sơ của mình; cần HR độc lập có grant review phù hợp.</span>
               </p>
             )}
             {promotionPending && (
-              <p role="status" style={{ fontSize: '12px', color: '#fbbf24', margin: 0 }}>
-                ⚠️ Đổi chức danh/cấp bậc đang PENDING chính sách riêng. Chưa thể phê duyệt; có thể giữ chờ hoặc từ chối có lý do.
+              <p role="status" style={{ fontSize: '12px', color: '#fbbf24', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <AppIcon name="alert" size={16} />
+                <span>Đổi chức danh/cấp bậc đang PENDING chính sách riêng. Chưa thể phê duyệt; có thể giữ chờ hoặc từ chối có lý do.</span>
               </p>
             )}
 

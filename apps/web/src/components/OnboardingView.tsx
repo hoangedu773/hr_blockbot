@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { requestJson } from '../services/api';
 import { CrmDialog } from './ui/CrmDialog';
 import { WorkflowHistoryNavigation, HashChainLedger, type HashChainBlockItem } from './WorkflowHistoryNavigation';
+import { AppIcon } from './ui/AppIcon';
 import { InitialManagerPicker } from './InitialManagerPicker';
 type RequestRow = { id: string; version: number; auditIntegrity?: string; status: string; storeId: string; requestedBy: string; deliveryState: string;
   initialReporting?: { managerName: string; status: string; validFrom: string | null } | null;
@@ -94,7 +95,9 @@ export function OnboardingView({ chatMode, initialRequestId }: { chatMode?: 'rev
         marginBottom: '16px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
-          <span>{selected.auditIntegrity === 'VALID_LOCAL_CHAIN' ? '🛡️' : '⚠️'}</span>
+          {selected.auditIntegrity === 'VALID_LOCAL_CHAIN'
+            ? <AppIcon name="shieldCheck" size={18} style={{ color: '#4ade80' }} />
+            : <AppIcon name="alert" size={18} style={{ color: '#f87171' }} />}
           <span style={{ color: selected.auditIntegrity === 'VALID_LOCAL_CHAIN' ? '#4ade80' : '#f87171', fontWeight: 500 }}>
             {selected.auditIntegrity === 'VALID_LOCAL_CHAIN' ? 'Chuỗi kiểm toán hợp lệ (Local Hash-chain Verified)' : 'Cảnh báo tính toàn vẹn bản ghi'}
           </span>
@@ -172,26 +175,30 @@ export function OnboardingView({ chatMode, initialRequestId }: { chatMode?: 'rev
       }}>
         <div style={{ padding: '10px 12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
           <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Số điện thoại</div>
-          <div style={{ fontSize: '14px', fontWeight: 500, color: '#f1f5f9', marginTop: '4px' }}>
-            📞 {selected.payload.phone}
+          <div style={{ fontSize: '14px', fontWeight: 500, color: '#f1f5f9', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <AppIcon name="phone" size={16} />
+            <span>{selected.payload.phone}</span>
           </div>
         </div>
         <div style={{ padding: '10px 12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
           <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Email kích hoạt</div>
-          <div style={{ fontSize: '14px', fontWeight: 500, color: '#f1f5f9', marginTop: '4px', overflowWrap: 'anywhere' }}>
-            ✉️ {selected.payload.email || 'Chưa có email'}
+          <div style={{ fontSize: '14px', fontWeight: 500, color: '#f1f5f9', marginTop: '4px', overflowWrap: 'anywhere', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <AppIcon name="mail" size={16} />
+            <span>{selected.payload.email || 'Chưa có email'}</span>
           </div>
         </div>
         <div style={{ padding: '10px 12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
           <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Ngày vào làm</div>
-          <div style={{ fontSize: '14px', fontWeight: 500, color: '#f1f5f9', marginTop: '4px' }}>
-            📅 {new Date(selected.payload.hiredAt).toLocaleDateString('vi-VN')}
+          <div style={{ fontSize: '14px', fontWeight: 500, color: '#f1f5f9', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <AppIcon name="calendar" size={16} />
+            <span>{new Date(selected.payload.hiredAt).toLocaleDateString('vi-VN')}</span>
           </div>
         </div>
         <div style={{ padding: '10px 12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
           <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Kênh kích hoạt</div>
-          <div style={{ fontSize: '14px', fontWeight: 500, color: '#f1f5f9', marginTop: '4px' }}>
-            🔗 {selected.deliveryState === 'DELIVERED' ? 'Đã gửi lời mời' : selected.deliveryState === 'PENDING' ? 'Đang gửi' : 'Chờ kích hoạt'}
+          <div style={{ fontSize: '14px', fontWeight: 500, color: '#f1f5f9', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <AppIcon name="link" size={16} />
+            <span>{selected.deliveryState === 'DELIVERED' ? 'Đã gửi lời mời' : selected.deliveryState === 'PENDING' ? 'Đang gửi' : 'Chờ kích hoạt'}</span>
           </div>
         </div>
       </div>
@@ -207,7 +214,7 @@ export function OnboardingView({ chatMode, initialRequestId }: { chatMode?: 'rev
           border: '1px solid rgba(99, 102, 241, 0.2)',
           marginBottom: '16px'
         }}>
-          <span style={{ fontSize: '18px' }}>👤</span>
+          <AppIcon name="user" size={18} />
           <div style={{ fontSize: '13px', lineHeight: 1.4 }}>
             <span style={{ color: '#94a3b8' }}>Quản lý trực tiếp đề xuất: </span>
             <strong style={{ color: '#e2e8f0' }}>{selected.initialReporting.managerName}</strong>

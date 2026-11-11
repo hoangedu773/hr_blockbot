@@ -4,6 +4,7 @@ import { useAuthorization } from '../context/useAuthorization';
 import { useAuth } from '../context/AuthContext';
 import { requestJson } from '../services/api';
 import { CrmDialog } from './ui/CrmDialog';
+import { AppIcon } from './ui/AppIcon';
 import { WorkflowHistoryNavigation, HashChainLedger, type HashChainBlockItem } from './WorkflowHistoryNavigation';
 type Row = { id: string; version: number; auditIntegrity?: string; status: string; delegatorUserId: string; recipientUserId: string; approvedByUserId: string | null; capabilities: AuthorizationCapability[]; scope: AuthorizationScope; validFrom: string; validUntil: string; history: HashChainBlockItem[] };
 type Recipient = { userId: string; fullName: string; profile: string };
@@ -103,7 +104,9 @@ export function DelegationView() {
         marginBottom: '16px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
-          <span>{selected.auditIntegrity === 'VALID_LOCAL_CHAIN' ? '🛡️' : '⚠️'}</span>
+          {selected.auditIntegrity === 'VALID_LOCAL_CHAIN'
+            ? <AppIcon name="shieldCheck" size={18} style={{ color: '#4ade80' }} />
+            : <AppIcon name="alert" size={18} style={{ color: '#f87171' }} />}
           <span style={{ color: selected.auditIntegrity === 'VALID_LOCAL_CHAIN' ? '#4ade80' : '#f87171', fontWeight: 500 }}>
             {selected.auditIntegrity === 'VALID_LOCAL_CHAIN' ? 'Chuỗi kiểm toán hợp lệ (Local Hash-chain Verified)' : 'Cảnh báo tính toàn vẹn bản ghi'}
           </span>
@@ -121,20 +124,23 @@ export function DelegationView() {
       }}>
         <div style={{ padding: '10px 12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
           <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Người đề nghị</div>
-          <div style={{ fontSize: '14px', fontWeight: 500, color: '#f1f5f9', marginTop: '4px' }}>
-            👤 {selected.delegatorUserId}
+          <div style={{ fontSize: '14px', fontWeight: 500, color: '#f1f5f9', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <AppIcon name="user" size={16} />
+            <span>{selected.delegatorUserId}</span>
           </div>
         </div>
         <div style={{ padding: '10px 12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
           <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Người nhận ủy quyền</div>
-          <div style={{ fontSize: '14px', fontWeight: 500, color: '#f1f5f9', marginTop: '4px' }}>
-            🤝 {selected.recipientUserId}
+          <div style={{ fontSize: '14px', fontWeight: 500, color: '#f1f5f9', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <AppIcon name="handshake" size={16} />
+            <span>{selected.recipientUserId}</span>
           </div>
         </div>
         <div style={{ padding: '10px 12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
           <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cửa hàng áp dụng</div>
-          <div style={{ fontSize: '14px', fontWeight: 500, color: '#f1f5f9', marginTop: '4px' }}>
-            ☕ {selected.scope.storeIds.map((id) => stores.find((store) => store.id === id)?.name || id).join(', ')}
+          <div style={{ fontSize: '14px', fontWeight: 500, color: '#f1f5f9', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <AppIcon name="store" size={16} />
+            <span>{selected.scope.storeIds.map((id) => stores.find((store) => store.id === id)?.name || id).join(', ')}</span>
           </div>
         </div>
         <div style={{ padding: '10px 12px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>

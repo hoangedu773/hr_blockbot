@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { BrandMark } from '../BrandMark';
 import { ThemeToggle } from '../ThemeToggle';
+import { AppIcon } from '../ui/AppIcon';
 import { ChatOnboarding, isOnboardingRequest } from './ChatOnboarding';
 import { useChatInbox } from './ChatInbox';
 import { useRevenueKpiChat } from './useRevenueKpiChat';
@@ -782,7 +783,7 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
               }
             }}
           >
-            <span className="chat-workflow-btn-icon" aria-hidden="true">⚡</span>
+            <AppIcon name="zap" size={16} className="chat-workflow-btn-icon" />
             <span style={{ flex: 1 }}>Luồng làm việc</span>
             <span className="chat-workflow-btn-badge">{workflowMode ? 'ĐANG BẬT' : 'STREAM'}</span>
           </button>
@@ -825,7 +826,8 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
                 data-active={!workflowMode ? 'true' : undefined}
                 onClick={() => setWorkflowMode(false)}
               >
-                💬 Chat tiêu chuẩn
+                <AppIcon name="message" size={16} style={{ marginRight: '6px' }} />
+                Chat tiêu chuẩn
               </button>
               <button
                 type="button"
@@ -833,7 +835,8 @@ export const ChatPageView: React.FC<ChatPageViewProps> = ({ onSwitchTab, onLogou
                 data-active={workflowMode ? 'true' : undefined}
                 onClick={() => setWorkflowMode(true)}
               >
-                ⚡ Luồng làm việc
+                <AppIcon name="zap" size={16} style={{ marginRight: '6px' }} />
+                Luồng làm việc
               </button>
             </div>
           </div>

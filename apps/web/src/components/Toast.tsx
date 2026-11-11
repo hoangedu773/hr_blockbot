@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { AppIcon } from './ui/AppIcon';
 
 export interface ToastMessage {
   id: string;
@@ -77,17 +78,20 @@ const ToastItem: React.FC<{ toast: ToastMessage; onDismiss: (id: string) => void
       </div>
       <button
         onClick={() => onDismiss(toast.id)}
+        aria-label="Đóng"
         style={{
           background: 'none',
           border: 'none',
           color: 'var(--text-muted)',
           cursor: 'pointer',
           padding: '2px',
-          fontSize: '14px',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           lineHeight: 1
         }}
       >
-        ✕
+        <AppIcon name="close" size={14} />
       </button>
     </div>
   );

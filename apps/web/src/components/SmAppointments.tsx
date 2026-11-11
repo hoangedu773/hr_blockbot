@@ -4,6 +4,7 @@ import { useAuthorization } from '../context/useAuthorization';
 import { useAuth } from '../context/AuthContext';
 import { requestJson } from '../services/api';
 import { HashChainLedger } from './WorkflowHistoryNavigation';
+import { AppIcon } from './ui/AppIcon';
 
 export const SM_POSITION_LABELS = {
   PRIMARY: 'SM phụ trách chính cửa hàng',
@@ -121,8 +122,9 @@ export function SmAppointments({ employeeId }: { employeeId: string }) {
       }}
     >
       <div className="crm-work-heading" style={{ marginBottom: '10px' }}>
-        <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#f8fafc' }}>
-          🏪 Vị trí & Phân công Cửa hàng trưởng (SM)
+        <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <AppIcon name="store" size={18} />
+          <span>Vị trí &amp; Phân công Cửa hàng trưởng (SM)</span>
         </h3>
         <button
           type="button"
@@ -227,14 +229,15 @@ export function SmAppointments({ employeeId }: { employeeId: string }) {
             </button>
           </div>
           <div style={{ fontSize: '12px', color: '#cbd5e1', display: 'grid', gap: '4px', marginBottom: '8px' }}>
-            <div>📄 <strong>Căn cứ:</strong> {detail.evidenceRef}</div>
-            <div>🏛️ <strong>Nguồn:</strong> {detail.basis === 'SIMULATION_APPROVED' ? 'Cơ cấu mô phỏng được duyệt' : 'Văn bản phân công đã đối chiếu'}</div>
-            <div>📝 <strong>Lý do:</strong> {detail.reason}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><AppIcon name="document" size={16} /><span><strong>Căn cứ:</strong> {detail.evidenceRef}</span></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><AppIcon name="building" size={16} /><span><strong>Nguồn:</strong> {detail.basis === 'SIMULATION_APPROVED' ? 'Cơ cấu mô phỏng được duyệt' : 'Văn bản phân công đã đối chiếu'}</span></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><AppIcon name="clipboard" size={16} /><span><strong>Lý do:</strong> {detail.reason}</span></div>
             {detail.approvedAt && <div>✓ <strong>Xác nhận ngày:</strong> {new Date(detail.approvedAt).toLocaleString('vi-VN')}</div>}
           </div>
           {detail.auditIntegrity !== 'VALID_LOCAL_CHAIN' && (
-            <p role="alert" style={{ color: '#f87171', fontSize: '12px' }}>
-              ⚠️ Không xác minh được lịch sử. Vui lòng liên hệ quản trị để kiểm tra.
+            <p role="alert" style={{ color: '#f87171', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <AppIcon name="alert" size={16} />
+              <span>Không xác minh được lịch sử. Vui lòng liên hệ quản trị để kiểm tra.</span>
             </p>
           )}
           <div style={{ marginBottom: '10px' }}>

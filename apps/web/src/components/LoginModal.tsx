@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { AppIcon } from './ui/AppIcon';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -96,7 +97,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
             lineHeight: 1.5,
           }}
         >
-          🛡️ <strong>Chính sách bảo mật:</strong> Access Token lưu duy nhất trong bộ nhớ tạm (in-memory variable); tuyệt đối không dùng localStorage/sessionStorage. Refresh token truyền qua HttpOnly cookie.
+          <AppIcon name="shieldCheck" size={16} style={{ marginRight: '6px', verticalAlign: 'text-bottom' }} />
+          <strong>Chính sách bảo mật:</strong> Access Token lưu duy nhất trong bộ nhớ tạm (in-memory variable); tuyệt đối không dùng localStorage/sessionStorage. Refresh token truyền qua HttpOnly cookie.
         </div>
 
         {/* Form */}
@@ -113,7 +115,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
                 lineHeight: 1.4,
               }}
             >
-              ⚠️ {error}
+              <AppIcon name="alert" size={16} style={{ marginRight: '6px', verticalAlign: 'text-bottom' }} />
+              {error}
             </div>
           )}
 
