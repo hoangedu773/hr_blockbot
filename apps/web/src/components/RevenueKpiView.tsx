@@ -1,4 +1,5 @@
 import { RevenueKpiOpenCard, requestRevenueOpenProposal } from './RevenueKpiOpenCard';
+import { AppIcon } from './ui/AppIcon';
 import type { RevenueKpiOpenAction } from '@hr-blockbot/contracts';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -845,10 +846,10 @@ export function RevenueKpiView() {
               {a.unitType === 'AREA' && (
                 <span className="rk-store-count-tag">{a.stores.length} cửa hàng trực thuộc</span>
               )}
-              {isCardBusy && <span className="rk-inline-spinner">⏳ Đang cập nhật…</span>}
+              {isCardBusy && <span className="rk-inline-spinner"><AppIcon name="clock" size={12} style={{ marginRight: '4px' }} />Đang cập nhật…</span>}
             </div>
             <h2>{a.unitType === 'AREA' ? `Khu vực ${a.assigneeName}` : a.stores[0].storeName}</h2>
-            <span className="rk-assignee-line">👤 Phụ trách: <strong>{a.assigneeName}</strong> ({a.assigneeRole})</span>
+            <span className="rk-assignee-line"><AppIcon name="user" size={14} style={{ marginRight: '5px' }} />Phụ trách: <strong>{a.assigneeName}</strong> ({a.assigneeRole})</span>
           </div>
           <strong className={'rk-state rk-state-' + a.status.toLowerCase()}>{labels[a.status]}</strong>
         </div>
@@ -873,7 +874,7 @@ export function RevenueKpiView() {
             <span>Hoàn thành</span>
             <strong>{percentage(result?.achievementPercent)}</strong>
             <small className={result?.achieved === true ? 'rk-text-pass' : result?.achieved === false ? 'rk-text-fail' : ''}>
-              {result?.achieved === true ? '✓ Đạt' : result?.achieved === false ? '⚠️ Chưa đạt' : 'Chưa kết luận'}
+              {result?.achieved === true ? '✓ Đạt' : result?.achieved === false ? 'Chưa đạt' : 'Chưa kết luận'}
             </small>
           </div>
         </div>
@@ -889,7 +890,7 @@ export function RevenueKpiView() {
 
         {a.deadlineAt && a.status === 'PENDING_ACCEPTANCE' && (
           <p className="rk-sub">
-            ⏱️ Hạn xác nhận: {date(a.deadlineAt)}
+            <AppIcon name="clock" size={14} style={{ marginRight: '5px' }} />Hạn xác nhận: {date(a.deadlineAt)}
             {a.overdue || Date.parse(a.deadlineAt) < Date.now()
               ? ' · Quá hạn — chờ HR xem xét, chưa tự chấp nhận'
               : ''}
@@ -943,7 +944,7 @@ export function RevenueKpiView() {
         {a.aiProposal && (
           <div className="rk-ai">
             <div className="rk-ai-header">
-              <strong>✨ Đề xuất tham khảo; HR quyết định</strong>
+              <strong><AppIcon name="sparkles" size={15} style={{ marginRight: '5px' }} />Đề xuất tham khảo; HR quyết định</strong>
               <small>
                 {a.aiProposal.degraded ? 'Đang dùng phân tích dự phòng' : 'Đề xuất AI'} · {a.aiProposal.dataMonths}/3 tháng dữ liệu
               </small>
@@ -1088,7 +1089,7 @@ export function RevenueKpiView() {
         num: 4,
         title: 'Đánh giá & Giải trình',
         sub: 'Ngày 28 - 30',
-        statusText: attentionCount ? `⚠️ ${attentionCount} cần xử lý` : resultsCount ? `${resultsCount} đã tính` : 'Chờ số liệu',
+        statusText: attentionCount ? `${attentionCount} cần xử lý` : resultsCount ? `${resultsCount} đã tính` : 'Chờ số liệu',
       },
       {
         num: 5,
@@ -1106,7 +1107,7 @@ export function RevenueKpiView() {
             <strong>Chu kỳ quản lý tháng {period.slice(5)}/{period.slice(0, 4)}</strong>
           </div>
           <span className={`rk-stepper-current-pill ${periodStatus === 'CLOSED' ? 'closed' : 'running'}`}>
-            {periodStatus === 'CLOSED' ? '🔒 Đã chốt sổ kỳ' : `Đang ở bước ${activeStep}/5: ${steps[activeStep - 1].title}`}
+            {periodStatus === 'CLOSED' ? <><AppIcon name="lock" size={14} style={{ marginRight: '4px' }} />Đã chốt sổ kỳ</> : `Đang ở bước ${activeStep}/5: ${steps[activeStep - 1].title}`}
           </span>
         </div>
         <div className="rk-stepper-track">
@@ -1183,7 +1184,7 @@ export function RevenueKpiView() {
                               {isExpanded ? '▼' : '▶'}
                             </button>
                           ) : (
-                            <span className="rk-table-icon">🏪</span>
+                            <span className="rk-table-icon"><AppIcon name="store" size={15} /></span>
                           )}
                           <div>
                             <strong className="rk-table-store-name">
@@ -1218,7 +1219,7 @@ export function RevenueKpiView() {
                             className={`rk-ai-pill ${a.aiProposal.degraded ? 'degraded' : ''}`}
                             title={a.aiProposal.rationale ?? ''}
                           >
-                            ✨ +{percentage(a.aiProposal.suggestedGrowthPercent)}
+                            <AppIcon name="sparkles" size={12} style={{ marginRight: '3px' }} />+{percentage(a.aiProposal.suggestedGrowthPercent)}
                           </span>
                         ) : (
                           <span className="text-muted">—</span>
@@ -1298,7 +1299,7 @@ export function RevenueKpiView() {
                           </td>
                           <td>
                             <small className={sr?.achieved === true ? 'rk-text-pass' : sr?.achieved === false ? 'rk-text-fail' : 'text-muted'}>
-                              {sr?.achieved === true ? '✓ Đạt' : sr?.achieved === false ? '⚠️ Chưa đạt' : '—'}
+                              {sr?.achieved === true ? '✓ Đạt' : sr?.achieved === false ? 'Chưa đạt' : '—'}
                             </small>
                           </td>
                           <td />
@@ -1401,7 +1402,7 @@ export function RevenueKpiView() {
 
       {loading ? (
         <p role="status" className="rk-loading-banner">
-          ⏳ Đang tải KPI doanh thu…
+          <AppIcon name="clock" size={16} style={{ marginRight: '6px' }} />Đang tải KPI doanh thu…
         </p>
       ) : missing ? (
         <div className="rk-empty">
@@ -1426,22 +1427,22 @@ export function RevenueKpiView() {
               </div>
               <div className="rk-policy-chips">
                 <div className="rk-policy-chip" title="Mức tăng trưởng KPI mặc định">
-                  <span className="rk-chip-icon">📈</span>
+                  <span className="rk-chip-icon"><AppIcon name="trend" size={15} /></span>
                   <span className="rk-chip-label">Tăng mặc định:</span>
                   <strong>{percentage(dashboard.period.policy.defaultGrowthPercent)}</strong>
                 </div>
                 <div className="rk-policy-chip" title="Tỷ lệ cửa hàng chưa đạt tối đa cho phép">
-                  <span className="rk-chip-icon">🎯</span>
+                  <span className="rk-chip-icon"><AppIcon name="target" size={15} /></span>
                   <span className="rk-chip-label">Ngưỡng chưa đạt:</span>
                   <strong>≤ {percentage(dashboard.period.policy.underperformingRateThresholdPercent)}</strong>
                 </div>
                 <div className="rk-policy-chip" title="Thời hạn để quản lý xác nhận nhận KPI">
-                  <span className="rk-chip-icon">⏱️</span>
+                  <span className="rk-chip-icon"><AppIcon name="clock" size={15} /></span>
                   <span className="rk-chip-label">Hạn xác nhận:</span>
                   <strong>{dashboard.period.policy.acceptanceWindowWorkingDays} ngày làm việc</strong>
                 </div>
               </div>
-              {busy && <span className="rk-sync-indicator">⏳ Đang đồng bộ dữ liệu…</span>}
+              {busy && <span className="rk-sync-indicator"><AppIcon name="clock" size={13} style={{ marginRight: '4px' }} />Đang đồng bộ dữ liệu…</span>}
             </div>
 
             {renderMonthlyStepper()}
@@ -1455,7 +1456,7 @@ export function RevenueKpiView() {
                   tabIndex={0}
                 >
                   <div className="rk-overview-top">
-                    <span className="rk-overview-label">🏪 Doanh thu theo Cửa hàng (SM)</span>
+                    <span className="rk-overview-label"><AppIcon name="store" size={15} style={{ marginRight: '5px' }} />Doanh thu theo Cửa hàng (SM)</span>
                     <span className="rk-overview-count">{stats.storeCount} cửa hàng</span>
                   </div>
                   <strong className="rk-overview-amount">{money(stats.storeTargetTotal)}</strong>
@@ -1472,7 +1473,7 @@ export function RevenueKpiView() {
                   tabIndex={0}
                 >
                   <div className="rk-overview-top">
-                    <span className="rk-overview-label">🗺️ Doanh thu theo Khu vực (AM)</span>
+                    <span className="rk-overview-label"><AppIcon name="map" size={15} style={{ marginRight: '5px' }} />Doanh thu theo Khu vực (AM)</span>
                     <span className="rk-overview-count">{stats.areaCount} khu vực</span>
                   </div>
                   <strong className="rk-overview-amount">{money(stats.areaTargetTotal)}</strong>
@@ -1489,7 +1490,7 @@ export function RevenueKpiView() {
                   tabIndex={0}
                 >
                   <div className="rk-overview-top">
-                    <span className="rk-overview-label">📝 Tiến độ phân công</span>
+                    <span className="rk-overview-label"><AppIcon name="clipboard" size={15} style={{ marginRight: '5px' }} />Tiến độ phân công</span>
                     <span className="rk-overview-count">{dashboard.assignments.length} mục tiêu</span>
                   </div>
                   <strong className="rk-overview-amount">{stats.activeCount} đang chạy</strong>
@@ -1547,7 +1548,7 @@ export function RevenueKpiView() {
                           onClick={() => void bulk('diversify')}
                           title="Phân bổ mức tăng trưởng đa dạng (+3.5% đến +15%) theo phân tầng chi nhánh cho các bản nháp"
                         >
-                          ⚡ Phân bổ % đa dạng
+                          <AppIcon name="zap" size={14} style={{ marginRight: '5px' }} />Phân bổ % đa dạng
                         </button>
                       </>
                     )}
@@ -1605,7 +1606,7 @@ export function RevenueKpiView() {
                   }}
                 >
                   <div className="rk-flags-summary-left">
-                    <span className="rk-flags-icon">⚠️</span>
+                    <span className="rk-flags-icon"><AppIcon name="alert" size={18} /></span>
                     <div>
                       <div className="rk-flags-title-row">
                         <strong>Cần kiểm tra người phụ trách</strong>
@@ -1634,7 +1635,7 @@ export function RevenueKpiView() {
                       <div className="rk-flags-search-wrap">
                         <input
                           type="search"
-                          placeholder="🔍 Lọc nhanh chi nhánh (VD: Quận 3, Điện Biên Phủ...)"
+                          placeholder="Lọc nhanh chi nhánh (VD: Quận 3, Điện Biên Phủ...)"
                           aria-label="Lọc nhanh chi nhánh cần kiểm tra"
                           value={flagsSearch}
                           onChange={e => setFlagsSearch(e.target.value)}
@@ -1666,7 +1667,7 @@ export function RevenueKpiView() {
                               className="rk-flag-action-btn"
                               onClick={() => openDraftForStore(item.storeId!, item.candidateSMs[0]?.employeeId)}
                             >
-                              ➕ Gán SM & mục tiêu
+                              <AppIcon name="plus" size={14} style={{ marginRight: '5px' }} />Gán SM & mục tiêu
                             </button>
                           )}
                         </div>
@@ -1674,7 +1675,7 @@ export function RevenueKpiView() {
                     </div>
 
                     <div className="rk-flags-footer-tip">
-                      💡 <strong>Hướng dẫn:</strong> Với các cửa hàng có nhiều SM phụ trách, bấm "Gán SM & mục tiêu" để chọn người đại diện phụ trách KPI tháng này.
+                      <AppIcon name="bulb" size={16} style={{ marginRight: '5px', verticalAlign: 'text-bottom' }} /><strong>Hướng dẫn:</strong> Với các cửa hàng có nhiều SM phụ trách, bấm "Gán SM & mục tiêu" để chọn người đại diện phụ trách KPI tháng này.
                     </div>
                   </div>
                 )}
@@ -1697,14 +1698,14 @@ export function RevenueKpiView() {
                       className={`rk-unit-tab ${unitFilter === 'STORE' ? 'active' : ''}`}
                       onClick={() => setUnitFilter('STORE')}
                     >
-                      🏪 Theo cửa hàng · SM ({stats?.storeCount ?? 0})
+                      <AppIcon name="store" size={14} style={{ marginRight: '5px' }} />Theo cửa hàng · SM ({stats?.storeCount ?? 0})
                     </button>
                     <button
                       type="button"
                       className={`rk-unit-tab ${unitFilter === 'AREA' ? 'active' : ''}`}
                       onClick={() => setUnitFilter('AREA')}
                     >
-                      🗺️ Theo khu vực · AM ({stats?.areaCount ?? 0})
+                      <AppIcon name="map" size={14} style={{ marginRight: '5px' }} />Theo khu vực · AM ({stats?.areaCount ?? 0})
                     </button>
                   </div>
 
@@ -1716,7 +1717,7 @@ export function RevenueKpiView() {
                         onClick={() => setViewMode('CARDS')}
                         title="Xem dạng thẻ chi tiết"
                       >
-                        🗂️ Dạng thẻ
+                        <AppIcon name="cards" size={14} style={{ marginRight: '5px' }} />Dạng thẻ
                       </button>
                       <button
                         type="button"
@@ -1724,7 +1725,7 @@ export function RevenueKpiView() {
                         onClick={() => setViewMode('TABLE')}
                         title="Xem dạng bảng tổng hợp thu gọn (như Excel)"
                       >
-                        📊 Dạng bảng
+                        <AppIcon name="table" size={14} style={{ marginRight: '5px' }} />Dạng bảng
                       </button>
                     </div>
 
@@ -1734,7 +1735,7 @@ export function RevenueKpiView() {
                       onClick={exportCsv}
                       title="Xuất bảng số liệu KPI doanh thu ra file CSV/Excel"
                     >
-                      📥 Xuất Excel
+                      <AppIcon name="download" size={14} style={{ marginRight: '5px' }} />Xuất Excel
                     </button>
                   </div>
                 </div>
@@ -1746,9 +1747,9 @@ export function RevenueKpiView() {
                       ['DRAFT', `Nháp (${stats?.draftCount ?? 0})`],
                       ['PENDING_ACCEPTANCE', `Chờ xác nhận (${stats?.pendingCount ?? 0})`],
                       ['ACTIVE', `Đang thực hiện (${stats?.activeCount ?? 0})`],
-                      ...(stats?.underperformingCount ? [['UNDERPERFORMING', `🔴 Chưa đạt (${stats.underperformingCount})`]] : []),
-                      ...(stats?.achievedCount ? [['ACHIEVED', `🟢 Đạt (${stats.achievedCount})`]] : []),
-                      ...(stats?.attentionCount ? [['ATTENTION', `⚠️ Cần xử lý (${stats.attentionCount})`]] : []),
+                      ...(stats?.underperformingCount ? [['UNDERPERFORMING', `Chưa đạt (${stats.underperformingCount})`]] : []),
+                      ...(stats?.achievedCount ? [['ACHIEVED', `Đạt (${stats.achievedCount})`]] : []),
+                      ...(stats?.attentionCount ? [['ATTENTION', `Cần xử lý (${stats.attentionCount})`]] : []),
                     ].map(([code, label]) => (
                       <button
                         key={code}
@@ -1802,7 +1803,7 @@ export function RevenueKpiView() {
                   <>
                     <section className="rk-group-section" aria-label="Nhóm KPI theo khu vực AM">
                       <div className="rk-group-header">
-                        <h3>🗺️ Doanh thu theo Khu vực (AM)</h3>
+                        <h3><AppIcon name="map" size={18} style={{ marginRight: '6px' }} />Doanh thu theo Khu vực (AM)</h3>
                         <span>{filteredAssignments.filter(a => a.unitType === 'AREA').length} khu vực</span>
                       </div>
                       <div className="rk-group-cards">
@@ -1812,7 +1813,7 @@ export function RevenueKpiView() {
 
                     <section className="rk-group-section" aria-label="Nhóm KPI theo cửa hàng SM">
                       <div className="rk-group-header">
-                        <h3>🏪 Doanh thu theo Cửa hàng (SM)</h3>
+                        <h3><AppIcon name="store" size={18} style={{ marginRight: '6px' }} />Doanh thu theo Cửa hàng (SM)</h3>
                         <span>{filteredAssignments.filter(a => a.unitType === 'STORE').length} cửa hàng</span>
                       </div>
                       <div className="rk-group-cards rk-store-cards-grid">

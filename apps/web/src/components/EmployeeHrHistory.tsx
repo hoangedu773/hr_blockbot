@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createProfileChangeRequest, requestJson } from '../services/api';
 import { useAuthorization } from '../context/useAuthorization';
+import { AppIcon } from './ui/AppIcon';
 
 type History = {
   items: {
@@ -70,8 +71,9 @@ export function EmployeeHrHistory({ employeeId }: { employeeId: string }) {
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-        <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: '#e2e8f0' }}>
-          📜 Lịch sử cập nhật hồ sơ HR
+        <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <AppIcon name="document" size={18} />
+          <span>Lịch sử cập nhật hồ sơ HR</span>
         </h4>
         <span style={{ fontSize: '11px', color: '#94a3b8' }}>Audit Log nội bộ</span>
       </div>

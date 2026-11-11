@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AppIcon } from './ui/AppIcon';
 
 export type HashChainBlockItem = {
   id?: string;
@@ -85,7 +86,7 @@ export function HashChainLedger({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '16px' }}>⛓️</span>
+          <AppIcon name="chain" size={18} style={{ color: '#60a5fa' }} />
           <div>
             <div style={{ fontSize: '12px', fontWeight: 700, color: '#f8fafc', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
               {title}
@@ -107,7 +108,7 @@ export function HashChainLedger({
             border: `1px solid ${valid ? 'rgba(16, 185, 129, 0.32)' : 'rgba(239, 68, 68, 0.32)'}`,
           }}
         >
-          {valid ? `✓ ${entries.length} Khối SHA-256 hợp lệ` : '⚠️ Lỗi liên kết chuỗi băm'}
+          {valid ? `✓ ${entries.length} Khối SHA-256 hợp lệ` : <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><AppIcon name="alert" size={14} /><span>Lỗi liên kết chuỗi băm</span></span>}
         </span>
       </div>
 
@@ -150,8 +151,9 @@ export function HashChainLedger({
                   </span>
                   <strong style={{ fontSize: '12.5px', color: '#f1f5f9' }}>{label}</strong>
                 </div>
-                <span style={{ fontSize: '11px', color: '#94a3b8' }}>
-                  🕒 {new Date(entry.at).toLocaleString('vi-VN')}
+                <span style={{ fontSize: '11px', color: '#94a3b8', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <AppIcon name="clock" size={14} />
+                  <span>{new Date(entry.at).toLocaleString('vi-VN')}</span>
                 </span>
               </div>
 
@@ -317,8 +319,9 @@ export function WorkflowHistoryNavigation({
             onChange={(event) => setId(event.target.value)}
           />
         </label>
-        <button className="btn" disabled={looking || loading}>
-          🔍 Kiểm chứng lịch sử theo mã
+        <button className="btn" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }} disabled={looking || loading}>
+          <AppIcon name="search" size={16} />
+          <span>Kiểm chứng lịch sử theo mã</span>
         </button>
       </form>
       <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px' }}>

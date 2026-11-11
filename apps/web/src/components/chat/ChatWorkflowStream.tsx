@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { AppIcon } from '../ui/AppIcon';
 
 export type WorkflowStepStatus = 'pending' | 'running' | 'completed' | 'error';
 
@@ -656,7 +657,7 @@ export const WorkflowTracePanel: React.FC<{
                       {step.hashValue && (
                         <div className="guta-workflow-hash-box">
                           <span className="guta-workflow-hash-label">
-                            🔒 {step.hashLabel || 'SHA-256 Digest'}:
+                            <AppIcon name="lock" size={14} style={{ marginRight: '4px' }} />{step.hashLabel || 'SHA-256 Digest'}:
                           </span>
                           <code className="guta-workflow-hash-code">
                             {step.hashValue.slice(0, 16)}…{step.hashValue.slice(-16)}

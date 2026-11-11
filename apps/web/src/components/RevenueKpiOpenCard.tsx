@@ -5,6 +5,7 @@ import {
 } from '@hr-blockbot/contracts';
 import { apiFetch, API_BASE } from '../services/auth';
 import { newClientMessageId } from '../services/api';
+import { AppIcon } from './ui/AppIcon';
 import './revenue-kpi-open-card.css';
 
 const itemLabels: Record<string, string> = {
@@ -217,7 +218,7 @@ export function RevenueKpiOpenCard({ initial, onExecuted }: {
           <div className="rk-open-badge-row">
             <span className="rk-open-eyebrow">KẾ HOẠCH MỞ KỲ</span>
             <span className={`rk-open-pill rk-open-pill-${action.status.toLowerCase()}`}>
-              {action.status === 'PENDING' ? '⏳ Chờ duyệt' :
+              {action.status === 'PENDING' ? 'Chờ duyệt' :
                action.status === 'CONFIRMED' || action.status === 'EXECUTED' ? '✓ Đã xác nhận' :
                action.status === 'CANCELLED' ? '✕ Đã hủy' : 'Hết hạn'}
             </span>
@@ -250,7 +251,7 @@ export function RevenueKpiOpenCard({ initial, onExecuted }: {
           role="button"
           tabIndex={0}
         >
-          <div className="rk-stat-icon">🎯</div>
+          <div className="rk-stat-icon"><AppIcon name="target" size={18} /></div>
           <div className="rk-stat-info">
             <span className="rk-stat-label">Dự kiến tạo mới</span>
             <strong className="rk-stat-number">{countCreate}</strong>
@@ -278,7 +279,7 @@ export function RevenueKpiOpenCard({ initial, onExecuted }: {
           role="button"
           tabIndex={0}
         >
-          <div className="rk-stat-icon">⚠️</div>
+          <div className="rk-stat-icon"><AppIcon name="alert" size={18} /></div>
           <div className="rk-stat-info">
             <span className="rk-stat-label">Cần xử lý</span>
             <strong className="rk-stat-number">{countBlocked}</strong>
@@ -310,7 +311,7 @@ export function RevenueKpiOpenCard({ initial, onExecuted }: {
         <div className="rk-open-details-body">
           <div className="rk-filter-toolbar">
             <div className="rk-search-box">
-              <span className="rk-search-icon">🔍</span>
+              <span className="rk-search-icon"><AppIcon name="search" size={16} /></span>
               <input
                 type="text"
                 placeholder="Tìm theo tên cửa hàng, quận, SM..."
@@ -344,7 +345,7 @@ export function RevenueKpiOpenCard({ initial, onExecuted }: {
                 className={`rk-filter-btn rk-filter-blocked ${filter === 'BLOCKED' ? 'active' : ''}`}
                 onClick={() => setFilter('BLOCKED')}
               >
-                ⚠️ Cần xử lý ({countBlocked})
+                <AppIcon name="alert" size={14} style={{ marginRight: '5px' }} />Cần xử lý ({countBlocked})
               </button>
               <button
                 type="button"
@@ -358,7 +359,7 @@ export function RevenueKpiOpenCard({ initial, onExecuted }: {
                 className={`rk-filter-btn ${filter === 'CREATE' ? 'active' : ''}`}
                 onClick={() => setFilter('CREATE')}
               >
-                🎯 Dự kiến tạo ({countCreate})
+                <AppIcon name="target" size={14} style={{ marginRight: '5px' }} />Dự kiến tạo ({countCreate})
               </button>
             </div>
           </div>
@@ -396,7 +397,7 @@ export function RevenueKpiOpenCard({ initial, onExecuted }: {
                           </div>
                           {item.message && (
                             <div className="rk-store-warning">
-                              <span className="rk-warning-icon">⚠️</span>
+                              <span className="rk-warning-icon"><AppIcon name="alert" size={14} /></span>
                               <span>{item.message} {item.fixHint}</span>
                             </div>
                           )}
@@ -407,9 +408,9 @@ export function RevenueKpiOpenCard({ initial, onExecuted }: {
                             isSkipped ? 'rk-badge-skipped' :
                             isCreated ? 'rk-badge-create' : 'rk-badge-failed'
                           }`}>
-                            {isBlocked && '⚠️ '}
+                            {isBlocked && <AppIcon name="alert" size={13} style={{ marginRight: '4px' }} />}
                             {isSkipped && '✓ '}
-                            {isCreated && '🎯 '}
+                            {isCreated && <AppIcon name="target" size={13} style={{ marginRight: '4px' }} />}
                             {isFailed && '✕ '}
                             {itemLabels[item.status]}
                           </span>
@@ -417,12 +418,12 @@ export function RevenueKpiOpenCard({ initial, onExecuted }: {
                         <td className="rk-assignee-cell">
                           {item.assigneeName ? (
                             <div className="rk-assignee-info">
-                              <span className="rk-user-avatar">👤</span>
+                              <span className="rk-user-avatar"><AppIcon name="user" size={14} /></span>
                               <span className="rk-assignee-name">{item.assigneeName}</span>
                               <span className="rk-role-pill">{item.assigneeRole}</span>
                             </div>
                           ) : (
-                            <span className="rk-no-assignee">⚠️ Chưa có SM phụ trách</span>
+                            <span className="rk-no-assignee"><AppIcon name="alert" size={14} style={{ marginRight: '4px' }} />Chưa có SM phụ trách</span>
                           )}
                         </td>
                         <td className="rk-target-cell">
@@ -462,7 +463,7 @@ export function RevenueKpiOpenCard({ initial, onExecuted }: {
               onClick={() => void quickFillBaselineTargets()}
               title="Tự động tạo mục tiêu VND phân tầng cho các chi nhánh thiếu doanh thu tháng gốc"
             >
-              {busy ? 'Đang khởi tạo…' : `⚡ Tự động khởi tạo mục tiêu cơ sở (${blockedTargetRows.length})`}
+              {busy ? 'Đang khởi tạo…' : <><AppIcon name="zap" size={15} style={{ marginRight: '5px' }} />Tự động khởi tạo mục tiêu cơ sở ({blockedTargetRows.length})</>}
             </button>
           )}
           <button
@@ -486,7 +487,7 @@ export function RevenueKpiOpenCard({ initial, onExecuted }: {
               onClick={() => void quickFillBaselineTargets()}
               title="Tự động tạo mục tiêu VND phân tầng cho các chi nhánh thiếu doanh thu tháng gốc"
             >
-              {busy ? 'Đang khởi tạo…' : `⚡ Tự động khởi tạo mục tiêu cơ sở (${blockedTargetRows.length})`}
+              {busy ? 'Đang khởi tạo…' : <><AppIcon name="zap" size={15} style={{ marginRight: '5px' }} />Tự động khởi tạo mục tiêu cơ sở ({blockedTargetRows.length})</>}
             </button>
           )}
           <button

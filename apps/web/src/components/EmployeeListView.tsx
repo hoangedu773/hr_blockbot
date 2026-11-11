@@ -3,6 +3,7 @@ import type { EmployeeSummary, EmployeeManagement, PaginationMeta, StoreSummary 
 import { ApiError, fetchDepartments, fetchEmployees, fetchEmployeeById, fetchPersonnelManagement, fetchStoreById, requestJson, type CrmDepartment, type EmployeeTitleGroup } from '../services/api';
 import { Select } from './ui/Select';
 import { CrmDialog } from './ui/CrmDialog';
+import { AppIcon } from './ui/AppIcon';
 import '../styles/crm-work.css';
 import { ProfileApprovalQueue } from './ProfileApprovalQueue';
 import { PersonnelAdmin } from './PersonnelAdmin';
@@ -229,19 +230,7 @@ function OutletEmployees({ onOpenManagers, onNavigateOnboarding }: { onOpenManag
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{
-              width: '38px',
-              height: '38px',
-              borderRadius: '8px',
-              background: 'rgba(59, 130, 246, 0.15)',
-              border: '1px solid rgba(59, 130, 246, 0.3)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '18px'
-            }}>
-              🏪
-            </div>
+            <AppIcon name="store" size={22} style={{ color: '#60a5fa' }} />
             <div>
               <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#f8fafc', letterSpacing: '-0.2px' }}>
                 {currentStore.name}
@@ -284,8 +273,9 @@ function OutletEmployees({ onOpenManagers, onNavigateOnboarding }: { onOpenManag
             padding: '12px 14px'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-              <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#c084fc', letterSpacing: '0.5px' }}>
-                👑 Quản Lý Vận Hành (AOM)
+              <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#c084fc', letterSpacing: '0.5px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                <AppIcon name="crown" size={14} />
+                <span>Quản Lý Vận Hành (AOM)</span>
               </span>
               <span style={{ fontSize: '10px', background: 'rgba(168, 85, 247, 0.2)', color: '#e9d5ff', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
                 Cấp Vùng
@@ -307,8 +297,9 @@ function OutletEmployees({ onOpenManagers, onNavigateOnboarding }: { onOpenManag
             padding: '12px 14px'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-              <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#60a5fa', letterSpacing: '0.5px' }}>
-                👔 Quản Lý Khu Vực (AM)
+              <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#60a5fa', letterSpacing: '0.5px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                <AppIcon name="tie" size={14} />
+                <span>Quản Lý Khu Vực (AM)</span>
               </span>
               <span style={{ fontSize: '10px', background: 'rgba(59, 130, 246, 0.2)', color: '#bfdbfe', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
                 Khu vực
@@ -330,8 +321,9 @@ function OutletEmployees({ onOpenManagers, onNavigateOnboarding }: { onOpenManag
             padding: '12px 14px'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-              <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#34d399', letterSpacing: '0.5px' }}>
-                🏬 Cửa Hàng Trưởng (SM)
+              <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#34d399', letterSpacing: '0.5px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                <AppIcon name="store" size={14} />
+                <span>Cửa Hàng Trưởng (SM)</span>
               </span>
               <span style={{ fontSize: '10px', background: 'rgba(16, 185, 129, 0.2)', color: '#a7f3d0', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
                 1 SM / Điểm bán
@@ -354,8 +346,9 @@ function OutletEmployees({ onOpenManagers, onNavigateOnboarding }: { onOpenManag
               padding: '12px 14px'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#fbbf24', letterSpacing: '0.5px' }}>
-                  📋 Phụ Trách Cửa Hàng (PTCH)
+                <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#fbbf24', letterSpacing: '0.5px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  <AppIcon name="clipboard" size={14} />
+                  <span>Phụ Trách Cửa Hàng (PTCH)</span>
                 </span>
                 <span style={{ fontSize: '10px', background: 'rgba(245, 158, 11, 0.2)', color: '#fde68a', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
                   Phó CH
@@ -453,11 +446,13 @@ function OutletEmployees({ onOpenManagers, onNavigateOnboarding }: { onOpenManag
                   <td>
                     {isSm ? (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', fontSize: '12px', fontWeight: 600, border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                        🏬 SM · Cửa hàng trưởng
+                        <AppIcon name="store" size={14} />
+                        <span>SM · Cửa hàng trưởng</span>
                       </span>
                     ) : isPtch ? (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', fontSize: '12px', fontWeight: 600, border: '1px solid rgba(245, 158, 11, 0.3)' }}>
-                        📋 Phụ trách cửa hàng
+                        <AppIcon name="clipboard" size={14} />
+                        <span>Phụ trách cửa hàng</span>
                       </span>
                     ) : (
                       <span style={{ color: '#cbd5e1', fontSize: '13px' }}>
@@ -571,7 +566,8 @@ function OutletEmployees({ onOpenManagers, onNavigateOnboarding }: { onOpenManag
                   setSelected(null);
                 }}
               >
-                ✎ Chỉnh sửa hồ sơ
+                <AppIcon name="edit" size={14} style={{ marginRight: '6px' }} />
+                Chỉnh sửa hồ sơ
               </button>
             )}
           </div>

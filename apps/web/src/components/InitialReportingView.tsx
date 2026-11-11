@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { useAuthorization } from '../context/useAuthorization';
 import { requestJson } from '../services/api';
 import { CrmDialog } from './ui/CrmDialog';
+import { AppIcon } from './ui/AppIcon';
 import { WorkflowHistoryNavigation, HashChainLedger, type HashChainBlockItem } from './WorkflowHistoryNavigation';
 
 type Row = {
@@ -284,10 +285,13 @@ export function InitialReportingView() {
                     {STATUS_LABELS[row.status] || row.status}
                   </span>
                 </div>
-                <div style={{ fontSize: '13px', color: '#cbd5e1' }}>
-                  🏪 {stores.find((store) => store.id === row.storeId)?.name || row.storeId} · Quản lý trực tiếp:{' '}
-                  <strong style={{ color: '#60a5fa' }}>{row.managerName}</strong> · Hiệu lực:{' '}
-                  {new Date(row.validFrom).toLocaleString('vi-VN')}
+                <div style={{ fontSize: '13px', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  <AppIcon name="store" size={16} />
+                  <span>
+                    {stores.find((store) => store.id === row.storeId)?.name || row.storeId} · Quản lý trực tiếp:{' '}
+                    <strong style={{ color: '#60a5fa' }}>{row.managerName}</strong> · Hiệu lực:{' '}
+                    {new Date(row.validFrom).toLocaleString('vi-VN')}
+                  </span>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
@@ -432,7 +436,9 @@ export function InitialReportingView() {
                 border: `1px solid ${selected.auditIntegrity === 'VALID_LOCAL_CHAIN' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.35)'}`,
               }}
             >
-              <span style={{ fontSize: '18px' }}>{selected.auditIntegrity === 'VALID_LOCAL_CHAIN' ? '🛡️' : '⚠️'}</span>
+              {selected.auditIntegrity === 'VALID_LOCAL_CHAIN'
+                ? <AppIcon name="shieldCheck" size={18} style={{ color: '#34d399' }} />
+                : <AppIcon name="alert" size={18} style={{ color: '#f87171' }} />}
               <div>
                 <div style={{ fontSize: '12px', fontWeight: 700, color: selected.auditIntegrity === 'VALID_LOCAL_CHAIN' ? '#34d399' : '#f87171' }}>
                   {selected.auditIntegrity === 'VALID_LOCAL_CHAIN'
@@ -470,8 +476,8 @@ export function InitialReportingView() {
             </div>
 
             <div style={{ fontSize: '13px', color: '#cbd5e1', display: 'grid', gap: '4px' }}>
-              <div>📄 <strong>Bằng chứng:</strong> {selected.evidenceRef}</div>
-              <div>🕒 <strong>Hiệu lực:</strong> {new Date(selected.validFrom).toLocaleString('vi-VN')}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><AppIcon name="document" size={16} /><span><strong>Bằng chứng:</strong> {selected.evidenceRef}</span></div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><AppIcon name="clock" size={16} /><span><strong>Hiệu lực:</strong> {new Date(selected.validFrom).toLocaleString('vi-VN')}</span></div>
             </div>
 
             <HashChainLedger
@@ -482,8 +488,9 @@ export function InitialReportingView() {
 
             {selected.status === 'PENDING' &&
               !['PROVISIONING', 'PENDING_ACTIVATION', 'ACTIVATING', 'ACTIVE'].includes(selected.onboardingStatus || '') && (
-                <p role="status" style={{ color: '#fbbf24', fontSize: '13px', margin: 0 }}>
-                  ⏳ Chờ HR phê duyệt hồ sơ tiếp nhận trước khi duyệt quan hệ quản lý.
+                <p role="status" style={{ color: '#fbbf24', fontSize: '13px', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <AppIcon name="clock" size={16} />
+                  <span>Chờ HR phê duyệt hồ sơ tiếp nhận trước khi duyệt quan hệ quản lý.</span>
                 </p>
               )}
 
