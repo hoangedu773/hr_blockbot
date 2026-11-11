@@ -4,6 +4,8 @@ import type {
   AuthorizationCapability,
   F4Suggestions,
   PerformanceEvaluation,
+  PerformanceKpiEvaluationAction,
+  PerformanceKpiEvaluationActionPreview,
   Project,
   Report,
   TaskInstance,
@@ -28,7 +30,7 @@ import {
 import { performanceDate, performanceLabels, performanceNumber } from '../TaskDetailView';
 
 type Turn = { sender: 'user' | 'assistant'; text: string };
-type Step<T> = Generator<string, T, string>;
+type Step<T> = Generator<string, T, string> | AsyncGenerator<string, T, string>;
 type Plan = { summary: string; readOnly?: boolean; execute: (signal: AbortSignal) => Promise<string> };
 type Decision =
   | { step: Step<Plan>; optional?: boolean; canAcceptInput?: (text: string) => boolean }
@@ -290,7 +292,7 @@ export function detectWorkPerfIntent(text: string, session?: Session): WorkPerfI
   // unless the user asks for an action (tự nhận xét, kiến nghị, khiếu nại, phản hồi) or list/store/team view.
   const isSimpleOwnEvalRead = hasEvalScope
     && /\b(?:cua toi|cua minh|cua em|ca nhan)\b/.test(q)
-    && !/\b(?:tu nhan xet|tu danh gia|kien nghi|khieu nai|phan hoi|cham diem|cong bo|chot|danh sach|cua hang|doi ngu|can xu ly|cho cham)\b/.test(q);
+    && !/\b(?:tu nhan xet|tu danh gia|kien nghi|khieu nai|phan hoi|cham diem|cong bo|chot|danh sach|cua hang|doi ngu|can xu ly|cho cham|lich su|chi tiet)\b/.test(q);
   if (isSimpleOwnEvalRead) return null;
 
   if (!hasRegularProjectScope && !hasScoredTaskScope && !hasEvalScope && !session) return null;
@@ -338,6 +340,7 @@ export function detectWorkPerfIntent(text: string, session?: Session): WorkPerfI
   }
 
   if (activeDomain === 'evaluation') {
+    if (/\blich su\b/.test(q)) return 'eval-detail';
     if (/\b(?:xu ly khieu nai|quyet dinh khieu nai|duyet khieu nai)\b/.test(q)) return 'eval-appeal-decision';
     if (/\b(?:khieu nai|gui khieu nai)\b/.test(q)) return 'eval-appeal';
     if (/\b(?:phan hoi kien nghi|tra loi kien nghi|dong y phan hoi|rut kien nghi)\b/.test(q)) return 'eval-reconsider-response';
@@ -406,7 +409,6 @@ function describeTask(t: TaskInstance, names: Record<string, string>) {
 export function useWorkAndPerformanceChat({
   grants,
   onChanged,
-  onOpenKpiAction,
 }: {
   grants: readonly AuthorizationCapability[];
   onChanged: () => void;
@@ -464,6 +466,7 @@ export function useWorkAndPerformanceChat({
       step: Step<Plan>,
       options?: { optional?: boolean; canAcceptInput?: (input: string) => boolean },
     ) {
+      if (signal.aborted) return;
       if (result.done) {
         if (result.value.readOnly) {
           say(await result.value.execute(signal));
@@ -486,7 +489,7 @@ export function useWorkAndPerformanceChat({
       }
       if (pending && 'step' in pending) {
         decision.current = undefined;
-        await advance(pending.step.next(text), pending.step);
+        await advance(await pending.step.next(text), pending.step);
         return;
       }
       if (pending && 'plan' in pending) {
@@ -554,7 +557,7 @@ export function useWorkAndPerformanceChat({
           };
         }
         const step = conversionFlow();
-        await advance(step.next(), step);
+        await advance(await step.next(), step);
         return;
       }
       // ---- REGULAR PROJECT DOMAIN (Công việc & nghiệm thu + PhoBERT) ----
@@ -666,7 +669,7 @@ export function useWorkAndPerformanceChat({
           }
 
           const step = createProjectFlow();
-          await advance(step.next(), step);
+          await advance(await step.next(), step);
           return;
         }
 
@@ -817,7 +820,7 @@ export function useWorkAndPerformanceChat({
           }
 
           const step = suggestAndAssignFlow();
-          await advance(step.next(), step, {
+          await advance(await step.next(), step, {
             optional: intent === 'project-suggest',
             canAcceptInput: (input) => pickCandidate(input, advice.items).length > 0,
           });
@@ -876,7 +879,7 @@ export function useWorkAndPerformanceChat({
             };
           }
           const step = declineFlow();
-          await advance(step.next(), step);
+          await advance(await step.next(), step);
           return;
         }
 
@@ -984,7 +987,7 @@ export function useWorkAndPerformanceChat({
             };
           }
           const step = submitProjectReportFlow();
-          await advance(step.next(), step);
+          await advance(await step.next(), step);
           return;
         }
 
@@ -1033,7 +1036,7 @@ export function useWorkAndPerformanceChat({
               };
             }
             const step = reworkFlow();
-            await advance(step.next(), step);
+            await advance(await step.next(), step);
             return;
           }
 
@@ -1174,7 +1177,7 @@ export function useWorkAndPerformanceChat({
           };
         }
         const step = intake();
-        await advance(step.next(), step);
+        await advance(await step.next(), step);
         return;
       }
 
@@ -1217,7 +1220,7 @@ export function useWorkAndPerformanceChat({
           };
         }
         const step = reviewTemplate();
-        await advance(step.next(), step);
+        await advance(await step.next(), step);
         return;
       }
 
@@ -1333,7 +1336,7 @@ export function useWorkAndPerformanceChat({
             };
           }
           const step = refuseFlow();
-          await advance(step.next(), step);
+          await advance(await step.next(), step);
           return;
         }
 
@@ -1387,7 +1390,7 @@ export function useWorkAndPerformanceChat({
             };
           }
           const step = submitFlow();
-          await advance(step.next(), step);
+          await advance(await step.next(), step);
           return;
         }
 
@@ -1436,7 +1439,7 @@ export function useWorkAndPerformanceChat({
             };
           }
           const step = chooseSuggested();
-          await advance(step.next(), step, { optional: true, canAcceptInput: input => pickChoice(input, advice.items, c => c.fullName).length > 0 });
+          await advance(await step.next(), step, { optional: true, canAcceptInput: input => pickChoice(input, advice.items, c => c.fullName).length > 0 });
           return;
         }
 
@@ -1467,7 +1470,7 @@ export function useWorkAndPerformanceChat({
             };
           }
           const step = assignFlow();
-          await advance(step.next(), step);
+          await advance(await step.next(), step);
           return;
         }
 
@@ -1497,7 +1500,7 @@ export function useWorkAndPerformanceChat({
             };
           }
           const step = refusalDecisionFlow();
-          await advance(step.next(), step);
+          await advance(await step.next(), step);
           return;
         }
 
@@ -1577,7 +1580,7 @@ export function useWorkAndPerformanceChat({
             };
           }
           const step = evaluateTaskFlow();
-          await advance(step.next(), step);
+          await advance(await step.next(), step);
           return;
         }
       }
@@ -1627,7 +1630,7 @@ export function useWorkAndPerformanceChat({
       const ownEval = evaluations.find(e => e.employeeId === employeeId);
       const selected = picked[0]
         ?? (current.selectedId ? evaluations.find(e => e.id === current.selectedId) : undefined)
-        ?? (['eval-self-review', 'eval-reconsider', 'eval-appeal'].includes(intent) && ownEval ? ownEval : undefined)
+        ?? (['eval-detail', 'eval-self-review', 'eval-reconsider', 'eval-appeal'].includes(intent) && ownEval ? ownEval : undefined)
         ?? (candidates.length === 1 ? candidates[0] : undefined);
 
       if (!selected) {
@@ -1644,21 +1647,82 @@ export function useWorkAndPerformanceChat({
       if (intent === 'eval-detail') {
         const explained = await api.performanceExplain(selected.id);
         say([
+          `KPI hiệu suất · ${selected.employeeName} · Kỳ ${selected.period} · ${performanceLabels[selected.evaluationStatus] ?? selected.evaluationStatus}`,
           explained.summary,
+          ...selected.criteriaScores.map(c => `• ${c.name}: ${performanceNumber(c.score)}/100 · Trọng số áp dụng ${performanceNumber(c.effectiveWeightPercent)}%`),
+          selected.reconsideration?.responseReason ? 'Phản hồi kiến nghị · ' + selected.reconsideration.responseReason : '',
+          selected.appeal?.responseReason ? 'Kết luận khiếu nại ' + (selected.appeal.reviewerRole ?? '') + ' · ' + selected.appeal.responseReason : '',
+          ...(/\blich su\b/.test(q) ? selected.history.map(entry => {
+            const action = ({'EVALUATION_OPENED':'Mở hồ sơ','EVALUATION_MANAGER-SCORE':'Quản lý chấm điểm','EVALUATION_FINALIZE':'Công bố kết quả','EVALUATION_RECONSIDERATION':'Nhân viên kiến nghị','EVALUATION_RECONSIDERATION-RESPONSE':'Phản hồi kiến nghị','EVALUATION_APPEAL':'Nhân viên khiếu nại','EVALUATION_APPEAL-DECISION':'Quyết định khiếu nại'} as Record<string,string>)[entry.action] ?? 'Cập nhật hồ sơ';
+            return action + ' · ' + (entry.reason ?? '') + (typeof entry.before?.finalScore === 'number' && typeof entry.after?.finalScore === 'number' ? ' · Điểm ' + performanceNumber(entry.before.finalScore) + ' → ' + performanceNumber(entry.after.finalScore) : '');
+          }) : []),
           ...(explained.advice ?? []),
           selected.history.length ? `Chuỗi băm kiểm toán · Block #${selected.history.length} · SHA-256 ${selected.history[selected.history.length - 1].hash.slice(0, 12)}...` : '',
         ].filter(Boolean).join('\n'));
         return;
       }
 
-      if (intent === 'eval-score') {
-        if (onOpenKpiAction) {
-          onOpenKpiAction({ id: selected.id, period: selected.period, kind: 'detail' });
-          say(`Đã mở bảng chấm điểm theo tiêu chí cho ${selected.employeeName} (Kỳ ${selected.period}).`);
+      const adjusting = /\b(?:dieu chinh|sua diem|tang diem|giam diem)\b/.test(q);
+      if (intent === 'eval-score' || adjusting && ['eval-reconsider-response', 'eval-appeal-decision'].includes(intent)) {
+        const kind = intent === 'eval-score' ? 'evaluation.score'
+          : intent === 'eval-reconsider-response' ? 'reconsideration.response' : 'appeal.decision';
+        const required = kind === 'evaluation.score' ? 'performance_kpi.evaluate'
+          : kind === 'reconsideration.response' ? 'performance_kpi.reconsider' : 'performance_kpi.appeal_review';
+        if (!can(required) || kind !== 'appeal.decision' && selected.evaluatorEmployeeId !== employeeId) {
+          say('Bạn cần có quyền chấm hoặc giải quyết khiếu nại đối với hồ sơ này.');
           return;
         }
+        const evaluation = selected;
+        async function* scoreEvaluationFlow(): AsyncGenerator<string, Plan, string> {
+          const manual = evaluation.policySnapshot.frameworkSnapshot.criteria.filter(c => !['tasks', 'revenue'].includes(c.code));
+          const scores: {code: string; score: number | null; notApplicable: boolean; comment: string; evidenceRefs: string[]}[] = [];
+          for (const criterion of manual) {
+            while (true) {
+              const reply = yield criterion.name + ' · Trọng số ' + criterion.weightPercent + '%.\nNhập “điểm | lý do | bằng chứng”, ví dụ “85 | Hoàn thành đầy đủ | Biên bản kiểm tra”.\nNếu tiêu chí thiếu dữ liệu, nhập “không áp dụng | lý do”.';
+              const [raw, comment = '', ...proof] = reply.split('|').map(value => value.trim());
+              if (comment.length < 5 || comment.length > 2000) continue;
+              if (normalizeText(raw) === 'khong ap dung') {
+                scores.push({code: criterion.code, score: null, notApplicable: true, comment, evidenceRefs: []});
+                break;
+              }
+              const numeric = raw.replace(',', '.');
+              const evidence = proof.join(' | ');
+              if (!/^\d+(?:\.\d{1,2})?$/.test(numeric) || Number(numeric) > 100 || evidence.length < 5 || evidence.length > 2000) continue;
+              scores.push({code: criterion.code, score: Number(numeric), notApplicable: false, comment, evidenceRefs: [evidence]});
+              break;
+            }
+          }
+          let reason = note;
+          while (reason.trim().length < 5 || reason.length > 2000) reason = (yield 'Nhập nhận xét tổng hợp và căn cứ chấm KPI.').trim();
+          const content = {criteriaScores: scores, reason, evidenceRefs: [...new Set([reason, ...scores.flatMap(score => score.evidenceRefs)])],
+            ...(kind === 'evaluation.score' ? {} : {decision: 'ADJUSTED'})};
+          const proposal = await api.performancePost<{actionId: string; preview: PerformanceKpiEvaluationActionPreview}>('/chat/actions/performance/preview', {
+            domain: 'evaluation', kind, target: {evaluationId: evaluation.id}, content,
+          });
+          const preview = proposal.preview;
+          const clientRequestId = newClientMessageId();
+          return {
+            summary: ['Bản xem trước ' + (kind === 'evaluation.score' ? 'chấm' : 'điều chỉnh') + ' KPI · ' + evaluation.employeeName + ' · ' + evaluation.period,
+              ...(kind === 'evaluation.score' ? [
+                ...preview.criteriaScores.map(score => '• ' + (evaluation.policySnapshot.frameworkSnapshot.criteria.find(c => c.code === score.code)?.name ?? score.code) + ': ' + performanceNumber(score.projectedScore) + '/100 · Trọng số áp dụng ' + performanceNumber(score.effectiveWeightPercent) + '%'),
+                '• Điểm nhóm nhiệm vụ: ' + performanceNumber(preview.taskGroupScore) + '/100',
+                '• Tổng điểm dự kiến: ' + performanceNumber(preview.projectedFinalScore) + '/100',
+              ] : scores.map(score => '• ' + (manual.find(c => c.code === score.code)?.name ?? score.code) + ' · ' + (score.notApplicable ? 'Không áp dụng' : performanceNumber(score.score) + '/100') + ' · ' + score.comment)),
+              '• Nhận xét: ' + reason, ...preview.warnings].join('\n'),
+            execute: async () => {
+              const result = await api.performancePost<PerformanceKpiEvaluationAction>('/chat/actions/' + proposal.actionId + '/decision', {
+                approve: true, expectedVersion: preview.expectedVersion, planDigest: preview.planDigest, clientRequestId,
+              });
+              const saved = result.result?.evaluation;
+              if (!saved) throw new Error('Chưa lưu được điểm KPI. Hãy kiểm tra lại hồ sơ.');
+              return 'Đã ' + (kind === 'evaluation.score' ? 'lưu điểm' : 'điều chỉnh điểm') + ' KPI cho ' + saved.employeeName + ': ' + performanceNumber(saved.finalScore) + '/100 · ' + (performanceLabels[saved.evaluationStatus] ?? saved.evaluationStatus) + '.';
+            },
+          };
+        }
+        const step = scoreEvaluationFlow();
+        await advance(await step.next(), step);
+        return;
       }
-
       if (intent === 'eval-self-review') {
         function* selfReviewFlow(): Step<Plan> {
           let reviewText = note;
@@ -1679,7 +1743,7 @@ export function useWorkAndPerformanceChat({
           };
         }
         const step = selfReviewFlow();
-        await advance(step.next(), step);
+        await advance(await step.next(), step);
         return;
       }
 
@@ -1703,30 +1767,45 @@ export function useWorkAndPerformanceChat({
         return;
       }
 
-      if (intent === 'eval-reconsider') {
-        function* reconsiderFlow(): Step<Plan> {
-          let reason = note;
-          while (reason.trim().length < 5) {
-            reason = (yield `Nhập lý do và căn cứ kiến nghị xem xét lại điểm KPI hiệu suất kỳ ${selected.period} của ${selected.employeeName}:`).trim();
+      if (intent === 'eval-reconsider' || intent === 'eval-appeal') {
+        const appeal = intent === 'eval-appeal';
+        const subject = appeal ? 'khiếu nại độc lập' : 'kiến nghị';
+        if (!selected.criteriaScores.length) {
+          say('Hồ sơ chưa có tiêu chí đã chấm để gửi ' + subject + '.');
+          return;
+        }
+        function* disputeFlow(): Step<Plan> {
+          const criteria = selected.criteriaScores;
+          let pickedCriteria = criteria.filter(c => normalizeText(instruction).includes(normalizeText(c.name)));
+          while (!pickedCriteria.length) {
+            const reply = yield 'Bạn muốn gửi ' + subject + ' về tiêu chí nào?\n' +
+              criteria.map((c, i) => `${i + 1}. ${c.name} · ${performanceNumber(c.score)}/100`).join('\n') +
+              '\nNhập số thứ tự, tên tiêu chí hoặc “tất cả”.';
+            const normalized = normalizeText(reply);
+            pickedCriteria = normalized === 'tat ca' ? criteria : pickChoice(reply, criteria, c => c.name);
           }
-          const criterionCodes = selected.criteriaScores.map(c => c.code);
+          let reason = note;
+          while (reason.trim().length < 5 || reason.length > 2000) {
+            reason = (yield `Nhập lý do và bằng chứng gửi ${subject} cho kỳ ${selected.period}.`).trim();
+          }
+          const criterionCodes = pickedCriteria.map(c => c.code);
           return {
-            summary: `Gửi kiến nghị xem xét lại điểm KPI hiệu suất kỳ ${selected.period} (${selected.employeeName}) · Lý do: “${reason}”.`,
+            summary: `Gửi ${subject} KPI hiệu suất kỳ ${selected.period} (${selected.employeeName})\nTiêu chí · ${pickedCriteria.map(c => c.name).join(', ')}\nLý do và bằng chứng · ${reason}`,
             execute: async () => {
-              const updated = await api.performanceEvaluationAction(selected.id, 'reconsideration', {
+              const updated = await api.performanceEvaluationAction(selected.id, appeal ? 'appeal' : 'reconsideration', {
                 expectedVersion: selected.version,
                 clientRequestId: newClientMessageId(),
                 reason,
                 evidenceRefs: [reason],
-                criterionCodes: criterionCodes.length ? criterionCodes : ['service'],
-                taskIds: selected.taskBreakdown.map(t => t.taskId),
+                criterionCodes,
+                taskIds: criterionCodes.includes('tasks') ? selected.taskBreakdown.slice(0, 50).map(t => t.taskId) : [],
               });
-              return `Đã gửi kiến nghị cho kỳ ${updated.period}. Trạng thái: ${performanceLabels[updated.evaluationStatus] ?? updated.evaluationStatus}.`;
+              return `Đã gửi ${subject} cho kỳ ${updated.period}. Trạng thái: ${performanceLabels[updated.evaluationStatus] ?? updated.evaluationStatus}.`;
             },
           };
         }
-        const step = reconsiderFlow();
-        await advance(step.next(), step);
+        const step = disputeFlow();
+        await advance(await step.next(), step);
         return;
       }
 
@@ -1741,7 +1820,7 @@ export function useWorkAndPerformanceChat({
             reason = (yield `Nhập nội dung phản hồi kiến nghị cho hồ sơ ${selected.employeeName} (tối thiểu 5 ký tự):`).trim();
           }
           return {
-            summary: `Phản hồi kiến nghị hồ sơ ${selected.employeeName} · Quyết định: ${decisionKind} · Nội dung: “${reason}”.`,
+            summary: `Phản hồi kiến nghị hồ sơ ${selected.employeeName} · ${decisionKind === 'UPHELD' ? 'Giữ nguyên điểm' : decisionKind === 'ACCEPTED' ? 'Đồng ý với phản hồi' : 'Rút kiến nghị'} · Nội dung: “${reason}”.`,
             execute: async () => {
               const updated = await api.performanceEvaluationAction(selected.id, 'reconsideration-response', {
                 expectedVersion: selected.version,
@@ -1755,34 +1834,7 @@ export function useWorkAndPerformanceChat({
           };
         }
         const step = reconsiderResponseFlow();
-        await advance(step.next(), step);
-        return;
-      }
-
-      if (intent === 'eval-appeal') {
-        function* appealFlow(): Step<Plan> {
-          let reason = note;
-          while (reason.trim().length < 5) {
-            reason = (yield `Nhập lý do và bằng chứng gửi khiếu nại độc lập lên cấp trên (AM/HR) cho kỳ ${selected.period}:`).trim();
-          }
-          const criterionCodes = selected.criteriaScores.map(c => c.code);
-          return {
-            summary: `Gửi khiếu nại độc lập KPI hiệu suất kỳ ${selected.period} (${selected.employeeName}) · Lý do: “${reason}”.`,
-            execute: async () => {
-              const updated = await api.performanceEvaluationAction(selected.id, 'appeal', {
-                expectedVersion: selected.version,
-                clientRequestId: newClientMessageId(),
-                reason,
-                evidenceRefs: [reason],
-                criterionCodes: criterionCodes.length ? criterionCodes : ['service'],
-                taskIds: selected.taskBreakdown.map(t => t.taskId),
-              });
-              return `Đã gửi khiếu nại độc lập cho kỳ ${updated.period}. Trạng thái: ${performanceLabels[updated.evaluationStatus] ?? updated.evaluationStatus}.`;
-            },
-          };
-        }
-        const step = appealFlow();
-        await advance(step.next(), step);
+        await advance(await step.next(), step);
         return;
       }
 
@@ -1808,7 +1860,7 @@ export function useWorkAndPerformanceChat({
           };
         }
         const step = appealDecisionFlow();
-        await advance(step.next(), step);
+        await advance(await step.next(), step);
         return;
       }
     }
