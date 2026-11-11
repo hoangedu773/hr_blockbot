@@ -1645,18 +1645,21 @@ export function useWorkAndPerformanceChat({
       current.selectedId = selected.id;
 
       if (intent === 'eval-detail') {
+        const showHistory = /\blich su\b/.test(q);
         const explained = await api.performanceExplain(selected.id);
         say([
           `KPI hiệu suất · ${selected.employeeName} · Kỳ ${selected.period} · ${performanceLabels[selected.evaluationStatus] ?? selected.evaluationStatus}`,
-          explained.summary,
-          ...selected.criteriaScores.map(c => `• ${c.name}: ${performanceNumber(c.score)}/100 · Trọng số áp dụng ${performanceNumber(c.effectiveWeightPercent)}%`),
-          selected.reconsideration?.responseReason ? 'Phản hồi kiến nghị · ' + selected.reconsideration.responseReason : '',
-          selected.appeal?.responseReason ? 'Kết luận khiếu nại ' + (selected.appeal.reviewerRole ?? '') + ' · ' + selected.appeal.responseReason : '',
-          ...(/\blich su\b/.test(q) ? selected.history.map(entry => {
+          explained.summary.split('\n')[0],
+          ...(showHistory ? ['\nLịch sử xử lý', ...selected.history.map(entry => {
             const action = ({'EVALUATION_OPENED':'Mở hồ sơ','EVALUATION_MANAGER-SCORE':'Quản lý chấm điểm','EVALUATION_FINALIZE':'Công bố kết quả','EVALUATION_RECONSIDERATION':'Nhân viên kiến nghị','EVALUATION_RECONSIDERATION-RESPONSE':'Phản hồi kiến nghị','EVALUATION_APPEAL':'Nhân viên khiếu nại','EVALUATION_APPEAL-DECISION':'Quyết định khiếu nại'} as Record<string,string>)[entry.action] ?? 'Cập nhật hồ sơ';
-            return action + ' · ' + (entry.reason ?? '') + (typeof entry.before?.finalScore === 'number' && typeof entry.after?.finalScore === 'number' ? ' · Điểm ' + performanceNumber(entry.before.finalScore) + ' → ' + performanceNumber(entry.after.finalScore) : '');
-          }) : []),
-          ...(explained.advice ?? []),
+            return '• ' + action + ' · ' + (entry.reason ?? '');
+          })] : [
+            ...selected.criteriaScores.map(c => `• ${c.name}: ${performanceNumber(c.score)}/100 · Trọng số áp dụng ${performanceNumber(c.effectiveWeightPercent)}%`),
+            ...selected.taskBreakdown.filter(t => t.inclusionStatus === 'INCLUDED').map(t => `• Nhiệm vụ ${t.title}: ${performanceNumber(t.score)}/100 · ${performanceNumber(t.normalizedWeightPercent)}% trong nhóm nhiệm vụ`),
+            selected.reconsideration?.responseReason ? 'Phản hồi kiến nghị · ' + selected.reconsideration.responseReason : '',
+            selected.appeal?.responseReason ? 'Kết luận khiếu nại ' + (selected.appeal.reviewerRole ?? '') + ' · ' + selected.appeal.responseReason : '',
+            ...(explained.advice ?? []),
+          ]),
           selected.history.length ? `Chuỗi băm kiểm toán · Block #${selected.history.length} · SHA-256 ${selected.history[selected.history.length - 1].hash.slice(0, 12)}...` : '',
         ].filter(Boolean).join('\n'));
         return;
