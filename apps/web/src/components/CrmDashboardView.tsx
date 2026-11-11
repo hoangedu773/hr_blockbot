@@ -510,7 +510,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({
         createPortal(
           (activeView === 'performanceKpi' || activeView === 'kpi') && allowedViews[activeView] ? (
             <EmployeeKpiWorkspace key={activeView} performance={canReadPerformanceKpi} legacy={canReadLegacyKpi}
-              historyFirst={activeView === 'kpi'} onOpenWork={canReadScoredWork ? openScoredWork : undefined} onNotify={safeNotify} />
+              onOpenWork={canReadScoredWork ? openScoredWork : undefined} />
           ) : activeView === 'revenueKpi' && allowedViews.revenueKpi ? (
             <RevenueKpiView />
           ) : activeView === 'sales' && allowedViews.sales ? (

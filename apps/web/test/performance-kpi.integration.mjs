@@ -39,11 +39,13 @@ try{
  const {hr,sm,am,staff,ptch,staffB}=actors;
  assert.equal(await staff.locator('[data-section="kpi"]').count(),0);
  await staff.getByLabel('Kỳ đánh giá',{exact:true}).fill('2026-10');
- await staff.getByRole('heading',{name:'Kết quả theo mẫu đánh giá cũ'}).waitFor();
- await staff.getByText('86.0',{exact:true}).waitFor();
+ await staff.getByText('Kết quả đã công bố trước đây (1)',{exact:true}).click();
+ await staff.getByText('Điểm đã công bố · 86 / 100',{exact:true}).waitFor();
  await staff.getByText('Lý do hiệu chỉnh: Căn cứ từ mẫu cũ.',{exact:true}).waitFor();
  await staff.getByLabel('Kỳ đánh giá',{exact:true}).fill('2026-09');
- await staff.getByRole('button',{name:'Lưu tự nhận xét',exact:true}).waitFor();
+ await settle(staff);
+ assert.equal(await staff.getByRole('button',{name:'Lưu tự nhận xét',exact:true}).count(),0);
+ assert.equal(await staff.getByRole('button',{name:'Mẫu cũ đang xử lý',exact:true}).count(),0);
  await staff.locator('.crm-copilot').click();
  await staff.getByLabel('Tin nhắn cho Guta AI').fill('KPI hiệu suất tháng 10/2026 của tôi thế nào?');
  await staff.getByLabel('Tin nhắn cho Guta AI').press('Enter');
@@ -174,6 +176,59 @@ try{
  await ptch.locator('[data-section="performanceKpi"]').click();await ptch.getByLabel('Kỳ đánh giá',{exact:true}).fill('2026-11');await settle(ptch);
 
 
+ // Regression: one active assessment workflow, scoped HR migration and read-only published history.
+ {
+   const Framework = await import('../../api/dist/services/performance-kpi-framework.service.js');
+   const { EvaluationModel } = await import('../../api/dist/models/Evaluation.js');
+   const policy = await Framework.publishPerformancePolicy(principals.hr,'2026-12',cmd(0,{
+     role:'STAFF',frameworkId:f.policies.STAFF.frameworkId,policy:f.policies.STAFF.policy,reason:'Chính sách kiểm thử chuyển mẫu.',isDemo:true,
+   }));
+   const legacy = await EvaluationModel.create({employeeId:f.actors.staff.employee._id,employeeName:'Isolated V1 staff',
+     storeId:f.stores[0]._id,departmentId:f.departmentId,period:'2026-12',status:'OPEN',version:3,
+     managerReview:'Nhận xét quản lý giữ lại khi chuyển.',managerScore:74});
+   await EvaluationModel.create({employeeId:f.actors.ptch.employee._id,employeeName:'Historical PTCH',
+     storeId:f.stores[0]._id,departmentId:f.departmentId,period:'2026-12',status:'PUBLISHED',version:2,finalScore:88});
+
+   await hr.getByLabel('Kỳ đánh giá',{exact:true}).fill('2026-12'); await settle(hr);
+   const queue=hr.getByRole('region',{name:'Hồ sơ cần HR xác minh',exact:true});
+   await queue.getByRole('button',{name:'Xem trước chuyển hồ sơ',exact:true}).click();
+   const preview=queue.getByRole('region',{name:'Xem trước chuyển hồ sơ',exact:true});
+   assert.match(await preview.innerText(),/74/);
+   assert.equal((await EvaluationModel.findById(legacy._id).lean()).frameworkVersion,null);
+   await preview.getByRole('button',{name:'Xác nhận chuyển hồ sơ',exact:true}).click();
+   await queue.waitFor({state:'hidden'});
+   const converted=await E.getPerformanceEvaluation(principals.staff,String(legacy._id));
+   assert.equal(converted.previousReview.managerScore,74);
+   assert.equal(converted.finalScore,null);
+   await sm.getByLabel('Kỳ đánh giá',{exact:true}).fill('2026-12'); await settle(sm);
+   const assessment=sm.getByRole('article',{name:'Đánh giá Isolated V1 staff',exact:true});
+   await assessment.getByRole('button',{name:'Chấm điểm theo tiêu chí',exact:true}).waitFor();
+   assert.equal(await sm.getByRole('button',{name:'Mẫu cũ đang xử lý',exact:true}).count(),0);
+   await assessment.getByText('Căn cứ đã lưu khi chuyển hồ sơ',{exact:true}).click();
+   assert.match(await assessment.innerText(),/74/);
+   const chatPolicy=await Framework.publishPerformancePolicy(principals.hr,'2026-08',cmd(0,{
+     role:'STAFF',frameworkId:f.policies.STAFF.frameworkId,policy:f.policies.STAFF.policy,reason:'Chính sách kiểm thử chuyển hồ sơ trong chat.',isDemo:true,
+   }));
+   const chatLegacy=await EvaluationModel.create({employeeId:f.actors.staff.employee._id,employeeName:'Isolated V1 staff',
+     storeId:f.stores[0]._id,departmentId:f.departmentId,period:'2026-08',status:'OPEN',version:1,managerReview:'Nhận xét nguồn qua chat.',managerScore:74});
+   await hr.locator('.crm-copilot').click();
+   async function migrationChat(prompt,expected) {
+     const replies=hr.locator('.guta-chat-message[data-sender="assistant"]'),n=await replies.count();
+     await hr.getByLabel('Tin nhắn cho Guta AI').fill(prompt);
+     await hr.getByLabel('Tin nhắn cho Guta AI').press('Enter');
+     const reply=replies.nth(n);await reply.waitFor();assert.match(await reply.innerText(),expected);
+   }
+   await migrationChat('Chuyển hồ sơ KPI hiệu suất tháng 8/2026',/Sẵn sàng chuyển/);
+   await migrationChat('1',/Điểm quản lý tham khảo · 74/);
+   assert.equal((await EvaluationModel.findById(chatLegacy._id).lean()).frameworkVersion,null);
+   await migrationChat('Xác nhận',/Đã chuyển hồ sơ/);
+   assert.equal((await E.getPerformanceEvaluation(principals.staff,String(chatLegacy._id))).finalScore,null);
+   await hr.getByRole('button',{name:'Quay lại CRM',exact:true}).click();
+   await hr.locator('[data-section="performanceKpi"]').click();
+   await hr.getByLabel('Kỳ đánh giá',{exact:true}).fill('2026-11'); await settle(hr);
+   await sm.getByLabel('Kỳ đánh giá',{exact:true}).fill('2026-11'); await settle(sm);
+   console.log('PASS unified KPI workspace: HR previews conversion, saved score remains reference, SM uses rubric, no legacy active tab');
+ }
  for(const [role,page]of Object.entries({hr,sm,am,staff,ptch})){await page.getByRole('tab').first().click();await refresh(page);await page.getByRole('button',{name:'Chế độ sáng',exact:true}).click();await page.getByRole('heading',{name:'KPI hiệu suất',exact:true}).scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,role+'-desktop.png')});await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.screenshot({path:path.join(output,role+'-mobile.png')});assert.doesNotMatch(await page.locator('.pf-view').innerText(),/[a-f0-9]{24}|expectedVersion|allowlist|DTO|payloadHash/);}
  await hr.setViewportSize({width:1440,height:1050});await hr.getByRole('tab',{name:'Bộ tiêu chí và chính sách'}).click();await hr.getByRole('button',{name:'Tạo bộ tiêu chí',exact:true}).click();await hr.keyboard.press('Escape');assert.equal(await hr.locator('.pf-dialog[open]').count(),0);assert.equal(await hr.getByRole('button',{name:'Tạo bộ tiêu chí',exact:true}).evaluate(e=>e===document.activeElement),true);
  assert.deepEqual(errors,[]);console.log('PASS performance KPI real browser/API/owned Mongo: self review, criterion scoring, 62.5/89.29 grounded explain and persisted chatbot card→request form, reconsideration→AM→HR independent, final; mixed list and type filters, regular-default create and KPI toggle, scoped AI draft and HR publication, work create/assign/accept/progress/submit/rubric; PTCH own framework; staffB privacy; five roles desktop/mobile, Escape/focus; no vendor calls');

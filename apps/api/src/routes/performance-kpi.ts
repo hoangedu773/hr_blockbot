@@ -1,3 +1,4 @@
+import { pendingPerformanceMigrations, migratePerformanceEvaluation } from '../services/performance-kpi-migration.service.js';
 import { performanceCatalog } from '../services/performance-kpi-catalog.service.js';
 import { summarizePerformanceEvaluation } from '../services/performance-kpi-ai.service.js';
 import { Router } from 'express';
@@ -10,6 +11,8 @@ import * as F from '../services/performance-kpi-framework.service.js';
 import * as E from '../services/performance-kpi-evaluation.service.js';
 import { explainPerformanceKpi } from '../services/performance-kpi-explain.service.js';
 const router=Router();router.use('/performance-kpi',authenticateToken);
+router.get('/performance-kpi/migrations/:period',endpoint(async(req,res)=>{res.json(await pendingPerformanceMigrations(req.user!,String(req.params.period)));}));
+router.post('/performance-kpi/migrations/:id/convert',endpoint(async(req,res)=>{res.json(await migratePerformanceEvaluation(req.user!,String(req.params.id),req.body));}));
 router.get('/performance-kpi/config',endpoint(async(_req,res)=>{res.json({enabled:performanceEnabled()});}));
 router.use('/performance-kpi',(_req,res,next)=>{if(!performanceEnabled()){res.status(503).json({error:{code:'PERFORMANCE_KPI_DISABLED',message:'KPI hiệu suất chưa được bật.'}});return;}next();});
 router.get('/performance-kpi/catalog',endpoint(async(req,res)=>{res.json(await performanceCatalog(req.user!));}));

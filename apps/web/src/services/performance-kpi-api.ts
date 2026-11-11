@@ -21,3 +21,13 @@ export const suggestDraftTaskCandidates = (body: { storeId: string; description:
   performancePost<F4Suggestions>('/tasks/suggest-candidates', body);
 export const suggestTaskCandidates = (id: string, requiredSkills?: string[]) =>
   performancePost<F4Suggestions>('/tasks/' + encodeURIComponent(id) + '/suggest-candidates', { requiredSkills });
+
+export type PendingPerformanceMigration = {
+  id: string; employeeName: string; period: string; version: number;
+  policyId: string | null; blockedReason: string | null; canConvert: boolean;
+  selfReview: string | null; managerReview: string | null; managerScore: number | null;
+};
+export const performanceMigrations = (period: string) =>
+  requestJson<{ items: PendingPerformanceMigration[] }>('/performance-kpi/migrations/' + period);
+export const performanceConvertEvaluation = (id: string, body: unknown) =>
+  performancePost<PerformanceEvaluation>('/performance-kpi/migrations/' + id + '/convert', body);

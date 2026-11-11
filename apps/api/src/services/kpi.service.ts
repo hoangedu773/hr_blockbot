@@ -122,6 +122,11 @@ function history(user: AuthenticatedUser, action: "OPENED" | "SELF_REVIEW" | "MA
   return { at: new Date().toISOString(), by: user.employeeId || user.userId, action, fromScore, toScore, reason };
 }
 const actor = (user: AuthenticatedUser) => user.employeeId || user.userId;
+function requireLegacyWrite() {
+  if (process.env.PERFORMANCE_KPI_ENABLED === 'true') {
+    throw new WorkflowError(409, 'KPI_USE_EVIDENCE_ASSESSMENT', 'Sử dụng KPI hiệu suất theo bằng chứng. HR chuyển hồ sơ đang mở trước khi chấm tiếp.');
+  }
+}
 
 function assertCanManage(user: AuthenticatedUser, evaluation: any, capability: "kpi.manage" | "kpi.publish" | "kpi.override") {
   if (String(evaluation.employeeId) === String(user.employeeId)) {
@@ -195,6 +200,7 @@ export async function listDepartment(user: AuthenticatedUser, period: string) {
 }
 
 export async function saveSelfReview(user: AuthenticatedUser, id: string, input: { text: string; expectedVersion: number }) {
+  requireLegacyWrite();
   if (!mongoose.Types.ObjectId.isValid(id)) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy bản đánh giá.");
   const evaluation: any = await EvaluationModel.findOne({ _id: id, frameworkVersion: { $not: { $gte: 2 } } });
   if (!evaluation) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy bản đánh giá.");
@@ -211,6 +217,7 @@ export async function saveSelfReview(user: AuthenticatedUser, id: string, input:
 }
 
 export async function saveManagerReview(user: AuthenticatedUser, id: string, input: { text: string; managerScore: number; expectedVersion: number }) {
+  requireLegacyWrite();
   if (!mongoose.Types.ObjectId.isValid(id)) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy bản đánh giá.");
   const evaluation: any = await EvaluationModel.findOne({ _id: id, frameworkVersion: { $not: { $gte: 2 } } }).lean();
   if (!evaluation) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy bản đánh giá.");
@@ -226,6 +233,7 @@ export async function saveManagerReview(user: AuthenticatedUser, id: string, inp
 }
 
 export async function analyzeEvaluation(user: AuthenticatedUser, id: string, expectedVersion: number) {
+  requireLegacyWrite();
   if (!mongoose.Types.ObjectId.isValid(id)) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy bản đánh giá.");
   const evaluation: any = await EvaluationModel.findOne({ _id: id, frameworkVersion: { $not: { $gte: 2 } } }).lean();
   if (!evaluation) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy bản đánh giá.");
@@ -255,6 +263,7 @@ export async function analyzeEvaluation(user: AuthenticatedUser, id: string, exp
 }
 
 export async function publishEvaluation(user: AuthenticatedUser, id: string, input: { expectedVersion: number; finalScore?: number; overrideReason?: string }) {
+  requireLegacyWrite();
   if (!mongoose.Types.ObjectId.isValid(id)) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy bản đánh giá.");
   const evaluation: any = await EvaluationModel.findOne({ _id: id, frameworkVersion: { $not: { $gte: 2 } } }).lean();
   if (!evaluation) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy bản đánh giá.");
@@ -294,6 +303,7 @@ export async function publishEvaluation(user: AuthenticatedUser, id: string, inp
 }
 
 export async function overrideEvaluation(user: AuthenticatedUser, id: string, input: { expectedVersion: number; finalScore: number; reason: string }) {
+  requireLegacyWrite();
   if (!mongoose.Types.ObjectId.isValid(id)) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy bản đánh giá.");
   const evaluation: any = await EvaluationModel.findOne({ _id: id, frameworkVersion: { $not: { $gte: 2 } } }).lean();
   if (!evaluation) throw new WorkflowError(404, "RESOURCE_NOT_FOUND", "Không tìm thấy bản đánh giá.");

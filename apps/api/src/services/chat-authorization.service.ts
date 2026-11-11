@@ -836,7 +836,7 @@ export async function readDepartmentKpi(user: AuthenticatedUser, resolvedPeriod:
     .lean();
   const average = (values: number[]) => values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length * 100) / 100 : null;
   const v2Rows = allRows.filter((row) => row.frameworkVersion >= 2);
-  if (v2Rows.length > 0 && allRows.length === v2Rows.length) {
+  if (process.env.PERFORMANCE_KPI_ENABLED === 'true' || v2Rows.length > 0 && allRows.length === v2Rows.length) {
     const scored = v2Rows.filter((row) => {
       const status = row.evaluationStatus ?? row.performanceSnapshot?.evaluationStatus;
       const score = row.finalScore ?? row.performanceSnapshot?.finalScore;
@@ -1049,7 +1049,7 @@ export async function executeGatewayTool(token: string, body: unknown) {
         ? { period, available: true, status: row.status, finalScore: row.finalScore, machineScore: row.machineScore,
             explanation: row.analysis?.explanation ?? null, themes: row.analysis?.themes ?? [], riskSignals: row.analysis?.riskSignals ?? [],
             overrideReason: row.overrideReason ?? null, publishedAt: row.publishedAt }
-        : { period, available: false, status: row.status, message: "Kỳ đánh giá chưa được công bố; chỉ xem chi tiết sau khi quản lý chốt." };
+        : { period, available: false, status: row.status, message: process.env.PERFORMANCE_KPI_ENABLED === "true" ? "Hồ sơ cần HR xác minh và chuyển sang đánh giá theo bằng chứng trước khi chấm tiếp." : "Kỳ đánh giá chưa được công bố; chỉ xem chi tiết sau khi quản lý chốt." };
     legacyEvaluations.push({
       period,
       employeeId: user.employeeId,

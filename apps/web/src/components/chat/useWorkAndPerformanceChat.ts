@@ -71,6 +71,7 @@ export type WorkPerfIntent =
   | 'task-submit'
   | 'task-evaluate'
   | 'task-refusal-decision'
+  | 'eval-migrate'
   | 'eval-list'
   | 'eval-pending'
   | 'eval-detail'
@@ -268,6 +269,8 @@ export function detectWorkPerfIntent(text: string, session?: Session): WorkPerfI
   if (/\b(?:quy dinh|quy che|bieu mau|huong dan|cach tinh|cong thuc|di tre|nghi le|cham cong|lich lam|phan ca|bang dang ky ca|dang ky ca|ca truc|doi ca|tiep nhan nhan vien|ho so tiep nhan|kpi doanh thu|chi tieu doanh thu|doanh thu|tien ket|bao cao ban hang|uy quyen|danh sach chi nhanh|danh sach cua hang|danh ba nhan su|danh sach nhan su|danh sach nhan vien|ho so cua toi|so dien thoai|yeu cau sua ho so|yeu cau cap nhat ho so|thong bao|xin bo sung nhan su|dieu chuyen)\b/.test(q)) {
     return null;
   }
+
+  if (/\b(?:chuyen|xac minh)\b.*\bho so\b.*\bkpi\b|\bkpi\b.*\b(?:can chuyen|can xac minh)\b/.test(q)) return 'eval-migrate';
 
   // Scored KPI tasks explicitly mention "có thang điểm" or "nhiệm vụ"
   const templateAction = /\b(?:goi y|de xuat) (?:mau|thang) (?:cham|diem)\b/.test(q) ? 'task-template-propose'
@@ -510,6 +513,50 @@ export function useWorkAndPerformanceChat({
 
       const period = resolvePeriod(instruction, session.current?.period ?? currentMonthVN());
 
+      if (intent === 'eval-migrate') {
+        if (!can('performance_kpi.policy_manage')) {
+          say('HR có quyền quản lý chính sách sẽ xác minh và chuyển hồ sơ KPI.');
+          return;
+        }
+        const { items } = await api.performanceMigrations(period);
+        if (signal.aborted) return;
+        if (!items.length) { say('Không có hồ sơ KPI cần chuyển trong kỳ ' + period + '.'); return; }
+        if (!items.some(item => item.canConvert)) {
+          say(['Có ' + items.length + ' hồ sơ cần HR xác minh trước khi chuyển:',
+            ...items.map((item, index) => (index + 1) + '. ' + item.employeeName + ' · ' + item.blockedReason),
+            'HR cần xác minh tài khoản, cửa hàng và quản lý trực tiếp rồi yêu cầu chuyển lại.'].join('\n'));
+          return;
+        }
+        function* conversionFlow(): Step<Plan> {
+          let chosen: api.PendingPerformanceMigration | undefined;
+          while (!chosen) {
+            const reply = yield ['Hồ sơ KPI cần xác minh trong kỳ ' + period + ':',
+              ...items.map((item, index) => (index + 1) + '. ' + item.employeeName + ' · ' + (item.canConvert ? 'Sẵn sàng chuyển' : item.blockedReason)),
+              'Chọn số thứ tự của hồ sơ sẵn sàng chuyển hoặc nhắn “hủy”.'].join('\n');
+            const number = /^(?:(?:mục|muc|số|so)\s*)?(\d+)$/i.exec(reply.trim());
+            const candidate = number ? items[Number(number[1]) - 1] : undefined;
+            if (candidate?.canConvert) chosen = candidate;
+          }
+          const target = chosen;
+          const clientRequestId = newClientMessageId();
+          return {
+            summary: ['Chuyển hồ sơ ' + target.employeeName + ' kỳ ' + period + ' sang đánh giá theo bằng chứng.',
+              'Nhận xét quản lý đã lưu · ' + (target.managerReview ?? 'Chưa có'),
+              'Điểm quản lý tham khảo · ' + (target.managerScore ?? 'Chưa có'),
+              'Người quản lý sẽ chấm từng tiêu chí theo chính sách của kỳ.'].join('\n'),
+            execute: async () => {
+              await api.performanceConvertEvaluation(target.id, {
+                expectedVersion: target.version, clientRequestId, policyId: target.policyId,
+                reason: 'HR xác nhận chuyển hồ sơ qua chatbot theo mẫu đánh giá theo bằng chứng.',
+              });
+              return 'Đã chuyển hồ sơ ' + target.employeeName + '. Người quản lý có thể chấm KPI theo từng tiêu chí.';
+            },
+          };
+        }
+        const step = conversionFlow();
+        await advance(step.next(), step);
+        return;
+      }
       // ---- REGULAR PROJECT DOMAIN (Công việc & nghiệm thu + PhoBERT) ----
       if (intent.startsWith('project-')) {
         const [{ items: allProjects }, me] = await Promise.all([

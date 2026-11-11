@@ -284,7 +284,7 @@ async function buildTaskPreview(u: AuthenticatedUser, kind: string, target: { po
             const ev = C.PerformanceEvaluationSchema.parse(existing.performanceSnapshot);
             if (ev.policyId === p.id) willSkip.push(item({ employeeId, evaluationId: ev.id, employeeName: ev.employeeName, storeId: ev.storeId, currentStatus: ev.evaluationStatus }));
             else blocked.push(item({ employeeId, evaluationId: ev.id, code: 'RESPONSIBILITY_CONFLICT', message: 'Nhân viên đã có framework khác trong kỳ.' }));
-          } else blocked.push(item({ employeeId, code: 'INVALID_STATE', message: 'Nhân viên đã có F5 phiên bản cũ trong kỳ; giữ nguyên, không chuyển công thức.' }));
+          } else blocked.push(item({ employeeId, code: 'INVALID_STATE', message: 'Hồ sơ kỳ này đã tồn tại. HR xem hàng đợi xác minh để chuyển hồ sơ đang mở; kết quả đã công bố được tra cứu trong lịch sử.' }));
           continue;
         }
         willCreate.push(item({ employeeId, employeeName: employee.fullName ?? employee.full_name ?? null, storeId: String(employee.storeId), projectedStatus: 'OPEN' }));
